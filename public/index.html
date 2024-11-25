@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ボットとの会話</title>
+    <script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
+    <style>
+        #webchat {
+            height: 600px;
+            width: 100%;
+            border: 1px solid #ccc;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Web Chat でボットと会話</h1>
+
+    <div id="webchat"></div> <!-- Web Chatが表示される場所 -->
+
+    <script>
+        // サーバーから Direct Line シークレットを非同期に取得
+        fetch('/secret')
+            .then(response => response.json())
+            .then(data => {
+                const directLineSecret = data.directLineSecret;
+
+                // Direct Line 接続の初期化
+                const directLine = window.WebChat.createDirectLine({
+                    secret: directLineSecret,
+                });
+
+                // Web Chatを表示
+                window.WebChat.renderWebChat({
+                    directLine: directLine,
+                    userID: 'user1',  // ユーザーID（任意）
+                    username: 'ユーザー名',  // ユーザー名（任意）
+                    locale: 'ja-JP'  // 日本語ロケール
+                }, document.getElementById('webchat'));
+            })
+            .catch(error => {
+                console.error("Failed to fetch the Direct Line secret:", error);
+            });
+    </script>
+</body>
+</html>
