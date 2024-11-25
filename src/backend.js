@@ -1,5 +1,4 @@
-// app.js
-require('dotenv').config();
+require('dotenv').config();  // .env ファイルから環境変数を読み込む
 
 const restify = require('restify');
 const { BotFrameworkAdapter, ActivityHandler } = require('botbuilder');
@@ -7,9 +6,10 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-// OpenAI API キーとエンドポイント
+// 環境変数の読み込み
 const openaiApiKey = process.env.OPENAI_API_KEY;
-const openaiApiUrl = 'https://api.openai.com/v1/chat/completions';
+const openaiApiUrl = process.env.OPENAI_API_URL;  // .env から取得
+const directLineSecret = process.env.DIRECT_LINE_SECRET;  // Direct Line シークレット
 
 // サーバー作成
 const server = restify.createServer();
@@ -19,8 +19,8 @@ server.listen(3978, () => {
 
 // BotFrameworkAdapterを作成
 const adapter = new BotFrameworkAdapter({
-    appId: process.env.MICROSOFT_APP_ID,
-    appPassword: process.env.MICROSOFT_APP_PASSWORD
+    appId: process.env.REACT_APP_AZURE_APP_CLIENT_ID,
+    appPassword: process.env.REACT_APP_AZURE_APP_PASSWOR
 });
 
 // ボットの作成
@@ -53,11 +53,9 @@ bot.onMessage(async (context, next) => {
 
 // ユーザーのメッセージを解析して関連するチャンクテキストを取得する関数
 async function getChunkResponseFromUserMessage(userMessage) {
-    // メッセージに基づいてファイル名を特定
     const keyword = userMessage.match(/ザーハード/);  // キーワードを抽出（例：ザーハード）
     if (keyword) {
-        // キーワードが見つかれば、対応するチャンクファイルを検索
-        const chunkFile = `ザーハード1.txt`; // 例えばザーハードに関連するファイル名を選定
+        const chunkFile = `ザーハード1.txt`;  // 例えばザーハードに関連するファイル名を選定
         return await getTextFromFile(chunkFile);
     } else {
         return null;  // キーワードが見つからなかった場合
