@@ -17,3 +17,7 @@
 - **Restify サーバー**: Node.js 用の軽量な REST サーバーを作成。
 - **BotFrameworkAdapter**: Microsoft の Bot Framework を使用してボットのリクエストを処理。
 - **OpenAI GPT-4o-mini API**: ユーザーからのメッセージを受け取って、GPT-4o-mini API にリクエストを送信し、生成された返答を返します。
+
+ngrok http 3978
+
+ode app.js 
