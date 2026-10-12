@@ -1,0 +1,375 @@
+:root {
+  color-scheme: light dark;
+
+  --bg: #f4f5fb;
+  --surface: #ffffff;
+  --surface-muted: #eceefa;
+  --text: #1c1e2e;
+  --text-muted: #5c6079;
+  --border: #d5d8ea;
+  --accent: #5a4bf0;
+  --accent-text: #ffffff;
+  --user-bg: #5a4bf0;
+  --user-text: #ffffff;
+  --danger-bg: #fdecec;
+  --danger-border: #f0a8a8;
+  --danger-text: #7a1717;
+  --focus: #f2a65a;
+
+  --font: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+    'Noto Sans JP', Meiryo, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12131c;
+    --surface: #1c1e2c;
+    --surface-muted: #262942;
+    --text: #e8e9f4;
+    --text-muted: #a3a7c4;
+    --border: #353852;
+    --accent: #8f84ff;
+    --accent-text: #12131c;
+    --user-bg: #4a3fcf;
+    --user-text: #ffffff;
+    --danger-bg: #3a1c20;
+    --danger-border: #8f3a44;
+    --danger-text: #ffd5d9;
+    --focus: #f2a65a;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+button,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- レイアウト ---- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 48rem;
+  margin: 0 auto;
+  background: var(--bg);
+}
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.app-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mode-badge {
+  padding: 0.1rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* ---- ボタン ---- */
+
+.btn {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+/* ---- メッセージ ---- */
+
+.message-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+  padding: 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.empty-state {
+  margin: auto;
+  max-width: 28rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.message {
+  max-width: min(85%, 36rem);
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.message-user {
+  align-self: flex-end;
+  border-color: var(--user-bg);
+  border-bottom-right-radius: 0.25rem;
+  background: var(--user-bg);
+  color: var(--user-text);
+}
+
+.message-assistant {
+  align-self: flex-start;
+  border-bottom-left-radius: 0.25rem;
+  background: var(--surface);
+}
+
+.message-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.message-pending {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text-muted);
+}
+
+.typing-dots {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.typing-dots span {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: blink 1.2s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-dots span {
+    animation: none;
+  }
+}
+
+/* ---- 参照した設定資料 ---- */
+
+.sources {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+  font-size: 0.9rem;
+}
+
+.sources summary {
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.sources-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.source {
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+}
+
+.source-name {
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.source-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* ---- エラー ---- */
+
+.error-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin: 0 1rem 0.5rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--danger-border);
+  border-radius: 0.5rem;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.error-text {
+  flex: 1 1 14rem;
+}
+
+.error-text p {
+  margin: 0;
+}
+
+.error-hint {
+  font-size: 0.9rem;
+}
+
+.error-banner .btn {
+  border-color: var(--danger-border);
+  background: transparent;
+}
+
+/* ---- 入力欄 ---- */
+
+.composer {
+  padding: 0.75rem 1rem;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.composer-input {
+  display: block;
+  width: 100%;
+  min-height: 3.5rem;
+  max-height: 10rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  resize: vertical;
+}
+
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.counter {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 420px) {
+  .app-header {
+    padding-inline: 0.75rem;
+  }
+
+  .message-list {
+    padding: 0.75rem;
+  }
+
+  .message {
+    max-width: 92%;
+  }
+
+  .error-banner {
+    margin-inline: 0.75rem;
+  }
+
+  .composer {
+    padding-inline: 0.75rem;
+  }
+}
