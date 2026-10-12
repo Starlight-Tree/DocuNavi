@@ -1,3 +1,4 @@
+import math
 import os
 import re
 import uuid
@@ -18,6 +19,7 @@ from app.agents.guardrails import (
     check_input,
     sanitize_output,
 )
+from app.agents.resilience import HedgePolicy, hedged_call
 from app.agents.state import AgentState
 from app.agents.tools import TOOLS, bigrams
 
@@ -38,6 +40,17 @@ _MOCK_TOOL_NAME = "search_zahard_lore"
 
 DEFAULT_MODEL = "gemini-3.1-flash-lite"
 _TRUTHY = {"1", "true", "yes", "on"}
+
+# Gemini は速い回（1〜3 秒）と極端に遅い回（20 秒超・無応答）が混在することがある。
+# 既定のまま（試行ごとの上限なし・最大 6 回試行・指数バックオフ）だと、止まった 1 回を待ち続けて
+# /chat 全体の上限（LLM_TIMEOUT_SECONDS）に達してしまう。そこで、遅い呼び出しは待たずに追加の試行を
+# 投げ（ヘッジ）、最初に成功したものを採る。試行ごとの上限は、ヘッジあり（既定）なら長め、
+# ヘッジなし（逐次の再試行）なら短めのほうが成功率が高いと見ている（2026-10 に実 API で観測した
+# 少数のサンプルとシミュレーションに基づく目安。モデルや時間帯で変わるので環境変数で調整できる）。
+DEFAULT_LLM_HEDGE_DELAY_SECONDS = 8.0
+DEFAULT_LLM_ATTEMPT_TIMEOUT_SECONDS = 30.0  # ヘッジあり
+DEFAULT_LLM_ATTEMPT_TIMEOUT_SECONDS_SEQUENTIAL = 15.0  # ヘッジなし（LLM_HEDGE_DELAY_SECONDS=0）
+DEFAULT_LLM_MAX_ATTEMPTS = 3
 
 
 def use_vertex_ai() -> bool:
@@ -137,12 +150,81 @@ def _compose_mock_reply(question: str, tool_output: str) -> str:
     return f"{header}\n\n{bullets}\n\n（出典: {sources}）"
 
 
+def llm_hedge_delay_seconds() -> float:
+    """LLM_HEDGE_DELAY_SECONDS（既定 8）。この秒数たっても LLM が応答しなければ、追加の試行を投げる。
+
+    0 でヘッジを無効にする（失敗時の再試行だけ SDK に任せる）。不正値・負数は既定値に戻す。
+    """
+    try:
+        value = float(os.environ.get("LLM_HEDGE_DELAY_SECONDS", ""))
+    except ValueError:
+        return DEFAULT_LLM_HEDGE_DELAY_SECONDS
+    return value if math.isfinite(value) and value >= 0 else DEFAULT_LLM_HEDGE_DELAY_SECONDS
+
+
+def llm_attempt_timeout_seconds() -> float:
+    """LLM_ATTEMPT_TIMEOUT_SECONDS。LLM への 1 回の試行を待つ上限秒数。
+
+    未設定・不正値・0 以下のときは、ヘッジありなら 30、ヘッジなしなら 15。
+    """
+    default = (
+        DEFAULT_LLM_ATTEMPT_TIMEOUT_SECONDS
+        if llm_hedge_delay_seconds() > 0
+        else DEFAULT_LLM_ATTEMPT_TIMEOUT_SECONDS_SEQUENTIAL
+    )
+    try:
+        value = float(os.environ.get("LLM_ATTEMPT_TIMEOUT_SECONDS", ""))
+    except ValueError:
+        return default
+    return value if math.isfinite(value) and value > 0 else default
+
+
+def llm_max_attempts() -> int:
+    """LLM_MAX_ATTEMPTS（既定 3）。1 回の LLM 呼び出しで投げる試行の最大数（最初の 1 回を含む）。
+
+    ヘッジが有効ならヘッジと再試行を合わせた本数、無効なら SDK の再試行回数。1 なら再試行しない。
+
+    不正値・1 未満は既定値に戻す（SDK は 0 を「既定の 5 回」と解釈するため、0 は渡さない）。
+    """
+    try:
+        value = int(os.environ.get("LLM_MAX_ATTEMPTS", "").strip())
+    except ValueError:
+        return DEFAULT_LLM_MAX_ATTEMPTS
+    return value if value >= 1 else DEFAULT_LLM_MAX_ATTEMPTS
+
+
+def _with_retry_policy(llm: ChatGoogleGenerativeAI) -> ChatGoogleGenerativeAI:
+    """試行ごとのタイムアウトと最大試行回数を設定する。
+
+    ヘッジが有効なら再試行は hedged_call（graph のエージェントノード）が担うので、SDK の再試行は
+    切る（max_retries=1）。二重に再試行すると、1 回の呼び出しで投げる本数が掛け算で増えてしまう。
+    ヘッジが無効なら、タイムアウトした試行も含めて SDK が再試行する（バックオフは約 1〜3 秒）。
+    /chat 全体の上限 LLM_TIMEOUT_SECONDS はこの外側で別に効く。
+
+    注意: ヘッジが有効なとき、このクライアントは build_graph() が hedged_call 越しに呼ぶ前提の設定になる。
+    build_graph(create_llm()) のように llm を渡して使うと、ヘッジも SDK の再試行も無い（hedge を明示する）。
+    試行のタイムアウトは httpx の段階ごと（接続・送信・受信）の上限で、本文が少しずつ届く応答までは切らない。
+    """
+    llm.timeout = llm_attempt_timeout_seconds()
+    llm.max_retries = 1 if llm_hedge_delay_seconds() > 0 else llm_max_attempts()
+    return llm
+
+
+def llm_hedge_policy() -> HedgePolicy | None:
+    """環境変数から組み立てたヘッジの方針。LLM_HEDGE_DELAY_SECONDS=0 なら None（ヘッジなし）。"""
+    delay = llm_hedge_delay_seconds()
+    if delay <= 0:
+        return None
+    return HedgePolicy(hedge_delay=delay, max_attempts=llm_max_attempts())
+
+
 def create_llm() -> BaseChatModel:
     """Vertex AI（ADC）または Gemini API キーがあれば Gemini、なければモックを返す。
 
     モデル名は GEMINI_MODEL で差し替えられる（Vertex AI はリージョンごとに提供モデルが違うため）。
     Vertex AI のプロジェクト・ロケーションは GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION を使い、
     未設定なら SDK が ADC やメタデータサーバーから解決する。
+    試行ごとのタイムアウトと再試行回数は LLM_ATTEMPT_TIMEOUT_SECONDS / LLM_MAX_ATTEMPTS。
     """
     if is_mock_mode():
         return MockChatModel()
@@ -153,20 +235,30 @@ def create_llm() -> BaseChatModel:
             kwargs["project"] = project
         if location := os.environ.get("GOOGLE_CLOUD_LOCATION", "").strip():
             kwargs["location"] = location
-        return ChatGoogleGenerativeAI(model=model, vertexai=True, temperature=0, **kwargs)
-    return ChatGoogleGenerativeAI(
-        model=model,
-        google_api_key=os.environ["GEMINI_API_KEY"],
-        temperature=0,
+        return _with_retry_policy(
+            ChatGoogleGenerativeAI(model=model, vertexai=True, temperature=0, **kwargs)
+        )
+    return _with_retry_policy(
+        ChatGoogleGenerativeAI(
+            model=model,
+            google_api_key=os.environ["GEMINI_API_KEY"],
+            temperature=0,
+        )
     )
 
 
-def build_graph(llm: BaseChatModel | None = None):
+def build_graph(llm: BaseChatModel | None = None, hedge: HedgePolicy | None = None):
     """START -> guard_input -> agent -> (tools -> agent)* -> guard_output -> END のグラフを組み立てる。
 
     入力ガードが拒否した場合は guard_input から直接 END へ進み、LLM もツールも呼ばない。
+    llm を渡さないとき（本番）は、本物の Gemini にだけ環境変数のヘッジ方針（hedge）を適用する。
+    llm を渡したとき（テスト等）は、hedge を明示しない限りヘッジしない。
     """
-    llm_with_tools = (llm or create_llm()).bind_tools(TOOLS)
+    if llm is None:
+        llm = create_llm()
+        if hedge is None and not isinstance(llm, MockChatModel):
+            hedge = llm_hedge_policy()
+    llm_with_tools = llm.bind_tools(TOOLS)
     tool_node = ToolNode(TOOLS)
 
     async def guard_input(state: AgentState) -> dict:
@@ -192,7 +284,11 @@ def build_graph(llm: BaseChatModel | None = None):
 
     async def agent(state: AgentState) -> dict:
         messages = [SystemMessage(content=SYSTEM_PROMPT), *state["messages"]]
-        return {"messages": [await llm_with_tools.ainvoke(messages)]}
+        if hedge is None:
+            reply = await llm_with_tools.ainvoke(messages)
+        else:
+            reply = await hedged_call(lambda: llm_with_tools.ainvoke(messages), hedge, name="Gemini")
+        return {"messages": [reply]}
 
     async def tools(state: AgentState) -> dict:
         result = await tool_node.ainvoke(state)
