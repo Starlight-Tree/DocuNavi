@@ -4,8 +4,9 @@ from dotenv import load_dotenv
 
 load_dotenv()  # ルーター import より前に .env を読み込む
 
-from fastapi import FastAPI  # noqa: E402
+from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 
 from app.api.routes import router  # noqa: E402
 
@@ -20,3 +21,10 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    # 想定外の例外でも内部情報を返さず、他のエラーと同じ JSON 形式にそろえる。
+    # Starlette はこの後も例外を再送出するので、ログは uvicorn 側に残る
+    return JSONResponse(status_code=500, content={"detail": "サーバー内部でエラーが発生しました。"})
