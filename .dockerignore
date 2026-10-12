@@ -7,8 +7,4 @@
 __pycache__/
 *.pyc
 node_modules/
-src/
-public/
-package.json
-package-lock.json
 docker-compose.yml

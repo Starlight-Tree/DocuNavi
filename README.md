@@ -4,10 +4,8 @@
 
 - **FastAPI**: HTTP API（`/chat`, `/health`）
 - **LangGraph**: 入力ガード → エージェント（ツール呼び出しのループ）→ 出力ガード
-- **Gemini**（`gemini-3.1-flash-lite`）: 回答生成。API キー未設定ならモックモードで動く
+- **Gemini**（`gemini-3.1-flash-lite`）: 回答生成。Gemini API キーまたは Vertex AI（ADC）で認証し、どちらも未設定ならモックモードで動く
 - **RAG**: 設定資料を文単位に分けて BM25 で検索（外部の埋め込み API・ベクトル DB は不使用）
-
-> `src/`・`public/`・`package.json` は以前の Node.js（Bot Framework）ボットの残りで、このバックエンドとは無関係です。
 
 ## 起動
 
@@ -23,6 +21,9 @@ Docker Compose を使う場合は、ホスト側で `docker compose up --build` 
 | 環境変数 | 既定値 | 説明 |
 |---|---|---|
 | `GEMINI_API_KEY` | （空） | 空または `your_api_key_here` のときはモックモード |
+| `GOOGLE_GENAI_USE_VERTEXAI` | （空） | `true` で Vertex AI を使う。キー不要で ADC（Cloud Run ならサービスアカウント）で認証し、キーの有無にかかわらずモックにならない |
+| `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` | （空） | Vertex AI 利用時のプロジェクトとロケーション。未設定なら SDK が ADC やメタデータサーバーから解決する |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite` | モデル名の上書き（Vertex AI はリージョンごとに提供モデルが違う） |
 | `CORS_ORIGINS` | `*` | 許可するオリジン（カンマ区切り） |
 | `LLM_TIMEOUT_SECONDS` | `60` | 1 回の `/chat` で LLM を待つ上限秒数。不正値は既定値に戻る |
 
@@ -34,7 +35,7 @@ Docker Compose を使う場合は、ホスト側で `docker compose up --build` 
 {"status": "ok", "mode": "mock"}
 ```
 
-`mode` は `mock`（ダミー応答）または `gemini`（本物の LLM）。
+`mode` は `mock`（ダミー応答）または `gemini`（本物の LLM。Vertex AI の場合も `gemini`）。
 
 ### `POST /chat`
 
