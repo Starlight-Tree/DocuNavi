@@ -36,8 +36,26 @@ _NOT_FOUND_MARK = "該当する設定資料は見つかりませんでした"
 _MOCK_TOOL_NAME = "search_zahard_lore"
 
 
+DEFAULT_MODEL = "gemini-3.1-flash-lite"
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def use_vertex_ai() -> bool:
+    """GOOGLE_GENAI_USE_VERTEXAI（google-genai SDK 標準の変数名）が真なら Vertex AI を使う。
+
+    Vertex AI は API キーではなく ADC（Cloud Run ならサービスアカウント）で認証する。
+    """
+    return os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "").strip().lower() in _TRUTHY
+
+
 def is_mock_mode() -> bool:
-    """GEMINI_API_KEY が未設定（またはテンプレートのまま）ならモックモード。"""
+    """本物の LLM の認証情報が無ければモックモード。
+
+    Vertex AI が有効ならキーが無くても本物の LLM を使う。そうでなければ GEMINI_API_KEY が
+    未設定（またはテンプレートのまま）のときにモックになる。
+    """
+    if use_vertex_ai():
+        return False
     return os.environ.get("GEMINI_API_KEY", "").strip() in _PLACEHOLDER_KEYS
 
 
@@ -120,11 +138,24 @@ def _compose_mock_reply(question: str, tool_output: str) -> str:
 
 
 def create_llm() -> BaseChatModel:
-    """API キーがあれば Gemini、なければモックを返す。"""
+    """Vertex AI（ADC）または Gemini API キーがあれば Gemini、なければモックを返す。
+
+    モデル名は GEMINI_MODEL で差し替えられる（Vertex AI はリージョンごとに提供モデルが違うため）。
+    Vertex AI のプロジェクト・ロケーションは GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION を使い、
+    未設定なら SDK が ADC やメタデータサーバーから解決する。
+    """
     if is_mock_mode():
         return MockChatModel()
+    model = os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL
+    if use_vertex_ai():
+        kwargs: dict[str, Any] = {}
+        if project := os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip():
+            kwargs["project"] = project
+        if location := os.environ.get("GOOGLE_CLOUD_LOCATION", "").strip():
+            kwargs["location"] = location
+        return ChatGoogleGenerativeAI(model=model, vertexai=True, temperature=0, **kwargs)
     return ChatGoogleGenerativeAI(
-        model="gemini-3.1-flash-lite",
+        model=model,
         google_api_key=os.environ["GEMINI_API_KEY"],
         temperature=0,
     )
