@@ -4,11 +4,12 @@ import logging
 import math
 import os
 import re
+import time
 import uuid
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 
@@ -21,6 +22,9 @@ router = APIRouter()
 MAX_MESSAGE_LENGTH = 2000
 MAX_THREAD_ID_LENGTH = 128
 DEFAULT_LLM_TIMEOUT_SECONDS = 60.0
+# 取り消した LLM 呼び出し（と切断の監視）の終了を待つ上限。hedged_call 自身の後始末の上限
+# （resilience._CANCEL_GRACE_SECONDS = 1 秒）より長くして、先に待ちを諦めないようにする
+CANCEL_WAIT_SECONDS = 2.0
 
 # LLM 失敗時にクライアントへ返す固定メッセージ。例外の文字列は絶対に含めない
 _DETAIL_RATE_LIMIT = "リクエストが集中しています。しばらく待ってから再試行してください。"
@@ -185,20 +189,87 @@ async def health() -> dict:
     return {"status": "ok", "mode": current_mode()}
 
 
+async def _until_disconnect(request: Request) -> None:
+    """クライアントの切断（http.disconnect）が来るまで待つ。ほかのメッセージは読み捨てる。
+
+    リクエスト本文は FastAPI が読み終えている。そのあとの receive() は、切断かレスポンスの完了まで待つ。
+    """
+    try:
+        while True:
+            message = await request.receive()
+            if message["type"] == "http.disconnect":
+                return
+    except Exception:
+        # 監視の失敗は LLM 呼び出しを止める理由にならない。切断を検知できないだけで、従来と同じ挙動になる
+        logger.warning("クライアントの切断を監視できませんでした。LLM 呼び出しの完了を待ちます", exc_info=True)
+        await asyncio.Event().wait()  # 切断とは扱わない。結果待ちの側が取り消す
+
+
+def _retrieve_exception(task: "asyncio.Future[object]") -> None:
+    """終わったタスクの例外を取り出す（取り出さないと「Task exception was never retrieved」になる）。"""
+    if not task.cancelled():
+        task.exception()
+
+
+async def _cancel_and_wait(*tasks: "asyncio.Future[object] | None") -> None:
+    """残っているタスクを取り消し、終わるのを待つ（タスクを取り残さない）。
+
+    取り消しを無視するタスクがあっても戻れるよう、待ちには上限（CANCEL_WAIT_SECONDS）を設ける。
+    待っている間にこのハンドラ自身が取り消された場合も、タスクの終了は上限まで待ってから、その取り消しを伝える。
+    """
+    live = [task for task in tasks if task is not None]
+    for task in live:
+        task.add_done_callback(_retrieve_exception)
+        task.cancel()
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + CANCEL_WAIT_SECONDS
+    interrupted = False
+    while live and (remaining := deadline - loop.time()) > 0:
+        try:
+            await asyncio.wait(live, timeout=remaining)
+            break
+        except asyncio.CancelledError:
+            interrupted = True
+            if all(task.done() for task in live):
+                break
+    if interrupted:
+        raise asyncio.CancelledError
+
+
 @router.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest) -> ChatResponse:
+async def chat(req: ChatRequest, request: Request) -> ChatResponse | Response:
     mode = current_mode()
     thread_id = req.thread_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
+    started = time.monotonic()
+    work: asyncio.Future | None = None
+    gone: asyncio.Future | None = None
     try:
         # context は直近のターンの検索結果だけを返したいので、毎ターン空に戻す
-        result = await asyncio.wait_for(
+        work = asyncio.ensure_future(
             get_graph(mode == "mock").ainvoke(
                 {"messages": [HumanMessage(content=req.message)], "context": ""},
                 config,
-            ),
-            timeout=llm_timeout_seconds(),
+            )
         )
+        # 本文は読み終えているので、ここから切断を監視できる。切断が先に来たら、待っても受け取る相手が
+        # いない LLM 呼び出し（ヘッジの追加試行を含む）を取り消す
+        gone = asyncio.ensure_future(_until_disconnect(request))
+        done, _ = await asyncio.wait(
+            {work, gone}, timeout=llm_timeout_seconds(), return_when=asyncio.FIRST_COMPLETED
+        )
+        if work in done:  # 同時に終わったときは結果を優先する
+            result = work.result()
+        elif gone in done:
+            # 切断はエラーではない。except Exception の外で返し、ログも INFO・固定文・thread_id だけにする
+            logger.info(
+                "クライアントが切断したため LLM 呼び出しを取り消しました (thread_id=%s, elapsed=%.1fs)",
+                thread_id,
+                time.monotonic() - started,
+            )
+            return Response(status_code=499)  # 届く相手はいない（uvicorn は書き込まず、アクセスログにも出さない）
+        else:
+            raise TimeoutError
     except Exception as exc:  # Gemini 側のエラー・タイムアウト等
         failure = classify_llm_error(exc)
         # 詳細（例外本体・スタックトレース）はログにだけ残す。thread_id はパターン検証済み
@@ -206,6 +277,8 @@ async def chat(req: ChatRequest) -> ChatResponse:
             "LLM 呼び出しに失敗しました (status=%s, thread_id=%s)", failure.status_code, thread_id
         )
         raise failure from exc
+    finally:
+        await _cancel_and_wait(work, gone)
 
     return ChatResponse(
         reply=str(result["messages"][-1].text),

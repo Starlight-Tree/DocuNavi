@@ -14,7 +14,8 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 
 ## 構成
 
-- `app/api/routes.py`: `/chat` `/health`。LLM の失敗は固定メッセージの 429/504/500/502 に変換する
+- `app/api/routes.py`: `/chat` `/health`。LLM の失敗は固定メッセージの 429/504/500/502 に変換する。
+  クライアントが切断したら LLM 呼び出し（ヘッジの追加試行を含む）を取り消す
 - `app/agents/`: LangGraph（`graph.py`）、検索ツール（`tools.py`）、ガードレール（`guardrails.py`）、
   LLM 呼び出しのヘッジ付き再試行（`resilience.py`）
 - `app/frontend.py`: `frontend/dist` を配信し、ファイル名らしくない未知の GET/HEAD は `index.html` にフォールバックする
@@ -34,6 +35,11 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   `LLM_MAX_ATTEMPTS`（3）、
   全体の上限は `LLM_TIMEOUT_SECONDS`（60）。追加の試行はトークンを増やす。モデルの変更も料金と品質に
   響くので、変える前に確認する。
+- **切断は失敗ではない。** `/chat` はグラフの実行と `request.receive()`（`http.disconnect` まで待つ監視）を
+  `asyncio.wait` で競わせ、切断が先なら LLM 呼び出しを取り消して 499 を返す。この分岐は `except Exception` の
+  外に置き、ログは INFO・固定文・`thread_id`・経過秒だけにする（例外にすると 502 と ERROR ログになる）。
+  `request.is_disconnected()` のポーリングは使わない（外側の取り消しを飲み込み、遅れる）。本文の解析前には
+  `receive()` を呼ばない。
 - 変更したら、触れた範囲のテストを実行してから報告する。確認できていないこと（例: Docker ビルド）は
   確認済みと書かない。
 
