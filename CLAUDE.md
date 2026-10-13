@@ -10,6 +10,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 | バックエンド起動 | `uvicorn app.main:app --reload`（`.env` が無い・キー未設定ならモックモード） |
 | バックエンドのテスト | `pytest`（`tests/conftest.py` がモックモードに固定する。実 API は呼ばない） |
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
+| 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（コマンドは README の「テスト」節）で `requirements*.txt` を再生成する。`.txt` は直接編集しない |
 | Docker | ホスト側で `docker compose up --build`（開発コンテナ内には Docker が無い） |
 
 ## 構成
