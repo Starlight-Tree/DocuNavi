@@ -538,6 +538,233 @@ def test_shell_syntax_does_not_cause_false_positives(command):
     assert decision(command) == "pass", f"通されていない: {command!r}"
 
 
+# --- 敵対的レビュー（round 2）の指摘から: 字句解析・ラッパー・標準入力・誤検知（.claude/hooks/guard-cloud-cli.py）---
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # 字句解析の抜け道: 算術式の << をヒアドキュメントと取り違える・case の ) や # ) やヒアドキュメントの a) を入れ子の閉じと
+        # 取り違える・入れ子のバッククォート・${x:- #}・coproc・{fd}> のあとのコマンド・${...} の入れ子の数え方
+        "echo $((1<<2))\ngh run delete 1",
+        "x=$((1 << 3))\ngh run delete 1",
+        "(( x <<= 2 ))\ngh run delete 1",
+        "echo $[1<<2]\ngh run delete 1",
+        "echo $((gh run delete 1))",
+        "echo $(( $(gh run delete 1) + 1 ))",
+        "for ((i=0;i<3;i++)); do gh run delete 1; done",
+        "echo \"$(case x in x) gh run delete 1;; esac)\"",
+        "echo \"$(case x in (x) gh run delete 1;; esac)\"",
+        "echo \"$(echo hi # )\ngh run delete 1)\"",
+        "x=\"$(cat <<'EOF'\na)\nEOF\ngh run delete 1\n)\"",
+        "echo `echo \\`gh run delete 1\\``",
+        "echo \"$(echo $'x\\')' ; gh run delete 1)\"",
+        "echo ${x:- #}; gh run delete 1",
+        "coproc NAME { gh run delete 1; }",
+        "{fd}>/dev/null gh run delete 1",
+        "echo ${x:-{}; gh run delete 1; echo }}",
+        "echo ${x:-${y:-#}}; gh run delete 1",
+        "echo ${x#\"}\"}; gh run delete 1",
+        "echo $((1<<2)); gh run delete 1",
+        "echo $(( 1 + $(gh run delete 1) ))",
+        "a=(x $(gh run delete 1))",
+        "a=(x `gh auth token`)",
+        "x=$(case y in y) gh auth token;; esac)",
+        "echo $(echo ')' ; gh run delete 1)",
+        "echo \"$(echo 'a)' ; gh run delete 1)\"",
+        "echo $(# ) \ngh run delete 1\n)",
+        "cat <<EOF\n$(gh run delete 1)\nEOF",
+        "cat <<EOF\n$(echo a) $(gh run delete 1)\nEOF",
+        # 知らないラッパー・実行役。引数に CLI の名前が単独で現れたら、そこから調べる
+        "taskset 0x1 gh run delete 1",
+        "strace -P /tmp gh run delete 1",
+        "fakeroot gh run delete 1",
+        "chroot / gh run delete 1",
+        "unshare -r gh run delete 1",
+        "nsenter -t 1 gh run delete 1",
+        "systemd-run --user gh run delete 1",
+        "setpriv --reuid 0 gh run delete 1",
+        "numactl -N 0 gh run delete 1",
+        "runuser -u vscode -- gh run delete 1",
+        "chrt -f 1 gh run delete 1",
+        "screen -dm gh run delete 1",
+        "ssh host gh run delete 1",
+        "tmux new-session -d 'gh run delete 1'",
+        "flock -n /tmp/x.lock gh run delete 1",
+        "parallel --joblog /tmp/j gh run delete {} ::: 1 2",
+        "parallel -I @@ gh run delete @@ ::: 1",
+        "echo 1 | xargs --process-slot-var V gh run delete",
+        "git bisect run gh run delete 1",
+        "env -P /usr/bin gh run delete 1",
+        "$(( 1 && 2 )) gh run delete 1",
+        # 引数や環境変数の値が、CLI で始まるコマンドライン（git -c alias.x=!... / flock -c '...' / VAR='...'）
+        "flock -c 'gh run delete 1' /tmp/x.lock",
+        "flock /tmp/x.lock -nc 'gh run delete 1'",
+        "flock --command='gh run delete 1' /tmp/x.lock",
+        "su --command='gh run delete 1' vscode",
+        "su -c'gh run delete 1' vscode",
+        "script -qc'gh run delete 1' /dev/null",
+        "su --session-command 'gh run delete 1' vscode",
+        "sg users -c 'gh run delete 1'",
+        "git -c 'alias.x=!gh run delete 1' x",
+        "git submodule foreach 'gh run delete 1'",
+        "git rebase -x 'gh run delete 1' HEAD~1",
+        "GIT_SSH_COMMAND='gh run delete 1' git fetch",
+        "git -c core.pager='gh run delete 1' log",
+        "tar --to-command='gh run delete 1' -xf a.tar",
+        "rsync -e 'gh run delete 1' a b:",
+        "gh${IFS}run${IFS}delete${IFS}1",
+        "gh run${IFS}delete 1",
+        "env -S 'gh\\_run\\_delete\\_1'",
+        # 標準入力から読むスクリプト、at、printf のエスケープ、xargs の分け方（-L / -n）
+        "source /dev/stdin <<< 'gh run delete 1'",
+        ". /dev/stdin <<EOF\ngh run delete 1\nEOF",
+        "bash /dev/stdin <<< 'gh run delete 1'",
+        "sh /dev/fd/0 <<EOF\ngh run delete 1\nEOF",
+        "echo 'gh run delete 1' | . /dev/stdin",
+        "echo 'gh run delete 1' | bash /dev/stdin",
+        "echo 'gh run delete 1' | at now",
+        "printf 'gh run delete 1\\n' | at -M now",
+        "printf 'gh\\x20run\\x20delete\\x201\\n' | sh",
+        "printf 'gh\\trun\\tdelete\\t1\\n' | sh",
+        "printf 'run list\\nrun delete 1\\n' | xargs -L1 gh",
+        "echo run list run delete 1 | xargs -n 2 gh",
+        # --help が直前のフラグの値、--verbose=、gh auth / config の -h（ホスト）、gcloud のリソース名が読み取りらしい語
+        "gh api repos/o/r --verbose=true",
+        "gh api -X DELETE repos/o/r/actions/runs/1 --jq --help",
+        "gh api -X DELETE repos/o/r/actions/runs/1 -p --help",
+        "gh config get oauth_token -h github.com",
+        "gh auth token -h github.com",
+        "gcloud iam service-accounts create describe-me",
+        # 認証情報のパス（グロブ・~ の展開・算術式の中・算術式がコマンドの位置にあるとき）
+        "cat ~/.config/gh/hosts.yml",
+        "cat ~/.config/gcloud/credentials.db",
+        "grep -r token ~/.c*",
+        "cp -r ~ /tmp/x",
+        "cp ~/.config/gh/hosts.yml /tmp/",
+        "cat ~/.config/g*/*",
+        "ls ~/.config/*",
+        "cat ~/.*/gcloud/credentials.db",
+        "cat /home/*/.config/gcloud/credentials.db",
+        "tar czf /tmp/x.tgz ~/.config",
+        "cp -t /tmp ~",
+        "cat ~/.config/g[a-z]*/credentials.db",
+        "((~/.config/gh ))",
+        "echo $((~/.config/gh))",
+        "echo $(( ~/.config/gcloud/credentials.db ))",
+        "$[ ~/.config/gh ]",
+        "$(( 1 )) ~/.config/gh/hosts.yml",
+        "x=$(( 1 + 2 )) cat ~/.config/gh/hosts.yml",
+        "cat ~/.config/gh/$(( 1 | 2 ))hosts.yml",
+    ],
+)
+def test_round2_bypasses_are_denied(command):
+    code, _, err = run_hook(command)
+    assert code == 2, f"拒否されていない: {command!r}"
+    assert err.strip(), "理由が返っていない"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # 値として渡された --help は、ヘルプではない（書き込みなので確認になる）
+        "gh pr merge 1 --squash --body --help",
+        "gh issue create --title --help --body x",
+        # gcloud: 読み取りらしいリソース名より先に出た、書き込みの動詞を採る
+        "gcloud run deploy get-user --image x",
+        "gcloud compute instances stop list-vm --zone us-central1-a",
+        "gcloud functions deploy list-users --runtime python312",
+        "gcloud compute instances create describe-vm",
+        "gcloud secrets versions add my-secret --data-file=x",
+        # 標準入力から読むインタプリタ・文章を受け取るオプション（書き込みなので確認になる）・ダウンロード
+        "echo \"import os; os.system('gh run delete 1')\" | python3",
+        "gh pr create -t \"docs: .gh-config\" -b x",
+        "gh pr create --title \"docs: ~/.config/gh\" --body x",
+        "gh release create v1 -n \"mention ~/.config/gh\" -t x",
+        "gh run download 123",
+        "gh repo clone Book358/chatbot",
+    ],
+)
+def test_round2_write_like_commands_force_a_confirmation(command):
+    assert decision(command) == "ask", f"確認が強制されていない: {command!r}"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # コミットメッセージ（引用符つきのヒアドキュメント）の中の ) や、書いてあるだけのコマンド
+        "git commit -m \"$(cat <<'EOF'\nfix: x\n\n1) env: GH_TOKEN=$(gh auth token) is blocked\nEOF\n)\"",
+        "git commit -m \"$(cat <<'EOF'\nfix: x\n\nsteps: a) install b) run `gh auth token`\nEOF\n)\"",
+        "git commit -m \"$(cat <<'EOF'\nfix: x\n\nsmiley :) and `gcloud auth print-access-token` documented\nEOF\n)\"",
+        "git commit -m \"$(cat <<'EOF'\ndocs: x\n\n- (a) item\n- b) item\n- the hook blocks `git credential fill`\nEOF\n)\"",
+        "echo \"$(cat <<'EOF'\nsee 1) the `gh auth token` docs\nEOF\n)\"",
+        # command -v・which・配列の代入は、実行ではない
+        "command -v gh gcloud docker",
+        "command -v gcloud docker gh",
+        "which gh gcloud",
+        "tools=(gcloud gh terraform)\necho \"${tools[@]}\"",
+        # ~/* は ~/.config に一致しない。~ への書き込みは、認証情報を読まない
+        "ls -la ~/*",
+        "du -sh ~/*",
+        "ls ~/.c*",
+        "cp .env.example ~/",
+        "mv /tmp/x.txt ~/",
+        # gh の読み取り・ヘルプ（-h / --help）
+        "gh project item-list 1 --owner Book358",
+        "gh repo deploy-key list",
+        "gh repo set-default --view",
+        "gh pr create -h",
+        "gh run delete -h",
+        "gh run delete 1 --help",
+        "gcloud run services list -h",
+        # 文章（コミットメッセージ・検索の q・テストの選択式・git の -c の値）に書いただけ
+        "git commit -S -m \"docs: mention .gh-config\"",
+        "git merge -S -m \"merge: mention .gh-config\" topic",
+        "gh api search/issues -X GET -f q=.config/gh",
+        "gh api -X GET search/issues -f q='.gh-config repo:o/r'",
+        "pytest tests/test_guard_cloud_cli.py -k \"GH_CONFIG_DIR\"",
+        "python3 -m pytest -q -k \"print-access-token\"",
+        ".venv/bin/python -m pytest tests/test_guard_cloud_cli.py -k \".config/gh\"",
+        "git -c color.ui=always grep -n .config/gh",
+        # 算術式・case・${...}・配列のあとの、読み取りだけのコマンド
+        "echo $((1<<2))\ngh run list",
+        "for ((i=0;i<3;i++)); do echo $i; done",
+        "echo ${x:- #}; gh run list",
+        "x=$(( 2 + 3 ))\necho $x",
+        "(( x++ ))\ngh run list --limit 1",
+        "case $x in a) echo a;; b) echo b;; esac\ngh run list",
+        "echo ${x:-a b #c}\ngh run list",
+        "echo ${HOME}/x ; gh run list --limit 1",
+        "tools=(gcloud gh)\ngh run list",
+        "echo $(case y in y) echo ')' ;; esac)\ngh run list",
+        "VAR=$(echo $((1+2)))\ngh run list",
+        "x=$(( 1 + 2 )) gh run list",
+        # 名前が出るだけ・実行しないもの
+        "sudo apt-get install -y gh gcloud",
+        "git log --author gh",
+        "ls gh",
+        "nice -n 5 gh run list",
+        "taskset -c 0 gh run list",
+        "gcloud builds triggers list --project my-proj",
+        "gcloud secrets versions list my-secret",
+        "gcloud run services logs read chatbot --limit 5",
+    ],
+)
+def test_round2_false_positives_pass(command):
+    assert decision(command) == "pass", f"通されていない: {command!r}"
+
+
+def test_a_too_complex_command_fails_closed():
+    # 入れ子が深く・長く、決まった時間で検査できないものは、通さない（フックの timeout を待たない）
+    code, _, err = run_hook("echo " + "a" * 4_000_000)
+    assert code == 2 and err.strip()
+
+
+def test_deeply_nested_substitutions_are_checked_in_bounded_time():
+    nested = '"$(a=(' * 100 + "x" + '))"' * 100
+    assert decision(nested) in {"pass", "ask", "deny"}  # 例外・タイムアウトにならない（run_hook の timeout=20）
+
+
 def test_a_crashing_check_fails_closed():
     for payload in ({"tool_name": "Bash", "tool_input": {"command": 123}}, {"tool_name": "Bash", "tool_input": {"command": ["gh"]}}):
         proc = subprocess.run(
