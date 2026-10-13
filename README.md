@@ -158,49 +158,109 @@ uv pip compile requirements-dev.in --universal --python-version 3.12 -c requirem
 
 RAG の精度は `tests/rag_eval_cases.py` の評価セット（関連 21 件・無関係 8 件）で回帰テストしています。2-gram 照合では拾えない言い換え（「気温差」→「温度差」など）は既知の取りこぼしです。
 
-## 開発環境の gcloud（閲覧専用）
+## 開発環境の gcloud（ログインとガード）
 
-開発コンテナには gcloud が入りますが、**ログイン情報はコンテナに置きません**（`gcloud auth login` もしません）。
-Cloud Build のトリガーや Cloud Run のログを見るときは、ホストで発行した閲覧専用サービスアカウントの短期トークンだけを使います。
+開発コンテナには gcloud が入ります（`.devcontainer/install-gcloud.sh`）。GCP の参照（Cloud Build のトリガー、Cloud Run のログなど）は、
+**あなた自身のアカウントでログイン**して行います。コンテナにログイン情報があるので、次の層で守っています。
 
-- トークンは約 1 時間で失効します。リポジトリ直下の `.gcloud-token` に書き出され、Git と Docker のビルドからは除外されます。
-- 付与するロールは閲覧だけです（`cloudbuild.builds.viewer`・`run.viewer`・`logging.viewer`）。
-  `logging.viewer` はプロジェクト内のログをすべて読めます。同じプロジェクトに別の用途のログがある場合は、外すか絞ってください。
+| 層 | 内容 | 効くもの |
+|---|---|---|
+| 日常の ID | ログイン後、`auth/impersonate_service_account` で閲覧専用の `agent-viewer` に固定します。書き込みは 403 になります | 誤操作、素朴な指示の埋め込み |
+| PreToolUse フック | `.claude/hooks/guard-cloud-cli.py` が、実行前に gcloud などの呼び出しを検査します。削除・IAM・課金の変更・認証情報の取得・ID の切り替えは拒否し、書き込み系は確認を強制します | 同上、設定の書き換え |
+| 権限ルール | `.claude/settings.json`: 読み取り系の gcloud だけ許可し、`~/.config/gcloud` と `.gcloud-token` の読み取りを拒否し、bypass モードを無効にします | 同上 |
+| GCP 側 | 予算アラート、プロジェクトの削除防止（lien） | 最後の砦 |
 
-### 初回の設定（ホストまたは Cloud Shell で、権限のあるアカウントで一度だけ）
+**限界**: これらはセキュリティ境界ではありません。コンテナにはあなたのログイン情報があるので、フックを通らない経路
+（スクリプトが認証情報のファイルを直接読むなど）までは防げません。権限ルールもコマンド文字列の照合で、Claude Code の公式文書も
+「境界ではない」と明記しています。`--dangerously-skip-permissions` は使わないでください（設定で無効にしています）。
 
-```bash
-PROJECT_ID=<プロジェクト ID>
-ME=<トークンを発行する自分のアカウント>
-SA=agent-viewer@${PROJECT_ID}.iam.gserviceaccount.com
+### 初回の設定
 
-# なりすまし（impersonation）に必要な API
-gcloud services enable iamcredentials.googleapis.com --project "$PROJECT_ID"
+> ログインと設定は、あなたがターミナルで実行します。Claude Code の VS Code 拡張のチャット欄は、コマンドを直接実行する
+> `!` の入力（シェルモード）に対応していません（CLI の `claude` では使えます）。
 
-# 閲覧専用のサービスアカウントと、閲覧ロールだけの付与
-gcloud iam service-accounts create agent-viewer --display-name="Agent read-only" --project "$PROJECT_ID"
-for role in roles/cloudbuild.builds.viewer roles/run.viewer roles/logging.viewer; do
-  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-    --member="serviceAccount:${SA}" --role="$role" --condition=None
-done
+1. **ログインする**（コンテナ内。あなたが入力します。VS Code の統合ターミナル、Cmd+`（Windows/Linux は Ctrl+`）で実行します。
+   開発コンテナに接続した VS Code では、このターミナルがコンテナの中で動きます）
 
-# 自分がこのサービスアカウントのトークンを発行できるようにする
-gcloud iam service-accounts add-iam-policy-binding "$SA" \
-  --member="user:${ME}" --role=roles/iam.serviceAccountTokenCreator --project "$PROJECT_ID"
-```
+   ```bash
+   gcloud auth login --no-launch-browser
+   gcloud config set project <プロジェクト ID>
+   ```
 
-### トークンの発行と使い方
+2. **閲覧専用のサービスアカウントを作る**（一度だけ。ホスト、Cloud Shell、または手順 1 の直後のコンテナの統合ターミナルで実行します）
 
-```bash
-# ホストで実行（失効したら、もう一度）
-./scripts/issue-agent-token.sh <プロジェクト ID>      # または GCP_PROJECT_ID=... を設定
+   ```bash
+   ./scripts/setup-agent-viewer.sh <プロジェクト ID>      # 内容を表示して確認を取ります。何度実行しても構いません
+   ```
 
-# コンテナ内では、常に --access-token-file を付けて使う
-gcloud --access-token-file=.gcloud-token builds triggers list --project <プロジェクト ID>
-gcloud --access-token-file=.gcloud-token builds triggers list --project <プロジェクト ID> --region=asia-northeast1
-```
+   実際の操作は次のコマンドと同じです。
 
-書き込み系の操作（デプロイ、IAM の変更、トリガーの作成・削除など）は、この権限ではできません。必要なときは、ホストで自分のアカウントで実行します。
+   ```bash
+   PROJECT_ID=<プロジェクト ID>
+   ME=<あなたのアカウント>
+   SA=agent-viewer@${PROJECT_ID}.iam.gserviceaccount.com
+
+   gcloud services enable iamcredentials.googleapis.com --project "$PROJECT_ID"
+   gcloud iam service-accounts create agent-viewer --display-name="Agent read-only" --project "$PROJECT_ID"
+   for role in roles/cloudbuild.builds.viewer roles/run.viewer roles/logging.viewer; do
+     gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+       --member="serviceAccount:${SA}" --role="$role" --condition=None
+   done
+   gcloud iam service-accounts add-iam-policy-binding "$SA" \
+     --member="user:${ME}" --role=roles/iam.serviceAccountTokenCreator --project "$PROJECT_ID"
+   ```
+
+   `logging.viewer` はプロジェクト内のログをすべて読めます。同じプロジェクトに別用途のログがあるなら、外すか絞ってください。
+
+3. **日常の ID を閲覧専用に固定する**（統合ターミナルで実行します）
+
+   ```bash
+   gcloud config set auth/impersonate_service_account agent-viewer@<プロジェクト ID>.iam.gserviceaccount.com
+   ```
+
+   以降の gcloud は、このサービスアカウントとして動きます。書き込み系を自分で実行するときは、ホスト側で実行するのが確実です
+   （コンテナでは `gcloud config unset auth/impersonate_service_account` で外せますが、戻すのを忘れないでください）。
+
+4. **確認する**
+
+   ```bash
+   gcloud auth list                                   # ACTIVE があなたのアカウント
+   gcloud config list                                 # [auth] impersonate_service_account = agent-viewer@...
+   gcloud builds triggers list --project <プロジェクト ID>
+   gcloud builds triggers list --project <プロジェクト ID> --region=asia-northeast1   # リージョンは実際の値に読み替える
+   ```
+
+   出力の見方:
+
+   - `WARNING: ... All API calls will be executed as [agent-viewer@...]` が出ていれば、閲覧専用の ID で動いています。
+   - `PERMISSION_DENIED: Failed to impersonate` は、作成直後の IAM の反映待ちです（数分で解消します）。
+   - `API [...] not enabled on project` は、そのプロジェクトで該当の API が無効、という意味です。なりすまし中の呼び出しは、
+     プロジェクトの API の有効化状況に従います。使う API（Cloud Build、Cloud Run、Logging など）を有効にしてから確認してください。
+   - 閲覧専用の ID は、付与した 3 つのロールの範囲しか読めません。IAM やサービスの一覧などが拒否されるのは、設計どおりです。
+
+5. **終わったら**ログアウトします。ログイン情報はボリュームに残しません（再ビルドでも消えます）。
+
+   ```bash
+   gcloud auth revoke --all
+   ```
+
+### GCP 側の保護（最後の砦）
+
+- **予算アラート**: Console の「お支払い → 予算とアラート」で、想定外の課金に気づけるようにします。
+- **プロジェクトの削除防止（lien）**: `roles/resourcemanager.lienModifier` を持つアカウントで、次を実行します。
+  lien が防ぐのはプロジェクトの削除だけで、中のリソースの削除は防ぎません
+  （[公式ドキュメント](https://docs.cloud.google.com/resource-manager/docs/project-liens)）。
+
+  ```bash
+  gcloud alpha resource-manager liens create --project=<プロジェクト ID> \
+    --restrictions=resourcemanager.projects.delete --reason="agent guard" --origin=agent-guard
+  ```
+
+### 代替：ログインを持たせない方式
+
+ホストで短期トークン（約 1 時間）を発行し、`--access-token-file` で使う方式も残しています（`scripts/issue-agent-token.sh`）。
+ログインを置かないので、いちばん安全です。ただし、フックは ID を切り替える `--access-token-file` を拒否するので、
+この方式を使うなら `.claude/hooks/guard-cloud-cli.py` の `IDENTITY_FLAGS` から外してください。
 
 ## 構成
 
