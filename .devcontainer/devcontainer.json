@@ -7,6 +7,8 @@
 	"features": {
 		"ghcr.io/devcontainers/features/node:2": {},
 		"ghcr.io/devcontainers/features/python:1": {}
+		// gcloud は feature ではなく postCreateCommand（.devcontainer/install-gcloud.sh）で入れる。
+		// コミュニティの google-cloud-cli feature は apt-key を使い、Debian 13（trixie）ではビルドが失敗するため
 	},
 
 	// コンテナを再ビルドしても Claude Code の履歴・認証情報が消えないよう、~/.claude を名前付きボリュームに永続化する
@@ -14,8 +16,12 @@
 		"source=claude-code-config-${devcontainerId},target=/home/vscode/.claude,type=volume"
 	],
 
-	// 新規作成直後のボリュームは root 所有になるため、vscode ユーザーが書き込めるようにする
-	"postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude",
+	// 新規作成直後のボリュームは root 所有になるため、vscode ユーザーが書き込めるようにする。
+	// gcloud の導入は、ログイン情報をコンテナに置かない方針（README）。失敗してもコンテナの作成は止まらない
+	"postCreateCommand": {
+		"claude-volume": "sudo chown -R vscode:vscode /home/vscode/.claude",
+		"gcloud": "bash .devcontainer/install-gcloud.sh"
+	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
