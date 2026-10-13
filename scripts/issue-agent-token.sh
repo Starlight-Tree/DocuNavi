@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # 閲覧専用サービスアカウント agent-viewer の短期アクセストークン（既定で約 1 時間）を発行し、
-# リポジトリ直下の .gcloud-token に書き出す。開発コンテナの gcloud はこのファイルだけで GCP を参照する。
+# リポジトリ直下の .gcloud-token に書き出す。ログインを持たせない代替方式（README の「代替：ログインを持たせない方式」）。
+# 通常のログイン方式では使わない。
 #
 # ホストで実行する（コンテナにはログイン情報を置かない）。
 #   ./scripts/issue-agent-token.sh <プロジェクト ID>
 #   GCP_PROJECT_ID=<プロジェクト ID> ./scripts/issue-agent-token.sh
 #
-# 事前に、サービスアカウントの作成と IAM の付与が要る。手順は README の「開発環境の gcloud（閲覧専用）」。
+# 事前に、サービスアカウントの作成と IAM の付与が要る。手順は README の「開発環境の gcloud（ログインとガード）」。
 set -euo pipefail
 
 project="${1:-${GCP_PROJECT_ID:-}}"

@@ -66,18 +66,25 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - 他のセッションが並行して動いているときは、一括の `pkill` を使わない（そちらの作業も止める）。
   PID を指定して止める。
 
-## gcloud（閲覧専用・短期トークン）
+## gcloud（ユーザーのログイン + ガード）
 
-開発コンテナには gcloud が入るが、**ログイン情報は置かない。** GCP の参照は、ホストで発行した閲覧専用サービス
-アカウントの短期トークン（`.gcloud-token`、約 1 時間で失効、Git・Docker の対象外）だけで行う。
-設定と発行の手順は [README.md](README.md) の「開発環境の gcloud（閲覧専用）」。
+開発コンテナの gcloud には、**ユーザー自身のアカウントでログインしている**（2026-10-13 にユーザーが決定）。
+ログイン情報があるので、誤操作や、取り込んだ文書に埋め込まれた指示による破壊的な操作を防ぐため、次を守る。
+手順と層の説明は [README.md](README.md) の「開発環境の gcloud（ログインとガード）」。
 
-- **常に `gcloud --access-token-file=.gcloud-token ...` で呼ぶ。** `gcloud auth login`・`gcloud config` での
-  ログイン、`~/.config/gcloud` への認証情報の保存はしない。
-- **読み取りだけ。** 書き込み系（デプロイ、IAM の変更、トリガーの作成・削除、API の有効化など）は実行せず、
+- **日常の ID は閲覧専用。** ログイン後に `auth/impersonate_service_account` を閲覧専用の `agent-viewer` に設定してある
+  （書き込みは設計上 403）。この設定を外さない・上書きしない。
+- **読み取りだけ実行する。** 書き込み系（デプロイ、作成・更新・削除、IAM・課金、API の有効化）は実行せず、
   コマンドを提示してユーザーに実行してもらう。
-- **トークンの中身は表示・ログ・コミットしない。** 失効（認証エラー）したら、ホストでの再発行
-  （`./scripts/issue-agent-token.sh <プロジェクト ID>`）を依頼する。
+- **ログイン・認証情報には触れない。** `gcloud auth` の操作（`list` を除く）、`gcloud config set/unset`、
+  `--impersonate-service-account` / `--account` / `--access-token-file`、`CLOUDSDK_*` の設定、
+  `~/.config/gcloud` やトークンの読み出しはしない。PreToolUse フック（`.claude/hooks/guard-cloud-cli.py`）が止める。
+  止められたら、回避せず（別の書き方・スクリプト経由・別のツールで同じことをしない）、ユーザーに伝える。
+- **フックが「確認」を返した操作は、ユーザーの承認なしに進めない。**
+- **ガードを外さない。** `.claude/settings.json` のフック・権限ルール・`disableBypassPermissionsMode` を、頼まれずに
+  編集・無効化しない。`--dangerously-skip-permissions` を勧めない。
+- **トークンの中身は表示・ログ・コミットしない。** 作業の終わりには、`gcloud auth revoke --all` でのログアウトを促す。
+  ログインはボリュームに残さない。
 
 ## Git
 
