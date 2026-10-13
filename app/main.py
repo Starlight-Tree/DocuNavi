@@ -1,3 +1,4 @@
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -10,6 +11,29 @@ from fastapi.responses import JSONResponse  # noqa: E402
 
 from app.api.routes import router  # noqa: E402
 from app.frontend import mount_frontend  # noqa: E402
+
+_APP_LOG_HANDLER = "app-log"
+
+
+def _configure_app_logging() -> None:
+    """app.* のログを INFO から標準エラーへ出す。ルートロガーには触れない。
+
+    uvicorn は uvicorn.* しか設定せずルートは WARNING のままなので、何もしないと app.* の INFO
+    （切断による LLM 呼び出しの取り消しなど）が捨てられる。app ロガーだけにレベルとハンドラを付け、
+    他のライブラリのログ量は変えない。propagate は既定のまま（テストの caplog はルートで拾う）。
+    再 import（--reload・テスト）でハンドラが重ならないよう、名前で判定する。
+    """
+    logger = logging.getLogger("app")
+    logger.setLevel(logging.INFO)
+    if any(h.get_name() == _APP_LOG_HANDLER for h in logger.handlers):
+        return
+    handler = logging.StreamHandler()
+    handler.set_name(_APP_LOG_HANDLER)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logger.addHandler(handler)
+
+
+_configure_app_logging()  # mount_frontend の起動ログより前に有効にする
 
 app = FastAPI(title="Zahard Chatbot")
 
