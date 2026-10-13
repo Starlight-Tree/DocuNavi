@@ -2,14 +2,19 @@
 # 閲覧専用サービスアカウント agent-viewer の作成と IAM の付与を、一度だけ行う。
 # 権限のあるアカウントでログインした状態で実行する（ホスト、Cloud Shell、またはログイン済みの開発コンテナで、
 # ユーザーが実行する。エージェントは実行しない: 書き込みなのでフックが止める）。
-# README の「開発環境の gcloud（ログインとガード）」の手順 2。
+# .devcontainer/README.md の「開発環境の gcloud（ログインとガード）」の手順 2。
 #
 #   ./scripts/setup-agent-viewer.sh <プロジェクト ID>        # 内容を表示して確認を取る
 #   ./scripts/setup-agent-viewer.sh <プロジェクト ID> -y     # 確認なし
 #   GCP_PROJECT_ID=<プロジェクト ID> ./scripts/setup-agent-viewer.sh
 #
-# 付与するのは閲覧ロールだけ。冪等なので、やり直してもよい。終わったら、README の手順 3（日常の ID を固定する）へ進む。
+# 付与するのは閲覧ロールだけ。冪等なので、やり直してもよい。終わったら、.devcontainer/README.md の手順 3 へ進む。
+#
+# 書き込みなので、本人の ID で動かす。コンテナの既定（環境変数で agent-viewer になりすます）が残っていると、
+# 書き込みが 403 になる（初回は SA がまだ無く、なりすましの取得自体に失敗する）ので、下で外す。
 set -euo pipefail
+
+unset CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT
 
 project=""
 assume_yes=false
@@ -26,6 +31,12 @@ if [[ -z "$project" ]]; then
 fi
 if ! command -v gcloud >/dev/null 2>&1; then
   echo "gcloud が見つかりません。ホストまたは Cloud Shell で実行してください。" >&2
+  exit 1
+fi
+# 設定ファイル側（gcloud config set）でなりすましが固定されていないことも確かめる。こちらは外さずに止める
+if [[ -n "$(gcloud config get-value auth/impersonate_service_account 2>/dev/null || true)" ]]; then
+  echo "auth/impersonate_service_account が設定されています。書き込みが拒否されるので、次を実行してからやり直してください:" >&2
+  echo "  gcloud config unset auth/impersonate_service_account" >&2
   exit 1
 fi
 
@@ -68,4 +79,5 @@ gcloud iam service-accounts add-iam-policy-binding "$service_account" \
   --member="$member" --role=roles/iam.serviceAccountTokenCreator --project "$project" >/dev/null
 echo "付与しました: roles/iam.serviceAccountTokenCreator -> $member"
 
-echo "完了しました。次: gcloud config set auth/impersonate_service_account $service_account"
+echo "完了しました。日常の ID の固定は、コンテナの環境変数（.devcontainer/devcontainer.json の containerEnv）で行う。"
+echo "再ビルド前の暫定: export CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT=$service_account"

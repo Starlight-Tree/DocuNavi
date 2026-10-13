@@ -73,10 +73,14 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 ログイン情報があるので、誤操作や、取り込んだ文書に埋め込まれた指示による破壊的な操作を防ぐため、次を守る。
 手順と層の説明は [.devcontainer/README.md](.devcontainer/README.md) の「開発環境の gcloud（ログインとガード）」。
 
-- **日常の ID は閲覧専用。** ログイン後に `auth/impersonate_service_account` を閲覧専用の `agent-viewer` に設定してある
-  （書き込みは設計上 403）。この設定を外さない・上書きしない。
+- **日常の ID は閲覧専用。** コンテナの環境変数 `CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`
+  （`.devcontainer/devcontainer.json` の `containerEnv`）で、閲覧専用の `agent-viewer` へのなりすましが既定になっている
+  （書き込みは設計上 403）。この既定を外さない・上書きしない。コンテナの再ビルド前は未設定のことがある。その場合も
+  自分では設定せず、ユーザーに伝える。
 - **読み取りだけ実行する。** 書き込み系（デプロイ、作成・更新・削除、IAM・課金、API の有効化）は実行せず、
-  コマンドを提示してユーザーに実行してもらう。
+  コマンドを提示してユーザーに実行してもらう。提示するコマンドには、誰の権限で動かすかを明示する
+  （準備は `env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`、日常のデプロイは `--impersonate-service-account=agent-deployer@…`。
+  [.devcontainer/README.md](.devcontainer/README.md) の「書き込みをするとき」）。
 - **ログイン・認証情報には触れない。** `gcloud auth` の操作（`list` を除く）、`gcloud config set/unset`、
   `--impersonate-service-account` / `--account` / `--access-token-file`、`CLOUDSDK_*` の設定、
   `~/.config/gcloud` やトークンの読み出しはしない。PreToolUse フック（`.claude/hooks/guard-cloud-cli.py`）が止める。

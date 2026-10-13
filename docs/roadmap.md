@@ -15,7 +15,7 @@
 
 | 順 | 追加するもの | 学べること | 前提・注意 |
 |---|---|---|---|
-| 0 | Cloud Run に 1 コンテナでデプロイ（[deploy.md](deploy.md)） | コンテナの配備、シークレット、ログ、予算アラート | 最初は認証必須で配備し、`--max-instances` と予算アラートを先に設定する |
+| 0 | Cloud Run に 1 コンテナでデプロイ（[deploy.md](deploy.md)） | コンテナの配備、シークレット、ログ、予算アラート、権限の分離（閲覧用・デプロイ用の SA） | **課金アカウントが前提**（2026-10-13 時点で未設定）。最初は認証必須で配備し、`--max-instances` と予算アラートを先に設定する |
 | 1 | Postgres（Supabase か Cloud SQL）と、履歴の保存先の差し替え | 接続プール、マイグレーション、状態の外出し | 現在の `MemorySaver` は、Cloud Run では再起動や複数インスタンスで履歴が失われる |
 | 2 | 認証 | JWT の検証、会話と利用者の紐づけ | **R2 のアップロードより先。** 無認証だと誰でも書き込める |
 | 3 | Cloudflare（DNS・独自ドメイン・レート制限） | DNS、プロキシ、WAF | 自分のドメインが要る。ドメインが無ければ後回しでよい。順序はどこでもよい |
@@ -46,7 +46,7 @@ Supabase と Cloud SQL の選び方の目安:
 
 | 段階 | 変更 | 根拠 |
 |---|---|---|
-| 1 | `build_graph` が `MemorySaver()` を直接作っている（`app/agents/graph.py` の末尾）。`checkpointer` 引数を足し、既定は `MemorySaver` にする | 引数の追加なので、既存の呼び出しとテストは変わらない |
+| 1 | **済み。** `build_graph` に `checkpointer` 引数を足した（既定は `MemorySaver` のまま）。DB 版の保存先は、これに渡す | 引数の追加なので、既存の呼び出しとテストは変わらない。`tests/test_checkpointer_injection.py` |
 | 1 | DB 版の checkpointer は接続プールを起動時に開いて終了時に閉じる。`app/main.py` に lifespan を足し、グラフの生成（`app/api/routes.py` の `get_graph`、同期の `lru_cache`）をそこに合わせる | 現状は起動・終了のフックが無い |
 | 2 | `thread_id` は形式の検証しかなく、知っていれば誰でも続きを書ける。履歴が DB に残るので、認証後は利用者と紐づける | 認証が無い今は、UUID の推測困難さだけが守り |
 | 4 | コーパスの読み込み（`app/agents/tools.py` の `CHUNK_DIR` と無期限の `lru_cache`）を差し替え可能にし、内容が変わったらキャッシュを捨てる。`search_chunks` の戻り値 `(ファイル名, 本文)` はそのまま使える | アップロードで資料が増減する |
