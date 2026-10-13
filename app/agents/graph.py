@@ -9,6 +9,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -286,12 +287,18 @@ def _repair_dangling_tool_calls(messages: list[BaseMessage]) -> list[AIMessage]:
     return repaired
 
 
-def build_graph(llm: BaseChatModel | None = None, hedge: HedgePolicy | None = None):
+def build_graph(
+    llm: BaseChatModel | None = None,
+    hedge: HedgePolicy | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
+):
     """START -> guard_input -> agent -> (tools -> agent)* -> guard_output -> END のグラフを組み立てる。
 
     入力ガードが拒否した場合は guard_input から直接 END へ進み、LLM もツールも呼ばない。
     llm を渡さないとき（本番）は、本物の Gemini にだけ環境変数のヘッジ方針（hedge）を適用する。
     llm を渡したとき（テスト等）は、hedge を明示しない限りヘッジしない。
+    checkpointer は会話履歴（thread_id ごとの状態）の保存先。渡さなければプロセス内メモリ（MemorySaver）で、
+    再起動で消え、複数のワーカー・インスタンス間では共有されない。
     """
     if llm is None:
         llm = create_llm()
@@ -366,5 +373,5 @@ def build_graph(llm: BaseChatModel | None = None, hedge: HedgePolicy | None = No
     builder.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: "guard_output"})
     builder.add_edge("tools", "agent")
     builder.add_edge("guard_output", END)
-    # thread_id ごとに会話履歴を保持する（プロセス内メモリ）
-    return builder.compile(checkpointer=MemorySaver())
+    # thread_id ごとに会話履歴を保持する。既定はプロセス内メモリ
+    return builder.compile(checkpointer=checkpointer if checkpointer is not None else MemorySaver())
