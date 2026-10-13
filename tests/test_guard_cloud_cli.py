@@ -882,7 +882,7 @@ def test_round3_write_like_commands_force_a_confirmation(command):
         "man ls",
         "kubectl get pods",
         "$(git rev-parse --show-toplevel)/scripts/x.sh",
-        "bash scripts/setup-agent-viewer.sh wataru-sandbox",
+        "bash scripts/setup-agent-viewer.sh PROJECT_ID",
         # env / unset / sudo / su は、CLI を呼ばない（または別の変数を扱う）なら普通に使える
         "env FOO=1 gcloud run services list",
         "env | grep -c CLOUDSDK",

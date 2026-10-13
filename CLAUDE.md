@@ -85,6 +85,8 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   `--impersonate-service-account` / `--account` / `--access-token-file`、`CLOUDSDK_*` の設定、
   `~/.config/gcloud` やトークンの読み出しはしない。PreToolUse フック（`.claude/hooks/guard-cloud-cli.py`）が止める。
   止められたら、回避せず（別の書き方・スクリプト経由・別のツールで同じことをしない）、ユーザーに伝える。
+- **日常の ID を外す操作もしない。** `env -u`、`unset`、`export -n`、CLI の前に置いた `sudo` などは、フックが止める。
+  外さないと実行できない書き込みは、自分では外さず、コマンドを提示してユーザーに実行してもらう。
 - **フックが「確認」を返した操作は、ユーザーの承認なしに進めない。**
 - **ガードを外さない。** `.claude/settings.json` のフック・権限ルール・`disableBypassPermissionsMode` を、頼まれずに
   編集・無効化しない。`--dangerously-skip-permissions` を勧めない。
@@ -99,7 +101,9 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 
 - **読み取りだけ実行する。** `gh run list/view`、`gh pr view`、`gh ruleset view` など。`gh api` は許可リストに
   無く、毎回確認が出る（GET だけ使う）。書き込み系（PR の作成・マージ、`run rerun`、設定やルールセットの変更）は
-  実行せず、コマンドを提示してユーザーに実行してもらう。
+  実行せず、コマンドを提示してユーザーに実行してもらう。ユーザーはコンテナの外（ホストの gh かブラウザー）で実行する。
+  コンテナの中でのユーザー自身の gh ログイン（ブラウザー / デバイス認証）は勧めない（`GH_CONFIG_DIR` を共有するため、
+  フル権限のトークンがエージェントから読めてしまう）。
 - **ログイン・認証情報には触れない。** `gh auth`（`status` を除く）、`GH_TOKEN` などの環境変数の設定、
   `~/.gh-config` の読み出し、`git credential` はしない。同じフック（`.claude/hooks/guard-cloud-cli.py`）が止める。
   止められたら、回避せず（別の書き方・スクリプト経由・別のツールで同じことをしない）、ユーザーに伝える。
