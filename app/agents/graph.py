@@ -258,6 +258,34 @@ def _unanswered_user_messages(messages: list[BaseMessage]) -> list[HumanMessage]
     return [m for m in messages[start:] if isinstance(m, HumanMessage)]
 
 
+# 実行されなかったツール呼び出しだけの発話を、本文の無い AIMessage にしないための定型文
+INTERRUPTED_TOOL_CALL_NOTE = "（検索の途中で処理が中断されたため、この発言への回答は作られませんでした）"
+
+
+def _repair_dangling_tool_calls(messages: list[BaseMessage]) -> list[AIMessage]:
+    """結果の ToolMessage が付かないまま履歴に残った tool_calls を外した AIMessage（同じ id で置換する）。
+
+    tools ノードの実行中に取り消されると、tool_calls を持つ AIMessage だけがコミット済みで、
+    対応する ToolMessage が無い履歴になる。そのまま次のターンに進むと、実行されなかった呼び出しが
+    LLM の入力に残るため、呼び出しの側を外して履歴の並びを保つ（結果を捏造して補うことはしない）。
+    外した結果、本文も無くなる場合は INTERRUPTED_TOOL_CALL_NOTE を入れ、AI の発話が空にならないようにする。
+    guard_input はターンの先頭でしか動かないので、この時点で結果の無い呼び出しは、前のターンの取り残しに限られる。
+    """
+    answered = {m.tool_call_id for m in messages if isinstance(m, ToolMessage)}
+    repaired: list[AIMessage] = []
+    for message in messages:
+        if not isinstance(message, AIMessage) or not message.tool_calls:
+            continue
+        kept = [call for call in message.tool_calls if call["id"] in answered]
+        if len(kept) == len(message.tool_calls):
+            continue
+        text = message.text
+        if not kept and not text:
+            text = INTERRUPTED_TOOL_CALL_NOTE
+        repaired.append(AIMessage(content=text, tool_calls=kept, id=message.id))
+    return repaired
+
+
 def build_graph(llm: BaseChatModel | None = None, hedge: HedgePolicy | None = None):
     """START -> guard_input -> agent -> (tools -> agent)* -> guard_output -> END のグラフを組み立てる。
 
@@ -284,6 +312,8 @@ def build_graph(llm: BaseChatModel | None = None, hedge: HedgePolicy | None = No
             for m in _unanswered_user_messages(messages)
             if m is not last and check_input(m.text) is not None
         ]
+        # ツールの実行中に取り消されたターンの、結果の無い tool_calls も外す（同じ id で置換する）
+        earlier = [*_repair_dangling_tool_calls(messages), *earlier]
         reason = check_input(last.text) if isinstance(last, HumanMessage) else None
         if reason is None:
             return {"messages": earlier, "guard_reason": None} if earlier else {"guard_reason": None}
