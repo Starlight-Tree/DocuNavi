@@ -145,6 +145,10 @@ pytest
 
 フロントエンドは Vitest です（`cd frontend && npm test`）。
 
+GitHub Actions（`.github/workflows/ci.yml`）が、`main` へのプッシュと PR で、バックエンドのテスト（Python 3.12）、
+フロントエンドのテストとビルド、Docker イメージのビルドと起動確認（`/health`・画面・`/chat`）を行います。デプロイは含みません。
+アクションのコミット SHA 固定は、Dependabot（`.github/dependabot.yml`）が週次で更新の PR を出します（公開から 7 日待ちます）。手動実行もできます（`workflow_dispatch`）。
+
 依存のバージョンは `requirements.txt` と `requirements-dev.txt` に固定しています（Python 3.12、全プラットフォーム向け）。
 どちらも `requirements.in` / `requirements-dev.in` から [uv](https://docs.astral.sh/uv/) で生成したファイルなので、直接は編集しません。
 更新するときは `.in` を編集して、次を実行します（`pip install uv` で入ります）。
@@ -238,7 +242,11 @@ RAG の精度は `tests/rag_eval_cases.py` の評価セット（関連 21 件・
      プロジェクトの API の有効化状況に従います。使う API（Cloud Build、Cloud Run、Logging など）を有効にしてから確認してください。
    - 閲覧専用の ID は、付与した 3 つのロールの範囲しか読めません。IAM やサービスの一覧などが拒否されるのは、設計どおりです。
 
-5. **終わったら**ログアウトします。ログイン情報はボリュームに残しません（再ビルドでも消えます）。
+5. **終わったら**、コンテナの統合ターミナルでログアウトします。ログイン情報はボリュームに残しません（再ビルドでも消えます）。
+   これはコンテナ内のログインを消す操作で、ホストの gcloud のログインを消す手順ではありません
+   （ただし `gcloud auth revoke` はサーバー側でもトークンを失効させます。公式の説明には、同じアカウントで使っている
+   他の端末への影響は書かれていません）。代替方式（ホストで短期トークンを発行する）を使うなら、
+   ホストのログインが要るので、ホストでは `revoke` しないでください。
 
    ```bash
    gcloud auth revoke --all

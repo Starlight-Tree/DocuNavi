@@ -1,0 +1,14 @@
+# GitHub Actions の SHA 固定（.github/workflows/ci.yml）を最新に保つ。
+# pip / npm は、依存の固定（requirements*.in → uv pip compile）が落ち着いてから足す。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # 公開から 7 日たったリリースだけを提案する（侵害されたリリースが報告される猶予を置く）
+    cooldown:
+      default-days: 7
+    # このリポジトリのコミット規約（Conventional Commits）に合わせる
+    commit-message:
+      prefix: ci
