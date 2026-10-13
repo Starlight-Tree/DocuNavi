@@ -3,3 +3,6 @@ node_modules/
 .venv/
 __pycache__/
 .pytest_cache/
+
+# gcloud の短期トークン（scripts/issue-agent-token.sh が書き出す。コミットしない）
+.gcloud-token*
