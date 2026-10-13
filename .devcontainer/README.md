@@ -11,7 +11,7 @@
 
 | 層 | 内容 | 効くもの |
 |---|---|---|
-| 日常の ID | ログイン後、`auth/impersonate_service_account` で閲覧専用の `agent-viewer` に固定します。書き込みは 403 になります | 誤操作、素朴な指示の埋め込み |
+| 日常の ID | コンテナの環境変数 `CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`（`devcontainer.json` の `containerEnv`）で、閲覧専用の `agent-viewer` に固定します。起動した時点から、ターミナルでもエージェントでも閲覧専用で、書き込みは 403 になります | 誤操作、素朴な指示の埋め込み、戻し忘れ |
 | PreToolUse フック | `.claude/hooks/guard-cloud-cli.py` が、実行前に gcloud などの呼び出しを検査します。削除・IAM・課金の変更・認証情報の取得・ID の切り替えは拒否し、書き込み系は確認を強制します | 同上、設定の書き換え |
 | 権限ルール | `.claude/settings.json`: 読み取り系の gcloud だけ許可し、`~/.config/gcloud` と `.gcloud-token` の読み取りを拒否し、bypass モードを無効にします | 同上 |
 | GCP 側 | 予算アラート、プロジェクトの削除防止（lien） | 最後の砦 |
@@ -58,20 +58,24 @@
 
    `logging.viewer` はプロジェクト内のログをすべて読めます。同じプロジェクトに別用途のログがあるなら、外すか絞ってください。
 
-3. **日常の ID を閲覧専用に固定する**（統合ターミナルで実行します）
+3. **日常の ID は、環境変数で閲覧専用に固定されています**（手順はありません）
+
+   `.devcontainer/devcontainer.json` の `containerEnv` が `CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT` を設定します。
+   コンテナを作り直したあとは、手順 1 のログインだけで、閲覧専用の ID で動きます（設定を打ち直す必要はありません）。
+
+   コンテナを再ビルドする前の暫定として、今のターミナルだけに効かせるなら次を実行します（再ビルドや新しいターミナルでは消えます）。
 
    ```bash
-   gcloud config set auth/impersonate_service_account agent-viewer@<プロジェクト ID>.iam.gserviceaccount.com
+   export CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT=agent-viewer@<プロジェクト ID>.iam.gserviceaccount.com
    ```
 
-   以降の gcloud は、このサービスアカウントとして動きます。書き込み系を自分で実行するときは、ホスト側で実行するのが確実です
-   （コンテナでは `gcloud config unset auth/impersonate_service_account` で外せますが、戻すのを忘れないでください）。
+   `gcloud config set auth/impersonate_service_account` では設定しません。外す・戻すの操作が要り、戻し忘れが起きるためです。
+   書き込みをするときは、下の「書き込みをするとき」を参照してください。
 
 4. **確認する**
 
    ```bash
    gcloud auth list                                   # ACTIVE があなたのアカウント
-   gcloud config list                                 # [auth] impersonate_service_account = agent-viewer@...
    gcloud builds triggers list --project <プロジェクト ID>
    gcloud builds triggers list --project <プロジェクト ID> --region=asia-northeast1   # リージョンは実際の値に読み替える
    ```
@@ -94,6 +98,25 @@
    gcloud auth revoke --all
    ```
 
+### 書き込みをするとき
+
+既定は閲覧専用です。書き込み（API の有効化、サービスアカウントや権限の作成、デプロイ、サービスの公開）は、**あなたがコマンドごとに
+明示して**実行します。設定を外したままにする運用はしません。
+
+| やること | 方法 | 使う ID |
+|---|---|---|
+| 一度きりの準備（API の有効化、SA の作成、権限の付与、サービスの公開） | コマンドの先頭に `env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT` を付ける（この 1 コマンドだけ変数が外れる） | あなた自身 |
+| 日常のデプロイ | `--impersonate-service-account=agent-deployer@<プロジェクト ID>.iam.gserviceaccount.com` を付ける（フラグは環境変数より優先される） | `agent-deployer`（`scripts/setup-agent-deployer.sh` で作る） |
+| 読み取り | 何も付けない | `agent-viewer` |
+
+- `setup-agent-viewer.sh` と `setup-agent-deployer.sh` は、スクリプトの中で変数を外すので、そのまま実行できます。
+- あなたが project の `owner` のままなので、`agent-deployer` は「あなたの権限を減らす」ものではありません。
+  デプロイが必要な権限だけで動き、監査ログで区別でき、デプロイ中にうっかり IAM や削除を触らない、ための分離です。
+- `agent-deployer` には、サービスを公開する権限（`allUsers` への `roles/run.invoker`）と API を有効にする権限を付けません。
+  それらは、あなた自身の ID（`env -u`）で行います。
+- エージェント（Claude Code）は、これらのコマンドを実行しません。`--impersonate-service-account` や `CLOUDSDK_*` の
+  設定は、フックが拒否します（あなたがターミナルで打つ分には、フックは関係しません）。
+
 ### GCP 側の保護（最後の砦）
 
 - **予算アラート**: Console の「お支払い → 予算とアラート」で、想定外の課金に気づけるようにします。
@@ -111,6 +134,9 @@
 ホストで短期トークン（約 1 時間）を発行し、`--access-token-file` で使う方式も残しています（`scripts/issue-agent-token.sh`）。
 ログインを置かないので、いちばん安全です。ただし、フックは ID を切り替える `--access-token-file` を拒否するので、
 この方式を使うなら `.claude/hooks/guard-cloud-cli.py` の `IDENTITY_FLAGS` から外してください。
+また、この方式ではトークンがすでに `agent-viewer` のものなので、環境変数の既定（なりすまし）を外して使います
+（`env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud ... --access-token-file=.gcloud-token`）。
+外さないと、`agent-viewer` が自分自身になりすまそうとして失敗します。
 
 ## 開発環境の GitHub CLI（gh）
 
