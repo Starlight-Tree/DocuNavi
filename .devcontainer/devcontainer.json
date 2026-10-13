@@ -15,7 +15,7 @@
 	],
 
 	// 新規作成直後のボリュームは root 所有になるため、vscode ユーザーが書き込めるようにする
-	"postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude"
+	"postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
@@ -23,8 +23,19 @@
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
-	// Configure tool-specific properties.
-	// "customizations": {},
+	// コンテナの作成・再ビルド時に自動でインストールする拡張機能。
+	// Python 系は features/python も入れるが、設定ファイルの python.analysis.* を使うので明示しておく
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"anthropic.claude-code",
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"ms-azuretools.vscode-containers",
+				"mhutchie.git-graph"
+			]
+		}
+	}
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
