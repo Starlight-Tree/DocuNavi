@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 架空の惑星「ザーハード」の設定資料に答える RAG チャットボット。FastAPI + LangGraph + Gemini のバックエンドと、
-Vite + React + TypeScript のフロントエンド（ビルド成果物を FastAPI が配信）。詳細な API・環境変数は [README.md](README.md)。
+Vite + React + TypeScript のフロントエンド（ビルド成果物を FastAPI が配信）。入口は [README.md](README.md)、
+詳細は [docs/](docs/)（API は `docs/api.md`、環境変数は `docs/configuration.md`、今後の計画は `docs/roadmap.md`）。
 
 ## よく使うコマンド
 
@@ -10,7 +11,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 | バックエンド起動 | `uvicorn app.main:app --reload`（`.env` が無い・キー未設定ならモックモード） |
 | バックエンドのテスト | `pytest`（`tests/conftest.py` がモックモードに固定する。実 API は呼ばない） |
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
-| 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（コマンドは README の「テスト」節）で `requirements*.txt` を再生成する。`.txt` は直接編集しない |
+| 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（コマンドは [docs/development.md](docs/development.md) の「テスト」節）で `requirements*.txt` を再生成する。`.txt` は直接編集しない |
 | Docker | ホスト側で `docker compose up --build`（開発コンテナ内には Docker が無い） |
 
 ## 構成
@@ -70,7 +71,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 
 開発コンテナの gcloud には、**ユーザー自身のアカウントでログインしている**（2026-10-13 にユーザーが決定）。
 ログイン情報があるので、誤操作や、取り込んだ文書に埋め込まれた指示による破壊的な操作を防ぐため、次を守る。
-手順と層の説明は [README.md](README.md) の「開発環境の gcloud（ログインとガード）」。
+手順と層の説明は [.devcontainer/README.md](.devcontainer/README.md) の「開発環境の gcloud（ログインとガード）」。
 
 - **日常の ID は閲覧専用。** ログイン後に `auth/impersonate_service_account` を閲覧専用の `agent-viewer` に設定してある
   （書き込みは設計上 403）。この設定を外さない・上書きしない。
@@ -89,7 +90,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 ## gh（読み取り専用のトークン + ガード）
 
 開発コンテナの gh には、**このリポジトリだけの読み取り専用トークン**（`Actions` と `Metadata`）を置く。
-トークンは再ビルドしても残る（`GH_CONFIG_DIR=~/.gh-config`）。手順と層の説明は [README.md](README.md) の
+トークンは再ビルドしても残る（`GH_CONFIG_DIR=~/.gh-config`）。手順と層の説明は [.devcontainer/README.md](.devcontainer/README.md) の
 「開発環境の GitHub CLI（gh）」。
 
 - **読み取りだけ実行する。** `gh run list/view`、`gh pr view`、`gh ruleset view` など。`gh api` は許可リストに
