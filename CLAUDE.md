@@ -65,6 +65,19 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - 他のセッションが並行して動いているときは、一括の `pkill` を使わない（そちらの作業も止める）。
   PID を指定して止める。
 
+## gcloud（閲覧専用・短期トークン）
+
+開発コンテナには gcloud が入るが、**ログイン情報は置かない。** GCP の参照は、ホストで発行した閲覧専用サービス
+アカウントの短期トークン（`.gcloud-token`、約 1 時間で失効、Git・Docker の対象外）だけで行う。
+設定と発行の手順は [README.md](README.md) の「開発環境の gcloud（閲覧専用）」。
+
+- **常に `gcloud --access-token-file=.gcloud-token ...` で呼ぶ。** `gcloud auth login`・`gcloud config` での
+  ログイン、`~/.config/gcloud` への認証情報の保存はしない。
+- **読み取りだけ。** 書き込み系（デプロイ、IAM の変更、トリガーの作成・削除、API の有効化など）は実行せず、
+  コマンドを提示してユーザーに実行してもらう。
+- **トークンの中身は表示・ログ・コミットしない。** 失効（認証エラー）したら、ホストでの再発行
+  （`./scripts/issue-agent-token.sh <プロジェクト ID>`）を依頼する。
+
 ## Git
 
 - **コミットメッセージ:** Conventional Commits（`type(scope): 英語の命令形の要約`）。

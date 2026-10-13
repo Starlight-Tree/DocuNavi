@@ -148,6 +148,50 @@ pytest
 
 RAG の精度は `tests/rag_eval_cases.py` の評価セット（関連 21 件・無関係 8 件）で回帰テストしています。2-gram 照合では拾えない言い換え（「気温差」→「温度差」など）は既知の取りこぼしです。
 
+## 開発環境の gcloud（閲覧専用）
+
+開発コンテナには gcloud が入りますが、**ログイン情報はコンテナに置きません**（`gcloud auth login` もしません）。
+Cloud Build のトリガーや Cloud Run のログを見るときは、ホストで発行した閲覧専用サービスアカウントの短期トークンだけを使います。
+
+- トークンは約 1 時間で失効します。リポジトリ直下の `.gcloud-token` に書き出され、Git と Docker のビルドからは除外されます。
+- 付与するロールは閲覧だけです（`cloudbuild.builds.viewer`・`run.viewer`・`logging.viewer`）。
+  `logging.viewer` はプロジェクト内のログをすべて読めます。同じプロジェクトに別の用途のログがある場合は、外すか絞ってください。
+
+### 初回の設定（ホストまたは Cloud Shell で、権限のあるアカウントで一度だけ）
+
+```bash
+PROJECT_ID=<プロジェクト ID>
+ME=<トークンを発行する自分のアカウント>
+SA=agent-viewer@${PROJECT_ID}.iam.gserviceaccount.com
+
+# なりすまし（impersonation）に必要な API
+gcloud services enable iamcredentials.googleapis.com --project "$PROJECT_ID"
+
+# 閲覧専用のサービスアカウントと、閲覧ロールだけの付与
+gcloud iam service-accounts create agent-viewer --display-name="Agent read-only" --project "$PROJECT_ID"
+for role in roles/cloudbuild.builds.viewer roles/run.viewer roles/logging.viewer; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:${SA}" --role="$role" --condition=None
+done
+
+# 自分がこのサービスアカウントのトークンを発行できるようにする
+gcloud iam service-accounts add-iam-policy-binding "$SA" \
+  --member="user:${ME}" --role=roles/iam.serviceAccountTokenCreator --project "$PROJECT_ID"
+```
+
+### トークンの発行と使い方
+
+```bash
+# ホストで実行（失効したら、もう一度）
+./scripts/issue-agent-token.sh <プロジェクト ID>      # または GCP_PROJECT_ID=... を設定
+
+# コンテナ内では、常に --access-token-file を付けて使う
+gcloud --access-token-file=.gcloud-token builds triggers list --project <プロジェクト ID>
+gcloud --access-token-file=.gcloud-token builds triggers list --project <プロジェクト ID> --region=asia-northeast1
+```
+
+書き込み系の操作（デプロイ、IAM の変更、トリガーの作成・削除など）は、この権限ではできません。必要なときは、ホストで自分のアカウントで実行します。
+
 ## 構成
 
 ```

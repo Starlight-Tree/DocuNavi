@@ -16,3 +16,6 @@ frontend/dist
 .ruff_cache
 
 docker-compose.yml
+
+# gcloud の短期トークン（イメージ・ビルドコンテキストに入れない）
+.gcloud-token*
