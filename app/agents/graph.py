@@ -247,6 +247,17 @@ def create_llm() -> BaseChatModel:
     )
 
 
+def _unanswered_user_messages(messages: list[BaseMessage]) -> list[HumanMessage]:
+    """直近の最終回答（ツール呼び出しの無い AIMessage）より後のユーザー発言。古い順。"""
+    start = 0
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        if isinstance(message, AIMessage) and not message.tool_calls:
+            start = index + 1
+            break
+    return [m for m in messages[start:] if isinstance(m, HumanMessage)]
+
+
 def build_graph(llm: BaseChatModel | None = None, hedge: HedgePolicy | None = None):
     """START -> guard_input -> agent -> (tools -> agent)* -> guard_output -> END のグラフを組み立てる。
 
@@ -262,16 +273,27 @@ def build_graph(llm: BaseChatModel | None = None, hedge: HedgePolicy | None = No
     tool_node = ToolNode(TOOLS)
 
     async def guard_input(state: AgentState) -> dict:
-        last = state["messages"][-1] if state["messages"] else None
+        messages = state["messages"]
+        last = messages[-1] if messages else None
+        # 今ターンの発言だけでなく、まだ回答の付いていない過去の発言も検査する。クライアントの切断などで
+        # ターンが入力ガードの前に取り消されると、検査されていない発言が未回答のまま履歴に残り、
+        # 次のターンで最後の 1 件だけを検査していると LLM に素通りしてしまうため。
+        # 拒否対象の過去の発言は、今ターンの可否にかかわらず伏せ字に差し替える（下記と同じ理由）。
+        earlier = [
+            HumanMessage(content=REDACTED_USER_TEXT, id=m.id)
+            for m in _unanswered_user_messages(messages)
+            if m is not last and check_input(m.text) is not None
+        ]
         reason = check_input(last.text) if isinstance(last, HumanMessage) else None
         if reason is None:
-            return {"guard_reason": None}
+            return {"messages": earlier, "guard_reason": None} if earlier else {"guard_reason": None}
         # 拒否した発言をそのまま履歴に残すと、後続ターンで LLM に渡って汚染源になる。
         # 一方で履歴から単純に消すと、Human/AI の交互並びが崩れて Gemini が嫌う
         # 「AI が連続する履歴」になる。そこで同じ id で定型の伏せ字に差し替える
         # （add_messages は id が一致するメッセージを置換する）。
         return {
             "messages": [
+                *earlier,
                 HumanMessage(content=REDACTED_USER_TEXT, id=last.id),
                 AIMessage(content=INPUT_REFUSAL_REPLY),
             ],
