@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gcloud --version)",
+      "Bash(gcloud version)",
+      "Bash(gcloud auth list *)",
+      "Bash(gcloud config list *)",
+      "Bash(gcloud projects list *)",
+      "Bash(gcloud builds list *)",
+      "Bash(gcloud builds describe *)",
+      "Bash(gcloud builds triggers list *)",
+      "Bash(gcloud builds triggers describe *)",
+      "Bash(gcloud run services list *)",
+      "Bash(gcloud run services describe *)",
+      "Bash(gcloud run revisions list *)",
+      "Bash(gcloud run revisions describe *)",
+      "Bash(gcloud logging read *)"
+    ],
+    "deny": [
+      "Read(~/.config/gcloud/**)",
+      "Read(./.gcloud-token*)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-cloud-cli.py"],
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

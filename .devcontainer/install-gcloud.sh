@@ -3,7 +3,7 @@
 #
 # コミュニティの feature（dhoeric/google-cloud-cli）は鍵の登録に apt-key を使うが、Debian 13（trixie）の
 # 基底イメージには apt-key が無く、導入に失敗してコンテナの作成ごと止まる。そのため feature は使わず、
-# gpg --dearmor と signed-by で登録する。ログイン情報は置かない（README の「開発環境の gcloud（閲覧専用）」）。
+# gpg --dearmor と signed-by で登録する。このスクリプトはログインしない（ログインは README の「開発環境の gcloud（ログインとガード）」の手順で、ユーザーが行う）。
 #
 # 失敗しても開発コンテナの作成は止めない（gcloud が無いだけで、他の作業はできる）。
 set -uo pipefail
