@@ -270,6 +270,49 @@ RAG の精度は `tests/rag_eval_cases.py` の評価セット（関連 21 件・
 ログインを置かないので、いちばん安全です。ただし、フックは ID を切り替える `--access-token-file` を拒否するので、
 この方式を使うなら `.claude/hooks/guard-cloud-cli.py` の `IDENTITY_FLAGS` から外してください。
 
+## 開発環境の GitHub CLI（gh）
+
+開発コンテナには `gh` が入ります（`.devcontainer/install-gh.sh`）。CI の実行結果やログ、ルールセットなど、GitHub の参照に使います。
+gcloud と同じ考え方で、エージェントには**読み取り専用**だけを持たせ、書き込み（PR の作成、設定の変更）はあなたが行います。
+
+| 層 | 内容 |
+|---|---|
+| トークン | **このリポジトリだけ**の細粒度トークン（fine-grained PAT）。`Actions` と `Metadata` の読み取り専用で、期限は 30 日。書き込みの権限は付けません。これが主な制御です |
+| PreToolUse フック | `.claude/hooks/guard-cloud-cli.py` が gh の呼び出しも検査します（Bash と Monitor）。認証・トークンの取得、削除、秘密と設定の変更、拡張とエイリアス（コードの実行）、書き込みの GraphQL、URL 指定は拒否し、書き込み系は確認を強制します。`git credential`（保存された認証情報の取り出し）も拒否します。コマンドは、改行・`;`・パイプ・引用符・コマンド置換・ヒアドキュメントを読んで 1 つずつに分け、`bash -c`・`xargs`・`sudo`・`find -exec` などの中身も調べます |
+| 権限ルール | `.claude/settings.json`: 読み取り系の gh（`run` / `pr` / `issue` / `workflow` / `ruleset` / `release` / `repo view`）だけ許可し、gh の設定ディレクトリの読み取りを拒否します。**`gh api` は許可リストに入れていません**（毎回確認します。フックの見落としが、そのまま実行にならないようにするためです） |
+
+**gcloud との違い**: gh の設定（トークン）は、再ビルドしても残ります。名前付きボリュームを `~/.gh-config` にマウントし、
+`GH_CONFIG_DIR` で gh にそこを使わせています（`~/.config/gh` に直接マウントすると、`~/.config` が root 所有で作られ、
+gcloud などが書けなくなるおそれがあるためです）。読み取り専用で期限付きのトークンだけを置く前提なので、残しています。
+コンテナにはキーリングが無く、トークンは平文のファイルとして保存されます。フックは境界ではありません（gcloud と同じ限界です）。
+コマンド文字列の検査なので、変数やファイルに隠した操作（`$CMD`、書いてから実行するスクリプト）、パスの難読化
+（`cd` した後の相対パスなど）、`ssh` や `docker exec` の先は追えません。主な制御は、トークンの権限（読み取り専用）です。
+
+### 初回の設定
+
+1. **トークンを作る**（GitHub のブラウザ操作）。Settings → Developer settings → Personal access tokens →
+   Fine-grained tokens → Generate new token。
+   - Repository access: Only select repositories → このリポジトリ
+   - Repository permissions: `Actions` を Read-only（`Metadata` は自動で Read-only になります）。
+     ルールセットを読みたいときは、`Administration` を Read-only にします（まず付けずに試し、読めなければ足します）
+   - Expiration: 30 days
+2. **ログインする**（VS Code の統合ターミナル。トークンはチャットに貼りません）
+
+   ```bash
+   gh auth login --with-token     # 実行して、トークンを貼り付け、Enter を押してから Ctrl+D
+   gh auth status                 # Logged in と表示される
+   ```
+
+3. **確認する**
+
+   ```bash
+   gh run list --limit 3
+   gh ruleset list                                 # Administration を付けた場合（読めなければ、ブラウザで確認）
+   ```
+
+期限（30 日）が切れると 401 になります。新しいトークンを作って、手順 2 をやり直してください。
+やめるときは、`gh auth logout` でトークンを消せます（再ビルドでは消えません）。
+
 ## 構成
 
 ```

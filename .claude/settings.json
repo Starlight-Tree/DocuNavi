@@ -14,18 +14,40 @@
       "Bash(gcloud run services describe *)",
       "Bash(gcloud run revisions list *)",
       "Bash(gcloud run revisions describe *)",
-      "Bash(gcloud logging read *)"
+      "Bash(gcloud logging read *)",
+      "Bash(gh --version)",
+      "Bash(gh auth status)",
+      "Bash(gh run list *)",
+      "Bash(gh run view *)",
+      "Bash(gh run watch *)",
+      "Bash(gh workflow list *)",
+      "Bash(gh workflow view *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr status *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh issue list *)",
+      "Bash(gh issue view *)",
+      "Bash(gh repo view *)",
+      "Bash(gh ruleset list *)",
+      "Bash(gh ruleset view *)",
+      "Bash(gh ruleset check *)",
+      "Bash(gh release list *)",
+      "Bash(gh release view *)"
     ],
     "deny": [
       "Read(~/.config/gcloud/**)",
-      "Read(./.gcloud-token*)"
+      "Read(./.gcloud-token*)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.gh-config/**)"
     ],
     "disableBypassPermissionsMode": "disable"
   },
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Monitor",
         "hooks": [
           {
             "type": "command",
