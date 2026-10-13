@@ -144,6 +144,15 @@ pytest
 
 フロントエンドは Vitest です（`cd frontend && npm test`）。
 
+依存のバージョンは `requirements.txt` と `requirements-dev.txt` に固定しています（Python 3.12、全プラットフォーム向け）。
+どちらも `requirements.in` / `requirements-dev.in` から [uv](https://docs.astral.sh/uv/) で生成したファイルなので、直接は編集しません。
+更新するときは `.in` を編集して、次を実行します（`pip install uv` で入ります）。
+
+```bash
+uv pip compile requirements.in --universal --python-version 3.12 -o requirements.txt
+uv pip compile requirements-dev.in --universal --python-version 3.12 -c requirements.txt -o requirements-dev.txt
+```
+
 `tests/conftest.py` が `GEMINI_API_KEY` を空にしてからアプリを読み込むため、`.env` に実キーがあってもテストは常にモックモードで動き、Gemini API を呼びません。
 
 RAG の精度は `tests/rag_eval_cases.py` の評価セット（関連 21 件・無関係 8 件）で回帰テストしています。2-gram 照合では拾えない言い換え（「気温差」→「温度差」など）は既知の取りこぼしです。
