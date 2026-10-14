@@ -362,3 +362,219 @@ def test_current_search_does_not_regress_from_the_committed_baseline(tmp_path):
     assert current["summary"]["total_questions"] == baseline["summary"]["total_questions"], (
         "質問の数が baseline と違う。評価セットを変えたら baseline を取り直す"
     )
+
+
+# ---- evidence_mode / answer / page / PDF の資料 ----
+
+
+def test_evidence_mode_all_needs_every_evidence_but_any_needs_one_per_file():
+    rows = ("港町本店 港町 68席", "湖畔テラス店 湖畔 76席")
+    hits = [("g.pdf", "港町本店 港町 68席")]  # 2 行のうち 1 行だけ返った
+
+    any_q = _q(expected_doc_ids=("g.pdf",), evidence=rows, evidence_mode="any")
+    all_q = _q(expected_doc_ids=("g.pdf",), evidence=rows, evidence_mode="all")
+
+    assert ev.evaluate_question(any_q, hits)["keyword_hit"] is True
+    partial = ev.evaluate_question(all_q, hits)
+    assert partial["keyword_hit"] is False
+    assert partial["failure_category"] == "keyword_miss"
+    assert partial["evidence_mode"] == "all"
+    complete = ev.evaluate_question(all_q, [("g.pdf", "港町本店 港町 68席\n湖畔テラス店 湖畔 76席")])
+    assert complete["keyword_hit"] is True
+
+
+def test_evidence_matching_ignores_whitespace_and_width():
+    # PDF では、表のセルが改行や空白で区切られて出る。全角の数字や記号も揺れる
+    q = _q(expected_doc_ids=("g.pdf",), evidence=("港町本店 港町 7:00〜21:00 なし 68席",))
+    extracted = "港町本店\n港町\n７:００〜２１:００\nなし\n68席"
+    assert ev.evaluate_question(q, [("g.pdf", extracted)])["keyword_hit"] is True
+    assert ev.evaluate_question(q, [("g.pdf", "港町本店 港町 7:00〜21:00 なし 69席")])["keyword_hit"] is False
+
+
+def test_load_questions_reads_the_optional_fields(tmp_path):
+    path = _write(
+        tmp_path,
+        """
+        - id: c1
+          question: "座席数が最も多い店舗は？"
+          category: factual
+          kind: aggregate
+          evidence_mode: all
+          answer: "湖畔テラス店です。"
+          page: ""
+          expected_doc_ids: ["g.pdf"]
+          evidence: ["湖畔テラス店 76席"]
+        - id: c2
+          question: "本文？"
+          category: factual
+          page: 2
+          expected_doc_ids: ["g.pdf"]
+          evidence: ["本文"]
+        """,
+    )
+    first, second = ev.load_questions(path)
+    assert (first.evidence_mode, first.answer, first.page, first.kind) == ("all", "湖畔テラス店です。", None, "aggregate")
+    assert (second.evidence_mode, second.answer, second.page) == ("any", None, 2)
+
+
+@pytest.mark.parametrize(
+    "extra",
+    ["evidence_mode: some", "page: 0", "page: abc", "page: true", "answer: 3"],
+)
+def test_load_questions_rejects_bad_optional_fields(tmp_path, extra):
+    path = _write(
+        tmp_path,
+        f"""
+        - id: c1
+          question: "q"
+          category: factual
+          expected_doc_ids: ["g.pdf"]
+          evidence: ["x"]
+          {extra}
+        """,
+    )
+    with pytest.raises(ev.QuestionsError):
+        ev.load_questions(path)
+
+
+def test_the_approved_cafe_questions_load():
+    questions = ev.load_questions(ROOT / "evals" / "corpora" / "cafe" / "questions.yaml")
+    assert len(questions) == 10
+    by_id = {q.id: q for q in questions}
+    assert by_id["c006"].evidence_mode == "all"
+    assert len(by_id["c006"].evidence) == 12  # 集計の質問は、表の全行
+    assert {q.category for q in questions} == {"factual", "paraphrase", "out_of_scope"}
+    assert all(q.page is None for q in questions)
+
+
+def test_search_chunks_accepts_another_corpus_and_keeps_the_default():
+    other = {"x.pdf": "湖畔テラス店は76席です。\n港町本店は68席です。"}
+    hits = tools.search_chunks("湖畔テラス店", corpus=other)
+    assert [name for name, _ in hits] == ["x.pdf"]
+    assert tools.search_chunks("湖畔テラス店") == []  # 既定の資料（storage/chunk/）には無い
+
+
+def _pdf_corpus(tmp_path, *, questions: str):
+    from tests.pdf_fixtures import build_pdf
+
+    corpus = tmp_path / "shop"
+    corpus.mkdir()
+    (corpus / "guide.pdf").write_bytes(
+        build_pdf(
+            [
+                ["みなとコーヒーの店舗案内です。", "座席数が最も多いのは湖畔テラス店です。"],
+                ["港町本店の定休日はありません。"],
+            ]
+        )
+    )
+    (corpus / "questions.yaml").write_text(textwrap.dedent(questions), encoding="utf-8")
+    return corpus
+
+
+def test_corpus_mode_evaluates_pdfs_and_locates_evidence_pages(tmp_path):
+    corpus = _pdf_corpus(
+        tmp_path,
+        questions="""
+        - id: p1
+          question: "座席数が最も多いのは？"
+          category: factual
+          expected_doc_ids: ["guide.pdf"]
+          evidence: ["座席数が最も多いのは湖畔テラス店です。"]
+          page: 1
+        - id: p2
+          question: "港町本店の定休日は？"
+          category: factual
+          expected_doc_ids: ["guide.pdf"]
+          evidence: ["港町本店の定休日はありません。"]
+        - id: p3
+          question: "宇宙船の速度は？"
+          category: out_of_scope
+          scope_kind: off_topic
+        """,
+    )
+    out = tmp_path / "r.json"
+    assert ev.main(["--corpus", str(corpus), "--k", "3", "--out", str(out)]) == 0
+
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["corpus"]["source"] == "pdf:shop"
+    assert report["corpus"]["files"] == ["guide.pdf"]
+    assert report["corpus"]["pages"] == {"guide.pdf": 2}
+    assert report["evidence_pages"]["p1"] == {"座席数が最も多いのは湖畔テラス店です。": [1]}
+    assert report["evidence_pages"]["p2"] == {"港町本店の定休日はありません。": [2]}
+    results = {r["id"]: r for r in report["results"]}
+    assert results["p1"]["doc_hit"] and results["p1"]["keyword_hit"]
+    assert results["p2"]["doc_hit"] and results["p2"]["keyword_hit"]
+    assert results["p3"]["answered_empty"] is True
+
+
+def test_corpus_mode_default_output_name_includes_the_directory(tmp_path, monkeypatch):
+    corpus = _pdf_corpus(
+        tmp_path,
+        questions="""
+        - id: p1
+          question: "座席数が最も多いのは？"
+          category: factual
+          expected_doc_ids: ["guide.pdf"]
+          evidence: ["座席数が最も多いのは湖畔テラス店です。"]
+        """,
+    )
+    monkeypatch.setattr(ev, "RESULTS_DIR", tmp_path / "results")
+    assert ev.main(["--corpus", str(corpus)]) == 0
+    assert (tmp_path / "results" / "baseline_bm25_shop.json").is_file()
+
+
+def test_corpus_mode_refuses_a_page_that_the_extraction_contradicts(tmp_path, capsys):
+    corpus = _pdf_corpus(
+        tmp_path,
+        questions="""
+        - id: p1
+          question: "座席数が最も多いのは？"
+          category: factual
+          expected_doc_ids: ["guide.pdf"]
+          evidence: ["座席数が最も多いのは湖畔テラス店です。"]
+          page: 2
+        """,
+    )
+    assert ev.main(["--corpus", str(corpus), "--out", str(tmp_path / "r.json")]) == 2
+    err = capsys.readouterr().err
+    assert "page=2" in err
+    assert not (tmp_path / "r.json").exists()
+
+
+def test_corpus_mode_does_not_drop_a_pdf_that_cannot_be_read(tmp_path, capsys):
+    corpus = _pdf_corpus(
+        tmp_path,
+        questions="""
+        - id: p1
+          question: "座席数が最も多いのは？"
+          category: factual
+          expected_doc_ids: ["guide.pdf"]
+          evidence: ["座席数が最も多いのは湖畔テラス店です。"]
+        """,
+    )
+    (corpus / "broken.pdf").write_bytes(b"not a pdf")
+    assert ev.main(["--corpus", str(corpus), "--out", str(tmp_path / "r.json")]) == 2
+    err = capsys.readouterr().err
+    assert "broken.pdf: unreadable" in err
+    assert not (tmp_path / "r.json").exists()
+
+
+CAFE_DIR = ROOT / "evals" / "corpora" / "cafe"
+CAFE_BASELINE = ROOT / "evals" / "results" / "baseline_bm25_cafe.json"
+
+
+@pytest.mark.skipif(not (CAFE_DIR / "cafe_store_guide.pdf").exists(), reason="評価用の PDF（evals/corpora/cafe/）が無い")
+def test_cafe_pdf_search_does_not_regress_from_the_committed_baseline(tmp_path):
+    # baseline は「現行の抽出・チャンク化・BM25 の実測」。同じ PDF で、該当数が baseline を下回ったら退行。
+    # 比べるのは入力の PDF が同じときだけ（チャンク化を変えても PDF のハッシュは動かない）。上回ったら baseline を取り直す
+    baseline = json.loads(CAFE_BASELINE.read_text(encoding="utf-8"))
+    out = tmp_path / "r.json"
+    assert ev.main(["--corpus", str(CAFE_DIR), "--k", str(baseline["k"]), "--out", str(out)]) == 0
+    current = json.loads(out.read_text(encoding="utf-8"))
+    if current["corpus"]["pdf_sha256"] != baseline["corpus"]["pdf_sha256"]:
+        pytest.skip("PDF が変わった。baseline を取り直す（--corpus evals/corpora/cafe）")
+
+    now, then = current["summary"]["counts"], baseline["summary"]["counts"]
+    regressed = {name: (then[name], now[name]) for name in then if now[name] < then[name]}
+    assert not regressed, f"baseline より該当数が減った（baseline, 現在）: {regressed}"
+    assert current["summary"]["total_questions"] == baseline["summary"]["total_questions"]

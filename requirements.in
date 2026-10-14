@@ -8,3 +8,5 @@ python-dotenv>=1.0
 # 会話履歴の保存先（DATABASE_URL を設定したときだけ使う。docs/configuration.md）
 langgraph-checkpoint-postgres>=3.1
 psycopg[binary,pool]>=3.2
+# PDF の取り込み（python -m app.ingestion。評価コーパスとアップロード資料の抽出）
+pypdf>=6.19
