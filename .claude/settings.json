@@ -44,7 +44,8 @@
       "Read(~/.config/gcloud/**)",
       "Read(./.gcloud-token*)",
       "Read(~/.config/gh/**)",
-      "Read(~/.gh-config/**)"
+      "Read(~/.gh-config/**)",
+      "Read(./.env)"
     ],
     "disableBypassPermissionsMode": "disable"
   },
