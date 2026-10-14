@@ -16,13 +16,19 @@ Gemini は 1〜3 秒で返す回と、20 秒以上かかる回・無応答のま
 
 ストリーミング（hedged_stream）は、同じ仕組みで「最初のチャンクが届いた試行」を採る。採った後は、
 その試行が最後まで流れる（途中で失敗しても、別の試行へは切り替えない。利用者へ送った本文が変わるため）。
+
+フォールバックのモデルがあるときは、最初のヘッジの時刻（hedge_delay 秒たっても結果が無い）に、主モデルの
+追加の試行の代わりに、フォールバックを 1 本だけ並行して投げる。先に結果（最初のチャンク）が届いた方を採る。
+主モデルが落ちて無応答のまま止まっていても、フォールバックの分だけで済む（試行の上限まで待たない）。
 """
 
 import asyncio
 import enum
 import importlib
 import logging
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import aclosing
 from dataclasses import dataclass
 from typing import TypeVar
 
@@ -106,6 +112,17 @@ class HedgePolicy:
     rate_limit_delay: float = 2.0  # 429 のとき、次を投げるまでの待ち（429 の回数に比例して延ばす）
 
 
+@dataclass
+class FallbackTrace:
+    """1 回の LLM 呼び出しの中で、フォールバックを試したか・採ったか（呼び出しごとに新しく作る）。"""
+
+    tried: bool = False  # すでにフォールバックを投げた（同じ呼び出しの中では、もう投げない）
+    won: bool = False  # フォールバックの結果を採った（主モデルより先に届いた）
+    # 主モデルの試行が、実際に一時的な失敗（5xx・接続・タイムアウト・空の応答）で終わっていた。
+    # 遅いだけ（まだ結果もエラーも無い）なら立たない。ブレーカーを開けるかの判断に使う
+    primary_failed: bool = False
+
+
 def _consume(task: "asyncio.Future[object]") -> None:
     """終わった試行の例外を取り出す（取り出さないと「Task exception was never retrieved」になる）。"""
     if not task.cancelled():
@@ -152,6 +169,9 @@ async def hedged_call(
     *,
     name: str = "LLM",
     discard: Callable[[T], Awaitable[None]] | None = None,
+    fallback: Callable[[], Awaitable[T]] | None = None,
+    fallback_name: str = "フォールバック",
+    trace: FallbackTrace | None = None,
 ) -> T:
     """make_attempt() を policy に従って投げ、最初に成功した結果を返す。
 
@@ -159,7 +179,15 @@ async def hedged_call(
     呼び出し元がキャンセルされたときは、投げた試行を全て取り消してから戻る（タスクを取り残さない）。
     discard は、採らなかった成功結果（同じ回に複数が成功したときの残り）を後始末するための関数。
     閉じる必要のある資源（開いたままのストリームなど）を返す試行で使う。
+
+    fallback があるとき（trace.tried が立っていないとき）は、最初の時間経過によるヘッジで、make_attempt の
+    追加の代わりに fallback() を 1 本だけ並行して投げる（試行数 max_attempts に数える）。先に成功した方を採り、
+    fallback の結果を採ったら trace.won を立てる。fallback の失敗（429・設定の失敗を含む）は、主モデルの
+    試行の扱いに影響させず、ログだけ残す（全ての試行が失敗したときに送出するのは、主モデルの失敗）。
+    429 を受けて追加を止めているとき、max_attempts が 1 のときは、並行して投げない。
     """
+    if trace is None:
+        trace = FallbackTrace()
     loop = asyncio.get_running_loop()
     started = loop.time()
     pending: set[asyncio.Future[T]] = set()
@@ -170,17 +198,22 @@ async def hedged_call(
     last_exc: BaseException | None = None
     rate_limit_exc: BaseException | None = None
     next_launch_at = started
+    fallback_tasks: set[asyncio.Future[T]] = set()  # 並行して投げたフォールバックの試行
 
-    def launch(reason: str) -> None:
+    def launch(reason: str, *, use_fallback: bool = False) -> None:
         nonlocal launched, next_launch_at
+        factory = fallback if use_fallback and fallback is not None else make_attempt
         try:
-            task: asyncio.Future[T] = asyncio.ensure_future(make_attempt())
+            task: asyncio.Future[T] = asyncio.ensure_future(factory())
         except Exception as exc:  # 同期的に失敗した（awaitable を返さなかった場合を含む）。試行の失敗として扱う
             task = loop.create_future()
             task.set_exception(exc)
         launch_order[task] = launched
         pending.add(task)
         launched += 1
+        if use_fallback:
+            fallback_tasks.add(task)
+            trace.tried = True
         if launched > 1:
             logger.warning(
                 "%s: %s（%d/%d 本目、開始から %.1f 秒）", name, reason, launched, policy.max_attempts, loop.time() - started
@@ -204,14 +237,30 @@ async def hedged_call(
             failed: list[BaseException] = []
             for task in sorted(done, key=launch_order.__getitem__):
                 pending.discard(task)
+                is_fallback = task in fallback_tasks
                 if task.cancelled():
                     # 呼び出し元の取り消しなら、この await 自体が CancelledError になる。ここに来るのは試行の自己都合
-                    failed.append(AttemptCancelled(f"{name}: 試行が取り消されました"))
+                    if not is_fallback:
+                        trace.primary_failed = True
+                        failed.append(AttemptCancelled(f"{name}: 試行が取り消されました"))
                     continue
                 exc = task.exception()
+                if exc is not None and is_fallback:
+                    logger.warning("%s: 並行して投げた %s の試行が失敗しました（%s）", name, fallback_name, type(exc).__name__)
+                    continue  # 主モデルの試行の扱い（429 の待ち・即時失敗・最後の失敗）に影響させない
+                if exc is not None and classify_failure(exc) is Failure.RETRY:
+                    trace.primary_failed = True  # 同じ回にフォールバックが先に採られても、この失敗は残す
                 if exc is None:
+                    if is_fallback:
+                        trace.won = True
                     if launched > 1:
-                        logger.info("%s: %.1f 秒で成功（投げた試行 %d 本）", name, loop.time() - started, launched)
+                        logger.info(
+                            "%s: %.1f 秒で成功（投げた試行 %d 本%s）",
+                            name,
+                            loop.time() - started,
+                            launched,
+                            f"。{fallback_name} が先に応答" if is_fallback else "",
+                        )
                     if discard is not None:
                         for other in done:
                             if other is not task and not other.cancelled() and other.exception() is None:
@@ -231,7 +280,13 @@ async def hedged_call(
                     rate_limit_exc = rate_limit_exc or exc
 
             if not done and can_launch and hedging:
-                launch(f"{policy.hedge_delay:g} 秒応答が無いため、追加の試行を投げます")
+                if fallback is not None and not trace.tried:
+                    launch(
+                        f"{policy.hedge_delay:g} 秒応答が無いため、追加の試行の代わりに {fallback_name} を並行して投げます",
+                        use_fallback=True,
+                    )
+                else:
+                    launch(f"{policy.hedge_delay:g} 秒応答が無いため、追加の試行を投げます")
 
         # 全ての試行が失敗した場合だけここに来る
         raise rate_limit_exc or last_exc or RuntimeError(f"{name}: 試行が結果を返さずに終了しました")
@@ -251,7 +306,13 @@ async def _aclose(stream: object) -> None:
 
 
 async def hedged_stream(
-    make_stream: Callable[[], AsyncIterator[T]], policy: HedgePolicy, *, name: str = "LLM"
+    make_stream: Callable[[], AsyncIterator[T]],
+    policy: HedgePolicy,
+    *,
+    name: str = "LLM",
+    fallback: Callable[[], AsyncIterator[T]] | None = None,
+    fallback_name: str = "フォールバック",
+    trace: FallbackTrace | None = None,
 ) -> AsyncIterator[T]:
     """make_stream() が返すストリームを policy に従って投げ、最初のチャンクが届いた試行のチャンクを流す。
 
@@ -259,27 +320,340 @@ async def hedged_stream(
     最初のチャンクの前に全ての試行が失敗したときは、その失敗を送出する。最初のチャンクの後の失敗は、
     そのまま送出する（別の試行に切り替えると、先に送った本文と食い違うため）。
     採らなかった試行のストリームは閉じる。呼び出し側が途中でやめたとき（aclose・取り消し）も閉じる。
+    fallback・trace は hedged_call と同じ（最初のヘッジで fallback のストリームを並行して開き、先に最初の
+    チャンクが届いた方を採る。fallback を採ったら trace.won が立つ）。
     """
 
-    async def attempt() -> tuple[T, AsyncIterator[T]]:
-        stream = aiter(make_stream())
-        try:
-            first = await anext(stream)
-        except StopAsyncIteration:
-            await _aclose(stream)
-            raise EmptyStream(f"{name}: 応答が空でした") from None
-        except BaseException:
-            await _aclose(stream)
-            raise
-        return first, stream
+    def first_chunk_of(factory: Callable[[], AsyncIterator[T]], label: str):
+        async def attempt() -> tuple[T, AsyncIterator[T]]:
+            stream = aiter(factory())
+            try:
+                first = await anext(stream)
+            except StopAsyncIteration:
+                await _aclose(stream)
+                raise EmptyStream(f"{label}: 応答が空でした") from None
+            except BaseException:
+                await _aclose(stream)
+                raise
+            return first, stream
+
+        return attempt
+
+    attempt = first_chunk_of(make_stream, name)
 
     async def discard(result: tuple[T, AsyncIterator[T]]) -> None:
         await _aclose(result[1])
 
-    first, stream = await hedged_call(attempt, policy, name=name, discard=discard)
+    first, stream = await hedged_call(
+        attempt,
+        policy,
+        name=name,
+        discard=discard,
+        fallback=first_chunk_of(fallback, fallback_name) if fallback is not None else None,
+        fallback_name=fallback_name,
+        trace=trace,
+    )
     try:
         yield first
         async for item in stream:
             yield item
     finally:
         await _aclose(stream)
+
+
+class PrimaryBreaker:
+    """主モデルを一時的に飛ばす、プロセス内の簡易ブレーカー（GEMINI_FALLBACK_HOLD_SECONDS）。
+
+    落ちている主モデルを毎回待たない（ヘッジ・再試行を使い切るまで約 10 秒かかる）ための状態。
+    - 閉（既定）: 主モデルから試す。
+    - 開: 主モデルが一時的な失敗で尽き、フォールバックが成功したときから hold_seconds の間。
+      主モデルを飛ばして、フォールバックから始める。
+    - 半開: 開の満了後。最初の 1 件だけ主モデルを試し（その間の他の呼び出しはフォールバックから始める）、
+      成功すれば閉、まだ失敗なら開に戻る。
+    hold_seconds が 0 以下なら何もしない（常に閉）。状態はプロセスごとで、再起動・インスタンス間では共有しない。
+    メソッドはどれも await を含まないので、asyncio のなかではロック無しで整合する。
+    """
+
+    def __init__(
+        self,
+        hold_seconds: float,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        name: str = "LLM",
+    ) -> None:
+        self._hold = hold_seconds
+        self._clock = clock
+        self._name = name
+        self._open_until: float | None = None
+        self._probing = False
+
+    def route(self) -> str:
+        """この呼び出しの始め方。"primary"（通常）/ "probe"（主モデルを試す 1 件）/ "fallback"（飛ばす）。"""
+        if self._hold <= 0 or self._open_until is None:
+            return "primary"
+        if self._clock() < self._open_until or self._probing:
+            return "fallback"
+        self._probing = True
+        logger.info("%s: 主モデルを 1 件だけ試して、戻ったかを確かめます", self._name)
+        return "probe"
+
+    def primary_ok(self) -> None:
+        """主モデルが応答した。開（半開）なら閉じる。"""
+        self._probing = False
+        if self._open_until is not None:
+            self._open_until = None
+            logger.info("%s: 主モデルが戻りました。通常の経路に戻します", self._name)
+
+    def opened(self) -> None:
+        """主モデルが一時的な失敗で尽き、フォールバックが成功した。主モデルを hold_seconds 飛ばす。"""
+        self._probing = False
+        if self._hold <= 0:
+            return
+        again = self._open_until is not None
+        self._open_until = self._clock() + self._hold
+        logger.warning(
+            "%s: 主モデルが%s落ちています。%g 秒間は主モデルを飛ばして、フォールバックから始めます",
+            self._name,
+            "まだ" if again else "",
+            self._hold,
+        )
+
+    def fallback_failed(self) -> None:
+        """フォールバックが失敗した。主モデルを飛ばし続けない（通常の経路に戻す）。"""
+        self._probing = False
+        if self._open_until is not None:
+            self._open_until = None
+            logger.warning("%s: フォールバックも失敗したため、通常の経路に戻します", self._name)
+
+    def end_probe(self) -> None:
+        """主モデルを試す 1 件が（取り消し・設定の失敗などで）結論なしに終わった。次の呼び出しが試す。"""
+        self._probing = False
+
+
+def _start_route(prefer_fallback: bool, breaker: PrimaryBreaker | None) -> str:
+    if prefer_fallback:
+        return "fallback"
+    return breaker.route() if breaker is not None else "primary"
+
+
+def _fallback_won_race(
+    name: str,
+    fallback_name: str,
+    trace: FallbackTrace,
+    breaker: PrimaryBreaker | None,
+    on_fallback: Callable[[], None] | None,
+) -> None:
+    """並行して投げたフォールバックが先に応答したときの記録。
+
+    主モデルの試行が実際に失敗していたときだけ、ブレーカーを開ける。遅いだけ（エラーが出ていない）なら、
+    主モデルはまだ生きているかもしれないので、数十秒も高いモデルに固定しない（毎回、主モデルから試す）。
+    同じ質問の中の以降の呼び出しがフォールバックから始まる記録（on_fallback）は、どちらでも残す。
+    """
+    if trace.primary_failed:
+        if breaker is not None:
+            breaker.opened()
+    else:
+        logger.info(
+            "%s: %s が先に応答しました。主モデルにエラーは出ていない（遅いだけ）ので、主モデルは飛ばしません",
+            name,
+            fallback_name,
+        )
+    if on_fallback is not None:
+        on_fallback()
+
+
+async def call_with_fallback(
+    primary: Callable[[], Awaitable[T]],
+    fallback: Callable[[], Awaitable[T]],
+    *,
+    name: str = "LLM",
+    fallback_name: str = "フォールバック",
+    prefer_fallback: bool = False,
+    breaker: PrimaryBreaker | None = None,
+    on_fallback: Callable[[], None] | None = None,
+    trace: FallbackTrace | None = None,
+) -> T:
+    """primary() が一時的な失敗で終わったときだけ、fallback() を 1 回呼ぶ。
+
+    primary は、ヘッジ・再試行を使い切った呼び出し（hedged_call など）を渡す。切り替えるのは、
+    投げ直せば通りうる失敗（`Failure.RETRY`）だけ。429（レート制限）と、認証・不正なリクエスト・モデルが
+    使えない（404）といった失敗は、別のモデルでも解決しないか、叩き続けないために、そのまま送出する。
+    fallback も失敗したときは、fallback の失敗ではなく primary の失敗を送出する（呼び出し側のエラー変換が
+    これまでと変わらないように。fallback の失敗の種類だけログに残す）。キャンセルは握りつぶさない。
+
+    prefer_fallback（同じ質問の中で、先の呼び出しがすでにフォールバックに切り替わった）か、breaker が開いて
+    いるときは、fallback() から始める。それが失敗したら、primary() を 1 回の通常の経路で試す（fallback は
+    もう試さない）。fallback が回答を返したとき on_fallback() を呼ぶ（呼び出し側が「同じ質問の中では
+    フォールバックを使う」と覚えるため）。
+
+    trace は、primary の中（hedged_call）でフォールバックを並行して投げたかを受け取る。並行して投げた
+    フォールバックが先に応答したとき（trace.won）は、fallback() を呼ばずにその結果を、フォールバックの
+    回答として扱う。並行して投げて失敗していたとき（trace.tried）は、fallback() をもう一度は試さない。
+    """
+    route = _start_route(prefer_fallback, breaker)
+    try:
+        if route == "fallback":
+            try:
+                result = await fallback()
+            except Exception as exc:
+                logger.warning("%s: %s が失敗しました（%s）。主モデルを試します", name, fallback_name, type(exc).__name__)
+                if breaker is not None:
+                    breaker.fallback_failed()
+                if trace is not None:
+                    trace.tried = True  # 主モデルの中で、同じフォールバックをもう一度並行して投げない
+                return await primary()
+            if on_fallback is not None:
+                on_fallback()
+            return result
+
+        try:
+            result = await primary()
+        except Exception as exc:
+            if classify_failure(exc) is not Failure.RETRY:
+                raise
+            failure = exc
+        else:
+            if trace is not None and trace.won:
+                # 並行して投げたフォールバックが、主モデルより先に応答した
+                _fallback_won_race(name, fallback_name, trace, breaker, on_fallback)
+            elif breaker is not None:
+                breaker.primary_ok()
+            return result
+        if trace is not None and trace.tried:
+            logger.warning(
+                "%s: 並行して投げた %s も失敗していたため、もう一度は試さず元の失敗を返します", name, fallback_name
+            )
+            raise failure
+        logger.warning(
+            "%s: 一時的な失敗が続いたため、%s で 1 回だけ試します（失敗の種類: %s）",
+            name,
+            fallback_name,
+            type(failure).__name__,
+        )
+        try:
+            result = await fallback()
+        except Exception as exc:
+            logger.warning("%s: %s も失敗しました（%s）。元の失敗を返します", name, fallback_name, type(exc).__name__)
+        else:
+            logger.info("%s: %s で成功しました", name, fallback_name)
+            if breaker is not None:
+                breaker.opened()
+            if on_fallback is not None:
+                on_fallback()
+            return result
+        raise failure
+    finally:
+        if route == "probe" and breaker is not None:
+            breaker.end_probe()
+
+
+async def _stream_items(factory: Callable[[], AsyncIterator[T]], label: str) -> AsyncIterator[T]:
+    """factory() のストリームを流す。チャンクを 1 つも返さずに終わったら EmptyStream（一時的な失敗）。"""
+    got = False
+    async with aclosing(factory()) as stream:
+        async for item in stream:
+            got = True
+            yield item
+    if not got:
+        raise EmptyStream(f"{label}: 応答が空でした")
+
+
+async def stream_with_fallback(
+    primary: Callable[[], AsyncIterator[T]],
+    fallback: Callable[[], AsyncIterator[T]],
+    *,
+    name: str = "LLM",
+    fallback_name: str = "フォールバック",
+    prefer_fallback: bool = False,
+    breaker: PrimaryBreaker | None = None,
+    on_fallback: Callable[[], None] | None = None,
+    trace: FallbackTrace | None = None,
+) -> AsyncIterator[T]:
+    """primary() のストリームを流し、最初のチャンクの前に一時的な失敗で終わったときだけ fallback() に切り替える。
+
+    切り替えの判定は call_with_fallback と同じ。最初のチャンクを送った後の失敗は、そのまま送出する
+    （別のモデルに切り替えると、先に送った本文と食い違うため）。チャンクを 1 つも返さずに終わったストリームは、
+    一時的な失敗（EmptyStream）として扱う。fallback が最初のチャンクの前に失敗したら primary の失敗を送出する。
+    呼び出し側が途中でやめたとき（aclose・取り消し）は、流している側のストリームを閉じる。
+
+    prefer_fallback・breaker・on_fallback の扱いも call_with_fallback と同じ（fallback から始めて、最初の
+    チャンクの前に失敗したら primary へ）。主モデルの最初のチャンクが届いたら、その時点で breaker を閉じる
+    （呼び出し側が途中でやめても、主モデルが戻ったことは分かるため）。trace の扱いも call_with_fallback と
+    同じ（primary の中で並行して投げたフォールバックが先に最初のチャンクを返したら、フォールバックの回答
+    として扱う。並行して投げて失敗していたなら、もう一度は試さない）。
+    """
+    route = _start_route(prefer_fallback, breaker)
+    sent = False
+    try:
+        if route == "fallback":
+            try:
+                async with aclosing(_stream_items(fallback, fallback_name)) as items:
+                    async for item in items:
+                        if not sent and on_fallback is not None:
+                            on_fallback()  # 最初のチャンクで記録する（呼び出し側が途中でやめても残る）
+                        sent = True
+                        yield item
+            except Exception as exc:
+                if sent:
+                    raise  # 送り始めた後の失敗は、別の試行に置き換えられない
+                logger.warning("%s: %s が失敗しました（%s）。主モデルを試します", name, fallback_name, type(exc).__name__)
+                if breaker is not None:
+                    breaker.fallback_failed()
+                if trace is not None:
+                    trace.tried = True  # 主モデルの中で、同じフォールバックをもう一度並行して投げない
+            else:
+                return
+            async with aclosing(_stream_items(primary, name)) as items:
+                async for item in items:
+                    yield item
+            return
+
+        try:
+            async with aclosing(_stream_items(primary, name)) as items:
+                async for item in items:
+                    if not sent:
+                        if trace is not None and trace.won:
+                            # 並行して投げたフォールバックが、主モデルより先に最初のチャンクを返した
+                            _fallback_won_race(name, fallback_name, trace, breaker, on_fallback)
+                        elif breaker is not None:
+                            breaker.primary_ok()
+                    sent = True
+                    yield item
+        except Exception as exc:
+            if sent or classify_failure(exc) is not Failure.RETRY:
+                raise
+            failure = exc
+        else:
+            return
+        if trace is not None and trace.tried:
+            logger.warning(
+                "%s: 並行して投げた %s も失敗していたため、もう一度は試さず元の失敗を返します", name, fallback_name
+            )
+            raise failure
+        logger.warning(
+            "%s: 一時的な失敗が続いたため、%s で 1 回だけ試します（失敗の種類: %s）",
+            name,
+            fallback_name,
+            type(failure).__name__,
+        )
+        try:
+            async with aclosing(_stream_items(fallback, fallback_name)) as items:
+                async for item in items:
+                    if not sent:
+                        # fallback の最初のチャンクで記録する（呼び出し側が途中でやめても残る）
+                        if breaker is not None:
+                            breaker.opened()
+                        if on_fallback is not None:
+                            on_fallback()
+                    sent = True
+                    yield item
+        except Exception as exc:
+            if sent:
+                raise
+            logger.warning("%s: %s も失敗しました（%s）。元の失敗を返します", name, fallback_name, type(exc).__name__)
+        else:
+            return
+        raise failure
+    finally:
+        if route == "probe" and breaker is not None:
+            breaker.end_probe()

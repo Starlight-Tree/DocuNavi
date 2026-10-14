@@ -1,7 +1,9 @@
+import logging
 import math
 import os
 import re
 import uuid
+from collections.abc import Callable
 from contextlib import aclosing
 from typing import Any
 
@@ -33,9 +35,20 @@ from app.agents.guardrails import (
     check_input,
     sanitize_output,
 )
-from app.agents.resilience import EmptyStream, HedgePolicy, hedged_call, hedged_stream
+from app.agents.resilience import (
+    EmptyStream,
+    FallbackTrace,
+    HedgePolicy,
+    PrimaryBreaker,
+    call_with_fallback,
+    hedged_call,
+    hedged_stream,
+    stream_with_fallback,
+)
 from app.agents.state import AgentState
 from app.agents.tools import TOOLS, bigrams
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "あなたは架空の惑星「ザーハード」の設定に詳しいアシスタントです。"
@@ -65,6 +78,7 @@ DEFAULT_LLM_HEDGE_DELAY_SECONDS = 8.0
 DEFAULT_LLM_ATTEMPT_TIMEOUT_SECONDS = 30.0  # ヘッジあり
 DEFAULT_LLM_ATTEMPT_TIMEOUT_SECONDS_SEQUENTIAL = 15.0  # ヘッジなし（LLM_HEDGE_DELAY_SECONDS=0）
 DEFAULT_LLM_MAX_ATTEMPTS = 3
+DEFAULT_FALLBACK_HOLD_SECONDS = 60.0
 
 # POST /chat/stream だけが config["configurable"][STREAM_TOKENS_KEY] = True にする。真のとき、エージェントは
 # LLM の応答をチャンクごとに受け、本文を逐次ガードに通して、カスタムストリーム（stream_mode="custom"）へ流す。
@@ -240,17 +254,8 @@ def llm_hedge_policy() -> HedgePolicy | None:
     return HedgePolicy(hedge_delay=delay, max_attempts=llm_max_attempts())
 
 
-def create_llm() -> BaseChatModel:
-    """Vertex AI（ADC）または Gemini API キーがあれば Gemini、なければモックを返す。
-
-    モデル名は GEMINI_MODEL で差し替えられる（Vertex AI はリージョンごとに提供モデルが違うため）。
-    Vertex AI のプロジェクト・ロケーションは GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION を使い、
-    未設定なら SDK が ADC やメタデータサーバーから解決する。
-    試行ごとのタイムアウトと再試行回数は LLM_ATTEMPT_TIMEOUT_SECONDS / LLM_MAX_ATTEMPTS。
-    """
-    if is_mock_mode():
-        return MockChatModel()
-    model = os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL
+def _create_gemini(model: str) -> ChatGoogleGenerativeAI:
+    """Vertex AI（ADC）または Gemini API キーで、指定したモデルのクライアントを作る（モックの判定は呼び出し側）。"""
     if use_vertex_ai():
         kwargs: dict[str, Any] = {}
         if project := os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip():
@@ -267,6 +272,51 @@ def create_llm() -> BaseChatModel:
             temperature=0,
         )
     )
+
+
+def create_llm() -> BaseChatModel:
+    """Vertex AI（ADC）または Gemini API キーがあれば Gemini、なければモックを返す。
+
+    モデル名は GEMINI_MODEL で差し替えられる（Vertex AI はリージョンごとに提供モデルが違うため）。
+    Vertex AI のプロジェクト・ロケーションは GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION を使い、
+    未設定なら SDK が ADC やメタデータサーバーから解決する。
+    試行ごとのタイムアウトと再試行回数は LLM_ATTEMPT_TIMEOUT_SECONDS / LLM_MAX_ATTEMPTS。
+    """
+    if is_mock_mode():
+        return MockChatModel()
+    return _create_gemini(os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL)
+
+
+def llm_fallback_model() -> str:
+    """GEMINI_FALLBACK_MODEL。空（既定）ならフォールバックしない。"""
+    return os.environ.get("GEMINI_FALLBACK_MODEL", "").strip()
+
+
+def llm_fallback_hold_seconds() -> float:
+    """GEMINI_FALLBACK_HOLD_SECONDS（既定 60）。フォールバックに切り替えたあと、主モデルを飛ばす秒数。
+
+    0 で無効（毎回、主モデルから試す。同じ質問の中でフォールバックを覚えるのは、これとは別に常に効く）。
+    不正値・負数は既定値に戻す。
+    """
+    try:
+        value = float(os.environ.get("GEMINI_FALLBACK_HOLD_SECONDS", ""))
+    except ValueError:
+        return DEFAULT_FALLBACK_HOLD_SECONDS
+    return value if math.isfinite(value) and value >= 0 else DEFAULT_FALLBACK_HOLD_SECONDS
+
+
+def create_fallback_llm() -> BaseChatModel | None:
+    """主モデルが一時的な失敗を続けたときに 1 回だけ試す、別モデルのクライアント。使わないときは None。
+
+    GEMINI_FALLBACK_MODEL が空・モックモード・主モデルと同じ名前のときは None（同じモデルへ投げ直しても意味が
+    ない）。接続の設定（キー・Vertex AI・タイムアウト）は主モデルと同じ。履歴は主モデルのものをそのまま渡す。
+    """
+    model = llm_fallback_model()
+    if not model or is_mock_mode():
+        return None
+    if model == (os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL):
+        return None
+    return _create_gemini(model)
 
 
 def _unanswered_user_messages(messages: list[BaseMessage]) -> list[HumanMessage]:
@@ -308,22 +358,68 @@ def _repair_dangling_tool_calls(messages: list[BaseMessage]) -> list[AIMessage]:
     return repaired
 
 
+def _open_stream(
+    llm: Any,
+    messages: list[BaseMessage],
+    hedge: HedgePolicy | None,
+    fallback_llm: Any = None,
+    fallback_name: str = "フォールバックのモデル",
+    trace: FallbackTrace | None = None,
+) -> Any:
+    """LLM のチャンクのストリーム。ヘッジありなら、最初のチャンクが届いた試行を採る。
+
+    ヘッジありで fallback_llm があれば、最初のヘッジで fallback_llm のストリームも並行して開き、
+    先に最初のチャンクが届いた方を採る（採ったのがフォールバックなら trace.won が立つ）。
+    """
+    if hedge is None:
+        return llm.astream(messages)
+    return hedged_stream(
+        lambda: llm.astream(messages),
+        hedge,
+        name="Gemini",
+        fallback=(lambda: fallback_llm.astream(messages)) if fallback_llm is not None else None,
+        fallback_name=fallback_name,
+        trace=trace,
+    )
+
+
 async def _stream_reply(
-    llm: Any, messages: list[BaseMessage], hedge: HedgePolicy | None
+    llm: Any,
+    messages: list[BaseMessage],
+    hedge: HedgePolicy | None,
+    fallback_llm: Any = None,
+    fallback_name: str = "フォールバックのモデル",
+    prefer_fallback: bool = False,
+    breaker: PrimaryBreaker | None = None,
+    on_fallback: Callable[[], None] | None = None,
+    trace: FallbackTrace | None = None,
 ) -> AIMessage:
     """LLM の応答をチャンクごとに受け、本文を逐次ガードに通してカスタムストリームへ流す。
 
     戻り値は、ainvoke と同じ形の完成した AIMessage（履歴への保存と、ツール呼び出しの判定に使う）。
     ヘッジありのときは、最初のチャンクが届いた試行を採る（それ以降は切り替えない）。
+    fallback_llm があれば、主モデルが最初のチャンクの前に一時的な失敗を続けたときだけ、それで 1 回試す
+    （最初のチャンクの後は切り替えない。送った本文と食い違うため）。prefer_fallback・breaker・on_fallback は
+    stream_with_fallback と同じ（同じ質問の中でフォールバックを覚える・主モデルを一時的に飛ばす）。
+    trace は、ヘッジの中で並行して投げたフォールバックの結果を受け取る（この呼び出しごとに新しいもの）。
     ガードが漏洩を検知したら、LLM の受信をやめ、そのターンのメッセージを定型文に置き換える（ツール呼び出しも
     捨てる）。漏洩した本文が履歴に残らず、そのターンの検索（ツール）へも進まない。
     """
     writer = get_stream_writer()
     guard = StreamingOutputGuard(SYSTEM_PROMPT)
-    if hedge is None:
-        chunks = llm.astream(messages)
+    if fallback_llm is None:
+        chunks = _open_stream(llm, messages, hedge)
     else:
-        chunks = hedged_stream(lambda: llm.astream(messages), hedge, name="Gemini")
+        chunks = stream_with_fallback(
+            lambda: _open_stream(llm, messages, hedge, fallback_llm, fallback_name, trace),
+            lambda: fallback_llm.astream(messages),
+            name="Gemini",
+            fallback_name=fallback_name,
+            prefer_fallback=prefer_fallback,
+            breaker=breaker,
+            on_fallback=on_fallback,
+            trace=trace,
+        )
 
     full: AIMessageChunk | None = None
     async with aclosing(chunks):
@@ -349,20 +445,45 @@ def build_graph(
     llm: BaseChatModel | None = None,
     hedge: HedgePolicy | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
+    fallback_llm: BaseChatModel | None = None,
+    fallback_breaker: PrimaryBreaker | None = None,
 ):
     """START -> guard_input -> agent -> (tools -> agent)* -> guard_output -> END のグラフを組み立てる。
 
     入力ガードが拒否した場合は guard_input から直接 END へ進み、LLM もツールも呼ばない。
-    llm を渡さないとき（本番）は、本物の Gemini にだけ環境変数のヘッジ方針（hedge）を適用する。
-    llm を渡したとき（テスト等）は、hedge を明示しない限りヘッジしない。
+    llm を渡さないとき（本番）は、本物の Gemini にだけ環境変数のヘッジ方針（hedge）と、GEMINI_FALLBACK_MODEL の
+    フォールバックを適用する。llm を渡したとき（テスト等）は、hedge と fallback_llm を明示しない限り使わない。
+    fallback_llm は、主モデルの試行（ヘッジ・再試行）が一時的な失敗で尽きたときに 1 回だけ試す別のモデル。
+    ヘッジありのストリーミングでは、最初のヘッジの時刻（最初のチャンクが届かない）に、主モデルの追加の試行の
+    代わりにこれを並行して投げ、先に最初のチャンクが届いた方を採る（/chat は並行して投げない）。
+    切り替えたあと、同じ質問の中の以降の呼び出しは、フォールバックから始める（常に）。fallback_breaker は、
+    切り替えたあと一定時間、次の質問でも主モデルを飛ばすための状態（llm を渡さないとき、
+    GEMINI_FALLBACK_HOLD_SECONDS から作る。テスト等は明示しない限り使わない）。
     checkpointer は会話履歴（thread_id ごとの状態）の保存先。渡さなければプロセス内メモリ（MemorySaver）で、
     再起動で消え、複数のワーカー・インスタンス間では共有されない。
     """
+    fallback_name = "フォールバックのモデル"
     if llm is None:
         llm = create_llm()
-        if hedge is None and not isinstance(llm, MockChatModel):
-            hedge = llm_hedge_policy()
+        if not isinstance(llm, MockChatModel):
+            if hedge is None:
+                hedge = llm_hedge_policy()
+            if fallback_llm is None:
+                fallback_llm = create_fallback_llm()
+                if fallback_llm is not None:
+                    model = llm_fallback_model()
+                    fallback_name = f"フォールバックのモデル（{model}）"
+                    hold = llm_fallback_hold_seconds()
+                    if fallback_breaker is None and hold > 0:
+                        fallback_breaker = PrimaryBreaker(hold, name="Gemini")
+                    logger.info(
+                        "LLM のフォールバック: %s（主モデルの一時的な失敗が続いたときだけ使う。切り替えたあとの %g 秒は、"
+                        "次の質問でも主モデルを飛ばす）",
+                        model,
+                        hold,
+                    )
     llm_with_tools = llm.bind_tools(TOOLS)
+    fallback_with_tools = fallback_llm.bind_tools(TOOLS) if fallback_llm is not None else None
     tool_node = ToolNode(TOOLS)
 
     async def guard_input(state: AgentState) -> dict:
@@ -381,7 +502,8 @@ def build_graph(
         earlier = [*_repair_dangling_tool_calls(messages), *earlier]
         reason = check_input(last.text) if isinstance(last, HumanMessage) else None
         if reason is None:
-            return {"messages": earlier, "guard_reason": None} if earlier else {"guard_reason": None}
+            reset = {"guard_reason": None, "fallback_used": False}
+            return {"messages": earlier, **reset} if earlier else reset
         # 拒否した発言をそのまま履歴に残すと、後続ターンで LLM に渡って汚染源になる。
         # 一方で履歴から単純に消すと、Human/AI の交互並びが崩れて Gemini が嫌う
         # 「AI が連続する履歴」になる。そこで同じ id で定型の伏せ字に差し替える
@@ -394,6 +516,7 @@ def build_graph(
             ],
             "context": "",
             "guard_reason": reason,
+            "fallback_used": False,
         }
 
     def route_after_guard(state: AgentState) -> str:
@@ -401,13 +524,51 @@ def build_graph(
 
     async def agent(state: AgentState, config: RunnableConfig) -> dict:
         messages = [SystemMessage(content=SYSTEM_PROMPT), *state["messages"]]
+        # 同じ質問の中で先の呼び出しがフォールバックに切り替わっていたら、落ちている主モデルを待たずに始める
+        sticky = bool(state.get("fallback_used"))
+        served_by_fallback = False
+        trace = FallbackTrace()  # この呼び出しの中で、フォールバックを並行して投げたか・採ったか
+
+        def mark_fallback() -> None:
+            nonlocal served_by_fallback
+            served_by_fallback = True
+
         if (config.get("configurable") or {}).get(STREAM_TOKENS_KEY):
-            return {"messages": [await _stream_reply(llm_with_tools, messages, hedge)]}
-        if hedge is None:
-            reply = await llm_with_tools.ainvoke(messages)
+            reply = await _stream_reply(
+                llm_with_tools,
+                messages,
+                hedge,
+                fallback_with_tools,
+                fallback_name,
+                prefer_fallback=sticky,
+                breaker=fallback_breaker,
+                on_fallback=mark_fallback,
+                trace=trace,
+            )
         else:
-            reply = await hedged_call(lambda: llm_with_tools.ainvoke(messages), hedge, name="Gemini")
-        return {"messages": [reply]}
+
+            async def call_primary() -> AIMessage:
+                if hedge is None:
+                    return await llm_with_tools.ainvoke(messages)
+                # /chat（画面は使っていない）は、フォールバックを並行して投げない。主モデルの試行が尽きてから
+                # 1 回だけ試す（無応答のときは、試行ごとの上限まで待つ）。並行して投げるのは /chat/stream だけ
+                return await hedged_call(lambda: llm_with_tools.ainvoke(messages), hedge, name="Gemini")
+
+            if fallback_with_tools is None:
+                reply = await call_primary()
+            else:
+                reply = await call_with_fallback(
+                    call_primary,
+                    lambda: fallback_with_tools.ainvoke(messages),
+                    name="Gemini",
+                    fallback_name=fallback_name,
+                    prefer_fallback=sticky,
+                    breaker=fallback_breaker,
+                    on_fallback=mark_fallback,
+                )
+        if fallback_with_tools is None:
+            return {"messages": [reply]}
+        return {"messages": [reply], "fallback_used": served_by_fallback}
 
     async def tools(state: AgentState) -> dict:
         result = await tool_node.ainvoke(state)
