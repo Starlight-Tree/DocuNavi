@@ -43,7 +43,7 @@ npm run dev          # 開発サーバー（http://localhost:5173）。/chat（/
 | `GOOGLE_GENAI_USE_VERTEXAI` | `true` で Vertex AI を使う。キー不要で ADC（Cloud Run ならサービスアカウント）で認証する |
 | `DATABASE_URL` | 会話履歴の保存先（Postgres の接続 URL）。空ならプロセス内メモリで、再起動で消える。パスワードを含むのでコミットしない。詳細は [docs/configuration.md](docs/configuration.md) の「会話履歴の保存先」 |
 
-モデル、CORS、LLM のタイムアウトや再試行などの全一覧は [docs/configuration.md](docs/configuration.md) にあります。
+モデル、主モデルが落ちたときの別モデルへのフォールバック（`GEMINI_FALLBACK_MODEL`。既定は無効）、CORS、LLM のタイムアウトや再試行などの全一覧は [docs/configuration.md](docs/configuration.md) にあります。
 
 ## API
 

@@ -21,7 +21,8 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   （AI SDK の UI message stream。組み立ては `app/api/ui_stream.py`）で返し、画面はこちらを使う
 - `app/agents/`: LangGraph（`graph.py`）、検索ツール（`tools.py`）、ガードレール（`guardrails.py`。出力は
   完成した回答の検査と、ストリーミング中の逐次検査 `StreamingOutputGuard`）、LLM 呼び出しのヘッジ付き
-  再試行（`resilience.py`。完了を待つ `hedged_call` と、最初のチャンクを待つ `hedged_stream`）
+  再試行（`resilience.py`。完了を待つ `hedged_call` と、最初のチャンクを待つ `hedged_stream`。別モデルへの
+  フォールバックの `call_with_fallback` / `stream_with_fallback` と、主モデルを一時的に飛ばす `PrimaryBreaker` もここ）
 - `app/history.py`: 会話履歴の保存先。`DATABASE_URL` があれば Postgres（接続プールを lifespan で開閉）、空ならメモリ。
   開けなければ起動を失敗させ、メモリへは切り替えない
 - `app/history_admin.py`: 履歴の削除コマンド（`python -m app.history_admin`。既定は件数の表示だけ、`--apply` で削除）。アプリからは使わない
@@ -45,6 +46,19 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   全体の上限は `LLM_TIMEOUT_SECONDS`（60）。追加の試行はトークンを増やす。モデルの変更も料金と品質に
   響くので、変える前に確認する。`/chat/stream` は「最初のチャンクが届いた試行」を採り、採った後は別の試行へ
   切り替えない（送った本文と食い違うため）。
+- **別モデルへのフォールバックは任意で、既定は無効。** `GEMINI_FALLBACK_MODEL` を入れたときだけ、主モデルの試行が
+  一時的な失敗（5xx・接続・タイムアウト・空の応答）で尽きたあとに、そのモデルで 1 回試す（429 と 400/401/403/404 では
+  試さない）。`/chat/stream` だけは、ヘッジの時刻（8 秒）に最初のチャンクが無ければ、フォールバックを並行して投げる
+  （先に届いた方を採り、負けた方は取り消す。`/chat` は並行しない）。主モデルを飛ばす記憶は、同じ質問の中
+  （`AgentState.fallback_used`。`guard_input` が毎ターン戻す）と、プロセス内のブレーカー
+  （`GEMINI_FALLBACK_HOLD_SECONDS`、60。**主モデルが実際にエラーを返したときだけ**開き、遅いだけでは開かない）。
+  グラフは `lru_cache` で使い回されるので、リクエスト単位の状態（試行の記録など）は、グラフの状態か
+  呼び出しごとのオブジェクトに置く。**有効にする前に**、主モデルで始めた会話
+  （thought signature を含む履歴）を別モデルで続けられることを、実 API で両方向とも確かめる（未検証）。
+  取り消した試行の課金も未確認。詳細は `docs/configuration.md` の「主モデルが落ちたとき（フォールバック）」。
+- **`temperature` は指定しない。** Gemini 3 系は既定の 1.0 のままが公式の推奨（1.0 未満はループや性能低下の恐れ）で、
+  `gemini-3.5-flash-lite` は指定を無視する。`tests/test_llm_config.py` が、渡さないことと、ライブラリが未指定なら
+  送らないことを確かめる。
 - **切断は失敗ではない。** `/chat` はグラフの実行と `request.receive()`（`http.disconnect` まで待つ監視）を
   `asyncio.wait` で競わせ、切断が先なら LLM 呼び出しを取り消して 499 を返す。この分岐は `except Exception` の
   外に置き、ログは INFO・固定文・`thread_id`・経過秒だけにする（例外にすると 502 と ERROR ログになる）。
