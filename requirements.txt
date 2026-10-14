@@ -136,6 +136,8 @@ pydantic==2.14.1
     #   langsmith
 pydantic-core==2.50.1
     # via pydantic
+pypdf==6.19.0
+    # via -r requirements.in
 python-dotenv==1.2.4
     # via
     #   -r requirements.in

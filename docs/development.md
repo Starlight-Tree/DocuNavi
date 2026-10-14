@@ -64,7 +64,8 @@ $B/pg_ctl -D /tmp/pg/data stop
 本物の Postgres のテストが確かめていること: 再起動後も履歴が続く、スレッドが混ざらない、初回の同時起動が競合しない、
 DB 側から接続を切られても次のリクエストが成功する、取り消し（クライアントの切断）で接続が取り残されない、アプリ経由で `/chat` が保存される。
 CI（`backend` ジョブ）は、Postgres 17 のサービスコンテナを起動して `TEST_DATABASE_URL` を渡すので、このテストも実行されます。
-スキップされたまま green にならないよう、別のステップで「スキップが 0 件」であることも確かめます。
+スキップされたまま green にならないよう、別のステップで「スキップが 0 件」であることも確かめます
+（対象は `tests/test_history_postgres.py` と、資料の取り込みの `tests/test_ingestion_postgres.py`）。
 ただし、この自動テストが動くのは素の Postgres 17（ローカル・CI）です。Supabase の Shared pooler には、手動で一度、起動・往復・再起動をまたいだ続き・
 テーブルの所在を確かめました（2026-10-14、LLM はモック。結果は `docs/configuration.md`）。このテスト一式を Supabase に向けた実行と、Cloud SQL は、まだです。
 履歴の削除コマンド（`python -m app.history_admin`）のテストも、このファイルの末尾にあります。

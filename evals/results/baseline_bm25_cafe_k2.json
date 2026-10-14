@@ -1,0 +1,446 @@
+{
+  "mode": "bm25",
+  "k": 2,
+  "generated_at": "2026-10-15T05:33:59+09:00",
+  "corpus": {
+    "files": [
+      "cafe_store_guide.pdf"
+    ],
+    "sha256": "d150296f73c7fd638778556970f08d9b2eb39fc8c4aec3f709941d9cc612d00c",
+    "source": "pdf:cafe",
+    "pages": {
+      "cafe_store_guide.pdf": 4
+    },
+    "pdf_sha256": {
+      "cafe_store_guide.pdf": "7233886141da5bbaf3f2a1f5ce1fdda4cb2f4352c1b5c247e4b40a77d0efa365"
+    }
+  },
+  "search_params": {
+    "TOP_K": 2,
+    "MAX_PASSAGES_PER_FILE": 3,
+    "CONTEXT_WINDOW": 1,
+    "RELATIVE_SCORE_CUTOFF": 0.4,
+    "GENERIC_TERM_RATIO": 0.25,
+    "MIN_SHARED_TERMS": 2
+  },
+  "summary": {
+    "total_questions": 10,
+    "answerable_questions": 8,
+    "out_of_scope_questions": 2,
+    "doc_recall_at_2": 1.0,
+    "keyword_hit_rate_at_2": 0.5,
+    "mrr": 1.0,
+    "empty_answer_accuracy": 0.5,
+    "counts": {
+      "doc_hit": 8,
+      "keyword_hit": 4,
+      "answered_empty": 1
+    },
+    "empty_answer_by_scope_kind": {
+      "off_topic": {
+        "n": 1,
+        "empty": 1,
+        "accuracy": 1.0
+      },
+      "on_topic_absent": {
+        "n": 1,
+        "empty": 0,
+        "accuracy": 0.0
+      }
+    },
+    "by_category": {
+      "factual": {
+        "n": 6,
+        "doc_hits": 6,
+        "keyword_hits": 3,
+        "doc_recall": 1.0,
+        "keyword_hit_rate": 0.5,
+        "mrr": 1.0
+      },
+      "paraphrase": {
+        "n": 2,
+        "doc_hits": 2,
+        "keyword_hits": 1,
+        "doc_recall": 1.0,
+        "keyword_hit_rate": 0.5,
+        "mrr": 1.0
+      }
+    },
+    "failure_counts": {
+      "keyword_miss": 3,
+      "paraphrase_miss": 1,
+      "unexpected_result": 1
+    }
+  },
+  "results": [
+    {
+      "id": "c001",
+      "question": "みなとコーヒーはいつ創業しましたか。",
+      "category": "factual",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "みなとコーヒー 店舗案内\nみなとコーヒーは、みなと市を中心にカフェを展開するチェーンです。\n会社の概要\nみなとコーヒーは、みなと市とその周辺で12店舗を運営しています。\n店舗は港町・駅前・丘の上・湖畔の4つのエリアに分かれています。\nどの店舗も、最寄りの駅やバス停から徒歩5分以内です。\nみなとコーヒーの理念は「港のように、人が集まる場所をつくる」ことです。\n社名のみなとは、この理念に由来しています。"
+        }
+      ]
+    },
+    {
+      "id": "c002",
+      "question": "湖畔ボート小屋店では、閉店の何分前に注文の受け付けが終わりますか。",
+      "category": "factual",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ただし、湖畔ボート小屋店は閉店の15分前に受け付けを終えます。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2021年8月には、湖畔エリアの1号店として湖畔テラス店を開きました。\n2024年3月に12店舗目となる湖畔ボート小屋店を開業し、現在の12店舗になりました。\n以降、新しい店舗は増えていません。\nラストオーダーは原則として閉店の30分前に受け付けを終えます。\nただし、湖畔ボート小屋店は閉店の15分前に受け付けを終えます。\nモバイルオーダー（略称 MO）は、公式アプリから事前に注文と支払いができる仕組みです。\n湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席\n湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席\n脚注1 配送は、金曜日と土曜日の午前中に行います。"
+        }
+      ]
+    },
+    {
+      "id": "c003",
+      "question": "みなとクラブでは、いくら買い物をするごとに1ポイントもらえますか。",
+      "category": "factual",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "会計100円（税込）ごとに1ポイントがたまります。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2014年10月には駅前エリアに進出し、駅前中央店を開きました。\n2016年9月に、ポイント会員制度「みなとクラブ」を始めました。\n2022年4月には、公式アプリとモバイルオーダーを始めました。\nポイント会員制度\nポイント会員制度「みなとクラブ」（略称 MC）は、入会費も年会費も無料です。\n会計100円（税込）ごとに1ポイントがたまります。\nポイントは、モバイルオーダーの会計でも同じようにたまります。"
+        }
+      ]
+    },
+    {
+      "id": "c004",
+      "question": "来店する前にスマートフォンで注文を済ませられる機能が使えないのは、どの店舗ですか。",
+      "category": "paraphrase",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2021年8月には、湖畔エリアの1号店として湖畔テラス店を開きました。\n2024年3月に12店舗目となる湖畔ボート小屋店を開業し、現在の12店舗になりました。\n以降、新しい店舗は増えていません。"
+        }
+      ]
+    },
+    {
+      "id": "c005",
+      "question": "ためたポイントを長いあいだ使わずにいると、どのくらいで失効してしまいますか。",
+      "category": "paraphrase",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ポイントの有効期限は、最後に利用した日から12か月です。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "テイクアウト（略称 TO）は、全店でご利用いただけます。\nポイント会員制度\nポイント会員制度「みなとクラブ」（略称 MC）は、入会費も年会費も無料です。\nポイントは、モバイルオーダーの会計でも同じようにたまります。\nポイントの有効期限は、最後に利用した日から12か月です。\nたまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。\n無料券は、会員証を店頭で提示すると使えます。"
+        }
+      ]
+    },
+    {
+      "id": "c006",
+      "question": "座席がいちばん多いのは、どの店舗ですか。",
+      "category": "factual",
+      "kind": "aggregate",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席",
+        "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席",
+        "駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席"
+      ],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "ただし、一覧表で「なし」とある店舗は、年中無休で営業します。\n店舗名 エリア 住所 営業時間 定休日 座席数\n港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席\n駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席\n店舗名 エリア 住所 営業時間 定休日 座席数\n駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席"
+        }
+      ]
+    },
+    {
+      "id": "c007",
+      "question": "日曜日が定休日になっている店舗を教えてください。",
+      "category": "factual",
+      "kind": "filter",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席"
+      ],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "内容は2026年4月1日時点のものです。\n店舗の営業時間や定休日の最新情報は、各店の掲示でも確認できます。\n会社の概要\n朝の開店が最も早いのは港町市場前店で、6時30分に開きます。\n定休日は、原則として店舗ごとに週に1日です。\nただし、一覧表で「なし」とある店舗は、年中無休で営業します。\n店舗名 エリア 住所 営業時間 定休日 座席数\n港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席"
+        }
+      ]
+    },
+    {
+      "id": "c008",
+      "question": "駅前中央店と湖畔テラス店では、どちらのほうが営業時間が長いですか。",
+      "category": "factual",
+      "kind": "comparison",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席",
+        "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "駐車場は原則として設けていません。\nただし、湖畔テラス店には10台分の専用駐車場があります。\n車でお越しの場合、ほかの店舗では近隣の有料駐車場をご利用ください。\n港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席\n駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席\n店舗名 エリア 住所 営業時間 定休日 座席数\n丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席\n湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席\n湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席"
+        }
+      ]
+    },
+    {
+      "id": "c009",
+      "question": "地球から月までの距離は、どのくらいですか。",
+      "category": "out_of_scope",
+      "kind": "out_of_scope",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "c010",
+      "question": "みなとブレンドは1杯いくらですか。",
+      "category": "out_of_scope",
+      "kind": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "最初の店は、港町に開いた現在の港町本店です。\n看板商品は、深煎りの豆を3種類ブレンドした「みなとブレンド」（略称 MB）です。\n豆は港町の自社工房で焙煎し、週に2回、各店へ届けています1。\n工房では毎日、味と香りの確認を行い、その記録を1年間保管しています。\nみなとブレンドのほかに、季節ごとに入れ替わる「季節のブレンド」があります。\n季節のブレンドは、3か月ごとに年4回切り替わります。\nご利用案内"
+        }
+      ]
+    }
+  ],
+  "evidence_pages": {
+    "c001": {
+      "2011年4月に港町で創業し、2026年4月で創業満15年を迎えました。": [
+        1
+      ]
+    },
+    "c002": {
+      "ただし、湖畔ボート小屋店は閉店の15分前に受け付けを終えます。": [
+        2
+      ]
+    },
+    "c003": {
+      "会計100円（税込）ごとに1ポイントがたまります。": [
+        2
+      ]
+    },
+    "c004": {
+      "ただし、港町灯台店では店内の通信環境の都合により、モバイルオーダーを利用できません。": [
+        2
+      ]
+    },
+    "c005": {
+      "ポイントの有効期限は、最後に利用した日から12か月です。": [
+        2
+      ]
+    },
+    "c006": {
+      "港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席": [
+        3
+      ],
+      "港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席": [
+        3
+      ],
+      "港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席": [
+        3
+      ],
+      "港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席": [
+        3
+      ],
+      "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席": [
+        3
+      ],
+      "駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席": [
+        4
+      ],
+      "駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席": [
+        4
+      ],
+      "丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席": [
+        4
+      ],
+      "丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席": [
+        4
+      ],
+      "丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席": [
+        4
+      ],
+      "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席": [
+        4
+      ],
+      "湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席": [
+        4
+      ]
+    },
+    "c007": {
+      "港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席": [
+        3
+      ],
+      "港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席": [
+        3
+      ],
+      "港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席": [
+        3
+      ],
+      "港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席": [
+        3
+      ],
+      "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席": [
+        3
+      ],
+      "駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席": [
+        4
+      ],
+      "駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席": [
+        4
+      ],
+      "丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席": [
+        4
+      ],
+      "丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席": [
+        4
+      ],
+      "丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席": [
+        4
+      ],
+      "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席": [
+        4
+      ],
+      "湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席": [
+        4
+      ]
+    },
+    "c008": {
+      "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席": [
+        3
+      ],
+      "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席": [
+        4
+      ]
+    }
+  }
+}

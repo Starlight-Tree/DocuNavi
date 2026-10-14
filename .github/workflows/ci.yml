@@ -53,12 +53,13 @@ jobs:
       # tests/test_http_smoke.py は、実際の uvicorn を空きポートで起動して HTTP で確かめる。
       - name: Run pytest
         run: pytest -q
-      # TEST_DATABASE_URL の綴りがずれると、Postgres のテストは静かにスキップされたまま green になる。
-      # スキップが 1 件でもあれば落とす（上のステップと同じテストをもう一度走らせるが、数秒で済む）。
+      # TEST_DATABASE_URL の綴りがずれると、Postgres のテスト（会話履歴と、資料の取り込み）は静かに
+      # スキップされたまま green になる。スキップが 1 件でもあれば落とす
+      # （上のステップと同じテストをもう一度走らせるが、数秒で済む）。
       - name: Postgres tests must run, not be skipped
         run: |
           set -o pipefail
-          pytest -q -rs tests/test_history_postgres.py | tee postgres-tests.log
+          pytest -q -rs tests/test_history_postgres.py tests/test_ingestion_postgres.py | tee postgres-tests.log
           if grep -qi skipped postgres-tests.log; then
             echo "Postgres のテストがスキップされた。TEST_DATABASE_URL を確かめる" >&2
             exit 1
