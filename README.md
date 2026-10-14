@@ -35,12 +35,13 @@ npm run dev          # 開発サーバー（http://localhost:5173）。/chat と
 
 ## 設定
 
-最低限は次の 2 つです。どちらも未設定ならモックモードで動きます。
+最低限は次の 2 つです。どちらも未設定ならモックモードで動きます。会話履歴を再起動後も残したいときだけ、`DATABASE_URL` を足します。
 
 | 環境変数 | 説明 |
 |---|---|
 | `GEMINI_API_KEY` | Gemini API キー。空または `your_api_key_here` のときはモックモード |
 | `GOOGLE_GENAI_USE_VERTEXAI` | `true` で Vertex AI を使う。キー不要で ADC（Cloud Run ならサービスアカウント）で認証する |
+| `DATABASE_URL` | 会話履歴の保存先（Postgres の接続 URL）。空ならプロセス内メモリで、再起動で消える。パスワードを含むのでコミットしない。詳細は [docs/configuration.md](docs/configuration.md) の「会話履歴の保存先」 |
 
 モデル、CORS、LLM のタイムアウトや再試行などの全一覧は [docs/configuration.md](docs/configuration.md) にあります。
 

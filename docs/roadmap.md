@@ -1,6 +1,6 @@
 # ロードマップ
 
-2026-10-13 時点の拡張計画です（段階 1・4 は 2026-10-14 に具体化しました）。DB を使うアプリへ育てることと、Cloudflare・R2・Vercel などの構成を実際に動かして学ぶことが目的です。
+2026-10-13 時点の拡張計画です（段階 1・4 は 2026-10-14 に具体化し、段階 1 のコードは同日に実装しました）。DB を使うアプリへ育てることと、Cloudflare・R2・Vercel などの構成を実際に動かして学ぶことが目的です。
 計画なので、段階に入るたびに見直します。
 
 ## 方針
@@ -17,7 +17,7 @@
 | 順 | 追加するもの | 学べること | 前提・注意 |
 |---|---|---|---|
 | 0 | Cloud Run に 1 コンテナでデプロイ（[deploy.md](deploy.md)） | コンテナの配備、シークレット、ログ、予算アラート、権限の分離（閲覧用・デプロイ用の SA） | **課金アカウントが前提**（2026-10-13 時点で未設定）。最初は認証必須で配備し、`--max-instances` と予算アラートを先に設定する |
-| 1 | Postgres（第一候補は Supabase。Cloud SQL でも可）と、履歴の保存先の差し替え | 接続プール、マイグレーション、状態の外出し | 現在の `MemorySaver` は、Cloud Run では再起動や複数インスタンスで履歴が失われる。**段階 0 を待たずに進められる**（Supabase の無料枠は GCP の課金が不要。履歴が残る効果は、デプロイしたときに出る） |
+| 1 | Postgres（第一候補は Supabase。Cloud SQL でも可）と、履歴の保存先の差し替え | 接続プール、マイグレーション、状態の外出し | 現在の `MemorySaver` は、Cloud Run では再起動や複数インスタンスで履歴が失われる。**段階 0 を待たずに進められる**（Supabase の無料枠は GCP の課金が不要。履歴が残る効果は、デプロイしたときに出る）。**コードは実装済み（2026-10-14）。** 実際の Supabase への接続は、`DATABASE_URL` を用意してから確かめる（下の「確認の状況」） |
 | 2 | 認証 | JWT の検証、会話と利用者の紐づけ | **R2 のアップロードより先。** 無認証だと誰でも書き込める |
 | 3 | Cloudflare（DNS・独自ドメイン・レート制限） | DNS、プロキシ、WAF | 自分のドメインが要る。ドメインが無ければ後回しでよい。順序はどこでもよい |
 | 4a | R2 に原本を置き、手動で取り込む（抽出 → チャンク化 → 埋め込み → pgvector へ upsert） | S3 互換 API、取り込みの冪等性、pgvector | 認証が前提。アップロード資料を利用者ごとに分けるか、全員共通かを先に決める。`page`・`source_path` などは取り込み時にしか取れないので、4a で持たせる |
@@ -52,8 +52,8 @@ Supabase と Cloud SQL の選び方の目安:
 | 段階 | 変更 | 根拠 |
 |---|---|---|
 | 1 | **済み。** `build_graph` に `checkpointer` 引数を足した（既定は `MemorySaver` のまま）。DB 版の保存先は、これに渡す | 引数の追加なので、既存の呼び出しとテストは変わらない。`tests/test_checkpointer_injection.py` |
-| 1 | DB 版の checkpointer は接続プールを起動時に開いて終了時に閉じる。`app/main.py` に lifespan を足し、グラフの生成（`app/api/routes.py` の `get_graph`、同期の `lru_cache`）をそこに合わせる | 現状は起動・終了のフックが無い |
-| 1 | 接続は、Supabase の session mode（ポート 5432。IPv4 でも届き、prepared statement が使える）から始める。次を確認する: `--max-instances` × プールサイズが接続数の上限に収まるか、開発コンテナと Cloud Run から届くか。transaction mode（6543）は prepared statement が使えない | checkpointer を差し替えるのは段階 1。直接接続は既定で IPv6（IPv4 は有料のアドオン） |
+| 1 | **済み。** DB 版の checkpointer は接続プールを起動時に開いて終了時に閉じる（`app/history.py`、`app/main.py` の lifespan）。`get_graph` は開いている保存先を渡してグラフを作り、キャッシュのキーに保存先を含める（閉じた後のグラフを使い回さない） | `tests/test_history_store.py`・`tests/test_history_postgres.py` |
+| 1 | **コードは済み。** 接続は、Supabase の session mode（ポート 5432。IPv4 でも届く）から始める。prepared statement は使わない設定にしたので、transaction mode（6543）でも動く設計（未確認）。**残り:** `--max-instances` × `DATABASE_POOL_MAX_SIZE` が接続数の上限に収まるか、開発コンテナと Cloud Run から届くか | 直接接続は既定で IPv6（IPv4 は有料のアドオン） |
 | 1・4b | 秘密情報の置き場所を決める。Supabase の `DATABASE_URL` と Cloudflare の API トークンは Secret Manager に置く。ローカルは `.env`（開発用には、権限を絞った DB ロールを使う） | ベンダーが増えると秘密も増える。開発コンテナには読み取り中心の権限だけを置く（[.devcontainer/README.md](../.devcontainer/README.md)） |
 | 2 | `thread_id` は形式の検証しかなく、知っていれば誰でも続きを書ける。履歴が DB に残るので、認証後は利用者と紐づける | 認証が無い今は、UUID の推測困難さだけが守り |
 | 4a | コーパスの読み込み（`app/agents/tools.py` の `CHUNK_DIR` と無期限の `lru_cache`）を差し替え可能にし、内容が変わったらキャッシュを捨てる。`search_chunks` の戻り値 `(ファイル名, 本文)` はそのまま使える | アップロードで資料が増減する |
@@ -107,7 +107,16 @@ FastAPI + LangGraph → 検索 → 回答 + 参照元（source_path から署名
 **確認の状況（2026-10-14）。**
 
 - 確認した（公式ドキュメント）: R2 のイベント通知は Queue に届き、consumer Worker か HTTP pull で読める。Supabase の接続方式（direct / session / transaction）の違い。Supabase の PGroonga。Cloud SQL の pgvector と pg_bigm。
-- 未確認: Supabase での pg_bigm、Cloud Scheduler の最短間隔、接続数の上限、IPv6 が開発コンテナと Cloud Run から届くか、PDF 変換（LibreOffice など）をこの環境で動かせるか、Supabase の接続プーラーと LangGraph の Postgres checkpointer の相性。
+- 未確認: Supabase での pg_bigm、Cloud Scheduler の最短間隔、接続数の上限、IPv6 が開発コンテナと Cloud Run から届くか、PDF 変換（LibreOffice など）をこの環境で動かせるか。
+
+**段階 1（会話履歴の DB 保存）の確認の状況（2026-10-14）。**
+
+- 確認した（開発コンテナ内のローカル Postgres 17、Debian パッケージ。`docs/development.md`）: 履歴が再起動後も続く（実際の uvicorn の再起動も）、スレッドが混ざらない、初回の同時起動（8 並列）が再試行で収まる（再試行なしでは 8 件中 7 件前後が競合のエラーになる。大半は `UniqueViolation` で、`DuplicateObject` と `DuplicateTable` も出る。CI で `DuplicateTable` が再試行の対象外だったために落ちた）、
+  DB 側から接続を切られても次のリクエストが成功する、取り消しで接続が取り残されない、届かない DB は 10 秒で起動に失敗する（終了コード 3）、
+  専用ロール（自分のスキーマの所有者）で動き他のテーブルは読めない。接続の確認を外す・再試行を外すと、対応するテストが落ちることも確かめた。
+- 未確認: **Supabase / Cloud SQL への実接続**（`DATABASE_URL` をユーザーが用意する）、transaction mode のプーラー（pgbouncer / Supavisor）での動作、
+  Cloud Run から届くか、権限を絞ったロールでのマイグレーション（Supabase 上）、Docker イメージのビルドと `docker compose up`（開発コンテナに Docker が無い）、
+  履歴が増え続けたときのサイズと削除（仕組みは無い）。CI の `backend` ジョブには Postgres 17 のサービスコンテナを足した（`docs/development.md`）。
 
 ## 公開前の守り（段階 0 から）
 

@@ -6,6 +6,8 @@ import os
 os.environ["GEMINI_API_KEY"] = ""
 # Vertex AI が有効だとキー無しでも本物の LLM になるため、これも明示的に無効化する
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
+# .env に DATABASE_URL があっても、テストが本物の DB（会話履歴の保存先）へ書かないよう、空にしてメモリ履歴に固定する
+os.environ["DATABASE_URL"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
