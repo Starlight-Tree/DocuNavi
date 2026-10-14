@@ -36,6 +36,10 @@
       "Bash(gh release list *)",
       "Bash(gh release view *)"
     ],
+    "ask": [
+      "Bash(git push)",
+      "Bash(git push *)"
+    ],
     "deny": [
       "Read(~/.config/gcloud/**)",
       "Read(./.gcloud-token*)",
