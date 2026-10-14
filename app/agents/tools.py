@@ -70,14 +70,19 @@ def _split_passages(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"[\\\n]+", text) if part.strip()]
 
 
-def search_chunks(query: str, top_k: int = TOP_K) -> list[tuple[str, str]]:
+def search_chunks(
+    query: str, top_k: int = TOP_K, corpus: dict[str, str] | None = None
+) -> list[tuple[str, str]]:
     """クエリと関連度の高い箇所を (ファイル名, 本文) で最大 top_k ファイル分返す。
 
     ファイルを文単位に分けて BM25 で採点し、一致した文とその前後を元の順序で本文として返す。
     資料全体に頻出する語は採点から外し、クエリと共有する 2-gram が少ない文は関連なしとして
     落とすので、無関係な質問では空になる。
+
+    corpus は (ファイル名 -> 本文) の資料。None なら storage/chunk/ を使う（アプリはこちら）。
+    評価（scripts/eval_retrieval.py）が、別の資料で同じ検索を試すための差し替え口。
     """
-    chunks = load_chunks()
+    chunks = load_chunks() if corpus is None else corpus
     all_query_terms = set(_terms(query))
     if not chunks or not all_query_terms or top_k <= 0:
         return []
