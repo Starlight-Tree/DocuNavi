@@ -140,7 +140,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - Cloud Run への自動デプロイ（GitHub Actions）を足したら、`main` へのプッシュ = デプロイになる。
   そのときはこの運用を見直す。
 - **CI:** `.github/workflows/ci.yml` は、`main` へのプッシュと PR で、バックエンドのテスト（Python 3.12）、
-  フロントエンドのテストとビルド、Docker イメージのビルドと起動確認を行う。**デプロイは含まない**
+  フロントエンドのテストとビルド、Docker イメージのビルドと起動確認、ワークフローの静的検査（actionlint・zizmor）を行う。**デプロイは含まない**
   （含めるときは、上のとおり運用を見直す）。アクションはコミット SHA で固定していて、Dependabot
   （`.github/dependabot.yml`、週次・7 日待ち）が更新の PR を出す。手動実行は `workflow_dispatch`。
 
