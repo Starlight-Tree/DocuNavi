@@ -22,6 +22,14 @@ uv pip compile requirements.in --universal --python-version 3.12 -o requirements
 uv pip compile requirements-dev.in --universal --python-version 3.12 -c requirements.txt -o requirements-dev.txt
 ```
 
+`requirements-lint.txt` は、CI の `workflow-lint` ジョブ（actionlint と zizmor でワークフローを検査する）だけが使う、ハッシュ付きの固定です。
+アプリの依存とは別で、版は `requirements-lint.in` を手で上げて、次で再生成します。手元で同じ検査をするには、`pip install --require-hashes -r requirements-lint.txt` の後に
+`actionlint` と `zizmor --offline .` を実行します（`--offline` を外すと、GitHub への問い合わせが要る検査も動きます。CI では `GH_TOKEN` を渡しています）。
+
+```bash
+uv pip compile requirements-lint.in --universal --python-version 3.12 --generate-hashes -o requirements-lint.txt
+```
+
 `tests/conftest.py` が `GEMINI_API_KEY` を空にしてからアプリを読み込むため、`.env` に実キーがあってもテストは常にモックモードで動き、Gemini API を呼びません。
 
 RAG の精度は `tests/rag_eval_cases.py` の評価セット（関連 21 件・無関係 8 件）で回帰テストしています。2-gram 照合では拾えない言い換え（「気温差」→「温度差」など）は既知の取りこぼしです。

@@ -1,0 +1,5 @@
+# CI の workflow-lint ジョブ（.github/workflows/ci.yml）が使う、ワークフローの静的検査ツール。
+# アプリの実行にもテストにも使わない（requirements.in・requirements-dev.in には入れない）。
+# 版は手で上げる（Dependabot の pip は未設定）。再生成のコマンドは docs/development.md。
+actionlint-py==1.7.12.25
+zizmor==1.30.1
