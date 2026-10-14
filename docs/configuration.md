@@ -16,6 +16,40 @@
 | `LLM_HEDGE_DELAY_SECONDS` | `8` | LLM がこの秒数たっても応答しなければ、追加の試行を投げる（下記）。`0` でヘッジを無効にする。小さくしすぎると、毎回 `LLM_MAX_ATTEMPTS` 本をほぼ同時に投げる。不正値（数値でない・負）は既定値に戻る |
 | `LLM_ATTEMPT_TIMEOUT_SECONDS` | `30`（ヘッジなしは `15`） | LLM への 1 回の試行を待つ上限秒数（接続・送信・受信の段階ごとの上限）。不正値は既定値に戻る |
 | `LLM_MAX_ATTEMPTS` | `3` | 1 回の LLM 呼び出しで投げる試行の最大数（最初の 1 回を含む）。`1` で追加・再試行なし。不正値は既定値に戻る |
+| `DATABASE_URL` | （空） | 会話履歴の保存先（Postgres の接続 URL）。空ならプロセス内メモリ。**秘密情報**（パスワードを含む）なのでコミットせず、ログにも出さない。下記「会話履歴の保存先」 |
+| `DATABASE_POOL_MAX_SIZE` | `5` | 1 インスタンスが DB へ張る接続の上限。不正値・1 未満は既定値に戻る |
+
+## 会話履歴の保存先
+
+`DATABASE_URL` が空なら、履歴は従来どおりプロセス内メモリ（`MemorySaver`）に置きます。再起動で消え、複数のインスタンスの間では共有されません。
+設定すると、同じ `thread_id` の履歴を Postgres に保存します（LangGraph の checkpointer。`app/history.py`）。再起動しても、別のインスタンスでも続きから話せます。
+
+```text
+DATABASE_URL=postgresql://ユーザー:パスワード@ホスト:5432/データベース
+```
+
+パスワードに記号があるときは URL エンコードします。`/health` の `history` が `postgres` なら、DB に保存しています（`memory` なら、設定が届いていません）。
+
+- **起動時:** 接続プールを開き、テーブル（`checkpoint_migrations` `checkpoints` `checkpoint_blobs` `checkpoint_writes`）が無ければ作ります。
+  10 秒たっても DB に届かないときは、**起動を失敗させます**（メモリに切り替えると、履歴が黙って失われるため）。
+  複数のインスタンスが初回に同時に起動すると、テーブルの作成が競合して失敗することがあるので、最大 3 回まで間を空けてやり直します。
+- **実行中:** DB が使えないときの `/chat` は 503（固定メッセージ）です。LLM の失敗（502 など）とは区別します。`/health` は DB に触れません
+  （DB の障害で、すべてのインスタンスが「異常」になって再起動されないようにするため）。
+- **接続数:** 上限は `DATABASE_POOL_MAX_SIZE` です。`--max-instances` × この値が、DB の接続数の上限に収まるようにします。
+  取り出すときに接続が生きているか確かめるので、DB やプーラーに接続を切られた後でも、次のリクエストは成功します。
+- **プーラーとの相性:** prepared statement を使いません。transaction mode のプーラー（Supabase の 6543 番など）でも動く設計ですが、
+  Supabase 上では未確認です（ローカルの Postgres 17 で確認しました）。
+- **DB のロール:** 起動時にテーブルを作るので、作成の権限が要ります。`postgres` などの強い権限のロールではなく、このアプリ専用のロールとスキーマを使うことを勧めます。
+  次の例は、ローカルの Postgres 17 で、起動・往復・他のテーブルが読めないことを確かめました。
+
+  ```sql
+  create role zahard_app login password '…';
+  create schema zahard authorization zahard_app;
+  alter role zahard_app set search_path = zahard;
+  ```
+
+- **データの扱い:** 発言と回答の本文が DB に残ります。削除や保存期間の仕組みはありません。
+  `thread_id` を知っていれば誰でも続きを書けます（認証は [ロードマップ](roadmap.md) の段階 2）。公開する前に、この点を決めてください。
 
 ## LLM の遅延・失敗への対処
 

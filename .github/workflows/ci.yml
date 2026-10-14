@@ -20,6 +20,23 @@ jobs:
     name: Backend tests (Python 3.12)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # 会話履歴の Postgres 保存（tests/test_history_postgres.py）を本物の DB で確かめるための、使い捨ての Postgres。
+    # 開発コンテナで確かめた版（17）にそろえる。テスト専用のダミーの認証情報で、秘密情報は入っていない。
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      # tests/conftest.py は DATABASE_URL を空にする。Postgres のテストを動かすのは TEST_DATABASE_URL のほう。
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -36,6 +53,16 @@ jobs:
       # tests/test_http_smoke.py は、実際の uvicorn を空きポートで起動して HTTP で確かめる。
       - name: Run pytest
         run: pytest -q
+      # TEST_DATABASE_URL の綴りがずれると、Postgres のテストは静かにスキップされたまま green になる。
+      # スキップが 1 件でもあれば落とす（上のステップと同じテストをもう一度走らせるが、数秒で済む）。
+      - name: Postgres tests must run, not be skipped
+        run: |
+          set -o pipefail
+          pytest -q -rs tests/test_history_postgres.py | tee postgres-tests.log
+          if grep -qi skipped postgres-tests.log; then
+            echo "Postgres のテストがスキップされた。TEST_DATABASE_URL を確かめる" >&2
+            exit 1
+          fi
 
   frontend:
     name: Frontend tests and build (Node 24)

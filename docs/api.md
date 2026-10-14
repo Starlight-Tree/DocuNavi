@@ -6,10 +6,12 @@
 ## `GET /health`
 
 ```json
-{"status": "ok", "mode": "mock"}
+{"status": "ok", "mode": "mock", "history": "memory"}
 ```
 
-`mode` は `mock`（ダミー応答）または `gemini`（本物の LLM。Vertex AI の場合も `gemini`）。
+- `mode`: `mock`（ダミー応答）または `gemini`（本物の LLM。Vertex AI の場合も `gemini`）。
+- `history`: 会話履歴の置き場所。`memory`（プロセス内。再起動で消える）または `postgres`（`DATABASE_URL` の DB）。
+  DB には問い合わせないので、DB の障害では値も応答も変わりません（[configuration.md](configuration.md) の「会話履歴の保存先」）。
 
 ## `POST /chat`
 
@@ -44,5 +46,6 @@
 | 504 | LLM の応答がタイムアウト |
 | 500 | API キー・モデル設定の誤り、想定外の例外 |
 | 502 | その他の LLM 呼び出し失敗 |
+| 503 | 会話履歴の保存先（Postgres）に接続できない。`DATABASE_URL` を設定したときだけ起こる |
 
 クライアントが切断した場合は、LLM 呼び出しを取り消して何も返しません（ステータスはクライアントに届かないため、上の表にはありません）。

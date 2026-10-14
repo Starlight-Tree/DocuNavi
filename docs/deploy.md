@@ -125,6 +125,31 @@ A のコマンドの `--set-env-vars` を、次の 1 行に置き換えます。
   --set-secrets "GEMINI_API_KEY=gemini-api-key:latest"
 ```
 
+### C. 会話履歴を DB に保存する（任意）
+
+`DATABASE_URL` を設定しないと、履歴はインスタンスのメモリに置かれ、再起動や増減で消えます（[configuration.md](configuration.md) の「会話履歴の保存先」）。
+接続 URL はパスワードを含むので、キーと同じく **Secret Manager から渡します。**
+
+```bash
+read -rsp 'DATABASE_URL: ' DATABASE_URL; echo
+printf '%s' "$DATABASE_URL" | as_me gcloud secrets create database-url --data-file=- --project "$PROJECT_ID"
+unset DATABASE_URL
+as_me gcloud secrets add-iam-policy-binding database-url \
+  --member="serviceAccount:${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role=roles/secretmanager.secretAccessor --project "$PROJECT_ID"
+```
+
+デプロイのコマンドに、次を足します（A では `--set-env-vars` と並べて、B では `--set-secrets` の値をカンマでつなぎます）。
+
+```bash
+  --set-secrets "DATABASE_URL=database-url:latest"
+```
+
+- `--max-instances` × `DATABASE_POOL_MAX_SIZE`（既定 5）が、DB の接続数の上限に収まるようにします（2 インスタンスなら 10 本）。
+- DB に届かないと、**起動に失敗してリビジョンが Ready になりません**（メモリへは切り替わりません）。ログで原因を確かめます。
+- Cloud Run から Supabase への接続は未確認です。直接接続は既定で IPv6 のため、IPv4 で届くプーラー（session mode）の接続 URL を使う想定です。
+  届くかどうかは、デプロイして `/health` の `history` が `postgres` になるかで確かめます。
+
 ### 値の根拠
 
 | フラグ | 値 | 理由 |
@@ -143,11 +168,12 @@ A のコマンドの `--set-env-vars` を、次の 1 行に置き換えます。
 ```bash
 as_me gcloud run services proxy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --port 8080
 # 別のターミナルで
-curl -s localhost:8080/health          # {"status":"ok","mode":"gemini"} なら本物の LLM に繋がっている
+curl -s localhost:8080/health          # {"status":"ok","mode":"gemini","history":"memory"} なら本物の LLM に繋がっている
 curl -s localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"ザーハードの大気について教えて"}'
 ```
 
 - `mode` が `mock` なら、認証の設定が届いていません。
+- `history` が `memory` なら、`DATABASE_URL` が届いていません（C を使う場合）。
 - 500 は、モデル名やロケーション、権限の誤りの可能性が高いです。Vertex AI はリージョンごとに提供モデルが違うため、
   `GEMINI_MODEL` と `GOOGLE_CLOUD_LOCATION` を確認してください（[configuration.md](configuration.md)）。
 - ログは `gcloud run services logs read "$SERVICE" --project "$PROJECT_ID" --region "$REGION"`
