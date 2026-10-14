@@ -2,25 +2,38 @@ import math
 import os
 import re
 import uuid
+from contextlib import aclosing
 from typing import Any
 
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    AIMessageChunk,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+    message_chunk_to_message,
+)
 from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.runnables import RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from app.agents.guardrails import (
     INPUT_REFUSAL_REPLY,
+    OUTPUT_FALLBACK_REPLY,
     REDACTED_USER_TEXT,
+    StreamingOutputGuard,
     check_input,
     sanitize_output,
 )
-from app.agents.resilience import HedgePolicy, hedged_call
+from app.agents.resilience import EmptyStream, HedgePolicy, hedged_call, hedged_stream
 from app.agents.state import AgentState
 from app.agents.tools import TOOLS, bigrams
 
@@ -52,6 +65,14 @@ DEFAULT_LLM_HEDGE_DELAY_SECONDS = 8.0
 DEFAULT_LLM_ATTEMPT_TIMEOUT_SECONDS = 30.0  # ヘッジあり
 DEFAULT_LLM_ATTEMPT_TIMEOUT_SECONDS_SEQUENTIAL = 15.0  # ヘッジなし（LLM_HEDGE_DELAY_SECONDS=0）
 DEFAULT_LLM_MAX_ATTEMPTS = 3
+
+# POST /chat/stream だけが config["configurable"][STREAM_TOKENS_KEY] = True にする。真のとき、エージェントは
+# LLM の応答をチャンクごとに受け、本文を逐次ガードに通して、カスタムストリーム（stream_mode="custom"）へ流す。
+# 偽のとき（/chat）は従来どおり ainvoke で完成した応答を 1 回で受ける
+STREAM_TOKENS_KEY = "stream_tokens"
+# カスタムストリームへ流すイベント（dict の "type"）
+EVENT_TEXT = "text"  # {"type": "text", "text": 利用者へ送ってよい本文の断片}
+EVENT_TURN_END = "turn_end"  # {"type": "turn_end"} LLM の 1 回の応答の本文の終わり
 
 
 def use_vertex_ai() -> bool:
@@ -287,6 +308,43 @@ def _repair_dangling_tool_calls(messages: list[BaseMessage]) -> list[AIMessage]:
     return repaired
 
 
+async def _stream_reply(
+    llm: Any, messages: list[BaseMessage], hedge: HedgePolicy | None
+) -> AIMessage:
+    """LLM の応答をチャンクごとに受け、本文を逐次ガードに通してカスタムストリームへ流す。
+
+    戻り値は、ainvoke と同じ形の完成した AIMessage（履歴への保存と、ツール呼び出しの判定に使う）。
+    ヘッジありのときは、最初のチャンクが届いた試行を採る（それ以降は切り替えない）。
+    ガードが漏洩を検知したら、LLM の受信をやめ、そのターンのメッセージを定型文に置き換える（ツール呼び出しも
+    捨てる）。漏洩した本文が履歴に残らず、そのターンの検索（ツール）へも進まない。
+    """
+    writer = get_stream_writer()
+    guard = StreamingOutputGuard(SYSTEM_PROMPT)
+    if hedge is None:
+        chunks = llm.astream(messages)
+    else:
+        chunks = hedged_stream(lambda: llm.astream(messages), hedge, name="Gemini")
+
+    full: AIMessageChunk | None = None
+    async with aclosing(chunks):
+        async for chunk in chunks:
+            full = chunk if full is None else full + chunk
+            safe = guard.feed(chunk.text)
+            if safe:
+                writer({"type": EVENT_TEXT, "text": safe})
+            if guard.tripped:
+                break
+    if full is None:
+        raise EmptyStream("Gemini: 応答が空でした")
+    rest = guard.finish()  # 検知済み（または、残していた末尾の最後の検査で検知）なら空
+    if rest:
+        writer({"type": EVENT_TEXT, "text": rest})
+    writer({"type": EVENT_TURN_END})
+    if guard.tripped:
+        return AIMessage(content=OUTPUT_FALLBACK_REPLY, id=full.id)
+    return message_chunk_to_message(full)
+
+
 def build_graph(
     llm: BaseChatModel | None = None,
     hedge: HedgePolicy | None = None,
@@ -341,8 +399,10 @@ def build_graph(
     def route_after_guard(state: AgentState) -> str:
         return END if state.get("guard_reason") else "agent"
 
-    async def agent(state: AgentState) -> dict:
+    async def agent(state: AgentState, config: RunnableConfig) -> dict:
         messages = [SystemMessage(content=SYSTEM_PROMPT), *state["messages"]]
+        if (config.get("configurable") or {}).get(STREAM_TOKENS_KEY):
+            return {"messages": [await _stream_reply(llm_with_tools, messages, hedge)]}
         if hedge is None:
             reply = await llm_with_tools.ainvoke(messages)
         else:

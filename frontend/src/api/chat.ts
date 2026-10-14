@@ -1,16 +1,22 @@
-/** バックエンド (FastAPI) の /chat と /health を呼ぶ型付きクライアント。 */
+/**
+ * バックエンド (FastAPI) の /chat/stream と /health を呼ぶための部品。
+ *
+ * /chat/stream は AI SDK の UI message stream（SSE）を返すので、読み取りは @ai-sdk/react の useChat に任せる。
+ * ここにあるのは、そのトランスポートに渡す fetch（HTTP エラーを利用者向けの日本語にする）と、/health の取得。
+ */
 
 export const MAX_MESSAGE_LENGTH = 2000;
 export const MAX_THREAD_ID_LENGTH = 128;
 export const THREAD_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-export interface ChatResponse {
-  reply: string;
-  thread_id: string;
-  /** 回答の根拠として検索された設定資料。未検索なら空文字。 */
-  context: string;
-  /** "mock" = ダミー応答 / "gemini" = 本物の LLM */
-  mode: string;
+/** 回答の 1 ターンに付くメタデータ（UI message stream の messageMetadata）。届いた分だけが入る。 */
+export interface ChatMetadata {
+  /** 会話 ID。最初のチャンク（start）で届く。 */
+  thread_id?: string;
+  /** "mock" = ダミー応答 / "gemini" = 本物の LLM。start で届く。 */
+  mode?: string;
+  /** 回答の根拠として検索された設定資料。未検索なら空文字。完了の直前に届く。 */
+  context?: string;
 }
 
 export interface HealthResponse {
@@ -18,12 +24,7 @@ export interface HealthResponse {
   mode: string;
 }
 
-export interface SendChatParams {
-  message: string;
-  /** 既知の会話 ID。無ければ送らず、サーバーが新規発行する。 */
-  threadId?: string | null;
-  signal?: AbortSignal;
-}
+export const CHAT_STREAM_PATH = '/chat/stream';
 
 const MSG_NETWORK =
   'サーバーに接続できません。ネットワークやサーバーの起動状態を確認して、もう一度お試しください。';
@@ -51,7 +52,7 @@ export class ChatApiError extends Error {
   }
 }
 
-function endpoint(path: string): string {
+export function endpoint(path: string): string {
   const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
   return `${base}${path}`;
 }
@@ -90,6 +91,11 @@ function validationMessage(detail: unknown): string {
 // それ以外（404/405 などの "Not Found" や、ゲートウェイの英語メッセージ）は利用者に見せない
 const SERVER_DETAIL_STATUSES = new Set([429, 500, 502, 503, 504]);
 const JAPANESE_TEXT = /[぀-ヿ㐀-鿿]/;
+
+/** サーバーが固定の日本語メッセージとして送った文か。error チャンクの本文をそのまま見せてよいかの判定に使う。 */
+export function isJapaneseMessage(text: string): boolean {
+  return JAPANESE_TEXT.test(text.trim());
+}
 
 function serverDetailMessage(status: number, detail: unknown): string | null {
   if (typeof detail !== 'string' || !SERVER_DETAIL_STATUSES.has(status)) return null;
@@ -140,59 +146,31 @@ async function toApiError(response: Response): Promise<ChatApiError> {
   );
 }
 
-async function request(path: string, init: RequestInit): Promise<Response> {
+async function request(url: string, init?: RequestInit): Promise<Response> {
   try {
-    return await fetch(endpoint(path), init);
+    return await fetch(url, init);
   } catch (error) {
     if (isAbortError(error)) throw error; // 呼び出し側が中断したものはそのまま伝える
     throw new ChatApiError(0, MSG_NETWORK);
   }
 }
 
-function parseChatResponse(body: unknown, status: number): ChatResponse {
-  if (
-    !isRecord(body) ||
-    typeof body.reply !== 'string' ||
-    typeof body.thread_id !== 'string' ||
-    typeof body.mode !== 'string'
-  ) {
-    throw new ChatApiError(status, MSG_BAD_BODY);
-  }
-  return {
-    reply: body.reply,
-    thread_id: body.thread_id,
-    context: typeof body.context === 'string' ? body.context : '',
-    mode: body.mode,
-  };
-}
-
-/** POST /chat。失敗時は ChatApiError、AbortSignal で中断したときは AbortError を投げる。 */
-export async function sendChat({
-  message,
-  threadId,
-  signal,
-}: SendChatParams): Promise<ChatResponse> {
-  const body: { message: string; thread_id?: string } = { message };
-  if (threadId) body.thread_id = threadId;
-
-  const init: RequestInit = {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(body),
-  };
-  if (signal) init.signal = signal;
-
-  const response = await request('/chat', init);
+/**
+ * AI SDK のトランスポートに渡す fetch。
+ *
+ * - ネットワーク失敗は、日本語の ChatApiError（status 0）にする
+ * - HTTP エラー（本文を送り始める前の失敗）は、固定メッセージ・Retry-After つきの ChatApiError にする
+ * - 成功なのに SSE ではない応答（プロキシの HTML など）は、想定外の応答として扱う
+ * 中断（AbortSignal）は AbortError のまま伝える。
+ */
+export async function chatFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await request(String(input), init);
   if (!response.ok) throw await toApiError(response);
-
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch (error) {
-    if (isAbortError(error)) throw error;
+  const type = response.headers.get('Content-Type') ?? '';
+  if (!type.includes('text/event-stream')) {
     throw new ChatApiError(response.status, MSG_BAD_BODY);
   }
-  return parseChatResponse(payload, response.status);
+  return response;
 }
 
 /** GET /health。モードバッジ用なので、失敗しても致命的ではない。 */
@@ -200,7 +178,7 @@ export async function fetchHealth(signal?: AbortSignal): Promise<HealthResponse>
   const init: RequestInit = { headers: { Accept: 'application/json' } };
   if (signal) init.signal = signal;
 
-  const response = await request('/health', init);
+  const response = await request(endpoint('/health'), init);
   if (!response.ok) throw await toApiError(response);
   const body: unknown = await response.json().catch(() => null);
   if (!isRecord(body) || typeof body.status !== 'string' || typeof body.mode !== 'string') {

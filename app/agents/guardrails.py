@@ -200,3 +200,71 @@ def sanitize_output(text: str, secret: str) -> str:
     if leaks_secret(text, secret):
         return OUTPUT_FALLBACK_REPLY
     return text
+
+
+# ストリーミングで、正規化後の末尾をこの文字数だけ余分に手元へ残す。1 文字ずつ正規化した長さの数え間違い
+# （NFKC で文字数が変わる・結合文字など）があっても、漏洩の連続一致が閾値に届く前に検知できるようにする
+_STREAM_HOLD_MARGIN = 8
+# 検査の窓に残す、送信済みの末尾（元の文字数）。連続一致の先頭が送信済みの側にあっても拾うため
+_STREAM_SENT_TAIL = 64
+
+
+class StreamingOutputGuard:
+    """ストリーミング中の返答を逐次検査し、secret（SYSTEM_PROMPT）の漏洩を配信前に止める。
+
+    leaks_secret は「正規化後の連続一致が min_run 文字以上」で漏洩とみなす。連続一致は末尾の
+    文字が届いた時点で完成するので、正規化後に min_run 文字（と余白）ぶんの末尾を送らずに手元へ残せば、
+    利用者に届く連続一致は閾値に達しない。末尾以外は、検査を通ったものとして先に送る。
+
+    - feed(delta): 送ってよい本文を返す（残す分があるので、返す文字列は遅れる）。漏洩を検知したら
+      tripped になり、以降は何も返さない。
+    - finish(): 流れの終わりに、残していた末尾を最後の検査のうえで返す。
+
+    窓は直近の数十文字なので、空白や記号を挟んで連続一致を引き延ばす回避は、ここでは拾えないことがある。
+    完成した返答は、従来どおり guard_output（sanitize_output）が全文を検査する。
+    """
+
+    def __init__(self, secret: str, min_run: int = _LEAK_MIN_RUN) -> None:
+        self._secret = secret
+        self._min_run = min_run
+        target = _squash(_normalize(secret))
+        # leaks_secret と同じく、secret が短いときはその長さを閾値にする
+        self._hold = min(min_run, len(target)) + _STREAM_HOLD_MARGIN
+        self._sent_tail = ""
+        self._held = ""
+        self.tripped = False
+
+    def _leaks(self) -> bool:
+        return leaks_secret(self._sent_tail + self._held, self._secret, self._min_run)
+
+    def _trip(self) -> str:
+        self.tripped = True
+        self._held = ""
+        return ""
+
+    def _releasable(self) -> str:
+        """手元の末尾が正規化後に self._hold 文字以上残る範囲で、先頭から送ってよい分を取り出す。"""
+        count = 0
+        for index in range(len(self._held) - 1, -1, -1):
+            count += len(_squash(_normalize(self._held[index])))
+            if count >= self._hold:
+                released, self._held = self._held[:index], self._held[index:]
+                self._sent_tail = (self._sent_tail + released)[-_STREAM_SENT_TAIL:]
+                return released
+        return ""
+
+    def feed(self, delta: str) -> str:
+        if self.tripped or not delta:
+            return ""
+        self._held += delta
+        if self._leaks():
+            return self._trip()
+        return self._releasable()
+
+    def finish(self) -> str:
+        if self.tripped:
+            return ""
+        if self._leaks():
+            return self._trip()
+        rest, self._held = self._held, ""
+        return rest

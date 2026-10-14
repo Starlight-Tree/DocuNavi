@@ -156,7 +156,7 @@ def test_non_get_on_unknown_path_is_404(client, method):
 
 
 def test_openapi_lists_only_the_api_routes(client):
-    assert set(client.get("/openapi.json").json()["paths"]) == {"/health", "/chat"}
+    assert set(client.get("/openapi.json").json()["paths"]) == {"/health", "/chat", "/chat/stream"}
 
 
 # --- パストラバーサル ----------------------------------------------------------

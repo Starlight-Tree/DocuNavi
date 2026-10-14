@@ -6,14 +6,20 @@ import os
 import re
 import time
 import uuid
+from collections import deque
+from collections.abc import AsyncIterator
+from contextlib import aclosing
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field, StringConstraints, field_validator
+from starlette.background import BackgroundTask
 
-from app.agents.graph import build_graph, is_mock_mode
+from app.agents.graph import STREAM_TOKENS_KEY, build_graph, is_mock_mode
+from app.api.ui_stream import DONE, KEEPALIVE, UI_STREAM_HEADERS, UIMessageStream, encode, is_text_event
 from app.history import get_checkpointer, history_backend
 
 logger = logging.getLogger(__name__)
@@ -26,6 +32,9 @@ DEFAULT_LLM_TIMEOUT_SECONDS = 60.0
 # 取り消した LLM 呼び出し（と切断の監視）の終了を待つ上限。hedged_call 自身の後始末の上限
 # （resilience._CANCEL_GRACE_SECONDS = 1 秒）より長くして、先に待ちを諦めないようにする
 CANCEL_WAIT_SECONDS = 2.0
+# /chat/stream で、イベントが無い間にこの秒数ごとに SSE のコメント行（ping）を送る。
+# 無通信でプロキシに切られないことと、切断した相手への書き込みで中断に気づくことが目的
+STREAM_KEEPALIVE_SECONDS = 10.0
 
 # LLM 失敗時にクライアントへ返す固定メッセージ。例外の文字列は絶対に含めない
 _DETAIL_RATE_LIMIT = "リクエストが集中しています。しばらく待ってから再試行してください。"
@@ -300,3 +309,176 @@ async def chat(req: ChatRequest, request: Request) -> ChatResponse | Response:
         context=result.get("context", ""),
         mode=mode,
     )
+
+
+class _GraphRun:
+    """グラフの実行（astream）を別タスクで進め、イベントをキュー経由で受け渡す。
+
+    LLM 呼び出しを取り消す手段（タスクの cancel）を、/chat と同じく自分で持つためと、レスポンスを
+    始める前に最初のイベントを待てるようにするため。全体の上限（LLM_TIMEOUT_SECONDS）は、この中で
+    実行時間に課す（超えると TimeoutError が error イベントになり、504 として扱われる）。
+
+    next() の戻り値: ("event", (stream_mode, chunk)) / ("done", None) / ("error", 例外) /
+    ("gone", None)（クライアントの切断）/ ("idle", None)（idle 秒の間、何も無かった）。
+    """
+
+    def __init__(self, graph: Any, inputs: dict, config: dict, request: Request, timeout: float) -> None:
+        self._queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+        self.producer: asyncio.Future = asyncio.ensure_future(self._produce(graph, inputs, config, timeout))
+        # 本文は読み終えているので、ここから切断を監視できる（/chat と同じ）
+        self.gone: asyncio.Future = asyncio.ensure_future(_until_disconnect(request))
+
+    async def _produce(self, graph: Any, inputs: dict, config: dict, timeout: float) -> None:
+        try:
+            async with asyncio.timeout(timeout):
+                async with aclosing(graph.astream(inputs, config, stream_mode=["custom", "values"])) as stream:
+                    async for item in stream:
+                        self._queue.put_nowait(("event", item))
+            self._queue.put_nowait(("done", None))
+        except Exception as exc:  # Gemini 側のエラー・タイムアウト・履歴の保存先の失敗 等
+            self._queue.put_nowait(("error", exc))
+
+    async def next(self, idle: float | None = None) -> tuple[str, Any]:
+        if self.gone.done():  # 切断した相手には届かないので、溜まったイベントより切断を優先する
+            return ("gone", None)
+        getter: asyncio.Future = asyncio.ensure_future(self._queue.get())
+        try:
+            done, _ = await asyncio.wait({getter, self.gone}, timeout=idle, return_when=asyncio.FIRST_COMPLETED)
+        except BaseException:
+            await _cancel_and_wait(getter)
+            raise
+        if self.gone in done:
+            await _cancel_and_wait(getter)
+            return ("gone", None)
+        if getter in done:
+            return getter.result()
+        await _cancel_and_wait(getter)
+        return ("idle", None)
+
+    async def close(self) -> None:
+        """実行と切断の監視を取り消して、終わるのを待つ（何度呼んでもよい）。"""
+        await _cancel_and_wait(self.producer, self.gone)
+
+
+def _log_stream_failure(exc: BaseException, failure: HTTPException, thread_id: str) -> None:
+    # 詳細（例外本体・スタックトレース）はログにだけ残す。thread_id はパターン検証済み
+    logger.error(
+        "LLM 呼び出しに失敗しました (status=%s, thread_id=%s)",
+        failure.status_code,
+        thread_id,
+        exc_info=(type(exc), exc, exc.__traceback__),
+    )
+
+
+async def _stream_body(
+    run: _GraphRun,
+    ui: UIMessageStream,
+    buffered: list[tuple[str, Any]],
+    thread_id: str,
+    started: float,
+) -> AsyncIterator[bytes]:
+    """レスポンスの本体（SSE）。最初のイベントまでは、呼び出し側が待って buffered に溜めてある。"""
+    try:
+        for chunk in ui.start():
+            yield encode(chunk)
+        pending = deque(buffered)
+        while True:
+            if pending:
+                kind, payload = pending.popleft()
+            else:
+                kind, payload = await run.next(idle=STREAM_KEEPALIVE_SECONDS)
+
+            if kind == "event":
+                for chunk in ui.feed(payload):
+                    yield encode(chunk)
+            elif kind == "done":
+                for chunk in ui.finish():
+                    yield encode(chunk)
+                yield DONE
+                return
+            elif kind == "idle":
+                yield KEEPALIVE
+            elif kind == "gone":
+                logger.info(
+                    "クライアントが切断したため LLM 呼び出しを取り消しました (thread_id=%s, elapsed=%.1fs)",
+                    thread_id,
+                    time.monotonic() - started,
+                )
+                return
+            else:  # error: 本文を送り始めた後の失敗。固定メッセージだけをクライアントへ送る
+                failure = classify_llm_error(payload)
+                _log_stream_failure(payload, failure, thread_id)
+                for chunk in ui.error(str(failure.detail)):
+                    yield encode(chunk)
+                yield DONE
+                return
+    except asyncio.CancelledError:
+        # Starlette は、クライアントの切断を見つけると、本体の生成を取り消す。失敗ではない
+        logger.info(
+            "ストリームを中断し、LLM 呼び出しを取り消しました (thread_id=%s, elapsed=%.1fs)",
+            thread_id,
+            time.monotonic() - started,
+        )
+        raise
+    finally:
+        await run.close()
+
+
+@router.post(
+    "/chat/stream",
+    response_class=StreamingResponse,
+    responses={200: {"description": "AI SDK の UI message stream（SSE）", "content": {"text/event-stream": {}}}},
+)
+async def chat_stream(req: ChatRequest, request: Request) -> Response:
+    """/chat と同じ入力で、回答を SSE で少しずつ返す。
+
+    最初の本文が届くまで（または最後まで）は、レスポンスを始めない。その間の失敗は /chat と同じ
+    HTTP ステータス（固定メッセージ）で返せる。本文を送り始めた後の失敗は、error チャンクで伝える。
+    """
+    mode = current_mode()
+    thread_id = req.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id, STREAM_TOKENS_KEY: True}}
+    # context は直近のターンの検索結果だけを返したいので、毎ターン空に戻す
+    inputs = {"messages": [HumanMessage(content=req.message)], "context": ""}
+    started = time.monotonic()
+    run: _GraphRun | None = None
+    handed_off = False
+    try:
+        try:
+            run = _GraphRun(get_graph(mode == "mock"), inputs, config, request, llm_timeout_seconds())
+        except Exception as exc:  # グラフの組み立て（LLM クライアントの設定）の失敗
+            failure = classify_llm_error(exc)
+            _log_stream_failure(exc, failure, thread_id)
+            raise failure from exc
+
+        buffered: list[tuple[str, Any]] = []
+        while True:
+            kind, payload = await run.next()
+            if kind == "gone":
+                # 切断はエラーではない。ログも INFO・固定文・thread_id だけにする
+                logger.info(
+                    "クライアントが切断したため LLM 呼び出しを取り消しました (thread_id=%s, elapsed=%.1fs)",
+                    thread_id,
+                    time.monotonic() - started,
+                )
+                return Response(status_code=499)  # 届く相手はいない
+            if kind == "error":
+                failure = classify_llm_error(payload)
+                _log_stream_failure(payload, failure, thread_id)
+                raise failure from payload
+            buffered.append((kind, payload))
+            # 本文の最初の断片、または（入力ガードの拒否など）本文が無いまま終わったら、レスポンスを始める
+            if kind == "done" or is_text_event(payload):
+                break
+
+        handed_off = True
+        return StreamingResponse(
+            _stream_body(run, UIMessageStream(str(uuid.uuid4()), thread_id, mode), buffered, thread_id, started),
+            media_type="text/event-stream",
+            headers=UI_STREAM_HEADERS,
+            # 本体の生成が始まる前に切断されても、実行を取り残さない（_stream_body の finally は、始まらないと動かない）
+            background=BackgroundTask(run.close),
+        )
+    finally:
+        if not handed_off and run is not None:
+            await run.close()

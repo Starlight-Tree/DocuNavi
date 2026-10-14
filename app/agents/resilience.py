@@ -13,13 +13,16 @@ Gemini は 1〜3 秒で返す回と、20 秒以上かかる回・無応答のま
   即座に失敗させる。
 - 429（レート制限）は、以降の追加を止めたうえで、間隔を空けて再試行する。叩き続けないため。
   全ての試行が失敗したときは、最後の失敗ではなく 429 を返す（呼び出し側が待ってから再送できるように）。
+
+ストリーミング（hedged_stream）は、同じ仕組みで「最初のチャンクが届いた試行」を採る。採った後は、
+その試行が最後まで流れる（途中で失敗しても、別の試行へは切り替えない。利用者へ送った本文が変わるため）。
 """
 
 import asyncio
 import enum
 import importlib
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import TypeVar
 
@@ -35,6 +38,10 @@ _CANCEL_GRACE_SECONDS = 1.0
 
 class AttemptCancelled(Exception):
     """試行が（hedged_call の取り消しによらず）自分で取り消された。一時的な失敗として扱う。"""
+
+
+class EmptyStream(Exception):
+    """ストリームがチャンクを 1 つも返さずに終わった。一時的な失敗として扱う。"""
 
 
 def _optional_classes(*specs: tuple[str, str]) -> tuple[type[BaseException], ...]:
@@ -55,6 +62,7 @@ _TRANSIENT_ERRORS: tuple[type[BaseException], ...] = (
     TimeoutError,
     ConnectionError,
     AttemptCancelled,
+    EmptyStream,
 ) + _optional_classes(
     ("httpx", "TransportError"),  # TimeoutException / ConnectError / RemoteProtocolError などの親
     ("httpx2", "TransportError"),
@@ -104,11 +112,14 @@ def _consume(task: "asyncio.Future[object]") -> None:
         task.exception()
 
 
-async def _cancel_and_drain(tasks: set["asyncio.Future[T]"]) -> None:
+async def _cancel_and_drain(
+    tasks: set["asyncio.Future[T]"], discard: Callable[[T], Awaitable[None]] | None = None
+) -> None:
     """残っている試行を取り消し、終わるのを待つ（タスクを取り残さない）。
 
     取り消しを無視する試行があっても戻れるよう、待ちには上限を設ける。後始末の最中にもう一度取り消された
     （外側の wait_for の期限切れなど）場合も、試行の終了は上限まで待ってから、その取り消しを伝える。
+    discard があれば、取り消しと入れ違いに成功していた試行の結果を渡す（閉じる必要のある資源を残さない）。
     """
     if not tasks:
         return
@@ -124,15 +135,30 @@ async def _cancel_and_drain(tasks: set["asyncio.Future[T]"]) -> None:
             break
         except asyncio.CancelledError:
             interrupted = True
+    if discard is not None:
+        for task in tasks:
+            if task.done() and not task.cancelled() and task.exception() is None:
+                try:
+                    await discard(task.result())
+                except Exception:
+                    logger.debug("採らなかった試行の後始末に失敗しました", exc_info=True)
     if interrupted:
         raise asyncio.CancelledError
 
 
-async def hedged_call(make_attempt: Callable[[], Awaitable[T]], policy: HedgePolicy, *, name: str = "LLM") -> T:
+async def hedged_call(
+    make_attempt: Callable[[], Awaitable[T]],
+    policy: HedgePolicy,
+    *,
+    name: str = "LLM",
+    discard: Callable[[T], Awaitable[None]] | None = None,
+) -> T:
     """make_attempt() を policy に従って投げ、最初に成功した結果を返す。
 
     全ての試行が失敗したときは、429 があればその失敗を、無ければ最後の失敗を送出する。
     呼び出し元がキャンセルされたときは、投げた試行を全て取り消してから戻る（タスクを取り残さない）。
+    discard は、採らなかった成功結果（同じ回に複数が成功したときの残り）を後始末するための関数。
+    閉じる必要のある資源（開いたままのストリームなど）を返す試行で使う。
     """
     loop = asyncio.get_running_loop()
     started = loop.time()
@@ -186,6 +212,10 @@ async def hedged_call(make_attempt: Callable[[], Awaitable[T]], policy: HedgePol
                 if exc is None:
                     if launched > 1:
                         logger.info("%s: %.1f 秒で成功（投げた試行 %d 本）", name, loop.time() - started, launched)
+                    if discard is not None:
+                        for other in done:
+                            if other is not task and not other.cancelled() and other.exception() is None:
+                                await discard(other.result())
                     return task.result()
                 failed.append(exc)
 
@@ -206,4 +236,50 @@ async def hedged_call(make_attempt: Callable[[], Awaitable[T]], policy: HedgePol
         # 全ての試行が失敗した場合だけここに来る
         raise rate_limit_exc or last_exc or RuntimeError(f"{name}: 試行が結果を返さずに終了しました")
     finally:
-        await _cancel_and_drain(pending)
+        await _cancel_and_drain(pending, discard)
+
+
+async def _aclose(stream: object) -> None:
+    """非同期イテレーターを閉じる（aclose を持たないものは何もしない）。閉じる失敗は呼び出し側を止めない。"""
+    close = getattr(stream, "aclose", None)
+    if close is None:
+        return
+    try:
+        await close()
+    except Exception:
+        logger.debug("ストリームを閉じる際に例外が出ました", exc_info=True)
+
+
+async def hedged_stream(
+    make_stream: Callable[[], AsyncIterator[T]], policy: HedgePolicy, *, name: str = "LLM"
+) -> AsyncIterator[T]:
+    """make_stream() が返すストリームを policy に従って投げ、最初のチャンクが届いた試行のチャンクを流す。
+
+    ヘッジ・再試行・429 の扱いは hedged_call と同じで、「結果」を「最初のチャンク」に読み替える。
+    最初のチャンクの前に全ての試行が失敗したときは、その失敗を送出する。最初のチャンクの後の失敗は、
+    そのまま送出する（別の試行に切り替えると、先に送った本文と食い違うため）。
+    採らなかった試行のストリームは閉じる。呼び出し側が途中でやめたとき（aclose・取り消し）も閉じる。
+    """
+
+    async def attempt() -> tuple[T, AsyncIterator[T]]:
+        stream = aiter(make_stream())
+        try:
+            first = await anext(stream)
+        except StopAsyncIteration:
+            await _aclose(stream)
+            raise EmptyStream(f"{name}: 応答が空でした") from None
+        except BaseException:
+            await _aclose(stream)
+            raise
+        return first, stream
+
+    async def discard(result: tuple[T, AsyncIterator[T]]) -> None:
+        await _aclose(result[1])
+
+    first, stream = await hedged_call(attempt, policy, name=name, discard=discard)
+    try:
+        yield first
+        async for item in stream:
+            yield item
+    finally:
+        await _aclose(stream)

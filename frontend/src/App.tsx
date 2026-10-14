@@ -14,13 +14,14 @@ export default function App() {
       <Header mode={chat.mode ?? healthMode} onNewConversation={chat.reset} />
       <MessageList
         messages={chat.messages}
-        pending={chat.pending}
+        waiting={chat.waiting}
+        busy={chat.pending}
         resumed={chat.threadId !== null && chat.messages.length === 0}
       />
       {chat.error && (
         <ErrorBanner error={chat.error} disabled={chat.pending} onRetry={chat.retry} />
       )}
-      <Composer pending={chat.pending} onSend={chat.send} />
+      <Composer pending={chat.pending} onSend={chat.send} onStop={chat.stop} />
     </div>
   );
 }
