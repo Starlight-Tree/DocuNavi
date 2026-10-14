@@ -6,9 +6,11 @@ interface ComposerProps {
   pending: boolean;
   /** 送信を受け付けたら true を返す。false のときは入力を消さない。 */
   onSend: (text: string) => boolean;
+  /** 回答の生成を止める。 */
+  onStop: () => void;
 }
 
-export function Composer({ pending, onSend }: ComposerProps) {
+export function Composer({ pending, onSend, onStop }: ComposerProps) {
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const canSend = !pending && draft.trim().length > 0;
@@ -54,9 +56,16 @@ export function Composer({ pending, onSend }: ComposerProps) {
         <span id="message-counter" className="counter">
           {draft.length} / {MAX_MESSAGE_LENGTH}
         </span>
-        <button type="submit" className="btn btn-primary" disabled={!canSend}>
-          送信
-        </button>
+        <div className="composer-actions">
+          {pending && (
+            <button type="button" className="btn btn-secondary" onClick={onStop}>
+              停止
+            </button>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={!canSend}>
+            送信
+          </button>
+        </div>
       </div>
     </form>
   );

@@ -3,7 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { THREAD_ID_STORAGE_KEY } from './lib/storage';
-import { chatBody, deferred, errorResponse, installFetch, jsonResponse } from './test/helpers';
+import {
+  DEFAULT_REPLY,
+  controlledSse,
+  deferred,
+  errorResponse,
+  installFetch,
+  replyChunks,
+  replyResponse,
+  sseResponse,
+} from './test/helpers';
 
 const NOT_FOUND = '該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。';
 
@@ -25,7 +34,7 @@ async function sendMessage(
 
 describe('チャット UI: 送受信', () => {
   it('送信すると自分の発言と返答がログに並び、入力欄は空になる', async () => {
-    installFetch(() => jsonResponse(chatBody({ reply: '大気は二酸化炭素が主成分です。' })));
+    installFetch(() => replyResponse({ reply: '大気は二酸化炭素が主成分です。' }));
     const { user, input } = setup();
 
     await sendMessage(user, 'ザーハードの大気は？');
@@ -37,28 +46,28 @@ describe('チャット UI: 送受信', () => {
   });
 
   it('送信ボタンで送ったあとも、フォーカスは入力欄に戻る', async () => {
-    installFetch(() => jsonResponse(chatBody()));
+    installFetch(() => replyResponse());
     const { user, input } = setup();
 
     await user.type(input, '質問');
     await user.click(screen.getByRole('button', { name: '送信' }));
 
-    await screen.findByText(chatBody().reply);
+    await screen.findByText(DEFAULT_REPLY);
     expect(input).toHaveFocus();
   });
 
   it('前後の空白は削って送る', async () => {
-    const { chatBodies } = installFetch(() => jsonResponse(chatBody()));
+    const { chatBodies } = installFetch(() => replyResponse());
     const { user } = setup();
 
     await sendMessage(user, '   こんにちは  ');
 
-    await screen.findByText(chatBody().reply);
+    await screen.findByText(DEFAULT_REPLY);
     expect(chatBodies()[0]).toEqual({ message: 'こんにちは' });
   });
 
   it('空・空白だけのときは送信できない', async () => {
-    const { fetchMock } = installFetch(() => jsonResponse(chatBody()));
+    const { fetchMock } = installFetch(() => replyResponse());
     const { user, input, sendButton } = setup();
     await waitFor(() => expect(screen.getByText('モック')).toBeInTheDocument());
     fetchMock.mockClear();
@@ -74,7 +83,7 @@ describe('チャット UI: 送受信', () => {
 
   it('2 回の送信で同じ thread_id を使う（最初は送らない）', async () => {
     const { chatBodies } = installFetch((_body, call) =>
-      jsonResponse(chatBody({ thread_id: 'srv-thread-42', reply: `返答${call}` })),
+      replyResponse({ thread_id: 'srv-thread-42', reply: `返答${call}` }),
     );
     const { user } = setup();
 
@@ -90,7 +99,7 @@ describe('チャット UI: 送受信', () => {
 
   it('返答は HTML として解釈せず、改行を保ったテキストで表示する', async () => {
     const reply = '<img src=x onerror="alert(1)">\n二行目';
-    installFetch(() => jsonResponse(chatBody({ reply })));
+    installFetch(() => replyResponse({ reply }));
     const { user } = setup();
 
     await sendMessage(user, 'x');
@@ -102,7 +111,7 @@ describe('チャット UI: 送受信', () => {
   });
 
   it('動作モードをバッジで表示する', async () => {
-    installFetch(() => jsonResponse(chatBody()));
+    installFetch(() => replyResponse());
     setup();
     expect(await screen.findByText('モック')).toBeInTheDocument();
   });
@@ -110,7 +119,7 @@ describe('チャット UI: 送受信', () => {
 
 describe('チャット UI: 入力', () => {
   it('IME 変換中の Enter（isComposing / keyCode 229）では送信しない', async () => {
-    const { fetchMock } = installFetch(() => jsonResponse(chatBody()));
+    const { fetchMock } = installFetch(() => replyResponse());
     const { user, input } = setup();
     await user.type(input, 'にほんご');
     fetchMock.mockClear();
@@ -123,11 +132,11 @@ describe('チャット UI: 入力', () => {
     // 確定後の通常の Enter は送信する
     await user.keyboard('{Enter}');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    await screen.findByText(chatBody().reply);
+    await screen.findByText(DEFAULT_REPLY);
   });
 
   it('Shift+Enter は改行で、送信しない', async () => {
-    const { fetchMock } = installFetch(() => jsonResponse(chatBody()));
+    const { fetchMock } = installFetch(() => replyResponse());
     const { user, input } = setup();
     await user.type(input, '一行目');
     fetchMock.mockClear();
@@ -140,7 +149,7 @@ describe('チャット UI: 入力', () => {
   });
 
   it('文字数カウンタが入力に追従し、2000 文字で入力を止める', async () => {
-    installFetch(() => jsonResponse(chatBody()));
+    installFetch(() => replyResponse());
     const { user, input } = setup();
 
     expect(input).toHaveAttribute('maxlength', '2000');
@@ -154,7 +163,7 @@ describe('チャット UI: 送信中', () => {
   it('送信中は待機表示を出し、2 通目を送れない（入力は残る）', async () => {
     const gate = deferred<Response>();
     const { fetchMock, chatBodies } = installFetch((_body, call) =>
-      call === 1 ? gate.promise : jsonResponse(chatBody({ reply: '二通目の返答' })),
+      call === 1 ? gate.promise : replyResponse({ reply: '二通目の返答' }),
     );
     const { user, input, sendButton } = setup();
 
@@ -168,9 +177,9 @@ describe('チャット UI: 送信中', () => {
 
     expect(chatBodies()).toHaveLength(1);
     expect(input).toHaveValue('二通目');
-    expect(fetchMock.mock.calls.filter(([url]) => String(url) === '/chat')).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url) === '/chat/stream')).toHaveLength(1);
 
-    gate.resolve(jsonResponse(chatBody({ reply: '一通目の返答', thread_id: 'th-1' })));
+    gate.resolve(replyResponse({ reply: '一通目の返答', thread_id: 'th-1' }));
     await screen.findByText('一通目の返答');
     expect(screen.queryByText('回答を作成しています…')).not.toBeInTheDocument();
 
@@ -193,10 +202,11 @@ describe('チャット UI: 二重送信', () => {
       fireEvent.keyDown(input, { key: 'Enter' });
     });
 
-    expect(chatBodies()).toHaveLength(1);
+    // 送信はトランスポートの中で非同期に始まる。2 通目は受け付けられず、リクエストは 1 回だけ
+    await waitFor(() => expect(chatBodies()).toHaveLength(1));
     expect(screen.getAllByText('連打')).toHaveLength(1);
-    gate.resolve(jsonResponse(chatBody()));
-    await screen.findByText(chatBody().reply);
+    gate.resolve(replyResponse());
+    await screen.findByText(DEFAULT_REPLY);
     expect(chatBodies()).toHaveLength(1);
   });
 });
@@ -206,7 +216,7 @@ describe('チャット UI: エラー', () => {
     const { chatBodies } = installFetch((_body, call) =>
       call === 1
         ? errorResponse(502, 'LLM 呼び出しに失敗しました。しばらく待ってから再試行してください。')
-        : jsonResponse(chatBody({ reply: '再試行で成功しました' })),
+        : replyResponse({ reply: '再試行で成功しました' }),
     );
     const { user } = setup();
 
@@ -270,7 +280,7 @@ describe('チャット UI: エラー', () => {
 
   it('次の送信を始めるとエラー表示は消える', async () => {
     installFetch((_body, call) =>
-      call === 1 ? errorResponse(500, 'サーバー内部でエラーが発生しました。') : jsonResponse(chatBody()),
+      call === 1 ? errorResponse(500, 'サーバー内部でエラーが発生しました。') : replyResponse(),
     );
     const { user } = setup();
 
@@ -278,7 +288,7 @@ describe('チャット UI: エラー', () => {
     await screen.findByRole('alert');
     await sendMessage(user, '二つ目');
 
-    await screen.findByText(chatBody().reply);
+    await screen.findByText(DEFAULT_REPLY);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
@@ -286,11 +296,9 @@ describe('チャット UI: エラー', () => {
 describe('チャット UI: 参照した設定資料', () => {
   it('出典の見出しがある context だけ、閉じた <details> で表示する', async () => {
     installFetch(() =>
-      jsonResponse(
-        chatBody({
-          context: '[ザーハード1.txt]\n大気の主成分は二酸化炭素。\n\n[ザーハード2.txt]\n探査団は三名。',
-        }),
-      ),
+      replyResponse({
+        context: '[ザーハード1.txt]\n大気の主成分は二酸化炭素。\n\n[ザーハード2.txt]\n探査団は三名。',
+      }),
     );
     const { user } = setup();
 
@@ -311,24 +319,22 @@ describe('チャット UI: 参照した設定資料', () => {
   });
 
   it('「該当なし」の定型文は出典として表示しない', async () => {
-    installFetch(() => jsonResponse(chatBody({ context: NOT_FOUND })));
+    installFetch(() => replyResponse({ context: NOT_FOUND }));
     const { user } = setup();
 
     await sendMessage(user, '無関係な質問');
 
-    await screen.findByText(chatBody().reply);
+    await screen.findByText(DEFAULT_REPLY);
     expect(screen.queryByText(/参照した設定資料/)).not.toBeInTheDocument();
     expect(screen.queryByText(NOT_FOUND)).not.toBeInTheDocument();
   });
 
   it('context が空なら出さない。出典はそのターンの返答にだけ付く', async () => {
     installFetch((_body, call) =>
-      jsonResponse(
-        chatBody({
-          reply: `返答${call}`,
-          context: call === 1 ? '[ザーハード1.txt]\n本文' : '',
-        }),
-      ),
+      replyResponse({
+        reply: `返答${call}`,
+        context: call === 1 ? '[ザーハード1.txt]\n本文' : '',
+      }),
     );
     const { user } = setup();
 
@@ -348,7 +354,7 @@ describe('チャット UI: 参照した設定資料', () => {
 describe('チャット UI: 会話の管理', () => {
   it('「新しい会話」で表示と thread_id を破棄し、次は thread_id を送らない', async () => {
     const { chatBodies } = installFetch((_body, call) =>
-      jsonResponse(chatBody({ thread_id: `th-${call}`, reply: `返答${call}` })),
+      replyResponse({ thread_id: `th-${call}`, reply: `返答${call}` }),
     );
     const { user } = setup();
 
@@ -369,7 +375,13 @@ describe('チャット UI: 会話の管理', () => {
 
   it('送信中に「新しい会話」を押すと、遅れて届いた返答は表示しない', async () => {
     const gate = deferred<Response>();
-    installFetch(() => gate.promise);
+    // 本物の fetch と同じく、中断されたら reject する（遅れて届く応答は、中断後は読まれない）
+    installFetch((_body, _call, init) => {
+      init.signal?.addEventListener('abort', () =>
+        gate.reject(new DOMException('aborted', 'AbortError')),
+      );
+      return gate.promise;
+    });
     const { user } = setup();
 
     await sendMessage(user, '古い会話の質問');
@@ -377,7 +389,7 @@ describe('チャット UI: 会話の管理', () => {
     await user.click(screen.getByRole('button', { name: '新しい会話' }));
 
     expect(screen.queryByText('回答を作成しています…')).not.toBeInTheDocument();
-    gate.resolve(jsonResponse(chatBody({ reply: '古い会話の返答', thread_id: 'old' })));
+    gate.resolve(replyResponse({ reply: '古い会話の返答', thread_id: 'old' }));
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     expect(screen.queryByText('古い会話の返答')).not.toBeInTheDocument();
@@ -388,10 +400,10 @@ describe('チャット UI: 会話の管理', () => {
   });
 
   it('thread_id を sessionStorage に保存し、再読み込み後も使う', async () => {
-    const { chatBodies } = installFetch(() => jsonResponse(chatBody({ thread_id: 'keep-me' })));
+    const { chatBodies } = installFetch(() => replyResponse({ thread_id: 'keep-me' }));
     const first = setup();
     await sendMessage(first.user, '一つ目');
-    await screen.findByText(chatBody().reply);
+    await screen.findByText(DEFAULT_REPLY);
     expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('keep-me');
 
     // 同じタブでのページ再読み込みに相当する
@@ -404,10 +416,10 @@ describe('チャット UI: 会話の管理', () => {
   });
 
   it('thread_id を引き継いだが履歴が画面に無いときは、そのことを知らせる', async () => {
-    installFetch(() => jsonResponse(chatBody({ thread_id: 'keep-me' })));
+    installFetch(() => replyResponse({ thread_id: 'keep-me' }));
     const first = setup();
     await sendMessage(first.user, '一つ目');
-    await screen.findByText(chatBody().reply);
+    await screen.findByText(DEFAULT_REPLY);
     first.unmount();
 
     const second = setup();
@@ -420,7 +432,7 @@ describe('チャット UI: 会話の管理', () => {
   });
 
   it('新規の会話では「前回の続き」を出さない', () => {
-    installFetch(() => jsonResponse(chatBody()));
+    installFetch(() => replyResponse());
     setup();
 
     expect(screen.queryByTestId('resumed-notice')).not.toBeInTheDocument();
@@ -429,11 +441,11 @@ describe('チャット UI: 会話の管理', () => {
 
   it('保存されていた thread_id が不正な形式なら使わない', async () => {
     window.sessionStorage.setItem(THREAD_ID_STORAGE_KEY, 'bad id!');
-    const { chatBodies } = installFetch(() => jsonResponse(chatBody()));
+    const { chatBodies } = installFetch(() => replyResponse());
     const { user } = setup();
 
     await sendMessage(user, '質問');
-    await screen.findByText(chatBody().reply);
+    await screen.findByText(DEFAULT_REPLY);
 
     expect(chatBodies()[0]).toEqual({ message: '質問' });
   });
@@ -443,7 +455,7 @@ describe('チャット UI: 会話の管理', () => {
       throw new DOMException('The operation is insecure.', 'SecurityError');
     });
     const { chatBodies } = installFetch((_body, call) =>
-      jsonResponse(chatBody({ thread_id: 'in-memory', reply: `返答${call}` })),
+      replyResponse({ thread_id: 'in-memory', reply: `返答${call}` }),
     );
     const { user } = setup();
 
@@ -456,5 +468,196 @@ describe('チャット UI: 会話の管理', () => {
     expect(chatBodies()[1]).toEqual({ message: '二つ目', thread_id: 'in-memory' });
     expect(screen.queryByText('返答1')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+
+describe('チャット UI: ストリーミング', () => {
+  const START = {
+    type: 'start',
+    messageId: 'm1',
+    messageMetadata: { thread_id: 'stream-th', mode: 'mock' },
+  };
+
+  it('届いた本文を少しずつ表示し、完了までは送信と出典・コピーを出さない', async () => {
+    const stream = controlledSse();
+    installFetch(() => stream.response);
+    const { user, sendButton } = setup();
+
+    await sendMessage(user, '大気は？');
+    expect(await screen.findByText('回答を作成しています…')).toBeInTheDocument();
+
+    stream.push(START);
+    stream.push({ type: 'text-start', id: 't0' });
+    stream.push({ type: 'text-delta', id: 't0', delta: 'ザーハードの' });
+
+    const log = screen.getByRole('log');
+    // 本文が届き始めたら、待機表示は消えて、本文が増えていく
+    expect(await within(log).findByText('ザーハードの')).toBeInTheDocument();
+    expect(screen.queryByText('回答を作成しています…')).not.toBeInTheDocument();
+    expect(log).toHaveAttribute('aria-busy', 'true');
+    expect(sendButton).toBeDisabled();
+    expect(screen.getByRole('button', { name: '停止' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'この回答をコピー' })).not.toBeInTheDocument();
+
+    stream.push({ type: 'text-delta', id: 't0', delta: '大気は二酸化炭素です。' });
+    expect(await within(log).findByText('ザーハードの大気は二酸化炭素です。')).toBeInTheDocument();
+
+    stream.push({ type: 'text-end', id: 't0' });
+    stream.push({
+      type: 'message-metadata',
+      messageMetadata: { context: '[ザーハード1.txt]\n大気の主成分は二酸化炭素。' },
+    });
+    stream.push({ type: 'finish' });
+    stream.finish();
+
+    // 完了すると、出典とコピーが付き、停止ボタンは消える
+    expect(await screen.findByText(/参照した設定資料/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'この回答をコピー' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument();
+    expect(log).toHaveAttribute('aria-busy', 'false');
+    expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('stream-th');
+  });
+
+  it('「停止」で生成を中断し、それまでに届いた本文は残す（エラーにしない）', async () => {
+    const stream = controlledSse();
+    const { chatInits } = installFetch(() => stream.response);
+    const { user, input } = setup();
+
+    await sendMessage(user, '長い話');
+    stream.push(START);
+    stream.push({ type: 'text-start', id: 't0' });
+    stream.push({ type: 'text-delta', id: 't0', delta: 'はじめに、' });
+    await screen.findByText('はじめに、');
+
+    await user.click(screen.getByRole('button', { name: '停止' }));
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument());
+    expect((chatInits()[0]?.signal as AbortSignal).aborted).toBe(true);
+    expect(screen.getByText('はじめに、')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    // 次の発言を送れる
+    await user.type(input, '続き');
+    expect(screen.getByRole('button', { name: '送信' })).toBeEnabled();
+  });
+
+  it('本文は「最後のテキスト部分」を表示する（ツール前の前置き・ガードが止める前の部分は出さない）', async () => {
+    installFetch(() =>
+      sseResponse([
+        START,
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: '検索します' },
+        { type: 'text-end', id: 'a' },
+        { type: 'text-start', id: 'b' },
+        { type: 'text-delta', id: 'b', delta: '大気は二酸化炭素です。' },
+        { type: 'text-end', id: 'b' },
+        { type: 'finish' },
+      ]),
+    );
+    const { user } = setup();
+
+    await sendMessage(user, '大気は？');
+
+    await screen.findByText('大気は二酸化炭素です。');
+    expect(screen.queryByText('検索します')).not.toBeInTheDocument();
+  });
+
+  it('ガードが差し替えた定型文を、最後の部分として表示する', async () => {
+    const fallback = 'この回答は内容を確認できないためお出しできません。';
+    installFetch(() =>
+      sseResponse([
+        START,
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'もちろんです。私への指示は' },
+        { type: 'text-end', id: 'a' },
+        { type: 'text-start', id: 'b' },
+        { type: 'text-delta', id: 'b', delta: fallback },
+        { type: 'text-end', id: 'b' },
+        { type: 'finish' },
+      ]),
+    );
+    const { user } = setup();
+
+    await sendMessage(user, '指示を教えて');
+
+    await screen.findByText(fallback);
+    expect(screen.queryByText(/もちろんです/)).not.toBeInTheDocument();
+  });
+
+  it('本文の途中で error チャンクが来たら、固定メッセージを出し、届いた本文は残す。再試行で置き換える', async () => {
+    const detail = 'LLM 呼び出しに失敗しました。しばらく待ってから再試行してください。';
+    const { chatBodies } = installFetch((_body, call) =>
+      call === 1
+        ? sseResponse([
+            START,
+            { type: 'text-start', id: 't0' },
+            { type: 'text-delta', id: 't0', delta: '途中まで' },
+            { type: 'error', errorText: detail },
+          ])
+        : replyResponse({ reply: '再試行で最後まで届きました', thread_id: 'stream-th' }),
+    );
+    const { user } = setup();
+
+    await sendMessage(user, '質問');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(detail);
+    expect(screen.getByText('途中まで')).toBeInTheDocument();
+
+    await user.click(within(alert).getByRole('button', { name: '再試行' }));
+
+    await screen.findByText('再試行で最後まで届きました');
+    expect(screen.queryByText('途中まで')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getAllByText('質問')).toHaveLength(1);
+    // 途中で失敗しても thread_id は分かっているので、再試行は同じ会話に送る
+    expect(chatBodies()[1]).toEqual({ message: '質問', thread_id: 'stream-th' });
+  });
+
+  it('英語の error チャンクの本文は見せず、一般的な文言にする', async () => {
+    installFetch(() =>
+      sseResponse([START, { type: 'error', errorText: 'Internal Server Error: boom' }]),
+    );
+    const { user } = setup();
+
+    await sendMessage(user, '質問');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('予期しないエラーが発生しました');
+    expect(alert).not.toHaveTextContent('boom');
+  });
+
+  it('SSE ではない成功応答（旧 API の JSON など）は、想定外の応答として知らせる', async () => {
+    installFetch(() => new Response('{"reply":"x"}', { headers: { 'Content-Type': 'application/json' } }));
+    const { user } = setup();
+
+    await sendMessage(user, '質問');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('想定外');
+  });
+
+  it('回答をコピーできる', async () => {
+    installFetch(() => replyResponse({ reply: 'コピーする本文です。' }));
+    const { user } = setup();
+
+    await sendMessage(user, '質問');
+    await user.click(await screen.findByRole('button', { name: 'この回答をコピー' }));
+
+    expect(await screen.findByRole('button', { name: 'この回答をコピー' })).toHaveTextContent(
+      'コピーしました',
+    );
+    expect(await navigator.clipboard.readText()).toBe('コピーする本文です。');
+  });
+
+  it('標準の AI SDK の並び（replyChunks）を、そのまま読める', async () => {
+    installFetch(() =>
+      sseResponse(replyChunks({ deltas: ['分けて', '届く', '本文'], thread_id: 'std-1' })),
+    );
+    const { user } = setup();
+
+    await sendMessage(user, '質問');
+
+    await screen.findByText('分けて届く本文');
+    expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('std-1');
   });
 });
