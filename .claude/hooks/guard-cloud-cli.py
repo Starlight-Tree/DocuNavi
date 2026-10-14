@@ -19,11 +19,17 @@ gh には、このリポジトリだけの読み取り専用の細粒度トー�
 算術式・case・${...}）を近似的に読んで、1 つずつの単純なコマンドに分けてから調べる。ラッパー（sudo / env /
 xargs ...）、`bash -c`、`eval`、`find -exec`、シェルへ渡す文字列（ヒアドキュメント・パイプ・/dev/stdin）の中身も
 調べる。知らないラッパー・実行役（taskset / fakeroot / tmux ...）は、引数に CLI の名前が単独で出たら、そこから
-調べる。引数や環境変数の値が CLI で始まるコマンドライン（git -c alias.x=!gh ... / flock -c 'gh ...'）も調べる。
-語は、ブレース展開（{gh,run}）・${x:-既定値}・グロブのプログラム名（/usr/bin/g?）・$(which gh) の置換、
-同じコマンドの中で代入した変数（g=gh; $g ...、for c in gh gcloud; do $c ...）を展開した姿でも調べる。
-中身を検査できないスクリプトをシェルへ流す形（curl ... | sh）は、確認にする。
-入れ子が深く・長く、決まった作業量（MAX_STEPS）で読み切れないものは、拒否にする。
+調べる（mkdir / mv / rm / ls / apt-get など、ファイルやパッケージを扱うだけで引数を実行しないプログラムは除く）。
+引数や環境変数の値が CLI で始まるコマンドライン（git -c alias.x=!gh ... / flock -c 'gh ...'）も調べる。
+sed の s/// と y/// の中の文章は、コマンドとして調べない。
+語は、ブレース展開（{gh,run}・{gh,"run"}）・${x:-既定値}・グロブのプログラム名（/usr/bin/g?）・$(which gh) の置換、
+同じコマンドの中で代入した変数（g=gh; $g ...、g+=h、for c in gh gcloud; do $c ...）を展開した姿でも調べる。
+引用符で切れる変数名（"$g"oud）、未設定の変数が空になる形（g${x}h）、置換の出力がそのままコマンドになる形
+（$(echo gh run delete 1)）、VAR=値 cmd の VAR を引き継ぐ子のシェル（g=gh bash -c '$g ...'）、bash -c の後ろの語
+（exec "$@"）、sudo -i / su が標準入力から読むコマンド、知らない起動役の中のシェル・複合コマンド・git credential も調べる。
+中身を検査できないスクリプトをシェルへ流す形（curl ... | sh、bash <(curl ...)）は、確認にする。
+入れ子が深すぎる（MAX_DEPTH）・長く、決まった作業量（MAX_STEPS）で読み切れないものは、拒否にする。
+変数の値やブレース展開の候補が上限（MAX_VALUES / MAX_VARIANTS / BRACE_LIMIT）を超えたら、黙って落とさず、確認にする。
 
 これはセキュリティ境界ではない（コマンド文字列の検査なので、実行時に決まる変数・コマンドの出力に隠した操作、
 ファイルに書いたスクリプトの中身、パスの難読化までは追えない）。gcloud は日常の ID を閲覧専用にする設定と
@@ -39,6 +45,7 @@ import os
 import posixpath
 import re
 import sys
+from collections.abc import Callable
 
 MAX_DEPTH = 5  # bash -c や $(...) の入れ子を追う深さ
 
@@ -46,7 +53,7 @@ CLIS = {"gcloud", "gsutil", "bq", "terraform", "tofu", "kubectl", "gh"}
 CLI_WORD = re.compile(r"\b(gcloud|gsutil|bq|terraform|tofu|kubectl|gh)\b")
 # 標準入力のスクリプトを実行するシェル（-c の文字列も調べる）。su / script は -c の文字列だけ調べる
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "ash", "fish", "csh", "tcsh", "mksh", "rbash"}
-C_ONLY_SHELLS = {"su", "script"}
+C_ONLY_SHELLS = {"su", "script", "sg", "newgrp"}
 SOURCERS = {"source", "."}
 # シェルが標準入力のスクリプトを読む、デバイスのパス
 STDIN_PATHS = {"/dev/stdin", "/dev/fd/0", "/proc/self/fd/0", "/proc/self/fd/0/"}
@@ -55,11 +62,19 @@ LOOKUP_PROGRAMS = {
     "which", "type", "whereis", "whatis", "man", "apropos", "hash", "help", "info", "locate", "command",
     "apt", "apt-get", "aptitude", "dpkg", "brew", "snap", "yum", "dnf", "apk", "pacman", "conda", "cargo", "gem",
     "pip", "pip3",
+    # ファイルを作る・動かす・消すだけで、引数を実行しない（sudo mkdir -p /opt/terraform / sudo mv gh /usr/local/bin/ ...）
+    "mkdir", "rmdir", "chmod", "chown", "chgrp", "install", "mv", "cp", "rm", "ln", "ls", "touch", "stat", "file",
+    "readlink", "realpath", "dirname", "basename", "du",
+    "[", "[[", "test",  # [ "$TOOL" = gh ] / [ -x /usr/bin/gh ]
 }
+# sed -i 's/gcloud auth login/.../' の s/// と y///。中の文章は実行されない（先頭が s/ の「パス付きのコマンド行」に見えてしまう）
+SED_SUBSTITUTION = re.compile(r"^[sy]([^\w\s\\]).*\1", re.DOTALL)
 # 引数の文字列が、CLI で始まるコマンドラインか（`gh run delete 1`、`!gh ...`、`--command=gh ...`、`VAR=gh ...`）
 _CLI_NAMES = r"(?:gcloud|gsutil|bq|terraform|tofu|kubectl|gh)"
 _CMDLINE_PREFIX = re.compile(r"^(?:--?[A-Za-z][\w-]*=|[A-Za-z_][\w.\-]*=)+")
 _CMDLINE = re.compile(r"^\s*(?:\S+/)?" + _CLI_NAMES + r"\s")
+# git credential ...（保存された認証情報の取り出し）と、git-credential-* のヘルパーの呼び出し（引数が続く形）
+_GIT_CREDENTIAL = re.compile(r"^\s*(?:\S+/)?(?:git(?:\s+-\S+(?:=\S+)?)*\s+credential\b|git-credential\S*\s)")
 _GLUED_SHORT = re.compile(r"^-[A-Za-z]{1,3}(?=(?:\S+/)?" + _CLI_NAMES + r"\s)")
 INTERPRETER = re.compile(
     r"^(python[\d.]*|node|nodejs|deno|bun|perl|ruby|php|awk|gawk|mawk|nawk|lua|luajit|tclsh[\d.]*|wish|expect|julia|Rscript)$"
@@ -169,10 +184,29 @@ WRITE_VERBS = {
     "get-credentials",  # gcloud container clusters get-credentials は、kubeconfig を書き換える
 }
 WRITE_PREFIXES = ("set-", "add-", "update-", "create-", "delete-", "remove-", "enable-", "disable-", "import-")
+# get- で始まる動詞のうち、値（キー・認証文字列・トークン・パスワード）を表示するもの。get-credentials は別（kubeconfig の書き換え）
+SECRET_GETTER = re.compile(r"get-(?:key-string|auth-string|[\w-]*(?:token|password|secret)[\w-]*)")
 RELEASE_TRACKS = {"alpha", "beta"}
 VALUE_FLAGS = {
     "--project", "--region", "--zone", "--location", "--format", "--filter", "--limit", "--sort-by",
     "--page-size", "--configuration", "--billing-project", "--verbosity", "--service", "--freshness", "--order",
+    "--trace-token", "--flatten", "--flags-file", "--universe-domain",  # gcloud の、値を取る共通のフラグ
+}
+# 値を取らない共通のフラグ（これらと VALUE_FLAGS 以外の --フラグ が先頭にあると、次の語が値かどうか分からない）
+BOOLEAN_FLAGS = {
+    "--quiet", "--help", "--version", "--log-http", "--no-log-http", "--user-output-enabled",
+    "--no-user-output-enabled", "--uri", "--async", "--no-async", "--dry-run", "--no-dry-run",
+}
+# kubectl で、別の利用者になる・資格情報を直接渡すフラグ（拒否）と、接続先・資格情報の取り出し先を変えるフラグ（確認）
+KUBECTL_IDENTITY_FLAGS = {"--as", "--as-group", "--as-uid", "--token"}
+KUBECTL_TARGET_FLAGS = {"--server", "-s", "--kubeconfig", "--user", "--cluster", "--certificate-authority",
+                        "--client-certificate", "--client-key", "--insecure-skip-tls-verify"}
+# kubectl の、値を取る共通のフラグ（-n kube-system get pods の kube-system を、グループと取り違えない）
+KUBECTL_VALUE_FLAGS = {
+    "-n", "--namespace", "--context", "--cluster", "--user", "--kubeconfig", "-s", "--server", "-o", "--output",
+    "-l", "--selector", "-c", "--container", "--field-selector", "--as", "--as-group", "--as-uid", "--token",
+    "--tail", "--since", "--request-timeout", "--sort-by", "--template", "-L", "--label-columns",
+    "--certificate-authority", "--client-certificate", "--client-key",
 }
 
 
@@ -195,10 +229,11 @@ GIT_CREDENTIAL_DENY = Finding(
 class Word:
     """引用符を外した 1 つの語。subs は、引用符の中・バッククォートの中のコマンド置換の中身。"""
 
-    __slots__ = ("text", "subs", "quoted")
+    __slots__ = ("text", "subs", "quoted", "mask")
 
-    def __init__(self, text: str, subs: list[str], quoted: bool) -> None:
+    def __init__(self, text: str, subs: list[str], quoted: bool, mask: str = "") -> None:
         self.text, self.subs, self.quoted = text, subs, quoted
+        self.mask = mask  # text と同じ長さ。1 は、引用符や \ の中で書いた文字（ブレース展開されない）
 
 
 class Heredoc:
@@ -395,6 +430,7 @@ class _Case:
         self.state, self.depth, self.fresh = "word", 0, False
 
 
+_TAIL_VARIABLE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)$")
 _ARRAY_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\[[^\]]*\])?\+?=")
 _FD_VARIABLE = re.compile(r"\{[A-Za-z_][A-Za-z0-9_]*\}")
 _COMMAND_WORDS = {"then", "do", "else", "elif", "if", "while", "until", "!", "{", "time"}
@@ -411,6 +447,7 @@ class _Lexer:
         self.cases: list[_Case] = []
         self.toks: list[Word | Heredoc | str] = []
         self.buf: list[str] = []
+        self.mask: list[str] = []  # buf の各要素と同じ長さの 0/1 の列（1 は引用符の中の文字）
         self.subs: list[str] = []
         self.has = False
         self.quoted = False
@@ -419,9 +456,23 @@ class _Lexer:
 
     def add(self, s: str, quoted: bool = False) -> None:
         self.buf.append(s)
+        self.mask.append(("1" if quoted else "0") * len(s))
         self.has = True
         if quoted:
             self.quoted = True
+
+    def end_variable(self) -> None:
+        """語の末尾が $name なら ${name} にする。"$g"oud の引用符は、変数名の終わり（$goud ではない）。"""
+        if not self.buf or len(self.buf) > 512:
+            return
+        joined = "".join(self.buf)
+        m = _TAIL_VARIABLE.search(joined)
+        if m is None:
+            return
+        mask = "".join(self.mask)
+        braced = "${" + m.group(1) + "}"
+        self.buf = [joined[: m.start()], braced]
+        self.mask = [mask[: m.start()], mask[m.start()] * len(braced)]
 
     def at_command_position(self) -> bool:
         """直前が、コマンドの先頭になりうる位置か（先頭・区切り・予約語の後）。"""
@@ -463,8 +514,8 @@ class _Lexer:
                 self.want = None
             else:
                 self.track_case(word, self.quoted, self.at_command_position())
-                self.toks.append(Word(word, self.subs, self.quoted))
-        self.buf, self.subs, self.has, self.quoted = [], [], False, False
+                self.toks.append(Word(word, self.subs, self.quoted, "".join(self.mask)))
+        self.buf, self.mask, self.subs, self.has, self.quoted = [], [], [], False, False
 
     def double_quote(self, i: int) -> int:
         text, n = self.text, self.n
@@ -476,27 +527,28 @@ class _Lexer:
                 if nxt == "\n":
                     j += 2
                 elif nxt in ("$", "`", '"', "\\"):
-                    self.buf.append(nxt)
+                    self.add(nxt, quoted=True)
                     j += 2
                 else:
-                    self.buf.append(d)
+                    self.add(d, quoted=True)
                     j += 1
             elif d == '"':
                 break
             elif d == "$" and text[j + 1 : j + 2] == "(":
                 end = _match_paren(text, j + 1, self.level)
                 self.subs.append(_inner(text, j + 2, end))
-                self.buf.append(text[j:end])
+                self.add(text[j:end], quoted=True)
                 j = end
             elif d == "`":
                 end = _skip_backtick(text, j)
                 self.subs.append(_backtick_inner(text, j, end))
-                self.buf.append(text[j:end])
+                self.add(text[j:end], quoted=True)
                 j = end
             else:
-                self.buf.append(d)
+                self.add(d, quoted=True)
                 j += 1
         self.has = self.quoted = True
+        self.end_variable()  # "$g"oud
         return min(j + 1, n)
 
     def ansi_quote(self, i: int) -> int:
@@ -505,11 +557,12 @@ class _Lexer:
         while j < n and text[j] != "'":
             if text[j] == "\\" and j + 1 < n:
                 char, j = _ansi_escape(text, j)
-                self.buf.append(char)
+                self.add(char, quoted=True)
             else:
-                self.buf.append(text[j])
+                self.add(text[j], quoted=True)
                 j += 1
         self.has = self.quoted = True
+        self.end_variable()
         return min(j + 1, n)
 
     def operator(self, i: int) -> int:
@@ -518,7 +571,7 @@ class _Lexer:
         if text[i] in "<>" and self.has and not self.quoted and (
             "".join(self.buf).isdigit() or _FD_VARIABLE.fullmatch("".join(self.buf))
         ):
-            self.buf, self.subs, self.has = [], [], False
+            self.buf, self.mask, self.subs, self.has = [], [], [], False
         elif text[i] == "(" and self.has and not self.quoted and _ARRAY_ASSIGNMENT.fullmatch("".join(self.buf)):
             end = _match_paren(text, i, self.level)  # a=(x y) は配列の代入。中の語はコマンドではない
             self.subs.extend(substitutions_in(text[i + 1 : end - 1], self.level))
@@ -583,7 +636,10 @@ class _Lexer:
             _tick()
             c = text[i]
             if c in " \t\r":
-                self.flush()
+                if self.braces > 0:  # ${x:-gh run delete 1} の空白は、語を区切らない（展開した後で分かれる）
+                    self.add(c)
+                else:
+                    self.flush()
                 i += 1
             elif c == "\n":
                 self.flush()
@@ -599,16 +655,20 @@ class _Lexer:
             elif c == "\\":
                 nxt = text[i + 1 : i + 2]
                 if nxt != "\n":  # 行継続（\ + 改行）は無かったことにする
+                    self.end_variable()
                     self.add(nxt, quoted=True)
                 i += 2
             elif c == "'":
+                self.end_variable()
                 j = text.find("'", i + 1)
                 end = n if j < 0 else j
                 self.add(text[i + 1 : end], quoted=True)
                 i = min(end + 1, n)
             elif c == '"':
+                self.end_variable()
                 i = self.double_quote(i)
             elif c == "$" and text[i + 1 : i + 2] == "'":
+                self.end_variable()
                 i = self.ansi_quote(i)
             elif c == "$" and text[i + 1 : i + 2] == '"':
                 i += 1
@@ -652,7 +712,8 @@ class Unit:
         self.after = ""  # 直後の区切り
         self.words: list[str] = []
         self.dynamic: list[bool] = []  # words の各語に、実行時に決まる部分（コマンド置換）があるか
-        self.plain: list[bool] = []  # words の各語が、引用符も \ も含まないか（ブレース展開される語）
+        self.plain: list[bool] = []  # words の各語が、引用符も \ も含まないか（変数の値を、空白で分ける語）
+        self.masks: list[str] = []  # words の各語の、引用符の位置（Word.mask）
         self.subs: list[str] = []
         self.targets: list[str] = []
         self.heredocs: list[Heredoc] = []
@@ -691,6 +752,7 @@ def build_units(toks: list[Word | Heredoc | str]) -> list[Unit]:
                 cur.words.append(tok.text)
                 cur.dynamic.append(bool(tok.subs))
                 cur.plain.append(not tok.quoted)
+                cur.masks.append(tok.mask)
             pending = None
     if cur.has_content():
         units.append(cur)
@@ -702,6 +764,20 @@ def tokenize(text: str) -> list[Word | Heredoc | str]:
 
 
 # --- コマンドの特定 ---
+
+
+ENV_LONG_OPTIONS = (
+    "--ignore-environment", "--null", "--unset", "--chdir", "--split-string", "--argv0", "--debug", "--block-signal",
+    "--default-signal", "--ignore-signal", "--list-signal-handling", "--help", "--version",
+)
+
+
+def env_long(name: str) -> str:
+    """GNU env は、長いオプション名を、他と紛れない先頭だけで書ける（--ignore-env / --uns=VAR / --un VAR）。"""
+    if name in ENV_LONG_OPTIONS or len(name) <= 2:
+        return name
+    hits = [option for option in ENV_LONG_OPTIONS if option.startswith(name)]
+    return hits[0] if len(hits) == 1 else name
 
 
 def resolve_program(words: list[str]) -> tuple[int | None, list[str], list[str]]:
@@ -763,11 +839,13 @@ def resolve_program(words: list[str]) -> tuple[int | None, list[str], list[str]]
                 return None, scripts, wrappers  # command -v gh は、場所を調べるだけ
             if w.startswith("--"):
                 name, eq, value = w.partition("=")
+                if base == "env":
+                    name = env_long(name)
                 if name in value_flags and not eq:
                     value = words[i + 1] if i + 1 < n else ""
                     i += 1
                 if base == "env" and name == "--split-string":
-                    scripts.append(value.replace("\\_", " "))
+                    scripts.append("env " + value.replace("\\_", " "))  # -S の中の -i / -u も、env のオプション
             else:
                 body = w[1:]
                 for k, ch in enumerate(body):
@@ -780,7 +858,7 @@ def resolve_program(words: list[str]) -> tuple[int | None, list[str], list[str]]
                         value = words[i + 1] if i + 1 < n else ""
                         i += 1
                     if base == "env" and ch == "S":
-                        scripts.append(value.replace("\\_", " "))
+                        scripts.append("env " + value.replace("\\_", " "))
                     break
             i += 1
         skipped = 0
@@ -833,7 +911,8 @@ def c_option_script(args: list[str]) -> int | None:
     return None
 
 
-def positionals(args: list[str]) -> list[str]:
+def positionals(args: list[str], value_flags: set[str] | None = None) -> list[str]:
+    flags = VALUE_FLAGS if value_flags is None else value_flags
     result: list[str] = []
     skip = False
     for arg in args:
@@ -841,11 +920,30 @@ def positionals(args: list[str]) -> list[str]:
             skip = False
             continue
         if arg.startswith("-"):
-            if "=" not in arg and arg in VALUE_FLAGS:
+            if "=" not in arg and arg in flags:
                 skip = True
             continue
         result.append(arg)
     return result
+
+
+def unknown_flag_before_group(args: list[str]) -> bool:
+    """最初の語（グループ）の前に、値を取るか分からない --フラグ があるか（その次の語が、値かもしれない）。"""
+    skip = False
+    for arg in args:
+        if skip:
+            skip = False
+            continue
+        if arg.startswith("-"):
+            if "=" in arg:
+                continue
+            if arg in VALUE_FLAGS:
+                skip = True
+            elif arg.startswith("--") and arg not in BOOLEAN_FLAGS:
+                return True
+            continue
+        return False
+    return False
 
 
 def drop_option_values(args: list[str], shorts: set[str], longs: set[str]) -> list[str]:
@@ -879,13 +977,19 @@ def strip_grep_pattern(args: list[str]) -> list[str]:
     kept: list[tuple[str, bool]] = []  # (引数, 位置引数か)
     has_pattern_option = False
     skip: str | None = None  # 次の引数の扱い: "keep"（残す値）/ "drop"（パターンなので捨てる）
+    options_ended = False  # -- の後ろは、- で始まっていても位置引数（grep -v -- -x FILE の -x はパターン、FILE はファイル）
     for arg in args:
         if skip is not None:
             if skip == "keep":
                 kept.append((arg, False))
             skip = None
             continue
-        if arg.startswith("--") and len(arg) > 2:
+        if options_ended:
+            kept.append((arg, True))
+        elif arg == "--":
+            options_ended = True
+            kept.append((arg, False))
+        elif arg.startswith("--") and len(arg) > 2:
             name, eq, _ = arg.partition("=")
             name = name[2:]
             if name == "regexp":
@@ -1004,8 +1108,12 @@ def gh_positionals(args: list[str]) -> list[tuple[int, str]]:
 
 def graphql_code(query: str) -> str:
     """GraphQL の文書から、文字列リテラルとコメントを除く（その中の mutation という語は、書き込みではない）。"""
-    query = re.sub(r'"""[\s\S]*?"""|"(?:\\.|[^"\\])*"', '""', query)
-    return re.sub(r"#[^\n]*", "", query)
+    # 1 回の走査で読む（コメントの中の " は文字列の始まりではなく、文字列の中の # はコメントではない）
+    return re.sub(
+        r'#[^\r\n]*|"""(?:\\"""|[\s\S])*?"""|"(?:\\.|[^"\\])*"',
+        lambda m: "" if m.group(0).startswith("#") else '""',
+        query,
+    )
 
 
 def classify_gh_api(rest: list[str]) -> Finding | None:
@@ -1157,7 +1265,7 @@ def takes_value(cli: str, flag: str) -> bool:
             or (flag.startswith("--") and flag[2:] in GH_TEXT_LONG)
             or (len(flag) == 2 and flag[1] in GH_SHORT_VALUE | GH_API_SHORT_VALUE | GH_TEXT_SHORT)
         )
-    return flag in VALUE_FLAGS
+    return flag in (KUBECTL_VALUE_FLAGS if cli == "kubectl" else VALUE_FLAGS)
 
 
 def wants_help(cli: str, args: list[str]) -> bool:
@@ -1167,6 +1275,8 @@ def wants_help(cli: str, args: list[str]) -> bool:
         words = [w for _, w in gh_positionals(args)]
         short_help = bool(words) and words[0] not in {"auth", "config"}
     for k, arg in enumerate(args):
+        if arg == "--":  # kubectl exec pod -- psql -h host の -h は、リモートのコマンドのオプション
+            break
         if arg == "--help" or (arg == "-h" and short_help):
             if k == 0 or not takes_value(cli, args[k - 1]):
                 return True
@@ -1178,7 +1288,7 @@ def verb_kind(pos: list[str]) -> str | None:
     for word in pos[1:]:
         if word in DESTRUCTIVE or word in WRITE_VERBS or word.startswith(WRITE_PREFIXES):
             return "write"
-        if word in READ_VERBS or word.startswith(("list", "describe", "get-")):
+        if word in READ_VERBS or word.startswith(("list", "describe", "get-", "search")):
             return "read"
     return None
 
@@ -1192,7 +1302,7 @@ def classify_cli(cli: str, args: list[str]) -> Finding | None:
         return None  # ヘルプの表示は、何も実行しない
     if cli == "gh":
         return classify_gh(args)
-    pos = positionals(args)
+    pos = positionals(args, KUBECTL_VALUE_FLAGS if cli == "kubectl" else None)
     if pos and pos[0] in RELEASE_TRACKS and len(pos) > 1:
         pos = pos[1:]  # gcloud beta run ... は、beta を飛ばして見る
     if not pos:
@@ -1207,14 +1317,18 @@ def classify_cli(cli: str, args: list[str]) -> Finding | None:
         if group == "config":
             ok = pos[1:2] and pos[1] in {"list", "get-value", "get"} or pos[1:3] in (["configurations", "list"], ["configurations", "describe"])
             return None if ok else Finding("deny", "gcloud config の変更（アカウント・プロジェクト・なりすましの設定）は許可していません。")
-        if group in {"version", "info", "help", "topic", "feedback"}:
-            return None
+        if (group in {"help", "topic"} or (group in {"version", "info", "feedback"} and len(pos) == 1)) and (
+            not unknown_flag_before_group(args)
+        ):
+            return None  # gcloud --trace-token help run services delete x の help は、フラグの値かもしれない
         if group == "components":
             return None if pos[1:2] == ["list"] else Finding("ask", "gcloud components の変更は確認が必要です。")
         if "secrets" in verbs and "access" in verbs:
             return Finding("deny", "Secret Manager の値の取得は許可していません。")
         if "keys" in verbs and "create" in verbs:
             return Finding("deny", "サービスアカウントキーの作成は許可していません。")
+        if any(SECRET_GETTER.fullmatch(v) for v in verbs):  # api-keys get-key-string / redis instances get-auth-string
+            return Finding("deny", "キー・認証文字列の値を表示する操作は許可していません。必要ならユーザーが実行します。")
     elif cli == "gsutil":
         if group in {"rm", "rb", "rsync", "acl", "iam", "defacl", "setmeta"}:
             return Finding("deny", f"gsutil {group} は許可していません。必要ならユーザーが実行します。")
@@ -1226,14 +1340,32 @@ def classify_cli(cli: str, args: list[str]) -> Finding | None:
     elif cli in {"terraform", "tofu"}:
         if group == "destroy":
             return Finding("deny", "terraform destroy は許可していません。必要ならユーザーが実行します。")
+        if (group in {"state", "workspace"} and pos[1:2] in (["list"], ["show"])) or (group == "providers" and len(pos) == 1):
+            return None  # 状態・ワークスペース・プロバイダーの一覧（読み取り）
         return None if group in {"plan", "validate", "fmt", "show", "version", "output", "graph"} else Finding(
             "ask", f"{cli} {group} は確認が必要です。"
         )
     elif cli == "kubectl":
+        for arg in args:
+            if arg == "--":
+                break
+            flag = arg.split("=", 1)[0]
+            if flag in KUBECTL_IDENTITY_FLAGS:
+                return Finding("deny", f"ID を切り替えるフラグ（{flag}）は使えません。日常の ID は閲覧専用に固定しています。")
+            if flag in KUBECTL_TARGET_FLAGS:
+                return Finding("ask", f"接続先や資格情報を変えるフラグ（{flag}）です。内容を確認してください。")
         if group in {"delete", "drain", "replace"}:
             return Finding("deny", f"kubectl {group} は許可していません。必要ならユーザーが実行します。")
-        if group in {"get", "describe"} and any(re.match(r"secrets?(?:[/,.]|$)", p) for p in pos[1:]):
+        if group in {"get", "describe"} and any(
+            re.search(r"(?:^|/)secrets?(?:\.[\w.]+)?(?:/|$)", part)  # secrets / Secret/x / secrets.v1 / --raw /api/v1/.../secrets
+            for p in pos[1:]
+            for part in p.lower().split(",")
+        ):
             return Finding("ask", "kubectl で Secret の値を読み出す操作です。内容を確認してください。")
+        if (group == "config" and pos[1:2] in (["current-context"], ["get-contexts"])) or (
+            group == "rollout" and pos[1:2] in (["status"], ["history"])
+        ) or (group == "auth" and pos[1:2] == ["can-i"]):
+            return None  # 現在の設定・ロールアウトの状態・権限の確認（読み取り）
         return None if group in {"get", "describe", "logs", "top", "version", "explain", "api-resources", "cluster-info"} else Finding(
             "ask", f"kubectl {group} は確認が必要です。"
         )
@@ -1297,6 +1429,7 @@ def env_changes(words: list[str]) -> tuple[list[str], bool]:
                 clears = True
             elif w.startswith("--"):
                 name, eq, value = w.partition("=")
+                name = env_long(name) if base == "env" else name
                 if base == "env" and name == "--ignore-environment":
                     clears = True
                 elif base == "env" and name == "--unset":
@@ -1323,10 +1456,21 @@ def env_changes(words: list[str]) -> tuple[list[str], bool]:
     return names, clears
 
 
+# python3 -m で、標準入力のコードを実行するモジュール
+STDIN_EXEC_MODULES = {"code", "codeop", "pdb", "ipdb", "runpy", "idlelib", "IPython", "ipython"}
 STDIN_SCRIPT_FLAGS = {"-", "-u", "-B", "-I", "-E", "-s", "-S"}  # インタープリタが標準入力のスクリプトを読む（引数が無い）形
 OPAQUE_STDIN = Finding(
     "ask", "標準入力から読むスクリプトの出どころ（他のコマンドの出力）を検査できません。内容を確認してください。"
 )
+
+
+def passes_text_through(stage: Unit) -> bool:
+    """この段が持つ文章（echo / printf の引数・ヒアドキュメント・ヒアストリング）を、そのまま出力に流すか。
+    echo / printf / cat / tee と、コマンドが無い（ヒアドキュメントだけ）ものは流す。base64 -d <<< ... のような変換は、流さない。"""
+    words, _, _ = split_ifs(stage)
+    index, _, _ = resolve_program(words)
+    name = os.path.basename(words[index]) if index is not None else ""
+    return index is None or name in TEXT_ONLY or name in {"cat", "tee"}
 
 
 def stdin_source(unit: Unit, units: list[Unit], idx: int) -> str:
@@ -1341,16 +1485,31 @@ def stdin_source(unit: Unit, units: list[Unit], idx: int) -> str:
     while j > 0 and units[j].before in PIPES:
         j -= 1
         stage = units[j]
-        if produced_texts(stage):
-            return "literal"
         words, _, _ = split_ifs(stage)
         index, _, _ = resolve_program(words)
-        if index is not None:
-            name = os.path.basename(words[index])
-            if name == "tee" or (name == "cat" and all(w.startswith("-") for w in words[index + 1 :])):
-                continue
+        name = os.path.basename(words[index]) if index is not None else ""
+        if produced_texts(stage):
+            # echo / printf / cat / tee は、文章をそのまま流す。base64 -d <<< ... のような変換は、流す中身が違う
+            return "literal" if passes_text_through(stage) else "opaque"
+        if name == "tee" or (name == "cat" and all(w.startswith("-") for w in words[index + 1 :])):
+            continue
         return "opaque"
     return "none"
+
+
+def drop_arg_pairs(args: list[str], options: set[str]) -> list[str]:
+    """--arg NAME VALUE のように、名前と値の 2 つを取るオプションを、引数ごと除く。"""
+    kept: list[str] = []
+    skip = 0
+    for arg in args:
+        if skip:
+            skip -= 1
+            continue
+        if arg in options:
+            skip = 2
+            continue
+        kept.append(arg)
+    return kept
 
 
 def printf_unescape(text: str) -> str:
@@ -1367,40 +1526,94 @@ def printf_unescape(text: str) -> str:
     return "".join(out)
 
 
-def split_ifs(unit: Unit) -> tuple[list[str], list[bool], list[bool]]:
-    """${IFS} / $IFS でつないだ語を、空白で区切られた語として分ける（unit.words と同じ並びの dynamic・plain も返す）。"""
+_IFS = re.compile(r"\$\{IFS(?:[:%#/^,@\[][^}]*)?\}|\$IFS(?![A-Za-z0-9_])")
+
+
+def split_ifs_full(unit: Unit) -> tuple[list[str], list[bool], list[bool], list[str]]:
+    """${IFS} / $IFS / ${IFS:0:1} でつないだ語を、空白で区切られた語として分ける（words と同じ並びの dynamic・plain・
+    引用符の位置も返す）。"""
     n = len(unit.words)
     flags = unit.dynamic if len(unit.dynamic) == n else [False] * n
     plains = unit.plain if len(unit.plain) == n else [False] * n
+    quotes = unit.masks if len(unit.masks) == n else [""] * n
     words: list[str] = []
     dynamic: list[bool] = []
     plain: list[bool] = []
-    for word, flag, is_plain in zip(unit.words, flags, plains):
-        parts = [p for p in re.split(r"\$\{IFS\}|\$IFS(?![A-Za-z0-9_])", word) if p] if "IFS" in word else [word]
-        if len(parts) > 1 or (parts and parts[0] != word):
-            words += parts
-            dynamic += [flag] * len(parts)
-            plain += [is_plain] * len(parts)
+    masks: list[str] = []
+    for word, flag, is_plain, mask in zip(unit.words, flags, plains, quotes):
+        spans: list[tuple[int, int]] = []
+        if "IFS" in word:
+            pos = 0
+            for m in _IFS.finditer(word):
+                if m.start() > pos:
+                    spans.append((pos, m.start()))
+                pos = m.end()
+            if pos < len(word):
+                spans.append((pos, len(word)))
+        if len(spans) > 1 or (spans and spans[0] != (0, len(word))):
+            for a, b in spans:
+                words.append(word[a:b])
+                dynamic.append(flag)
+                plain.append(is_plain)
+                masks.append(mask[a:b] if len(mask) == len(word) else "")
         else:
             words.append(word)
             dynamic.append(flag)
             plain.append(is_plain)
+            masks.append(mask)
+    return words, dynamic, plain, masks
+
+
+def split_ifs(unit: Unit) -> tuple[list[str], list[bool], list[bool]]:
+    """split_ifs_full の、words・dynamic・plain だけ。"""
+    words, dynamic, plain, _ = split_ifs_full(unit)
     return words, dynamic, plain
 
 
 BRACE_LIMIT = 64  # 1 つの語のブレース展開で作る語の上限
 MAX_WORDS = 512  # 展開後の 1 コマンドの語数の上限
-MAX_VALUES = 8  # 1 つの変数について覚える代入値の数
-MAX_VARIANTS = 16  # 1 コマンドで試す、変数の値の組み合わせの数
-_PARAM = re.compile(r"\$(?:\{([A-Za-z_]\w*)(?::?[-=]([^}$`]*))?\}|([A-Za-z_]\w*))")
+MAX_VALUES = 32  # 1 つの変数について覚える代入値の数
+MAX_VARIANTS = 64  # 1 コマンドで試す、変数の値の組み合わせの数
+# 上の上限で候補を切り捨てたら、黙って落とさず、確認にする（最後の代入・後ろの語に、実行されるものがありうる）
+_capped: list[str] = []
+# ${name} ${name:-既定値} ${name:+値} ${name:オフセット:長さ}、${1} ${@}、$name。
+# グループ: 1 名前 / 2 演算子（- = +）/ 3 既定値・代替値 / 4・5 オフセット・長さ / 6 素の名前
+_PARAM = re.compile(
+    r"\$(?:\{([A-Za-z_]\w*|\d+|[@*])(?::?([-=+])([^}$`]*)|:(\d+)(?::(\d+))?)?\}|([A-Za-z_]\w*|[@*0-9]))"
+)
+_BRACE_MARKS = str.maketrans({"{": "\x02", "}": "\x03", ",": "\x04"})
+_BRACE_UNMARKS = str.maketrans({"\x02": "{", "\x03": "}", "\x04": ","})
 
 
-def brace_expand(word: str) -> list[str]:
-    """引用符なしの語の {a,b} / pre{a,b}post / 入れ子を展開する。カンマの無い {} と ${...} は、そのまま。"""
+def _param_name(m: re.Match[str]) -> str:
+    return m.group(1) or m.group(6)
+
+
+def _param_value(m: re.Match[str], value: str) -> str:
+    """変数が設定されているときの展開。${g:0:2} は部分文字列、${x:+alt} は alt、それ以外は値そのもの。"""
+    if m.group(2) == "+" and m.group(3) is not None:
+        return m.group(3)
+    if m.group(4) is not None:
+        start = int(m.group(4))
+        return value[start : start + int(m.group(5))] if m.group(5) is not None else value[start:]
+    return value
+
+
+# 空白で分ける（$(which gh) のコマンド置換は、中の空白で分けない）
+_WORD_SPLIT = re.compile(r"(?:\$\((?:[^()]|\([^()]*\))*\)|`[^`]*`|\S)+")
+
+
+def brace_expand(word: str, mask: str = "") -> list[str]:
+    """語の {a,b} / pre{a,b}post / 入れ子を展開する。カンマの無い {} と ${...} は、そのまま。
+    mask（語と同じ長さの 0/1）の 1 の文字は引用符の中なので、{ } , として働かない（{gh,"run"} の "run" は展開される）。"""
     out: list[str] = []
+    if len(mask) == len(word):
+        word = "".join(ch.translate(_BRACE_MARKS) if q == "1" else ch for ch, q in zip(word, mask))
 
     def walk(current: str) -> None:
         if len(out) >= BRACE_LIMIT:
+            if "capped" not in _capped:
+                _capped.append("capped")
             return
         i, n = 0, len(current)
         while i < n:
@@ -1426,7 +1639,25 @@ def brace_expand(word: str) -> list[str]:
         out.append(current)
 
     walk(word)
-    return out[:BRACE_LIMIT] or [word]
+    return [piece.translate(_BRACE_UNMARKS) for piece in (out[:BRACE_LIMIT] or [word])]
+
+
+def resolve_params(value: str, variables: dict[str, list[str]]) -> str:
+    """値の中の $name を、覚えている最後の代入値で置き換える（知らない名前は、そのまま）。"""
+    return _PARAM.sub(lambda m: (variables.get(_param_name(m)) or [m.group(0)])[-1], value)
+
+
+def persistent_assignments(unit: Unit) -> list[str]:
+    """このコマンドが、後のコマンドにも残る形で代入する変数名（NAME=値 / export NAME=値。VAR=値 cmd は含まない）。"""
+    words, _, _ = split_ifs(unit)
+    index, _, _ = resolve_program(words)
+    if index is None:
+        assigned = words
+    elif os.path.basename(words[index]) in ASSIGNING_BUILTINS:
+        assigned = words[index + 1 :]
+    else:
+        return []
+    return [m.group(1) for w in assigned if (m := ASSIGNMENT.match(w))]
 
 
 def collect_variables(units: list[Unit], inherited: dict[str, list[str]]) -> dict[str, list[str]]:
@@ -1435,11 +1666,15 @@ def collect_variables(units: list[Unit], inherited: dict[str, list[str]]) -> dic
 
     def add(name: str, value: str) -> None:
         values = variables.setdefault(name, [])
-        if value not in values and len(values) < MAX_VALUES:
+        if value in values:
+            return
+        if len(values) < MAX_VALUES:
             values.append(value)
+        elif "capped" not in _capped:
+            _capped.append("capped")
 
     def resolved(value: str) -> str:
-        return _PARAM.sub(lambda m: (variables.get(m.group(1) or m.group(3)) or [m.group(0)])[-1], value)
+        return resolve_params(value, variables)
 
     for unit in units:
         words, _, _ = split_ifs(unit)
@@ -1457,53 +1692,89 @@ def collect_variables(units: list[Unit], inherited: dict[str, list[str]]) -> dic
         for word in assigned:
             m = ASSIGNMENT.match(word)
             if m:
-                add(m.group(1), resolved(word[m.end() :]))
+                value = resolved(word[m.end() :])
+                if word[m.end() - 2] == "+":  # g+=h は、今の値の後ろに足す
+                    for previous in list(variables.get(m.group(1), [])) or [""]:
+                        add(m.group(1), previous + value)
+                else:
+                    add(m.group(1), value)
     return variables
 
 
 def expand_words(unit: Unit, variables: dict[str, list[str]]) -> list[tuple[list[str], list[bool]]]:
     """このコマンドの語を、実行時の姿の候補に展開する（IFS・ブレース・${x:-既定値}・代入済みの変数）。"""
-    words, dynamic, plain = split_ifs(unit)
+    words, dynamic, plain, masks = split_ifs_full(unit)
+
+    def braced(w: str, p: bool, mask: str) -> bool:
+        if "{" not in w or "," not in w:
+            return False
+        if len(mask) == len(w):  # 引用符の外の { と , があるか
+            return any(c == "{" and q == "0" for c, q in zip(w, mask)) and any(
+                c == "," and q == "0" for c, q in zip(w, mask)
+            )
+        return p
+
     unexpanded: list[tuple[list[str], list[bool]]] = []  # 展開しない姿も調べる（見える範囲は落とさない）
-    if any(p and "{" in w and "," in w for w, p in zip(words, plain)):
+    if any(braced(w, p, m) for w, p, m in zip(words, plain, masks)):
         unexpanded.append((words, dynamic))
         out_w: list[str] = []
         out_d: list[bool] = []
         out_p: list[bool] = []
-        for w, d, p in zip(words, dynamic, plain):
-            for piece in brace_expand(w) if p and "{" in w and "," in w else [w]:
+        for w, d, p, m in zip(words, dynamic, plain, masks):
+            for piece in brace_expand(w, m) if braced(w, p, m) else [w]:
                 out_w.append(piece)
                 out_d.append(d)
                 out_p.append(p)
+        if len(out_w) > MAX_WORDS and "capped" not in _capped:
+            _capped.append("capped")
         words, dynamic, plain = out_w[:MAX_WORDS], out_d[:MAX_WORDS], out_p[:MAX_WORDS]
     if not any("$" in w for w in words):
         return [(words, dynamic)] + unexpanded
     known: list[str] = []
     for w in words:
         for m in _PARAM.finditer(w):
-            name = m.group(1) or m.group(3)
+            name = _param_name(m)
             if variables.get(name) and name not in known:
                 known.append(name)
     combos: list[dict[str, str]] = [{}]
     for name in known:
-        combos = [{**c, name: v} for c in combos for v in variables[name]][:MAX_VARIANTS]
+        combos = [{**c, name: v} for c in combos for v in variables[name]]
+        if len(combos) > MAX_VARIANTS:
+            if "capped" not in _capped:
+                _capped.append("capped")
+            combos = combos[:MAX_VARIANTS]
     results: list[tuple[list[str], list[bool]]] = []
     for combo in combos:
         def replace(m: re.Match[str]) -> str:
-            name = m.group(1) or m.group(3)
+            name = _param_name(m)
             if name in combo:
-                return combo[name]
-            return m.group(2) if m.group(2) is not None else m.group(0)
+                return _param_value(m, combo[name])
+            return m.group(3) if m.group(3) is not None else m.group(0)
 
         new_words: list[str] = []
         new_dynamic: list[bool] = []
         for w, d, p in zip(words, dynamic, plain):
             expanded = _PARAM.sub(replace, w) if "$" in w else w
-            parts = expanded.split() if (p and expanded != w) else [expanded]
+            parts = _WORD_SPLIT.findall(expanded) if (p and expanded != w) else [expanded]
             new_words += parts
             new_dynamic += [d] * len(parts)
         results.append((new_words[:MAX_WORDS], new_dynamic[:MAX_WORDS]))
     results.append((words, dynamic))  # 変数を展開しない姿も調べる（変数の値が実行時に違っても、見える範囲は落とさない）
+    # 未設定の変数は空になる（g${x}h run delete 1 が gh run delete 1 になる）。知らない変数を空にした姿も調べる
+    if any(_param_name(m) not in variables for w in words for m in _PARAM.finditer(w)):
+        emptied: list[str] = []
+        emptied_dynamic: list[bool] = []
+        for w, d, p in zip(words, dynamic, plain):
+            text = _PARAM.sub(
+                lambda m: m.group(0)
+                if _param_name(m) in variables
+                else ("" if m.group(2) == "+" else (m.group(3) or "")),
+                w,
+            )
+            parts = _WORD_SPLIT.findall(text) if (p and text != w) else [text]
+            emptied += parts
+            emptied_dynamic += [d] * len(parts)
+        results.append((emptied[:MAX_WORDS], emptied_dynamic[:MAX_WORDS]))
     return results + unexpanded
 
 
@@ -1533,7 +1804,7 @@ def embedded_command(arg: str) -> str | None:
     glued = _GLUED_SHORT.match(value)
     if glued:
         value = value[glued.end() :]
-    if _CMDLINE.match(value):
+    if _CMDLINE.match(value) or _GIT_CREDENTIAL.match(value):
         return value
     return value if marked and CLI_WORD.search(value) else None
 
@@ -1569,7 +1840,11 @@ def normalized_path(word: str) -> str | None:
             w = "~" + w[len(ref):]
     if not (w.startswith("/") or w.startswith("~")):
         return None
-    return posixpath.normpath(os.path.expanduser(w))
+    path = posixpath.normpath(os.path.expanduser(w))
+    if path.startswith("//"):  # normpath は、先頭のちょうど 2 つの / だけを畳まない（POSIX では実装定義）。Linux では / と同じ
+        path = "/" + path.lstrip("/")
+    # /proc/self/root は、自分のルートディレクトリを指す別名（重ねて書いても同じ）
+    return re.sub(r"^(?:/proc/(?:self|thread-self)/root)+(?=/|$)", "", path) or "/"
 
 
 def _glob_components(pattern: list[str], path: list[str]) -> bool:
@@ -1695,6 +1970,126 @@ def credential_words(program: str, args: list[str]) -> list[str]:
     return args
 
 
+def chdir_operands(wrapper_words: list[str], program: str, args: list[str]) -> list[str]:
+    """env -C DIR / sudo -D DIR / git -C DIR / make -C DIR の DIR。以降の相対パスは、DIR からの読み取りになる。"""
+    found: list[str] = []
+
+    def scan(words: list[str], shorts: set[str]) -> None:
+        for k, w in enumerate(words):
+            name, eq, value = w.partition("=")
+            if w in shorts or (name in {"--chdir", "--directory"} and not eq):
+                if k + 1 < len(words):
+                    found.append(words[k + 1])
+            elif eq and name in {"--chdir", "--directory"}:
+                found.append(value)
+            elif len(w) > 2 and w[:2] in shorts and not w.startswith("--"):
+                found.append(w[2:])  # -C/path のように続けて書く形
+
+    scan(wrapper_words, {"-C", "-D"})
+    if program in {"git", "make", "gmake"}:
+        scan(args, {"-C"})
+    return found
+
+
+def names_cli(arg: str) -> bool:
+    """引数が、CLI のプログラムを指すか（gh / /usr/bin/gh / ./gh。infra/terraform や chore/gh は、ただのパス・名前）。"""
+    return os.path.basename(arg) in CLIS and ("/" not in arg or arg.startswith(("/", "./", "../", "~", "$")))
+
+
+def script_runs_cli(script: str, depth: int = 0) -> bool:
+    """スクリプトが、CLI（gcloud / gh など）を実行しうるか。名前が文章や、参照系のプログラム（apt-get install gh）の
+    引数に出るだけなら False。判断できないとき（深い入れ子・標準入力のシェル・変数に入れた名前）は、名前が見えれば True
+    （拒否する側に倒す）。"""
+    if depth >= MAX_DEPTH:
+        return bool(CLI_WORD.search(script))
+    for unit in build_units(tokenize(script)):
+        if any(script_runs_cli(s, depth + 1) for s in unit.subs):
+            return True
+        words = unit.words
+        if any(ASSIGNMENT.match(w) and CLI_WORD.search(w) for w in words):
+            return True  # c=gh; $c run list のように、変数に入れた名前（展開は、ここでは追わない）
+        index, scripts, _ = resolve_program(words)
+        if any(script_runs_cli(s, depth + 1) for s in scripts):
+            return True
+        if index is None:
+            continue
+        program = os.path.basename(words[index])
+        args = words[index + 1 :]
+        if program in CLIS:
+            return True
+        if program in SHELLS:
+            position, reads_stdin = shell_script(args)
+            if position is not None and script_runs_cli(args[position], depth + 1):
+                return True
+            if reads_stdin and CLI_WORD.search(script):
+                return True
+        elif program in C_ONLY_SHELLS:
+            position = c_option_script(args)
+            if position is not None and script_runs_cli(args[position], depth + 1):
+                return True
+        elif program == "eval":
+            if script_runs_cli(" ".join(args), depth + 1):
+                return True
+        elif program in SCHEDULERS or program in RUNNERS or INTERPRETER.match(program) or program in SOURCERS:
+            if CLI_WORD.search(script):  # 中身までは追えない
+                return True
+        elif program not in TEXT_ONLY and program not in GREP_PROGRAMS and program not in LOOKUP_PROGRAMS:
+            if any(names_cli(a) or embedded_command(a) is not None for a in args):
+                return True
+    return False
+
+
+def stdin_script_checks(
+    unit: Unit,
+    units: list[Unit],
+    idx: int,
+    text: str,
+    reads_stdin_script: bool,
+    sub: Callable[[str], None],
+    findings: list[Finding],
+) -> list[str]:
+    """シェルが標準入力・プロセス置換から読むスクリプトを調べる。調べた文章を返す。出どころが分からなければ確認にする。"""
+    fed: list[str] = []
+    analyzed = False
+    if unit.after == "<(" and idx + 1 < len(units) and units[idx + 1].before == "<(":
+        texts = produced_texts(units[idx + 1])
+        for produced in texts:
+            sub(produced)
+            fed.append(produced)
+        if texts and passes_text_through(units[idx + 1]):
+            analyzed = True
+        else:  # bash <(curl ...) / sh <(base64 -d <<< ...): 出力は、検査できない
+            findings.append(OPAQUE_STDIN)
+    if reads_stdin_script:
+        for heredoc in unit.heredocs:
+            sub(heredoc.body)
+            fed.append(heredoc.body)
+            analyzed = True
+        for string in unit.herestrings:
+            sub(string)
+            fed.append(string)
+            analyzed = True
+        j = idx
+        while j > 0 and units[j].before in PIPES:
+            j -= 1
+            texts = produced_texts(units[j])
+            for produced in texts:
+                sub(produced)
+                fed.append(produced)
+            analyzed = analyzed or bool(texts)
+        if not analyzed and CLI_WORD.search(text):
+            findings.append(
+                Finding(
+                    "ask",
+                    "標準入力から読んだスクリプトの中でクラウド CLI（gcloud / gh など）を呼ぶ可能性があります。"
+                    "内容を確認してください。",
+                )
+            )
+        elif stdin_source(unit, units, idx) == "opaque":  # curl ... | sh / ... | base64 -d | sh
+            findings.append(OPAQUE_STDIN)
+    return fed
+
+
 def analyze_unit(
     unit: Unit,
     units: list[Unit],
@@ -1722,11 +2117,13 @@ def analyze_words(
     word_dynamic: list[bool],
     first: bool,
 ) -> None:
+    inherited = variables  # 入れ子のスクリプトが引き継ぐ変数（VAR=値 cmd の VAR を、下で足す）
+
     def sub(script: str) -> None:
         if depth < MAX_DEPTH:
-            findings.extend(analyze(script, depth + 1, variables))
-        elif CLI_WORD.search(script):
-            findings.append(Finding("ask", "コマンドの入れ子が深く、検査できません。内容を確認してください。"))
+            findings.extend(analyze(script, depth + 1, inherited))
+        else:  # 読めないものは通さない（CLI の名前が見えなくても、git credential などを隠せる）
+            findings.append(Finding("deny", "コマンドの入れ子が深すぎて、検査できません。"))
 
     if first:  # コマンド全体に掛かる検査（語の候補ごとに繰り返さない）
         for script in unit.subs:
@@ -1749,10 +2146,28 @@ def analyze_words(
             findings.append(Finding("deny", f"認証・ID を変える環境変数（{m.group(1)}）は設定できません。"))
         if m and EVALUATED_ENV.match(m.group(1)):
             sub(word[m.end() :])  # PROMPT_COMMAND / PS4 の値は、後でシェルが評価する
+    if index is not None:
+        # g=gh bash -c '$g run delete 1' / env X=gh sh -c '$X ...': VAR=値 は、子のシェルの環境に入る
+        exported = {m.group(1): [resolve_params(w[m.end() :], variables)] for w in prefix if (m := ASSIGNMENT.match(w))}
+        if exported:
+            inherited = {**variables, **exported}
     if index is None:
         m = CREDENTIAL_TEXT.search(" ".join(prefix))
         if m:
             findings.append(credential_deny(m.group(0)))
+        if scripts:  # env -i -S 'gcloud run services list': -S の中身は、外側の env のオプションの下で動く
+            unset_names, clears_env = env_changes(words)
+            if (clears_env or any(IDENTITY_ENV.match(name) for name in unset_names)) and any(
+                script_runs_cli(script) for script in scripts
+            ):
+                findings.append(IDENTITY_DROP)
+        if first and wrappers and wrappers[-1] in {"sudo", "doas"} and any(
+            re.fullmatch(r"-[A-Za-z]*[is][A-Za-z]*", w) or w in {"--login", "--shell"} for w in words
+        ):
+            # echo 'gh run delete 1' | sudo -i / sudo -s <<< '...': 標準入力のスクリプトを読むシェル（ID も引き継がない）
+            fed = stdin_script_checks(unit, units, idx, text, True, sub, findings)
+            if any(script_runs_cli(t) for t in fed):
+                findings.append(IDENTITY_DROP)
         return
 
     program_word = words[index]
@@ -1785,11 +2200,20 @@ def analyze_words(
                 clone.dynamic = word_dynamic[:index] + [False] + word_dynamic[index + 1 :]
                 clone.targets, clone.heredocs, clone.herestrings = unit.targets, unit.heredocs, unit.herestrings
                 analyze_unit(clone, units, idx, text, depth, findings, variables)
+        # $(echo gh run delete 1) のように、置換の出力が、そのままコマンドラインになる（後ろの語を足して調べる）
+        for script in substitutions_in(program_word):
+            for inner in build_units(tokenize(script)):
+                for produced in produced_texts(inner)[-1:]:
+                    sub(" ".join([produced] + words[index + 1 :]))
         if names:
             return
-    elif re.search(r"[\s;&|]", program_word):  # watch 'gh run list' のように、コマンドが 1 つの文字列で渡された
-        sub(" ".join(words[index:]))
-        return
+    elif not word_dynamic[index] and re.search(r"[\s;&|]", program_word):
+        # watch 'gh run list' のように、コマンドが 1 つの文字列で渡された。結合して読み直しても同じ 1 語に戻るもの
+        # （${x:-a b} の空白・全角の空白・置換の中の空白）は、読み直さない（入れ子を掘り続けて、深さの上限に当たる）
+        again = build_units(tokenize(" ".join(words[index:])))
+        if not (len(again) == 1 and again[0].words[:1] == [program_word]):
+            sub(" ".join(words[index:]))
+            return
 
     if re.search(r"[*?\[]", program) and "$" not in program and program not in CLIS:
         # /usr/bin/g? run delete 1 のように、プログラム名がグロブ。CLI の名前に一致するなら、その CLI として調べる
@@ -1820,17 +2244,21 @@ def analyze_words(
     reads_stdin_script = False
     cli_in_args = False  # 知らないラッパーの引数に、CLI の名前が単独で出た
     inner_scripts: list[str] = []  # 再帰で調べるので、認証情報の置き場の検査からは外す
+    exec_words: list[str] = []  # find -exec の後ろ（別のコマンドとして調べる。find の引数としては、コマンドラインに見ない）
     text_args = credential_words(program, args)  # 文章（検索パターン・コミットメッセージ・テストの選択式）を除いた引数
     if program in CLIS:
-        for word in prefix:
-            m = ASSIGNMENT.match(word)
-            if m and (LAUNCHER_ENV.match(m.group(1)) or ROUTING_ENV.match(m.group(1))):
-                findings.append(
-                    Finding(
-                        "deny",
-                        f"外部コマンドの起動や通信の経路を変えられる環境変数（{m.group(1)}）は、{program} には付けられません。",
-                    )
+        exported_names = [
+            m.group(1) for word in prefix if (m := ASSIGNMENT.match(word)) and (
+                LAUNCHER_ENV.match(m.group(1)) or ROUTING_ENV.match(m.group(1)) or (program == "gh" and m.group(1) == "DEBUG")
+            )
+        ]
+        for name in exported_names + variables.get("\0env", []):  # 後者は、前のコマンドで export / 代入したもの
+            findings.append(
+                Finding(
+                    "deny",
+                    f"外部コマンドの起動や通信の経路を変えられる環境変数（{name}）は、{program} には付けられません。",
                 )
+            )
         finding = classify_cli(program, args)
         if finding:
             findings.append(finding)
@@ -1850,6 +2278,12 @@ def analyze_words(
                 findings.append(ask_dynamic)
             sub(args[position])
             inner_scripts.append(args[position])
+            rest = args[position + 1 :]
+            if rest and re.search(r"\$(?:[@*0-9]|\{[@*0-9])", args[position]):
+                # bash -c 'exec "$@"' _ gh run delete 1: スクリプトの後ろの語は、$0 $1 ... になる
+                sub(" ".join(rest))
+                if len(rest) > 1:
+                    sub(" ".join(rest[1:]))
     elif program in C_ONLY_SHELLS:
         position = c_option_script(args)
         if position is not None:
@@ -1857,6 +2291,8 @@ def analyze_words(
                 findings.append(ask_dynamic)
             sub(args[position])
             inner_scripts.append(args[position])
+        else:
+            reads_stdin_script = True  # su - vscode <<< '...' / sg grp / newgrp: 標準入力のコマンドを読む
     elif program == "eval":
         if any(runs_dynamic_text(k) for k in range(len(args))):
             findings.append(ask_dynamic)
@@ -1880,6 +2316,7 @@ def analyze_words(
                 end = k + 1
                 while end < len(args) and args[end] not in {";", "+"}:
                     end += 1
+                exec_words += args[k + 1 : end]
                 inner = Unit("")
                 inner.words = args[k + 1 : end]
                 if depth < MAX_DEPTH:
@@ -1892,62 +2329,69 @@ def analyze_words(
         while j > 0 and units[j].before in PIPES:  # echo '...gh...' | python3
             j -= 1
             fed += produced_texts(units[j])
+        # python3 hook.py / python3 -m json.tool のように、スクリプトのファイル・モジュールを渡されたら、標準入力はデータ。
+        # コードを引数で渡されたとき（-c / -e / -r / -p ...）・- で標準入力から読むとき・標準入力を実行するモジュール・
+        # プログラムを引数に書く awk は、標準入力を実行しうるので、スクリプトとして調べる
+        code_given = any(
+            re.fullmatch(r"-[A-Za-z]*[cdeEnpr][A-Za-z]*", a) or a in {"--eval", "--command", "--print", "-"} for a in args
+        )
+        module = args[args.index("-m") + 1] if "-m" in args and args.index("-m") + 1 < len(args) else ""
+        if (
+            any(not a.startswith("-") for a in args)
+            and not code_given
+            and module not in STDIN_EXEC_MODULES
+            and not re.match(r"^(?:awk|gawk|mawk|nawk)$", program)
+        ):
+            fed = []
         if any(CLI_WORD.search(w) for w in text_args) or any(CLI_WORD.search(t) for t in fed):
             findings.append(Finding("ask", "スクリプトの中でクラウド CLI（gcloud / gh など）を呼んでいます。内容を確認してください。"))
         elif all(a in STDIN_SCRIPT_FLAGS for a in args) and stdin_source(unit, units, idx) == "opaque":
             findings.append(OPAQUE_STDIN)
-    elif program not in TEXT_ONLY and program not in GREP_PROGRAMS and program not in LOOKUP_PROGRAMS:
+    elif (
+        program not in TEXT_ONLY
+        and program not in GREP_PROGRAMS
+        and (program not in LOOKUP_PROGRAMS or (program in {"conda", "snap"} and args[:1] == ["run"]))
+        and not any(w in {"for", "select", "case"} for w in prefix)  # for t in gh gcloud; do ...: 見出しは、何も実行しない
+    ):
         # 知らないラッパー・実行役（taskset / fakeroot / chroot / tmux ...）。引数に CLI の名前が単独で出たら、そこから調べる
         for k, arg in enumerate(text_args):
             name = os.path.basename(arg)
-            if name in CLIS:
-                cli_in_args = True
+            if names_cli(arg) and (program != "git" or text_args[k - 1 : k] in (["run"], ["-x"], ["--exec"])):
+                cli_in_args = True  # git checkout -b chore/gh / git push gh main の gh は、ブランチ・リモートの名前
                 found = classify_cli(name, text_args[k + 1 :])
                 if found:
                     findings.append(found)
+            elif depth < MAX_DEPTH and (
+                (name in SHELLS and shell_script(text_args[k + 1 :])[0] is not None)  # fakeroot sh -c '...'
+                or (name == "git" and (program != "git" or text_args[k - 1 : k] in (["run"], ["-x"], ["--exec"])))
+                or name.startswith("git-credential")
+            ):
+                launched = Unit("")
+                launched.words = text_args[k:]
+                analyze_unit(launched, [launched], 0, text, depth + 1, findings, inherited)
 
     if program not in CLIS and program not in TEXT_ONLY and program not in GREP_PROGRAMS:
         # 引数や環境変数の値が、CLI で始まるコマンドライン（git -c alias.x=!gh ... / flock -c 'gh ...' / VAR='gh ...'）。
         # man -P 'gh ...' のように、参照系のプログラムが渡された文字列を実行することもある
         values = [w.partition("=")[2] for w in prefix if ASSIGNMENT.match(w)]
-        for value in values + [a for a in text_args if a not in inner_scripts]:
+        scanned_args = [a for a in text_args if a not in inner_scripts and a not in exec_words]
+        if program == "sed":  # sed -i 's/gcloud auth login/.../' の中の文章は、コマンドではない
+            scanned_args = [a for a in scanned_args if not SED_SUBSTITUTION.match(a)]
+        if program in {"jq", "gojq", "yq"}:  # jq --arg c 'gh run delete 1' ...: --arg の値は、ただの文字列
+            scanned_args = drop_arg_pairs(scanned_args, {"--arg", "--argjson", "--rawfile", "--slurpfile"})
+        for value in values + scanned_args:
             embedded = embedded_command(value)
             if embedded is not None:
                 sub(embedded)
+            elif CLI_WORD.search(value) and re.search(r"&&|\|\||[;|\n]", value):
+                sub(value)  # tmux new-session -d 'cd /tmp && gh run delete 1' / git rebase -x '...; gh ...'
 
     # シェルへ渡される文章（ヒアドキュメント・ヒアストリング・パイプ・プロセス置換）も調べる
     if program in SOURCERS and args and args[0] in STDIN_PATHS:
         reads_stdin_script = True
-    if program in SHELLS or program in SOURCERS:
-        analyzed = False
-        if unit.after == "<(" and idx + 1 < len(units) and units[idx + 1].before == "<(":
-            for produced in produced_texts(units[idx + 1]):
-                sub(produced)
-            analyzed = True
-        if reads_stdin_script:
-            for heredoc in unit.heredocs:
-                sub(heredoc.body)
-                analyzed = True
-            for string in unit.herestrings:
-                sub(string)
-                analyzed = True
-            j = idx
-            while j > 0 and units[j].before in PIPES:
-                j -= 1
-                texts = produced_texts(units[j])
-                for produced in texts:
-                    sub(produced)
-                analyzed = analyzed or bool(texts)
-            if not analyzed and CLI_WORD.search(text):
-                findings.append(
-                    Finding(
-                        "ask",
-                        "標準入力から読んだスクリプトの中でクラウド CLI（gcloud / gh など）を呼ぶ可能性があります。"
-                        "内容を確認してください。",
-                    )
-                )
-            elif stdin_source(unit, units, idx) == "opaque":  # curl ... | sh / ... | base64 -d | sh
-                findings.append(OPAQUE_STDIN)
+    if program in SHELLS or program in SOURCERS or (program in C_ONLY_SHELLS and reads_stdin_script):
+        # 標準入力で受け取ったスクリプトも、sudo / su の下では ID を引き継がない（下の IDENTITY_DROP の判定に使う）
+        inner_scripts += stdin_script_checks(unit, units, idx, text, reads_stdin_script, sub, findings)
 
     # 日常の ID（環境変数で固定した閲覧専用のなりすまし）を外す・引き継がない実行
     unset_names, clears_env = env_changes(words[: index + 1])  # env - のように、プログラムの位置に来る "-" も含める
@@ -1956,7 +2400,7 @@ def analyze_words(
     if program == "unset" or (program in ASSIGNING_BUILTINS and any(a in {"-n", "+x"} for a in args)):
         if any(IDENTITY_ENV.match(a.partition("=")[0]) for a in args if not a.startswith(("-", "+"))):
             findings.append(IDENTITY_DROP)
-    if program in CLIS or cli_in_args or any(CLI_WORD.search(s) for s in inner_scripts):
+    if program in CLIS or cli_in_args or any(script_runs_cli(s) for s in inner_scripts):
         resets = clears_env or bool({"sudo", "doas"} & set(wrappers))  # sudo の env_reset は、環境変数を引き継がない
         resets = resets or (program == "su" and any(re.fullmatch(r"-|--login|-[a-z]*l[a-z]*", a) for a in args))
         if resets:
@@ -1987,16 +2431,41 @@ def analyze_words(
         if parent is not None:
             findings.append(credential_deny(parent))
 
+    # env -C ~/.config cat gh/hosts.yml / git -C ~/.config show ... のように、作業ディレクトリを認証情報の親にして、相対パスで読む
+    parent = next(
+        (w for w in chdir_operands(words[: index + 1], program, args) if covers_protected_dirs("cd", w)), None
+    )
+    if parent is not None:
+        findings.append(credential_deny(parent))
+
+    # echo ~/.config/gh/hosts.yml | xargs cat のように、標準入力の語が引数になる（CLI の場合は、上で classify している）
+    if "xargs" in wrappers and program not in CLIS and program not in TEXT_ONLY:
+        j = idx
+        while j > 0 and units[j].before in PIPES:
+            j -= 1
+            for produced in produced_texts(units[j]):
+                hit = credential_hit(produced.split())
+                if hit is not None:
+                    findings.append(credential_deny(hit))
+
 
 def analyze(text: str, depth: int = 0, variables: dict[str, list[str]] | None = None) -> list[Finding]:
     if depth == 0:
         _steps[0] = MAX_STEPS
         _PAREN_CACHE.clear()
+        _capped.clear()
     findings: list[Finding] = []
     units = build_units(tokenize(text))
     known = collect_variables(units, variables or {})
     for idx, unit in enumerate(units):
         analyze_unit(unit, units, idx, text, depth, findings, known)
+        for name in persistent_assignments(unit):  # export https_proxy=...; gh run list
+            if LAUNCHER_ENV.match(name) or ROUTING_ENV.match(name):
+                known.setdefault("\0env", []).append(name)
+    if depth == 0 and _capped:
+        findings.append(
+            Finding("ask", "変数の値やブレース展開の候補が多く、すべては検査できません。内容を確認してください。")
+        )
     return findings
 
 
