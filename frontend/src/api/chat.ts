@@ -88,7 +88,7 @@ function validationMessage(detail: unknown): string {
 
 // バックエンドが意図して detail（固定の日本語メッセージ）を返すステータス。
 // それ以外（404/405 などの "Not Found" や、ゲートウェイの英語メッセージ）は利用者に見せない
-const SERVER_DETAIL_STATUSES = new Set([429, 500, 502, 504]);
+const SERVER_DETAIL_STATUSES = new Set([429, 500, 502, 503, 504]);
 const JAPANESE_TEXT = /[぀-ヿ㐀-鿿]/;
 
 function serverDetailMessage(status: number, detail: unknown): string | null {
