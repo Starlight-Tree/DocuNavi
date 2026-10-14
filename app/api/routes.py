@@ -14,6 +14,7 @@ from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 
 from app.agents.graph import build_graph, is_mock_mode
+from app.history import get_checkpointer, history_backend
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ _DETAIL_RATE_LIMIT = "リクエストが集中しています。しばらく待�
 _DETAIL_TIMEOUT = "LLM の応答がタイムアウトしました。しばらく待ってから再試行してください。"
 _DETAIL_CONFIG = "サーバー側の LLM 設定に問題があります。管理者に連絡してください。"
 _DETAIL_UPSTREAM = "LLM 呼び出しに失敗しました。しばらく待ってから再試行してください。"
+_DETAIL_HISTORY_STORE = "会話履歴の保存先に接続できませんでした。しばらく待ってから再試行してください。"
 
 
 def _optional_classes(*specs: tuple[str, str]) -> tuple[type[BaseException], ...]:
@@ -64,6 +66,8 @@ _CONFIG_ERRORS = _optional_classes(
 )
 # google.genai.errors.APIError は HTTP ステータスを code、本文を details に持つ
 _API_ERRORS = _optional_classes(("google.genai.errors", "APIError"))
+# 会話履歴の保存先（Postgres）の失敗。psycopg_pool の PoolTimeout なども psycopg.Error の子クラス
+_HISTORY_STORE_ERRORS = _optional_classes(("psycopg", "Error"))
 
 
 class ChatRequest(BaseModel):
@@ -94,10 +98,16 @@ class ChatResponse(BaseModel):
     mode: str = Field(description="実行モード。mock = ダミー応答 / gemini = 本物の LLM")
 
 
-@lru_cache(maxsize=2)
 def get_graph(mock: bool):
-    # mock をキーにキャッシュするので、キー設定後は自動で Gemini 側のグラフに切り替わる
-    return build_graph()
+    return _graph_for(mock, get_checkpointer())
+
+
+@lru_cache(maxsize=4)
+def _graph_for(mock: bool, checkpointer):
+    # mock をキーにキャッシュするので、キー設定後は自動で Gemini 側のグラフに切り替わる。
+    # checkpointer もキーに含める: 履歴の保存先は起動時（lifespan）に決まり、終了時に閉じるので、
+    # 閉じた後のグラフを使い回さないため。None は従来どおりのメモリ（グラフごとの MemorySaver）
+    return build_graph(checkpointer=checkpointer)
 
 
 def current_mode() -> str:
@@ -161,9 +171,13 @@ def _retry_after_seconds(chain: list[BaseException]) -> int | None:
 
 
 def classify_llm_error(exc: BaseException) -> HTTPException:
-    """LLM 呼び出しの例外を、内部情報を含まない HTTPException へ変換する。"""
+    """/chat の実行（LLM 呼び出しと履歴の保存）の例外を、内部情報を含まない HTTPException へ変換する。"""
     chain = _exception_chain(exc)
     codes = [_api_error_code(e) for e in chain]
+
+    if _HISTORY_STORE_ERRORS and any(isinstance(e, _HISTORY_STORE_ERRORS) for e in chain):
+        # LLM ではなく履歴の保存先の失敗。LLM の失敗として返すと、原因を取り違える
+        return HTTPException(status_code=503, detail=_DETAIL_HISTORY_STORE)
 
     if any(isinstance(e, _TIMEOUT_ERRORS) for e in chain) or any(c in (408, 504) for c in codes):
         return HTTPException(status_code=504, detail=_DETAIL_TIMEOUT)
@@ -186,7 +200,7 @@ def classify_llm_error(exc: BaseException) -> HTTPException:
 
 @router.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "mode": current_mode()}
+    return {"status": "ok", "mode": current_mode(), "history": history_backend()}
 
 
 async def _until_disconnect(request: Request) -> None:

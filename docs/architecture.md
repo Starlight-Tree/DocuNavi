@@ -19,7 +19,8 @@ START → guard_input → agent → (tools → agent)* → guard_output → END
 ```
 app/
   main.py            FastAPI アプリ（CORS、例外ハンドラ）
-  api/routes.py      /health, /chat、入力検証、LLM エラーの分類、切断時の取り消し
+  api/routes.py      /health, /chat、入力検証、LLM・履歴の保存先のエラーの分類、切断時の取り消し
+  history.py         会話履歴の保存先（DATABASE_URL があれば Postgres、無ければメモリ）。接続プールの開閉
   frontend.py        frontend/dist の配信と SPA フォールバック
   agents/graph.py    LangGraph のグラフ、SYSTEM_PROMPT、モック LLM
   agents/guardrails.py  入出力ガードレール
@@ -30,7 +31,9 @@ storage/chunk/       設定資料（RAG の検索対象）
 tests/               pytest（モックモード固定）
 ```
 
-会話履歴は `thread_id` ごとにプロセス内メモリ（`MemorySaver`）へ保持するため、再起動で消え、複数ワーカー間では共有されません。
+会話履歴は `thread_id` ごとに保持します。`DATABASE_URL` が空ならプロセス内メモリ（`MemorySaver`）で、再起動で消え、複数ワーカー間では
+共有されません。設定すると Postgres に保存します（`app/history.py`。起動時にプールを開き、終了時に閉じる。
+[configuration.md](configuration.md) の「会話履歴の保存先」）。
 
 ## フロントエンドの配信
 

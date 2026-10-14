@@ -1,5 +1,7 @@
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -11,6 +13,7 @@ from fastapi.responses import JSONResponse  # noqa: E402
 
 from app.api.routes import router  # noqa: E402
 from app.frontend import mount_frontend  # noqa: E402
+from app.history import history_store  # noqa: E402
 
 _APP_LOG_HANDLER = "app-log"
 
@@ -35,7 +38,16 @@ def _configure_app_logging() -> None:
 
 _configure_app_logging()  # mount_frontend の起動ログより前に有効にする
 
-app = FastAPI(title="Zahard Chatbot")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # DATABASE_URL があれば、会話履歴の接続プールを起動時に開いて終了時に閉じる（無ければ何もしない）。
+    # 開けなければ、履歴がメモリに切り替わらないよう、起動を失敗させる
+    async with history_store():
+        yield
+
+
+app = FastAPI(title="Zahard Chatbot", lifespan=lifespan)
 
 origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
