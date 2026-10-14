@@ -12,3 +12,6 @@ class AgentState(TypedDict):
     context: str
     # 入力ガードが今ターンの発言を拒否した理由コード（通過なら None）。毎ターン guard_input が上書きする
     guard_reason: str | None
+    # 今ターンの先の LLM 呼び出しが、フォールバックのモデルで答えたか。以降の呼び出しも、主モデルの失敗を
+    # また待たずにフォールバックから始めるための記憶。毎ターン guard_input が False に戻す
+    fallback_used: bool
