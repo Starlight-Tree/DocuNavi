@@ -116,8 +116,22 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - **コミットメッセージ:** Conventional Commits（`type(scope): 英語の命令形の要約`）。
   type は `feat` `fix` `docs` `refactor` `test` `chore` `build` `ci` `perf`。件名は 72 文字以内・小文字始まり・
   末尾ピリオドなし。本文に「なぜ」と検証結果（限界も）を書く。1 コミット 1 論理変更。
-- **運用:** `main` に直接コミットし、`origin/main` へ通常のプッシュ。コミット・プッシュは**依頼されたときだけ**行う。
-  強制プッシュや公開済み履歴の書き換えはしない。プッシュ前に追加行の秘密情報を確認する。
+- **運用:** `main` に直接コミットし、`origin/main` へ通常のプッシュ。
+- **コミット:** 変更が完結し、触れた範囲のテストが通ったら（文書だけの変更はテスト不要）、意味のある単位で
+  コミットしてよい。タスクで「コミットしない」と指定されたら、それに従う。ステージはパスを指定する（作業ツリーを
+  並行セッションと共有しているので、`git add -A` と `git add .` は使わない）。コミット前に `git diff --staged` で、
+  意図しない変更が入っていないかを確かめる。`--no-verify` は使わない。
+- **amend:** 直前のコミットが未プッシュのときだけ、承認なしで `git commit --amend` してよい。使う前に
+  `git fetch` を行い、`git status -sb` が `ahead` を示し、`git log --oneline origin/main..HEAD` に直前のコミットが
+  あることを確かめる。ステージの確認（上の `git diff --staged`）は amend でも行い、amend の後は検査をやり直す。
+  プッシュ済みのコミットは amend しない。直す必要があるときは、新しいコミットで直すか、ユーザーに相談する。
+- **プッシュ:** **ユーザーの承認を得てから**行う。コミットのたびには聞かず、まとまりが完結した時点で 1 回、
+  次を示して承認を求める: `git status --short`、`git log --oneline origin/main..HEAD`、
+  `git diff --stat origin/main..HEAD`、検査の結果、テストを実行したか。テストが失敗しているとき、作業の途中のときは
+  提案しない。検査は、追加行の秘密情報のパターンと、登録語（`scripts/check-sensitive-terms.sh origin/main..HEAD`。
+  語は Git の管理外の `.git/sensitive-terms` に置く）。
+- **しないこと:** 強制プッシュと、公開済み履歴の書き換えはしない（必要なら相談する）。`git reset` と
+  `git restore` は、承認を得てから行う。
 - Cloud Run への自動デプロイ（GitHub Actions）を足したら、`main` へのプッシュ = デプロイになる。
   そのときはこの運用を見直す。
 - **CI:** `.github/workflows/ci.yml` は、`main` へのプッシュと PR で、バックエンドのテスト（Python 3.12）、
