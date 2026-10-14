@@ -1,4 +1,18 @@
 {
     "python.terminal.useEnvFile": true,
-    "python.analysis.typeCheckingMode": "basic"
+    "python.analysis.typeCheckingMode": "basic",
+    "remote.restoreForwardedPorts": false,
+    "remote.otherPortsAttributes": {
+        "onAutoForward": "ignore"
+    },
+    "remote.portsAttributes": {
+        "8000": {
+            "label": "chatbot-api",
+            "onAutoForward": "silent"
+        },
+        "5173": {
+            "label": "chatbot-ui (vite dev)",
+            "onAutoForward": "silent"
+        }
+    }
 }
