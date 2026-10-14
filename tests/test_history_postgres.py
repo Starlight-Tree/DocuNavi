@@ -191,3 +191,126 @@ def test_app_serves_chat_and_stores_the_thread(db):
             f'SELECT count(*) FROM "{schema}".checkpoints WHERE thread_id = %s', (thread_id,)
         ).fetchone()[0]
     assert count >= 2  # ターンごと・ステップごとにチェックポイントが残る
+
+
+def _age_thread(schema: str, thread_id: str, days: int) -> None:
+    """そのスレッドのチェックポイントの時刻を、days 日前に書き換える（保存期間のテスト用）。"""
+    with psycopg.connect(TEST_DATABASE_URL, autocommit=True) as admin:
+        admin.execute(
+            f'UPDATE "{schema}".checkpoints '
+            "SET checkpoint = jsonb_set(checkpoint, '{ts}', to_jsonb((now() - make_interval(days => %s))::text)) "
+            "WHERE thread_id = %s",
+            (days, thread_id),
+        )
+
+
+def _row_counts(schema: str, thread_id: str) -> dict[str, int]:
+    with psycopg.connect(TEST_DATABASE_URL) as conn:
+        return {
+            table: conn.execute(
+                f'SELECT count(*) FROM "{schema}".{table} WHERE thread_id = %s', (thread_id,)
+            ).fetchone()[0]
+            for table in ("checkpoints", "checkpoint_blobs", "checkpoint_writes")
+        }
+
+
+def _seed_threads(schema: str) -> tuple[str, str]:
+    """古い会話と新しい会話を 1 件ずつ作る。(古い, 新しい) の thread_id を返す。"""
+    old, fresh = str(uuid.uuid4()), str(uuid.uuid4())
+
+    async def scenario():
+        async with history.history_store() as saver:
+            await _turn(saver, QUESTION, old)
+            await _turn(saver, QUESTION, fresh)
+
+    asyncio.run(scenario())
+    _age_thread(schema, old, days=40)
+    return old, fresh
+
+
+def test_purge_dry_run_deletes_nothing(db, capsys):
+    from app import history_admin
+
+    _, schema = db
+    old, fresh = _seed_threads(schema)
+
+    assert history_admin.main(["--older-than-days", "30"]) == 0
+
+    assert "1 件" in capsys.readouterr().out
+    assert _row_counts(schema, old)["checkpoints"] > 0
+    assert _row_counts(schema, fresh)["checkpoints"] > 0
+
+
+def test_purge_deletes_only_stale_threads(db, capsys):
+    from app import history_admin
+
+    _, schema = db
+    old, fresh = _seed_threads(schema)
+    before = _row_counts(schema, fresh)
+    assert all(n > 0 for n in _row_counts(schema, old).values())
+
+    assert history_admin.main(["--older-than-days", "30", "--apply"]) == 0
+
+    assert "削除した会話: 1 件" in capsys.readouterr().out
+    assert _row_counts(schema, old) == {"checkpoints": 0, "checkpoint_blobs": 0, "checkpoint_writes": 0}
+    assert _row_counts(schema, fresh) == before  # 新しい会話は、行数が変わらない
+
+    async def scenario():
+        async with history.history_store() as saver:
+            return await _messages(saver, fresh), await _messages(saver, old)
+
+    kept, gone = asyncio.run(scenario())
+    assert len(kept) >= 2 and gone == []  # 残した会話は読め、消した会話は空になる
+
+
+def test_purge_by_thread_id(db, capsys):
+    from app import history_admin
+
+    _, schema = db
+    old, fresh = _seed_threads(schema)
+
+    assert history_admin.main(["--thread-id", fresh, "--apply"]) == 0
+
+    assert _row_counts(schema, fresh)["checkpoints"] == 0
+    assert _row_counts(schema, old)["checkpoints"] > 0  # 指定していない会話（古くても）は残る
+    assert "1 件" in capsys.readouterr().out
+
+
+def test_purge_unknown_thread_id_is_zero(db, capsys):
+    from app import history_admin
+
+    _seed_threads(db[1])
+
+    assert history_admin.main(["--thread-id", "no-such-thread", "--apply"]) == 0
+    assert "0 件" in capsys.readouterr().out
+
+
+def test_purge_without_tables_fails_cleanly(db, capsys):
+    from app import history_admin
+
+    # テーブルを作る前（アプリを一度も起動していない DB）
+    assert history_admin.main(["--older-than-days", "30"]) == 1
+    assert "テーブル" in capsys.readouterr().err
+
+
+def test_purge_keeps_a_thread_with_any_recent_checkpoint(db, capsys):
+    """古いチェックポイントが残っていても、最新が新しい会話は消さない（会話の古さは最新で決める）。"""
+    from app import history_admin
+
+    _, schema = db
+    _, fresh = _seed_threads(schema)
+    with psycopg.connect(TEST_DATABASE_URL, autocommit=True) as admin:
+        admin.execute(
+            f'UPDATE "{schema}".checkpoints '
+            "SET checkpoint = jsonb_set(checkpoint, '{ts}', to_jsonb((now() - interval '90 days')::text)) "
+            f'WHERE thread_id = %s AND checkpoint_id = (SELECT min(checkpoint_id) FROM "{schema}".checkpoints WHERE thread_id = %s)',
+            (fresh, fresh),
+        )
+        total = admin.execute(
+            f'SELECT count(*) FROM "{schema}".checkpoints WHERE thread_id = %s', (fresh,)
+        ).fetchone()[0]
+    assert total >= 2  # 古い 1 行と、新しい行がある
+
+    assert history_admin.main(["--older-than-days", "30", "--apply"]) == 0
+
+    assert _row_counts(schema, fresh)["checkpoints"] == total
