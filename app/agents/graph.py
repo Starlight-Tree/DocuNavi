@@ -255,22 +255,21 @@ def llm_hedge_policy() -> HedgePolicy | None:
 
 
 def _create_gemini(model: str) -> ChatGoogleGenerativeAI:
-    """Vertex AI（ADC）または Gemini API キーで、指定したモデルのクライアントを作る（モックの判定は呼び出し側）。"""
+    """Vertex AI（ADC）または Gemini API キーで、指定したモデルのクライアントを作る（モックの判定は呼び出し側）。
+
+    temperature は渡さない。Gemini 3 系は既定の 1.0 のままにするのが公式の推奨で（1.0 未満はループや性能低下の
+    恐れ）、gemini-3.5-flash-lite 以降は指定しても無視される。langchain-google-genai は Gemini 3 以降で
+    未指定なら temperature を送らない（Gemini 3 より前のモデルではライブラリの既定 0.7 になる）。
+    """
     if use_vertex_ai():
         kwargs: dict[str, Any] = {}
         if project := os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip():
             kwargs["project"] = project
         if location := os.environ.get("GOOGLE_CLOUD_LOCATION", "").strip():
             kwargs["location"] = location
-        return _with_retry_policy(
-            ChatGoogleGenerativeAI(model=model, vertexai=True, temperature=0, **kwargs)
-        )
+        return _with_retry_policy(ChatGoogleGenerativeAI(model=model, vertexai=True, **kwargs))
     return _with_retry_policy(
-        ChatGoogleGenerativeAI(
-            model=model,
-            google_api_key=os.environ["GEMINI_API_KEY"],
-            temperature=0,
-        )
+        ChatGoogleGenerativeAI(model=model, google_api_key=os.environ["GEMINI_API_KEY"])
     )
 
 

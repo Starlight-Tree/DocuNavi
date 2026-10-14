@@ -103,7 +103,7 @@ DATABASE_URL=postgresql://ユーザー:パスワード@ホスト:5432/データ�
   観測していない（UI ストリームはツールのチャンクを出さず、アプリもログに残さない）。**未確認:** 実機での途中切断、長い回答、
   ガードの発動、`gemini-3.1-flash-lite` での挙動。
   参考: `gemini-2.5-flash-lite` は、一覧には載っていても新規ユーザーには 404（提供終了）だった。`gemini-3.5-flash-lite` では
-  `temperature` が無視される（langchain が警告を出す。エラーにはならない）。
+  `temperature` が無視される（`temperature=0` を渡していた当時は、langchain が警告を出した。エラーにはならない）。
 
 実 API で同じ時間帯に交互に流した比較（各 12 回、Gemini が不安定だった時間帯）では、成功率はヘッジなし 5/12、ヘッジあり 8/12 でした。小さな標本なので目安です。
 
@@ -114,6 +114,19 @@ DATABASE_URL=postgresql://ユーザー:パスワード@ホスト:5432/データ�
 
 **容量の注意:** Gemini が全体に遅いときは、1 呼び出しあたり最大 `LLM_MAX_ATTEMPTS` 本が同時に飛びます。SDK の HTTP 接続プール（既定 100 接続）を超えると、追加の試行が待たされて効果が薄れます。
 同時に処理する `/chat` の数 × `LLM_MAX_ATTEMPTS` が 100 を大きく超える環境（Cloud Run の同時実行数を上げるときなど）では、確認してください。
+
+## temperature
+
+アプリは `temperature` を指定しない（2026-10-15 に `temperature=0` の指定を外した）。
+
+- 公式の [Gemini 3 のガイド](https://ai.google.dev/gemini-api/docs/gemini-3)は、`temperature` を既定の 1.0 のままにするよう
+  強く推奨している（1.0 未満は、ループや性能低下を招くことがある）。
+- `gemini-3.5-flash-lite` では、指定しても無視される（`temperature=0` を渡していた間は、langchain が警告を出していた）。
+- `langchain-google-genai`（4.4.1）は、Gemini 3 以降のモデルで未指定なら、リクエストに `temperature` を載せない
+  （サーバーの既定になる）。`tests/test_llm_config.py` がこの前提を確かめる。Gemini 3 より前のモデル
+  （`GEMINI_MODEL` に 2.5 系を指定した場合）は、ライブラリの既定の 0.7 になる。
+- 影響: 同じ質問でも、回答の言い回しが回ごとに変わりうる（0 では揃いやすかったが、確定的ではなかった）。
+  回答の正確さへの影響は、実 API では比べていない。出力ガードは連続一致で判定するので、温度には依存しない。
 
 ## 主モデルが落ちたとき（フォールバック）
 
@@ -168,7 +181,7 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
   主モデルも正常に答えるところだった」回は数えられない。
   料金は[公式の料金表](https://ai.google.dev/gemini-api/docs/pricing)で確認する
   （2026-10-14 更新の表では、`gemini-3.1-flash-lite` が入力 $0.25 / 出力 $1.50、`gemini-3.5-flash-lite` が $0.30 / $2.50（100 万トークンあたり））。
-- **接続の設定:** キー・Vertex AI・タイムアウトなどは主モデルと同じ。`temperature=0` も同じに渡すが、`gemini-3.5-flash-lite` では無視される。
+- **接続の設定:** キー・Vertex AI・タイムアウトなどは主モデルと同じ。`temperature` はどちらにも渡さない（下記「temperature」）。
 - **注意:** フォールバック先には、主モデルで作られた会話履歴（ツール呼び出しと thought signature を含む）をそのまま渡す。
   公式の Thinking ガイドには「モデルを切り替えるときも、前のモデルの thought ブロックを再送する。互換性はバックエンドが管理する」とあるが、
   Interactions API の記述で、このアプリが使う `generateContent` に当てはまるかは確かめていない。
