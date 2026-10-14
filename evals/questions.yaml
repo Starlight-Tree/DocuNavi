@@ -1,0 +1,249 @@
+# 検索の評価セット（段階 0）。読み方と指標は evals/README.md。
+#
+# 各質問の項目:
+#   id               一意の ID
+#   question         検索に渡す質問
+#   category         factual / paraphrase / multi_hop / out_of_scope
+#   kind             任意。tests/rag_eval_cases.py から移した質問の元の種別（direct / keyword / colloquial ...）
+#   expected_doc_ids 回答の根拠があるファイル。multi_hop は全部が返ること。out_of_scope には書かない
+#   evidence         検索結果の本文に含まれていてほしい根拠の部分文字列。
+#                    期待ファイルごとに、そのファイルの検索結果にどれか 1 つが含まれていれば hit
+#   scope_kind       out_of_scope のみ必須。off_topic（資料と無関係）/ on_topic_absent（ザーハードの話だが資料に無い）
+#
+# q001-q029 は tests/rag_eval_cases.py と同じ質問（資料を精読して手で作り、実装に合わせ込んでいない）。
+# 同期は tests/test_eval_retrieval.py が検査する。q030 以降は、検索の結果を見る前に資料だけから書いた。
+# 結果を見て質問や期待値を書き換えない（合わせ込みになる）。直すときは、理由をコミットに書く。
+
+- id: q001
+  question: "ザーハードの大気の酸素濃度はどれくらい？"
+  category: factual
+  kind: direct
+  expected_doc_ids: ["ザーハード1.txt"]
+  evidence: ["地球の1/10以下"]
+
+- id: q002
+  question: "遺跡の防衛システムについて教えて"
+  category: factual
+  kind: direct
+  expected_doc_ids: ["ザーハード2.txt"]
+  evidence: ["高度な防衛システム"]
+
+- id: q003
+  question: "遺跡の構造はどうなっていますか"
+  category: factual
+  kind: direct
+  expected_doc_ids: ["ザーハード2.txt"]
+  evidence: ["多層的な構造"]
+
+- id: q004
+  question: "エネルギー源が暴走するとどうなる？"
+  category: factual
+  kind: direct
+  expected_doc_ids: ["ザーハード3.txt"]
+  evidence: ["惑星を破壊する可能性"]
+
+- id: q005
+  question: "ザーハードの最大の魅力は何ですか"
+  category: factual
+  kind: direct
+  expected_doc_ids: ["ザーハード3.txt"]
+  evidence: ["最大の魅力"]
+
+- id: q006
+  question: "守護機構は侵入者に対してどう働く？"
+  category: factual
+  kind: direct
+  expected_doc_ids: ["ザーハード3.txt"]
+  evidence: ["侵入者に対して攻撃的"]
+
+- id: q007
+  question: "ザーハリアン文明が崩壊した原因は？"
+  category: factual
+  kind: direct
+  expected_doc_ids: ["ザーハード2.txt"]
+  evidence: ["文明が崩壊", "滅亡と関係"]
+
+- id: q008
+  question: "硫化水素"
+  category: factual
+  kind: keyword
+  expected_doc_ids: ["ザーハード1.txt"]
+  evidence: ["硫化水素や二酸化炭素"]
+
+- id: q009
+  question: "放射線"
+  category: factual
+  kind: keyword
+  expected_doc_ids: ["ザーハード3.txt"]
+  evidence: ["放射線を放出"]
+
+- id: q010
+  question: "象形文字"
+  category: factual
+  kind: keyword
+  expected_doc_ids: ["ザーハード1.txt"]
+  evidence: ["未解読の象形文字"]
+
+- id: q011
+  question: "磁場"
+  category: factual
+  kind: keyword
+  expected_doc_ids: ["ザーハード3.txt"]
+  evidence: ["強力な磁場"]
+
+- id: q012
+  question: "昼と夜の気温差について教えて"
+  category: paraphrase
+  kind: paraphrase
+  expected_doc_ids: ["ザーハード1.txt"]
+  evidence: ["日中と夜間の温度差"]
+
+- id: q013
+  question: "毒ガスは含まれていますか"
+  category: paraphrase
+  kind: paraphrase
+  expected_doc_ids: ["ザーハード1.txt"]
+  evidence: ["有害なガス", "硫化水素や二酸化炭素"]
+
+- id: q014
+  question: "砂漠を移動するには何が必要？"
+  category: paraphrase
+  kind: paraphrase
+  expected_doc_ids: ["ザーハード1.txt"]
+  evidence: ["高機動の車両"]
+
+- id: q015
+  question: "エネルギー源は自然にできたものなの？"
+  category: paraphrase
+  kind: paraphrase
+  expected_doc_ids: ["ザーハード3.txt"]
+  evidence: ["自然に発生したものではなく"]
+
+- id: q016
+  question: "エネルギーを制御できたらどうなる"
+  category: paraphrase
+  kind: paraphrase
+  expected_doc_ids: ["ザーハード3.txt"]
+  evidence: ["無限のエネルギー供給"]
+
+- id: q017
+  question: "ザーハリアンって何者？"
+  category: factual
+  kind: colloquial
+  expected_doc_ids: ["ザーハード2.txt"]
+  evidence: ["ザーハリアン文明"]
+
+- id: q018
+  question: "探査団は何を装備して挑むの"
+  category: factual
+  kind: colloquial
+  expected_doc_ids: ["ザーハード1.txt"]
+  evidence: ["生命維持装置"]
+
+- id: q019
+  question: "メタンガスって入ってる？"
+  category: factual
+  kind: colloquial
+  expected_doc_ids: ["ザーハード1.txt"]
+  evidence: ["メタンガス"]
+
+- id: q020
+  question: "冒険者が集まるのはなぜですか"
+  category: factual
+  kind: colloquial
+  expected_doc_ids: ["ザーハード2.txt"]
+  evidence: ["冒険者たちが集まり"]
+
+- id: q021
+  question: "古い文明の遺跡はどこに埋もれているの"
+  category: factual
+  kind: colloquial
+  expected_doc_ids: ["ザーハード1.txt"]
+  evidence: ["砂漠の中に埋もれている"]
+
+- id: q022
+  question: "今日の東京の天気を教えてください"
+  category: out_of_scope
+  kind: unrelated
+  scope_kind: off_topic
+
+- id: q023
+  question: "おすすめのカレーのレシピは？"
+  category: out_of_scope
+  kind: unrelated
+  scope_kind: off_topic
+
+- id: q024
+  question: "Pythonでリストをソートする方法"
+  category: out_of_scope
+  kind: unrelated
+  scope_kind: off_topic
+
+- id: q025
+  question: "サッカーのワールドカップで優勝したのはどこ？"
+  category: out_of_scope
+  kind: unrelated
+  scope_kind: off_topic
+
+- id: q026
+  question: "こんにちは、元気ですか？"
+  category: out_of_scope
+  kind: unrelated
+  scope_kind: off_topic
+
+- id: q027
+  question: "木星の大きさはどのくらいですか"
+  category: out_of_scope
+  kind: unrelated
+  scope_kind: off_topic
+
+- id: q028
+  question: "火星には生命がいますか"
+  category: out_of_scope
+  kind: unrelated
+  scope_kind: off_topic
+
+- id: q029
+  question: "地球の人口は何人ですか"
+  category: out_of_scope
+  kind: unrelated
+  scope_kind: off_topic
+# --- 複数ファイルをまたぐ質問（expected_doc_ids の全部が返ること） ---
+- id: q030
+  question: "ザーハリアンはエネルギー源を作った存在なのですか"
+  category: multi_hop
+  expected_doc_ids: ["ザーハード2.txt", "ザーハード3.txt"]
+  evidence: ["異星人によって作られた", "エネルギー源を利用する技術"]
+
+- id: q031
+  question: "遺跡の防衛システムとエネルギー源の守護機構は、どちらも侵入者を攻撃しますか"
+  category: multi_hop
+  expected_doc_ids: ["ザーハード2.txt", "ザーハード3.txt"]
+  evidence: ["激しい攻撃を仕掛ける", "侵入者に対して攻撃的に働き"]
+
+- id: q032
+  question: "遺跡を解明すると、エネルギー源の制御にどう役立ちますか"
+  category: multi_hop
+  expected_doc_ids: ["ザーハード1.txt", "ザーハード3.txt"]
+  evidence: ["エネルギー源を制御する技術", "無限のエネルギー供給"]
+
+# --- ザーハードの話だが、資料に書かれていない質問 ---
+- id: q033
+  question: "ザーハードの人口は何人ですか"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+
+- id: q034
+  question: "ザーハードの首都はどこにありますか"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+
+- id: q035
+  question: "ザーハードの公転周期は何日ですか"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+
+- id: q036
+  question: "ザーハードの重力は地球の何倍ですか"
+  category: out_of_scope
+  scope_kind: on_topic_absent
