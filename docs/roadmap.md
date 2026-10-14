@@ -17,7 +17,7 @@
 | 順 | 追加するもの | 学べること | 前提・注意 |
 |---|---|---|---|
 | 0 | Cloud Run に 1 コンテナでデプロイ（[deploy.md](deploy.md)） | コンテナの配備、シークレット、ログ、予算アラート、権限の分離（閲覧用・デプロイ用の SA） | **課金アカウントが前提**（2026-10-13 時点で未設定）。最初は認証必須で配備し、`--max-instances` と予算アラートを先に設定する |
-| 1 | Postgres（第一候補は Supabase。Cloud SQL でも可）と、履歴の保存先の差し替え | 接続プール、マイグレーション、状態の外出し | 現在の `MemorySaver` は、Cloud Run では再起動や複数インスタンスで履歴が失われる。**段階 0 を待たずに進められる**（Supabase の無料枠は GCP の課金が不要。履歴が残る効果は、デプロイしたときに出る）。**コードは実装済み（2026-10-14）。** 実際の Supabase への接続は、`DATABASE_URL` を用意してから確かめる（下の「確認の状況」） |
+| 1 | Postgres（第一候補は Supabase。Cloud SQL でも可）と、履歴の保存先の差し替え | 接続プール、マイグレーション、状態の外出し | 現在の `MemorySaver` は、Cloud Run では再起動や複数インスタンスで履歴が失われる。**段階 0 を待たずに進められる**（Supabase の無料枠は GCP の課金が不要。履歴が残る効果は、デプロイしたときに出る）。**コードは実装済み、Supabase への実接続も確認済み（2026-10-14。下の「確認の状況」）。** |
 | 2 | 認証 | JWT の検証、会話と利用者の紐づけ | **R2 のアップロードより先。** 無認証だと誰でも書き込める |
 | 3 | Cloudflare（DNS・独自ドメイン・レート制限） | DNS、プロキシ、WAF | 自分のドメインが要る。ドメインが無ければ後回しでよい。順序はどこでもよい |
 | 4a | R2 に原本を置き、手動で取り込む（抽出 → チャンク化 → 埋め込み → pgvector へ upsert） | S3 互換 API、取り込みの冪等性、pgvector | 認証が前提。アップロード資料を利用者ごとに分けるか、全員共通かを先に決める。`page`・`source_path` などは取り込み時にしか取れないので、4a で持たせる |
@@ -53,7 +53,7 @@ Supabase と Cloud SQL の選び方の目安:
 |---|---|---|
 | 1 | **済み。** `build_graph` に `checkpointer` 引数を足した（既定は `MemorySaver` のまま）。DB 版の保存先は、これに渡す | 引数の追加なので、既存の呼び出しとテストは変わらない。`tests/test_checkpointer_injection.py` |
 | 1 | **済み。** DB 版の checkpointer は接続プールを起動時に開いて終了時に閉じる（`app/history.py`、`app/main.py` の lifespan）。`get_graph` は開いている保存先を渡してグラフを作り、キャッシュのキーに保存先を含める（閉じた後のグラフを使い回さない） | `tests/test_history_store.py`・`tests/test_history_postgres.py` |
-| 1 | **コードは済み。** 接続は、Supabase の session mode（ポート 5432。IPv4 でも届く）から始める。prepared statement は使わない設定にしたので、transaction mode（6543）でも動く設計（未確認）。**残り:** `--max-instances` × `DATABASE_POOL_MAX_SIZE` が接続数の上限に収まるか、開発コンテナと Cloud Run から届くか | 直接接続は既定で IPv6（IPv4 は有料のアドオン） |
+| 1 | **コードは済み。** 接続は、Supabase のプーラー（Shared pooler）の URL を使う。開発コンテナからは届くことを確かめた（直接接続は IPv6 のみで届かなかった）。prepared statement は使わない設定にしたので、transaction mode（6543）でも動く設計で、そのポートで起動・往復・再起動をまたいだ続きを確かめた（2026-10-14）。**残り:** `--max-instances` × `DATABASE_POOL_MAX_SIZE` が接続数の上限に収まるか、Cloud Run から届くか | 直接接続は既定で IPv6（IPv4 は有料のアドオン） |
 | 1・4b | 秘密情報の置き場所を決める。Supabase の `DATABASE_URL` と Cloudflare の API トークンは Secret Manager に置く。ローカルは `.env`（開発用には、権限を絞った DB ロールを使う） | ベンダーが増えると秘密も増える。開発コンテナには読み取り中心の権限だけを置く（[.devcontainer/README.md](../.devcontainer/README.md)） |
 | 2 | `thread_id` は形式の検証しかなく、知っていれば誰でも続きを書ける。履歴が DB に残るので、認証後は利用者と紐づける | 認証が無い今は、UUID の推測困難さだけが守り |
 | 4a | コーパスの読み込み（`app/agents/tools.py` の `CHUNK_DIR` と無期限の `lru_cache`）を差し替え可能にし、内容が変わったらキャッシュを捨てる。`search_chunks` の戻り値 `(ファイル名, 本文)` はそのまま使える | アップロードで資料が増減する |
@@ -114,9 +114,17 @@ FastAPI + LangGraph → 検索 → 回答 + 参照元（source_path から署名
 - 確認した（開発コンテナ内のローカル Postgres 17、Debian パッケージ。`docs/development.md`）: 履歴が再起動後も続く（実際の uvicorn の再起動も）、スレッドが混ざらない、初回の同時起動（8 並列）が再試行で収まる（再試行なしでは 8 件中 7 件前後が競合のエラーになる。大半は `UniqueViolation` で、`DuplicateObject` と `DuplicateTable` も出る。CI で `DuplicateTable` が再試行の対象外だったために落ちた）、
   DB 側から接続を切られても次のリクエストが成功する、取り消しで接続が取り残されない、届かない DB は 10 秒で起動に失敗する（終了コード 3）、
   専用ロール（自分のスキーマの所有者）で動き他のテーブルは読めない。接続の確認を外す・再試行を外すと、対応するテストが落ちることも確かめた。
-- 未確認: **Supabase / Cloud SQL への実接続**（`DATABASE_URL` をユーザーが用意する）、transaction mode のプーラー（pgbouncer / Supavisor）での動作、
-  Cloud Run から届くか、権限を絞ったロールでのマイグレーション（Supabase 上）、Docker イメージのビルドと `docker compose up`（開発コンテナに Docker が無い）、
-  履歴が増え続けたときのサイズと削除（仕組みは無い）。CI の `backend` ジョブには Postgres 17 のサービスコンテナを足した（`docs/development.md`）。
+- 確認した（Supabase の Shared pooler の transaction mode（6543）、開発コンテナから、2026-10-14。LLM はモック）: 専用ロール（スキーマの所有者）の接続で起動して
+  テーブルを作る、テーブルが `public` ではなくアプリのスキーマにできる（ロールの `search_path` がプーラー経由でも効く）、`/health` が `postgres`、
+  `/chat` の往復、再起動をまたいで同じ `thread_id` の続きを読む（チェックポイントの鎖が続く）、`--thread-id` での会話の削除と
+  `--older-than-days` の件数の表示（0 件）。テーブルの所在・鎖・ポート（6543）・`grant … to postgres` が要ったことは、利用者の報告による。
+- 未確認: Cloud SQL への実接続、
+  Cloud Run から届くか、Supabase 上での同時の初回起動・接続切断（`tests/test_history_postgres.py` を Supabase に向けた実行。管理者の URL が要る）、
+  Supabase の Exposed schemas にアプリのスキーマが入っていないこと（画面の確認）、`--older-than-days --apply` の Supabase での実行（古い会話がまだ無い）、
+  Docker イメージのビルドと `docker compose up`（開発コンテナに Docker が無い）、履歴が増え続けたときのサイズ。
+  保存期間は 90 日と決めた（2026-10-14）。削除の手段はある（`python -m app.history_admin`、`docs/configuration.md`）が、定期実行は未設定
+  （Cloud Run を始めるときに、Cloud Run Job + Cloud Scheduler にする予定）。
+  CI の `backend` ジョブには Postgres 17 のサービスコンテナを足した（`docs/development.md`）。
 
 ## 公開前の守り（段階 0 から）
 

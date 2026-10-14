@@ -37,19 +37,47 @@ DATABASE_URL=postgresql://ユーザー:パスワード@ホスト:5432/データ�
   （DB の障害で、すべてのインスタンスが「異常」になって再起動されないようにするため）。
 - **接続数:** 上限は `DATABASE_POOL_MAX_SIZE` です。`--max-instances` × この値が、DB の接続数の上限に収まるようにします。
   取り出すときに接続が生きているか確かめるので、DB やプーラーに接続を切られた後でも、次のリクエストは成功します。
-- **プーラーとの相性:** prepared statement を使いません。transaction mode のプーラー（Supabase の 6543 番など）でも動く設計ですが、
-  Supabase 上では未確認です（ローカルの Postgres 17 で確認しました）。
+- **プーラーとの相性:** prepared statement を使いません。transaction mode のプーラー（Supabase の 6543 番など）でも動く設計です。
+  Supabase の Shared pooler の transaction mode（ポート 6543）経由で、起動（テーブルの作成）・`/chat` の往復・再起動をまたいだ続きを
+  確認しました（2026-10-14、開発コンテナから。LLM はモック）。ポートは利用者の報告によります（エージェントは `.env` を開かないので、
+  URL を見ていません）。ローカルと CI の Postgres 17 でも確認しています。
+  直接接続（`db.<プロジェクト>.supabase.co`）は IPv6 のみで、開発コンテナからは届きませんでした。プーラーの URL を使います
+  （ユーザー名は `ロール名.プロジェクトID`）。
 - **DB のロール:** 起動時にテーブルを作るので、作成の権限が要ります。`postgres` などの強い権限のロールではなく、このアプリ専用のロールとスキーマを使うことを勧めます。
-  次の例は、ローカルの Postgres 17 で、起動・往復・他のテーブルが読めないことを確かめました。
+  次の例は、ローカルの Postgres 17 で、起動・往復・他のテーブルが読めないことを確かめました。Supabase でも、同じ形（専用ロール、そのロールが
+  所有するスキーマ、ロールの `search_path`）で、テーブルが `public` ではなくアプリのスキーマにできることを確かめました（2026-10-14。
+  テーブルの所在は、利用者が SQL Editor で確かめた結果の報告によります）。名前は例です。アプリが使うのは URL とロールの
+  `search_path` だけなので、別の名前でも動きます。
 
   ```sql
-  create role zahard_app login password '…';
-  create schema zahard authorization zahard_app;
-  alter role zahard_app set search_path = zahard;
+  create role chatbot_app login password '…';
+  grant chatbot_app to postgres;  -- Supabase では必要（下の説明）。ローカルの Postgres では無くても通る
+  create schema chatbot authorization chatbot_app;
+  alter role chatbot_app set search_path = chatbot;
   ```
 
-- **データの扱い:** 発言と回答の本文が DB に残ります。削除や保存期間の仕組みはありません。
-  `thread_id` を知っていれば誰でも続きを書けます（認証は [ロードマップ](roadmap.md) の段階 2）。公開する前に、この点を決めてください。
+  Supabase の `postgres` は superuser ではないため、`grant` が無いと `create schema … authorization` が
+  `must be able to SET ROLE "chatbot_app"` で失敗します（利用者の報告。superuser でない作成者のロールを用意したローカルの
+  Postgres 17 で、同じ文言のエラーと、`grant` で通ることを確かめました）。Supabase の Data API には出さないでください
+  （Settings → API → Exposed schemas にアプリのスキーマを入れない）。2026-10-14 時点で、この画面の設定は確かめていません。
+
+- **データの扱い:** 発言と回答の本文が DB に残ります。**保存期間は 90 日（最後の動きから）と決めました**（2026-10-14）。
+  期間を過ぎた会話・特定の会話は、運用者が次のコマンドで消せます
+  （アプリと同じ `DATABASE_URL` を使い、`.env` も読みます。既定は件数の表示だけで、`--apply` を付けたときだけ削除します）。
+  自動では実行されません。定期実行は、Cloud Run を始めるときに、同じイメージで Cloud Run Job を作り、Cloud Scheduler から
+  週次で呼ぶ予定です（[deploy.md](deploy.md)。未実施）。それまでは運用者が手で実行します。
+
+  ```bash
+  python -m app.history_admin --older-than-days 90            # 90 日以上動きのない会話の数を表示（削除しない）
+  python -m app.history_admin --older-than-days 90 --apply    # それらを削除する
+  python -m app.history_admin --thread-id <thread_id> --apply # 1 件の会話を削除する
+  ```
+
+  「動きのない」は、会話の最新のチェックポイントの時刻で決めます（続けて使われる会話は消えません）。表示するのは件数だけです
+  （`thread_id` は出しません）。Supabase では、`--thread-id` での削除と、`--older-than-days` の件数の表示（0 件）を確かめました
+  （2026-10-14）。`--older-than-days --apply` は、Supabase にまだ古い会話が無いため、Supabase では未実行です（ローカルと CI の Postgres では確認済み）。
+  `thread_id` を知っていれば誰でも続きを書けます（認証は [ロードマップ](roadmap.md) の段階 2）。利用者を特定できないので、
+  本人からの削除要求にも応えられません。公開する前に、この点を決めてください。
 
 ## LLM の遅延・失敗への対処
 
@@ -79,7 +107,10 @@ DATABASE_URL=postgresql://ユーザー:パスワード@ホスト:5432/データ�
 クライアントには何も返りません。記録は `app.api.routes` ロガーの `INFO`（`クライアントが切断したため LLM 呼び出しを取り消しました`、`thread_id` と経過秒のみ）が 1 行です。
 uvicorn の既定のログ設定では `app.*` の `INFO` は出力されません（`--log-level` は `uvicorn.*` にしか効きません）。見たいときは、アプリ側でルートロガーを `INFO` にします。
 
-- すでに Gemini へ送った要求の処理や課金は止められません（ヘッジで負けた試行と同じ扱いです）。
+- すでに Gemini へ送った要求を、サーバー側が止めるか、出力した分だけが課金されるかは、クライアントからは確かめられません。
+  課金されるものとして見積もってください（ヘッジで負けた試行と同じ扱いです）。実測できたのは、クライアント側の動きだけです:
+  取り消しから制御が戻るまで、0〜2 ミリ秒でした（2026-10-14、開発コンテナから `gemini-3.1-flash-lite`。1 回の呼び出しの約 40% の時点で
+  6 回取り消し。取り消さない場合は 1 回で入力 34・出力 1091 トークン）。Gemini 側の使用量に、取り消した分が出たかは未確認です。
 - 切断がアプリまで届かない環境（途中のプロキシやロードバランサーが切断を伝えない場合）では、従来どおり、成功するか `LLM_TIMEOUT_SECONDS` に達するまで続きます。
 - 取り消したターンのユーザーの発言は履歴に残ります。検索（ツール呼び出し）のあとで取り消したときは、そこまでのツール呼び出しと検索結果も残ります。同じ `thread_id` で続けると、それらも次の発言と一緒に LLM へ渡ります（LLM が失敗・タイムアウトしたターンも同じです）。
   ただし、ツールの実行中に取り消されて結果が付かなかった呼び出しだけは、次のターンの先頭で履歴から外されます（その発話に本文が無ければ定型の一文に置き換わります）。

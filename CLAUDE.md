@@ -22,6 +22,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   LLM 呼び出しのヘッジ付き再試行（`resilience.py`）
 - `app/history.py`: 会話履歴の保存先。`DATABASE_URL` があれば Postgres（接続プールを lifespan で開閉）、空ならメモリ。
   開けなければ起動を失敗させ、メモリへは切り替えない
+- `app/history_admin.py`: 履歴の削除コマンド（`python -m app.history_admin`。既定は件数の表示だけ、`--apply` で削除）。アプリからは使わない
 - `app/frontend.py`: `frontend/dist` を配信し、ファイル名らしくない未知の GET/HEAD は `index.html` にフォールバックする
   （拡張子付きのパスや `/assets/` 配下は 404）
 - `storage/chunk/`: 設定資料（RAG のコーパス）
