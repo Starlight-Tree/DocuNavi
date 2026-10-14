@@ -3,7 +3,7 @@
 架空の惑星「ザーハード」の設定資料（`storage/chunk/*.txt`）を根拠に答える RAG チャットボットです。
 バックエンド（FastAPI）に加えて、チャット画面（Vite + React + TypeScript、`frontend/`）を同じサーバーから配信します。
 
-- **FastAPI**: HTTP API（`/chat`, `/health`）
+- **FastAPI**: HTTP API（`/chat`, `/chat/stream`, `/health`）
 - **LangGraph**: 入力ガード → エージェント（ツール呼び出しのループ）→ 出力ガード
 - **Gemini**（`gemini-3.1-flash-lite`）: 回答生成。Gemini API キーまたは Vertex AI（ADC）で認証し、どちらも未設定ならモックモードで動く
 - **RAG**: 設定資料を文単位に分けて BM25 で検索（外部の埋め込み API・ベクトル DB は不使用）
@@ -27,7 +27,7 @@ Docker Compose を使う場合は、ホスト側で `docker compose up --build` 
 cd frontend
 npm ci
 npm run build        # frontend/dist を作る。FastAPI が / で配信する
-npm run dev          # 開発サーバー（http://localhost:5173）。/chat と /health は localhost:8000 へ転送
+npm run dev          # 開発サーバー（http://localhost:5173）。/chat（/chat/stream を含む）と /health は localhost:8000 へ転送
 ```
 
 `frontend/dist` は Git 管理外です。無い状態でも API は動き、`/` はビルド方法を示す 404 を返します（起動後にビルドしても再起動は不要）。
@@ -51,9 +51,13 @@ npm run dev          # 開発サーバー（http://localhost:5173）。/chat と
 curl -s localhost:8000/chat -H 'Content-Type: application/json' \
   -d '{"message": "ザーハードの大気について教えて"}'
 # {"reply": "…", "thread_id": "…", "context": "…", "mode": "mock"}
+
+# 回答を少しずつ受け取る（画面はこちら。AI SDK の UI message stream の SSE）
+curl -sN localhost:8000/chat/stream -H 'Content-Type: application/json' \
+  -d '{"message": "ザーハードの大気について教えて"}'
 ```
 
-同じ `thread_id` を送ると会話が続きます。仕様とエラーは [docs/api.md](docs/api.md)、起動後は <http://localhost:8000/docs> でも確認できます。
+同じ `thread_id` を送ると会話が続きます（`/chat` と `/chat/stream` は同じ履歴を使います）。仕様とエラーは [docs/api.md](docs/api.md)、起動後は <http://localhost:8000/docs> でも確認できます。
 
 ## 開発
 
@@ -71,7 +75,7 @@ cd frontend && npm test         # フロントエンド（Vitest）
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | グラフの流れ、ディレクトリ構成、配信の仕組み、ガードレール |
 | [docs/configuration.md](docs/configuration.md) | 環境変数、LLM の遅延・失敗・切断への対処 |
-| [docs/api.md](docs/api.md) | `/health` と `/chat` の仕様、エラー |
+| [docs/api.md](docs/api.md) | `/health`・`/chat`・`/chat/stream` の仕様、エラー |
 | [docs/development.md](docs/development.md) | テスト、CI、依存の更新 |
 | [docs/deploy.md](docs/deploy.md) | Cloud Run へのデプロイ手順（未実行の案） |
 | [docs/roadmap.md](docs/roadmap.md) | これからの拡張計画（DB、認証、Cloudflare、R2、Vercel）と、先に要る変更 |

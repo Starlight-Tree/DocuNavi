@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ChatApiError, fetchHealth, sendChat } from './chat';
-import { chatBody, errorResponse, jsonResponse } from '../test/helpers';
+import {
+  CHAT_STREAM_PATH,
+  ChatApiError,
+  chatFetch,
+  endpoint,
+  fetchHealth,
+  isJapaneseMessage,
+} from './chat';
+import { errorResponse, jsonResponse, replyResponse } from '../test/helpers';
 
 function stubFetch(impl: (url: string, init: RequestInit) => Response | Promise<Response>) {
   const mock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
@@ -21,49 +28,35 @@ async function failure(promise: Promise<unknown>): Promise<ChatApiError> {
   return error as ChatApiError;
 }
 
-describe('sendChat: 成功', () => {
-  it('相対 URL の /chat に JSON を POST し、応答をそのまま返す', async () => {
-    const body = chatBody({ reply: 'こんにちは', thread_id: 'abc', context: '[a.txt]\nx' });
-    const fetchMock = stubFetch(() => jsonResponse(body));
+const post = () => chatFetch(endpoint(CHAT_STREAM_PATH), { method: 'POST', body: '{}' });
 
-    const result = await sendChat({ message: '大気は？' });
-
-    expect(result).toEqual(body);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('/chat');
-    expect(init.method).toBe('POST');
-    expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' });
-    // 会話 ID が未定のときは thread_id を送らない（サーバーが発行する）
-    expect(JSON.parse(String(init.body))).toEqual({ message: '大気は？' });
+describe('endpoint', () => {
+  it('既定は相対 URL', () => {
+    expect(endpoint(CHAT_STREAM_PATH)).toBe('/chat/stream');
   });
 
-  it('thread_id が分かっていれば本文に載せる', async () => {
-    const fetchMock = stubFetch(() => jsonResponse(chatBody()));
-
-    await sendChat({ message: 'つづき', threadId: 'thread-9' });
-
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    expect(JSON.parse(String(init.body))).toEqual({ message: 'つづき', thread_id: 'thread-9' });
-  });
-
-  it('VITE_API_BASE_URL があればその先を呼ぶ（末尾のスラッシュは無視）', async () => {
+  it('VITE_API_BASE_URL があればその先を呼ぶ（末尾のスラッシュは無視）', () => {
     vi.stubEnv('VITE_API_BASE_URL', 'https://api.example.test/');
-    const fetchMock = stubFetch(() => jsonResponse(chatBody()));
-
-    await sendChat({ message: 'x' });
-
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.example.test/chat');
-  });
-
-  it('context が無い応答は空文字として扱う', async () => {
-    stubFetch(() => jsonResponse({ reply: 'r', thread_id: 't', mode: 'mock' }));
-    const result = await sendChat({ message: 'x' });
-    expect(result.context).toBe('');
+    expect(endpoint(CHAT_STREAM_PATH)).toBe('https://api.example.test/chat/stream');
   });
 });
 
-describe('sendChat: エラー', () => {
+describe('chatFetch: 成功', () => {
+  it('SSE の応答はそのまま返す（本文の読み取りは AI SDK に任せる）', async () => {
+    const fetchMock = stubFetch(() => replyResponse());
+
+    const response = await chatFetch('/chat/stream', { method: 'POST', body: '{"message":"x"}' });
+
+    expect(response.ok).toBe(true);
+    expect(await response.text()).toContain('data: [DONE]');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/chat/stream');
+    expect(init.method).toBe('POST');
+  });
+});
+
+describe('chatFetch: エラー', () => {
   it('422（配列 detail）: 長すぎる', async () => {
     stubFetch(() =>
       errorResponse(422, [
@@ -75,7 +68,7 @@ describe('sendChat: エラー', () => {
         },
       ]),
     );
-    const error = await failure(sendChat({ message: 'x' }));
+    const error = await failure(post());
     expect(error.status).toBe(422);
     expect(error.message).toContain('長すぎ');
     expect(error.message).toContain('2000');
@@ -86,7 +79,7 @@ describe('sendChat: エラー', () => {
     stubFetch(() =>
       errorResponse(422, [{ type: 'string_too_short', loc: ['body', 'message'], msg: 'short' }]),
     );
-    const error = await failure(sendChat({ message: ' ' }));
+    const error = await failure(post());
     expect(error.message).toContain('入力してください');
   });
 
@@ -96,14 +89,14 @@ describe('sendChat: エラー', () => {
         { type: 'string_pattern_mismatch', loc: ['body', 'thread_id'], msg: 'pattern' },
       ]),
     );
-    const error = await failure(sendChat({ message: 'x', threadId: 'bad id' }));
+    const error = await failure(post());
     expect(error.message).toContain('会話 ID');
     expect(error.message).toContain('新しい会話');
   });
 
   it('422: 想定外の形でも一般的な文言になり、生の JSON は出さない', async () => {
     stubFetch(() => errorResponse(422, [{ type: 'whatever', loc: ['body', 'other'] }]));
-    const error = await failure(sendChat({ message: 'x' }));
+    const error = await failure(post());
     expect(error.message).toContain('入力内容に問題');
     expect(error.message).not.toContain('{');
   });
@@ -114,7 +107,7 @@ describe('sendChat: エラー', () => {
         'Retry-After': '30',
       }),
     );
-    const error = await failure(sendChat({ message: 'x' }));
+    const error = await failure(post());
     expect(error.status).toBe(429);
     expect(error.message).toBe(
       'リクエストが集中しています。しばらく待ってから再試行してください。',
@@ -124,12 +117,12 @@ describe('sendChat: エラー', () => {
 
   it('429: Retry-After が無い・整数でなければ undefined', async () => {
     stubFetch(() => errorResponse(429, '集中しています'));
-    expect((await failure(sendChat({ message: 'x' }))).retryAfterSeconds).toBeUndefined();
+    expect((await failure(post())).retryAfterSeconds).toBeUndefined();
 
     stubFetch(() =>
       errorResponse(429, '集中しています', { 'Retry-After': 'Wed, 21 Oct 2026 07:28:00 GMT' }),
     );
-    expect((await failure(sendChat({ message: 'x' }))).retryAfterSeconds).toBeUndefined();
+    expect((await failure(post())).retryAfterSeconds).toBeUndefined();
   });
 
   it.each([
@@ -140,7 +133,7 @@ describe('sendChat: エラー', () => {
     [500, 'サーバー内部でエラーが発生しました。'],
   ])('%i: サーバーの detail をそのまま使う', async (status, detail) => {
     stubFetch(() => errorResponse(status, detail));
-    const error = await failure(sendChat({ message: 'x' }));
+    const error = await failure(post());
     expect(error.status).toBe(status);
     expect(error.message).toBe(detail);
     expect(error.retryAfterSeconds).toBeUndefined();
@@ -153,7 +146,7 @@ describe('sendChat: エラー', () => {
     [503, 'Service Unavailable'],
   ])('%i: 英語の detail（FastAPI 既定・ゲートウェイ）は見せず、ステータス別の文言にする', async (status, detail) => {
     stubFetch(() => errorResponse(status, detail));
-    const error = await failure(sendChat({ message: 'x' }));
+    const error = await failure(post());
     expect(error.status).toBe(status);
     expect(error.message).toContain(`HTTP ${status}`);
     expect(error.message).not.toContain(detail);
@@ -161,7 +154,7 @@ describe('sendChat: エラー', () => {
 
   it('日本語の detail でも、バックエンドが意図して返さないステータスなら使わない', async () => {
     stubFetch(() => errorResponse(404, '見つかりません'));
-    const error = await failure(sendChat({ message: 'x' }));
+    const error = await failure(post());
     expect(error.message).toContain('HTTP 404');
   });
 
@@ -169,7 +162,7 @@ describe('sendChat: エラー', () => {
     stubFetch(() => {
       throw new TypeError('Failed to fetch');
     });
-    const error = await failure(sendChat({ message: 'x' }));
+    const error = await failure(post());
     expect(error.status).toBe(0);
     expect(error.message).toContain('サーバーに接続できません');
   });
@@ -182,20 +175,29 @@ describe('sendChat: エラー', () => {
           headers: { 'Content-Type': 'text/html' },
         }),
     );
-    const error = await failure(sendChat({ message: 'x' }));
+    const error = await failure(post());
     expect(error.status).toBe(502);
     expect(error.message).toContain('HTTP 502');
     expect(error.message).not.toContain('<html>');
   });
 
-  it('200 でも本文が想定外（SPA の index.html など）ならエラーにする', async () => {
-    stubFetch(() => new Response('<!doctype html>', { status: 200 }));
-    const error = await failure(sendChat({ message: 'x' }));
+  it('200 でも SSE ではない応答（SPA の index.html など）は想定外としてエラーにする', async () => {
+    stubFetch(
+      () =>
+        new Response('<!doctype html>', { status: 200, headers: { 'Content-Type': 'text/html' } }),
+    );
+    const error = await failure(post());
+    expect(error.message).toContain('想定外');
+  });
+
+  it('200 の JSON（旧 /chat の形）も、SSE ではないので想定外にする', async () => {
+    stubFetch(() => jsonResponse({ reply: 'r', thread_id: 't', context: '', mode: 'mock' }));
+    const error = await failure(post());
     expect(error.message).toContain('想定外');
   });
 });
 
-describe('sendChat: 中断', () => {
+describe('chatFetch: 中断', () => {
   it('AbortSignal を fetch に渡し、中断は ChatApiError にせず AbortError のまま伝える', async () => {
     const controller = new AbortController();
     const fetchMock = stubFetch(
@@ -207,7 +209,7 @@ describe('sendChat: 中断', () => {
         }),
     );
 
-    const pending = sendChat({ message: 'x', signal: controller.signal });
+    const pending = chatFetch('/chat/stream', { method: 'POST', signal: controller.signal });
     const settled = pending.then(
       () => null,
       (caught: unknown) => caught,
@@ -219,6 +221,14 @@ describe('sendChat: 中断', () => {
     expect(error).toBeInstanceOf(DOMException);
     expect(error).not.toBeInstanceOf(ChatApiError);
     expect((error as DOMException).name).toBe('AbortError');
+  });
+});
+
+describe('isJapaneseMessage', () => {
+  it('かな・漢字を含む文だけを、サーバーの固定メッセージとして扱う', () => {
+    expect(isJapaneseMessage('LLM 呼び出しに失敗しました。')).toBe(true);
+    expect(isJapaneseMessage('Internal Server Error')).toBe(false);
+    expect(isJapaneseMessage('')).toBe(false);
   });
 });
 

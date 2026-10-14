@@ -16,10 +16,12 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 
 ## 構成
 
-- `app/api/routes.py`: `/chat` `/health`。LLM の失敗は固定メッセージの 429/504/500/502 に変換する。
-  クライアントが切断したら LLM 呼び出し（ヘッジの追加試行を含む）を取り消す
-- `app/agents/`: LangGraph（`graph.py`）、検索ツール（`tools.py`）、ガードレール（`guardrails.py`）、
-  LLM 呼び出しのヘッジ付き再試行（`resilience.py`）
+- `app/api/routes.py`: `/chat` `/chat/stream` `/health`。LLM の失敗は固定メッセージの 429/504/500/502 に変換する。
+  クライアントが切断したら LLM 呼び出し（ヘッジの追加試行を含む）を取り消す。`/chat/stream` は回答を SSE
+  （AI SDK の UI message stream。組み立ては `app/api/ui_stream.py`）で返し、画面はこちらを使う
+- `app/agents/`: LangGraph（`graph.py`）、検索ツール（`tools.py`）、ガードレール（`guardrails.py`。出力は
+  完成した回答の検査と、ストリーミング中の逐次検査 `StreamingOutputGuard`）、LLM 呼び出しのヘッジ付き
+  再試行（`resilience.py`。完了を待つ `hedged_call` と、最初のチャンクを待つ `hedged_stream`）
 - `app/history.py`: 会話履歴の保存先。`DATABASE_URL` があれば Postgres（接続プールを lifespan で開閉）、空ならメモリ。
   開けなければ起動を失敗させ、メモリへは切り替えない
 - `app/history_admin.py`: 履歴の削除コマンド（`python -m app.history_admin`。既定は件数の表示だけ、`--apply` で削除）。アプリからは使わない
@@ -41,12 +43,19 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   `LLM_HEDGE_DELAY_SECONDS`（8、0 で無効）/ `LLM_ATTEMPT_TIMEOUT_SECONDS`（30。ヘッジなしは 15）/
   `LLM_MAX_ATTEMPTS`（3）、
   全体の上限は `LLM_TIMEOUT_SECONDS`（60）。追加の試行はトークンを増やす。モデルの変更も料金と品質に
-  響くので、変える前に確認する。
+  響くので、変える前に確認する。`/chat/stream` は「最初のチャンクが届いた試行」を採り、採った後は別の試行へ
+  切り替えない（送った本文と食い違うため）。
 - **切断は失敗ではない。** `/chat` はグラフの実行と `request.receive()`（`http.disconnect` まで待つ監視）を
   `asyncio.wait` で競わせ、切断が先なら LLM 呼び出しを取り消して 499 を返す。この分岐は `except Exception` の
   外に置き、ログは INFO・固定文・`thread_id`・経過秒だけにする（例外にすると 502 と ERROR ログになる）。
   `request.is_disconnected()` のポーリングは使わない（外側の取り消しを飲み込み、遅れる）。本文の解析前には
-  `receive()` を呼ばない。
+  `receive()` を呼ばない。`/chat/stream` も同じ方針で、レスポンスは最初の本文が届くまで始めない（その前の
+  失敗は `/chat` と同じ HTTP ステータス、後の失敗は `error` チャンクの固定メッセージ）。本体の生成が始まる前に
+  切断されても実行を取り残さないよう、後始末は `BackgroundTask` にも置く。
+- **ストリーミングでも出力ガードを外さない。** 漏洩の判定は「正規化後の連続一致 24 文字以上」で、
+  `StreamingOutputGuard` は末尾の正規化後 31 文字を送らずに残して、連続一致が閾値に届く前に止める。
+  検知したら、そのターンのメッセージを定型文に置き換え、ツール呼び出しも捨てる。窓や保持の文字数を
+  変えるときは、`tests/test_streaming_guard.py` の分割位置のテストで確かめる。
 - 変更したら、触れた範囲のテストを実行してから報告する。確認できていないこと（例: Docker ビルド）は
   確認済みと書かない。
 

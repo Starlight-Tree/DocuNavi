@@ -373,3 +373,26 @@ textarea {
     padding-inline: 0.75rem;
   }
 }
+
+/* 回答の下の操作（コピー）と、入力欄の操作ボタン（停止・送信） */
+.message-actions {
+  margin-top: 0.35rem;
+}
+.btn-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.btn-link:hover {
+  color: var(--text);
+}
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
