@@ -67,7 +67,7 @@ def test_hedging_off_falls_back_to_sdk_retries_with_a_shorter_attempt_cap(monkey
 def test_retry_policy_is_independent_of_model_and_credential_selection(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "k")
     # モデル・認証の選択に使う引数は変えない（試行の設定は別に適用する）
-    assert create_llm().kwargs == {"model": "gemini-3.1-flash-lite", "google_api_key": "k", "temperature": 0}
+    assert create_llm().kwargs == {"model": "gemini-3.1-flash-lite", "google_api_key": "k"}
 
 
 def test_vertex_ai_gets_the_same_policy(monkeypatch):

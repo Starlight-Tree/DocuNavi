@@ -4,6 +4,7 @@
 """
 
 import pytest
+from langchain_google_genai import ChatGoogleGenerativeAI as RealChatGoogleGenerativeAI
 
 from app.agents import graph
 from app.agents.graph import MockChatModel, create_llm, is_mock_mode, use_vertex_ai
@@ -49,7 +50,6 @@ def test_api_key_uses_gemini_with_that_key(monkeypatch):
     assert llm.kwargs == {
         "model": "gemini-3.1-flash-lite",
         "google_api_key": "real-looking-key",
-        "temperature": 0,
     }
 
 
@@ -72,7 +72,7 @@ def test_vertex_needs_no_api_key_and_is_not_mock(monkeypatch):
     llm = create_llm()
     assert isinstance(llm, RecordingLLM)
     # キーは渡さず ADC に任せる。プロジェクト・ロケーションも未設定なら SDK に解決させる
-    assert llm.kwargs == {"model": "gemini-3.1-flash-lite", "vertexai": True, "temperature": 0}
+    assert llm.kwargs == {"model": "gemini-3.1-flash-lite", "vertexai": True}
 
 
 def test_vertex_ignores_api_key_and_passes_project_and_location(monkeypatch):
@@ -84,10 +84,23 @@ def test_vertex_ignores_api_key_and_passes_project_and_location(monkeypatch):
     assert llm.kwargs == {
         "model": "gemini-3.1-flash-lite",
         "vertexai": True,
-        "temperature": 0,
         "project": "my-project",
         "location": "global",
     }
+
+
+def test_temperature_is_not_forced(monkeypatch):
+    # Gemini 3 系は既定の 1.0 が公式の推奨（1.0 未満はループや性能低下の恐れ）。3.5-flash-lite では指定が無視され警告も出る
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    assert "temperature" not in create_llm().kwargs
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    assert "temperature" not in create_llm().kwargs
+
+
+def test_gemini_3_client_sends_no_temperature_when_unset():
+    # 上の「渡さない」が既定の 1.0 になる前提。ライブラリの更新でここが変わったら、temperature の扱いを見直す
+    client = RealChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", google_api_key="k")
+    assert client.temperature is None
 
 
 def test_model_name_can_be_overridden(monkeypatch):

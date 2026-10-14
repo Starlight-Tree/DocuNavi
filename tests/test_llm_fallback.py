@@ -1106,7 +1106,6 @@ def test_fallback_model_builds_a_second_client_with_the_same_settings(gemini_env
     assert llm.kwargs == {
         "model": "gemini-3.5-flash-lite",
         "google_api_key": "real-looking-key",
-        "temperature": 0,
     }
 
 
