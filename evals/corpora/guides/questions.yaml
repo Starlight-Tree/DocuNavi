@@ -1,0 +1,230 @@
+# 承認済み。評価に使ってよい。a・t の 22 問のうち 21 問は user が OK、t004 だけ user の指示で直した（下の「注意」）。
+# 作成者の出力は 3 冊・33 問。うち hidamari（2 段組み）の 11 問（h001-h011）は、抽出の段階で根拠が欠けて評価が止まるため、
+# 本文のまま evals/fixtures/two_column/questions.yaml に移した（理由は evals/README.md の「2 段組み」）。ここは a・t の 22 問。
+# 作成者: subagent（検索の実装・既存の評価を知らない、分離した文脈。ツールもリポジトリも使っていない）
+# 作成日: 2026-10-15
+# 承認者: user（承認の文面は、user が貼り付けた別の AI のレビュー。user 自身が書いた文ではない）
+# 承認日: 2026-10-15
+# 承認方法: (a) agent の機械的な事前検査（検索のコードは使わない）。
+#           (1) 根拠（33 問分）がすべて資料の Markdown にそのまま存在する（表の行はセルを半角スペースでつないだ形）
+#           (2) 集計・絞り込み・比較（a007 h007 t007）の根拠は表・条文の全行（7・7・3）。答えを手で再計算して一致
+#           (3) 資料外 9 問（on_topic_absent）の答えが資料のどこにも無い（関連語が出る箇所を目で確かめた）
+#           (b) agent が作った確認表（質問・期待回答・根拠の原文とページ・資料外の手がかりの語）を user に示した。
+#           user の返答は、a001-a011（資料外を含む）と t001-t003・t005-t011 は OK、t004 は直す、と t004 の新しい文面。
+#           user が PDF を直接読んだかは、記録していない。
+# 承認基準: 質問が自然 / 正解が一意 / 引用が本文にそのまま存在 / 集計の行が全部ある / 資料外が本当に無い
+# 注意: 質問と期待値は作成者の出力のまま。ただし t004 だけ、user の指示で直した。承認後は変更しない。
+#       PDF 化で本文と抽出結果がずれた場合も、質問側は直さず、ずれを報告する。
+#       user が読んで直すと言ったときは、理由をコミットに書く。
+#       t004 の元の文面: 質問「寮に住み続けられるのは、最長で何年間ですか？」答え「3 年間です（入寮期間は 1 年で、更新は 2 回までのため）。」
+#         直した理由: 更新 1 回あたりの長さが資料に書かれておらず、「3 年」は推定で、正解が一意でない。
+#         直したあと: 質問と答えは user の指定のまま。根拠（2 文）は変えていない。category は paraphrase から multi_hop に
+#         した（新しい質問は資料と同じ語を使うので言い換えではなく、2 文を合わせる質問のため。agent の判断で、user の指定ではない）。
+#         元の文面は source/facts.md に残してある（作成者の出力のため、直していない）。
+#       a004・t001・t003 の期待回答は原則だけで、例外を含まない（a004: 水温 50℃以上や水位が高いとロックが外れない、
+#         t001: 空きがあれば 4 月 10 日まで受け付ける、t003: 届け出れば午前 0 時まで）。検索の評価では問題にならない。
+#         回答の評価で、例外を含めるかを決める（user の判断。まだ決めていない）。
+#       書式の調整（機械的）: 答えのある質問に `expected_doc_ids: [<doc の値>]` を足した（評価の道具が読むキー。作成者の出力は `doc`）。
+#       `doc` はそのまま残してある（資料外の質問では、どの資料の題材かを示すだけ）。PDF は source/make_pdfs.py で作る。
+- id: a001
+  doc: aoba_aw820_manual.pdf
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  question: "糸くずフィルターの掃除は、洗濯何回ごとにすればよいですか？"
+  answer: "洗濯 10 回ごとに取り出して水洗いします。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "糸くずフィルターは、洗濯 10 回ごとに取り出して水洗いしてください。"
+- id: a002
+  doc: aoba_aw820_manual.pdf
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  question: "槽洗浄をするとき、洗濯槽クリーナーは何 mL 入れますか？"
+  answer: "250mL（塩素系の洗濯槽クリーナー）です。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "塩素系の洗濯槽クリーナーを 250mL 入れ、約 40℃のぬるま湯をためて運転します。"
+- id: a003
+  doc: aoba_aw820_manual.pdf
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  question: "保証期間が過ぎたあとに出張修理を頼むと、出張料はいくらかかりますか？"
+  answer: "3,300 円です。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "保証期間を過ぎた場合は、出張料が 3,300 円かかります。"
+- id: a004
+  doc: aoba_aw820_manual.pdf
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  question: "洗っている途中で、ふたを開けたくなりました。どうすれば開きますか？"
+  answer: "一時停止ボタンを押して約90秒待つと、ロックが外れて開けられます。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "ただし、一時停止ボタンを押すと、約90秒後にロックが外れてふたを開けられます。"
+- id: a005
+  doc: aoba_aw820_manual.pdf
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  question: "毛布を洗うとき、一度にどのくらいの重さまで入れてよいですか？"
+  answer: "2.0kg までです。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "ただし、毛布を洗うときは 2.0kg までとし、羽毛布団と電気毛布は洗えません。"
+- id: a006
+  doc: aoba_aw820_manual.pdf
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  question: "この機種が作られなくなったあと、修理用の部品は何年間とっておいてもらえますか？"
+  answer: "8 年間です。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "補修用の部品は、製造を打ち切ってから 8 年間保有します。"
+- id: a007
+  doc: aoba_aw820_manual.pdf
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  question: "エラーコードのうち、対処の目安時間が約20分以上のものはどれですか？ 修理が必要なものは除きます。"
+  answer: "E04（約30分）、E05（約20分）、E06（約60分）の 3 つです。"
+  category: factual
+  kind: filter
+  evidence_mode: all
+  evidence:
+    - "E01 ふたエラー ふたの閉め忘れ 約1分"
+    - "E02 給水エラー 蛇口の閉め忘れ 約5分"
+    - "E03 水位エラー 衣類の片寄り 約10分"
+    - "E04 排水エラー 排水ホースのつまり 約30分"
+    - "E05 乾燥エラー 乾燥フィルターのつまり 約20分"
+    - "E06 温度エラー 周囲温度が35℃を超えた 約60分"
+    - "E07 モーターエラー 過負荷や部品の故障 修理が必要"
+- id: a008
+  doc: aoba_aw820_manual.pdf
+  question: "この洗濯乾燥機の電源コードは、何メートルありますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+- id: a009
+  doc: aoba_aw820_manual.pdf
+  question: "延長保証に加入するには、いくらかかりますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+- id: a010
+  doc: aoba_aw820_manual.pdf
+  question: "乾燥運転をしているとき、庫内の温度は何度になりますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+- id: a011
+  doc: aoba_aw820_manual.pdf
+  question: "富士山の標高は何メートルですか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: off_topic
+  evidence_mode: any
+  evidence: []
+- id: t001
+  doc: tsubasa_dorm_rules.pdf
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  question: "入寮の申込みは、いつまでにすればよいですか？"
+  answer: "入寮を希望する年度の 2 月 28 日までです。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "入寮の申込みは、入寮を希望する年度の 2 月 28 日までに、学生支援課へ申込書を提出して行う。"
+- id: t002
+  doc: tsubasa_dorm_rules.pdf
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  question: "入寮するときに納める保証金は、いくらですか？"
+  answer: "50,000 円です。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "入寮する者は、入寮時に保証金 50,000 円を納める。"
+- id: t003
+  doc: tsubasa_dorm_rules.pdf
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  question: "寮の門限は、何時ですか？"
+  answer: "午後 11 時です。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "門限は、午後 11 時とする。"
+- id: t004
+  doc: tsubasa_dorm_rules.pdf
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  question: "寮の入寮期間と、更新できる回数は？"
+  answer: "入寮期間は1年で、更新は2回までです。"
+  category: multi_hop
+  kind: multi_hop
+  evidence_mode: all
+  evidence:
+    - "入寮期間は、1 年とする。"
+    - "更新は、2 回までとする。"
+- id: t005
+  doc: tsubasa_dorm_rules.pdf
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  question: "友達が遊びに来たとき、自分の部屋に入れてもよいですか？"
+  answer: "入れてはいけません。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "来訪者を居室に入れてはならない。"
+- id: t006
+  doc: tsubasa_dorm_rules.pdf
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  question: "病気などの特別な事情がないとき、寮を出るには、いつまでに届けを出す必要がありますか？"
+  answer: "出る予定の日の 30 日前までです。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "退寮するときは、退寮予定日の 30 日前までに、退寮届を学生支援課へ提出する。"
+- id: t007
+  doc: tsubasa_dorm_rules.pdf
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  question: "3 つの棟のうち、1 人あたりの月額の寮費が最も安いのは、どの棟ですか？"
+  answer: "つばめ棟（二人部屋、1 人につき 24,000 円）です。"
+  category: factual
+  kind: comparison
+  evidence_mode: all
+  evidence:
+    - "ひばり棟の個室は 38,000 円とする。"
+    - "つばめ棟の二人部屋は、1 人につき 24,000 円とする。"
+    - "かもめ棟の個室は、45,000 円とする。"
+- id: t008
+  doc: tsubasa_dorm_rules.pdf
+  question: "寮の共用洗濯室を使うには、1 回いくらかかりますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+- id: t009
+  doc: tsubasa_dorm_rules.pdf
+  question: "寮で朝食や夕食を食べる場合の料金は、いくらですか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+- id: t010
+  doc: tsubasa_dorm_rules.pdf
+  question: "寮で小型のペットを飼うことはできますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+- id: t011
+  doc: tsubasa_dorm_rules.pdf
+  question: "17 に 13 を掛けると、いくつになりますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: off_topic
+  evidence_mode: any
+  evidence: []

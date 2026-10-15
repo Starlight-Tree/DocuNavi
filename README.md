@@ -3,10 +3,11 @@
 資料を根拠に答える RAG チャットボットです。検索する資料は 2 種類あります。
 
 - `storage/chunk/*.txt`: 架空の惑星「ザーハード」の設定資料
-- `storage/pdf/<資料群の名前>/*.pdf`: PDF の資料。いまは、架空のカフェチェーン「みなとコーヒー」の店舗案内（`cafe/`）
+- `storage/pdf/<資料群の名前>/*.pdf`: PDF の資料。いまは、架空のカフェチェーン「みなとコーヒー」の店舗案内（`cafe/`）と、
+  架空の洗濯乾燥機の取扱説明書・学生寮の入寮規程（`guides/`）
 
-どちらもチャット（`/chat`・`/chat/stream`）が検索します。資料群ごとに別々に採点して結果を合わせるので、片方を足しても、
-もう片方の結果は変わりません。検索する資料群は環境変数 `SEARCH_SCOPE` で絞れます（[docs/configuration.md](docs/configuration.md)）。
+どちらもチャット（`/chat`・`/chat/stream`）が検索します。資料群ごとに別々に採点して結果を合わせるので、資料群を足しても、
+他の資料群の結果は（ほとんど）変わりません。例外は、他の資料群の文が偶然に返ることです（[docs/configuration.md](docs/configuration.md)）。検索する資料群は環境変数 `SEARCH_SCOPE` で絞れます（[docs/configuration.md](docs/configuration.md)）。
 バックエンド（FastAPI）に加えて、チャット画面（Vite + React + TypeScript、`frontend/`）を同じサーバーから配信します。
 
 - **FastAPI**: HTTP API（`/chat`, `/chat/stream`, `/health`）
