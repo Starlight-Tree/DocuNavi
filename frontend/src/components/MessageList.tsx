@@ -80,9 +80,9 @@ export function MessageList({
 
       {messages.length === 0 && !waiting && !resumed && (
         <p className="empty-state">
-          架空の惑星「ザーハード」の設定について質問してみましょう。
+          登録された資料（設定資料や店舗案内など）について質問してみましょう。
           <br />
-          例: ザーハードの大気はどんな成分ですか？
+          例: ザーハードの大気はどんな成分ですか？ / みなとコーヒーの定休日はいつですか？
         </p>
       )}
 

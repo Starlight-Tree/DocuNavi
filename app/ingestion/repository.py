@@ -61,12 +61,16 @@ CREATE TABLE IF NOT EXISTS chunks (
     document_id  bigint NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
     chunk_index  integer NOT NULL,
     page         integer NOT NULL,
+    page_end     integer,
+    kind         text NOT NULL DEFAULT 'text',
     heading      text,
     content      text NOT NULL,
     content_hash text NOT NULL,
     created_at   timestamptz NOT NULL DEFAULT now(),
     UNIQUE (document_id, chunk_index) DEFERRABLE INITIALLY DEFERRED
 );
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS page_end integer;
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'text';
 CREATE INDEX IF NOT EXISTS chunks_document_hash_idx ON chunks (document_id, content_hash);
 """
 
@@ -125,14 +129,24 @@ class PostgresRepository:
             for row_id, chunk in keep:
                 # (document_id, chunk_index) の一意制約は、コミット時に検査される（入れ替えで一時的に重なってよい）
                 self._conn.execute(
-                    "UPDATE chunks SET chunk_index = %s, page = %s, heading = %s WHERE id = %s",
-                    (chunk.index, chunk.page, chunk.heading, row_id),
+                    "UPDATE chunks SET chunk_index = %s, page = %s, page_end = %s, kind = %s, heading = %s "
+                    "WHERE id = %s",
+                    (chunk.index, chunk.page, chunk.page_end, chunk.kind, chunk.heading, row_id),
                 )
             for chunk in insert:
                 self._conn.execute(
-                    "INSERT INTO chunks (document_id, chunk_index, page, heading, content, content_hash) "
-                    "VALUES (%s, %s, %s, %s, %s, %s)",
-                    (doc_id, chunk.index, chunk.page, chunk.heading, chunk.text, chunk.content_hash),
+                    "INSERT INTO chunks (document_id, chunk_index, page, page_end, kind, heading, content, content_hash) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        doc_id,
+                        chunk.index,
+                        chunk.page,
+                        chunk.page_end,
+                        chunk.kind,
+                        chunk.heading,
+                        chunk.text,
+                        chunk.content_hash,
+                    ),
                 )
 
     def mark_failed(self, source: str, document_hash: str, reason: str) -> None:

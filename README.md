@@ -1,12 +1,18 @@
-# ザーハード設定資料チャットボット（FastAPI × LangGraph × Gemini）
+# RAG チャットボット（FastAPI × LangGraph × Gemini）
 
-架空の惑星「ザーハード」の設定資料（`storage/chunk/*.txt`）を根拠に答える RAG チャットボットです。
+資料を根拠に答える RAG チャットボットです。検索する資料は 2 種類あります。
+
+- `storage/chunk/*.txt`: 架空の惑星「ザーハード」の設定資料
+- `storage/pdf/<資料群の名前>/*.pdf`: PDF の資料。いまは、架空のカフェチェーン「みなとコーヒー」の店舗案内（`cafe/`）
+
+どちらもチャット（`/chat`・`/chat/stream`）が検索します。資料群ごとに別々に採点して結果を合わせるので、片方を足しても、
+もう片方の結果は変わりません。検索する資料群は環境変数 `SEARCH_SCOPE` で絞れます（[docs/configuration.md](docs/configuration.md)）。
 バックエンド（FastAPI）に加えて、チャット画面（Vite + React + TypeScript、`frontend/`）を同じサーバーから配信します。
 
 - **FastAPI**: HTTP API（`/chat`, `/chat/stream`, `/health`）
 - **LangGraph**: 入力ガード → エージェント（ツール呼び出しのループ）→ 出力ガード
 - **Gemini**（`gemini-3.1-flash-lite`）: 回答生成。Gemini API キーまたは Vertex AI（ADC）で認証し、どちらも未設定ならモックモードで動く
-- **RAG**: 設定資料を文単位に分けて BM25 で検索（外部の埋め込み API・ベクトル DB は不使用）
+- **RAG**: 資料を文単位に分けて BM25 で検索（外部の埋め込み API・ベクトル DB は不使用）。PDF は、ページの文字の位置から見出し・段落・表を組み立てて検索の単位にする
 - **画面**: `frontend/`（Vite + React + TypeScript）。ビルド成果物 `frontend/dist` を FastAPI が `/` で配信する
 
 ## 起動

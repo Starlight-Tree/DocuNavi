@@ -5,6 +5,7 @@ LLM も DB も呼ばない。検索の実体は app/agents/tools.py の search_c
 
     python -m scripts.eval_retrieval --mode bm25 --k 5                          # storage/chunk/（ザーハード）
     python -m scripts.eval_retrieval --mode bm25 --k 5 --corpus evals/corpora/cafe   # PDF の資料
+    python -m scripts.eval_retrieval --mode bm25 --k 5 --app                    # アプリが検索する全資料（全部の質問）
 """
 
 from __future__ import annotations
@@ -24,11 +25,13 @@ from typing import Any
 import yaml
 
 from app.agents import tools
+from app.ingestion.corpus import PASSAGES, load_pdf_corpus
 from app.ingestion.service import find_pdfs, source_name
 
 ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS_PATH = ROOT / "evals" / "questions.yaml"
 RESULTS_DIR = ROOT / "evals" / "results"
+CORPORA_DIR = ROOT / "evals" / "corpora"
 JST = timezone(timedelta(hours=9))
 
 OUT_OF_SCOPE = "out_of_scope"
@@ -37,12 +40,24 @@ CATEGORIES = (*ANSWERABLE_CATEGORIES, OUT_OF_SCOPE)
 SCOPE_KINDS = ("off_topic", "on_topic_absent")
 EVIDENCE_MODES = ("any", "all")
 
-# (質問, 上位何ファイルまで, 資料) -> [(ファイル名, 本文)]。モードを足すときはここに登録する。
-# 資料は (ファイル名 -> 本文)。None なら storage/chunk/
-Search = Callable[[str, int, dict[str, str] | None], list[tuple[str, str]]]
-MODES: dict[str, Search] = {
-    "bm25": lambda query, k, corpus=None: tools.search_chunks(query, top_k=k, corpus=corpus),
-}
+# (質問, 上位何ファイルまで, 資料, 資料群) -> [(ファイル名, 本文)]。モードを足すときはここに登録する。
+# 資料は (ファイル名 -> 本文) の 1 つの資料群。None なら storage/chunk/（ザーハード）。
+# 資料群（名前 -> 資料）を渡すと、アプリの検索と同じに、資料群ごとに採点して合わせる
+Search = Callable[..., list[tuple[str, str]]]
+
+
+def _bm25(
+    query: str,
+    k: int,
+    corpus: dict[str, Any] | None = None,
+    collections: dict[str, dict[str, Any]] | None = None,
+) -> list[tuple[str, str]]:
+    if collections is not None:
+        return tools.search_collections(query, k, collections)
+    return tools.search_chunks(query, top_k=k, corpus=tools.load_chunks() if corpus is None else corpus)
+
+
+MODES: dict[str, Search] = {"bm25": _bm25}
 
 
 class QuestionsError(ValueError):
@@ -146,7 +161,13 @@ def load_questions(path: Path = QUESTIONS_PATH) -> list[Question]:
     return questions
 
 
-def check_against_corpus(questions: Sequence[Question], corpus: dict[str, str]) -> list[str]:
+def _text_of(value: str | Sequence[Any]) -> str:
+    if isinstance(value, str):
+        return value
+    return "\n".join(_text_of(item) for item in value)
+
+
+def check_against_corpus(questions: Sequence[Question], corpus: dict[str, Any]) -> list[str]:
     """期待ファイル・根拠が資料に実在するかを検査する。資料を書き換えて評価が黙って無効になるのを防ぐ。"""
     problems: list[str] = []
     for q in questions:
@@ -155,9 +176,9 @@ def check_against_corpus(questions: Sequence[Question], corpus: dict[str, str]) 
         for name in q.expected_doc_ids:
             if name not in corpus:
                 problems.append(f"{q.id}: 資料に {name} がありません")
-            elif not any(_contains(corpus[name], ev) for ev in q.evidence):
+            elif not any(_contains(_text_of(corpus[name]), ev) for ev in q.evidence):
                 problems.append(f"{q.id}: {name} に根拠 {list(q.evidence)} が見つかりません")
-        known = [corpus[n] for n in q.expected_doc_ids if n in corpus]
+        known = [_text_of(corpus[n]) for n in q.expected_doc_ids if n in corpus]
         for ev in q.evidence:
             if known and not any(_contains(text, ev) for text in known):
                 problems.append(f"{q.id}: 根拠 {ev!r} が期待ファイルのどれにもありません")
@@ -315,10 +336,10 @@ def summarize(records: list[dict[str, Any]], k: int) -> dict[str, Any]:
     }
 
 
-def corpus_info(corpus: dict[str, str]) -> dict[str, Any]:
+def corpus_info(corpus: dict[str, Any]) -> dict[str, Any]:
     digest = hashlib.sha256()
     for name in sorted(corpus):
-        digest.update(name.encode("utf-8") + b"\0" + corpus[name].encode("utf-8") + b"\0")
+        digest.update(name.encode("utf-8") + b"\0" + _text_of(corpus[name]).encode("utf-8") + b"\0")
     return {"files": sorted(corpus), "sha256": digest.hexdigest()}
 
 
@@ -335,53 +356,37 @@ def search_params() -> dict[str, Any]:
     return {name: getattr(tools, name) for name in names}
 
 
+def collections_info(collections: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """資料群の一覧。files・sha256 は全体（資料群をまたいだ並びと内容）、collections は資料群ごとの内容のハッシュ。"""
+    merged = {name: text for corpus in collections.values() for name, text in corpus.items()}
+    info = corpus_info(merged)
+    info["collections"] = {name: corpus_info(corpus) for name, corpus in collections.items()}
+    return info
+
+
 def run(
-    questions: Sequence[Question], mode: str, k: int, corpus: dict[str, str] | None = None
+    questions: Sequence[Question],
+    mode: str,
+    k: int,
+    corpus: dict[str, Any] | None = None,
+    collections: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    """corpus は 1 つの資料群（None なら storage/chunk/）。collections を渡すと、アプリと同じに資料群ごとに採点する。"""
     search = MODES[mode]
-    records = [evaluate_question(q, search(q.question, k, corpus)) for q in questions]
+    records = [evaluate_question(q, search(q.question, k, corpus, collections)) for q in questions]
+    if collections is not None:
+        info = collections_info(collections)
+    else:
+        info = corpus_info(tools.load_chunks() if corpus is None else corpus)
     return {
         "mode": mode,
         "k": k,
         "generated_at": datetime.now(JST).isoformat(timespec="seconds"),
-        "corpus": corpus_info(tools.load_chunks() if corpus is None else corpus),
+        "corpus": info,
         "search_params": search_params(),
         "summary": summarize(records, k),
         "results": records,
     }
-
-
-def load_pdf_corpus(directory: Path) -> tuple[dict[str, str], dict[str, list[Any]], list[str]]:
-    """配下の PDF を、取り込みと同じ経路（抽出・チャンク化）で読む。
-
-    (名前 -> 本文, 名前 -> ページ, 取り込めなかった PDF の「名前: 理由」)。取り込めない PDF を黙って落とさない。
-    本文は、チャンクを改行でつないだもの（検索は改行を文の区切りに使う。文は 1 行ずつ、表は 1 行ずつの文になる）。
-    見出しは、変わったときに 1 度だけ行として入れる。
-    """
-    from app.ingestion.chunker import chunk_pages
-    from app.ingestion.pdf_parser import IngestionError, extract_pages
-    from app.ingestion.service import find_pdfs, source_name
-
-    corpus: dict[str, str] = {}
-    pages_by_doc: dict[str, list[Any]] = {}
-    failures: list[str] = []
-    for path in find_pdfs(directory):
-        name = source_name(path, directory)
-        try:
-            pages = extract_pages(path)
-        except (IngestionError, OSError) as exc:
-            failures.append(f"{name}: {getattr(exc, 'reason', 'unreadable')}")
-            continue
-        pages_by_doc[name] = pages
-        lines: list[str] = []
-        last_heading: str | None = None
-        for chunk in chunk_pages(pages):
-            if chunk.heading and chunk.heading != last_heading:
-                lines.append(chunk.heading)  # 見出しは、変わったときに 1 度だけ検索対象の行にする
-            last_heading = chunk.heading
-            lines.append(chunk.text)
-        corpus[name] = "\n".join(lines)
-    return corpus, pages_by_doc, failures
 
 
 def locate_evidence(q: Question, pages_by_doc: dict[str, list[Any]]) -> dict[str, list[int]]:
@@ -435,6 +440,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="PDF の資料のディレクトリ（既定の質問は <dir>/questions.yaml）。無ければ storage/chunk/",
     )
+    parser.add_argument(
+        "--passages",
+        choices=PASSAGES,
+        default="parent",
+        help="--corpus のとき、表の返し方。parent（既定）は行ごとに採点して表全体を返す。sentence は表も 1 行ずつの文として返す",
+    )
+    parser.add_argument(
+        "--app",
+        action="store_true",
+        help="アプリが検索する全資料（storage/chunk/ の .txt と storage/pdf/ の PDF）を、アプリと同じ検索で採点する。"
+        "質問は evals/questions.yaml と evals/corpora/*/questions.yaml の全部",
+    )
     parser.add_argument("--questions", type=Path, default=None, help="評価セット（既定 evals/questions.yaml）")
     parser.add_argument(
         "--out",
@@ -445,24 +462,41 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.k < 1:
         parser.error("--k は 1 以上にしてください")
+    if args.app and args.corpus is not None:
+        parser.error("--app と --corpus は同時に指定できません")
 
-    corpus: dict[str, str] | None = None
+    corpus: dict[str, Any] | None = None
+    collections: dict[str, dict[str, Any]] | None = None
     pages_by_doc: dict[str, list[Any]] = {}
     if args.corpus is not None:
         if not args.corpus.is_dir():
             print(f"--corpus がディレクトリではありません: {args.corpus.name}", file=sys.stderr)
             return 2
-        corpus, pages_by_doc, failures = load_pdf_corpus(args.corpus)
+        corpus, pages_by_doc, failures = load_pdf_corpus(args.corpus, args.passages)
         if failures or not corpus:
             print("PDF を取り込めません:" if failures else "PDF がありません。", file=sys.stderr)
             for failure in failures:
                 print(f"  {failure}", file=sys.stderr)
             return 2
-    questions_path = args.questions or (args.corpus / "questions.yaml" if args.corpus else QUESTIONS_PATH)
+    question_paths = [args.questions] if args.questions else [QUESTIONS_PATH]
+    if args.app:
+        collections = tools.load_collections()  # SEARCH_SCOPE に関わらず全部（評価が環境変数で動かないように）
+        if args.questions is None:
+            question_paths += sorted(CORPORA_DIR.glob("*/questions.yaml"))
+    elif args.corpus is not None and args.questions is None:
+        question_paths = [args.corpus / "questions.yaml"]
 
     try:
-        questions = load_questions(questions_path)
-        problems = check_against_corpus(questions, tools.load_chunks() if corpus is None else corpus)
+        questions = [q for path in question_paths for q in load_questions(path)]
+        ids = [q.id for q in questions]
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise QuestionsError(f"評価セットをまたいで id が重なっています: {', '.join(duplicates)}")
+        if collections is not None:
+            searched = {name: text for coll in collections.values() for name, text in coll.items()}
+        else:
+            searched = tools.load_chunks() if corpus is None else corpus
+        problems = check_against_corpus(questions, searched)
     except (QuestionsError, OSError, yaml.YAMLError) as exc:
         print(f"評価セットを読めません: {exc}", file=sys.stderr)
         return 2
@@ -479,9 +513,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  {problem}", file=sys.stderr)
         return 2
 
-    report = run(questions, args.mode, args.k, corpus)
-    if corpus is not None:
+    report = run(questions, args.mode, args.k, corpus, collections)
+    if collections is not None:
+        report["corpus"]["source"] = "app"
+        report["corpus"]["passages"] = "parent"
+        report["corpus"]["pdf_sha256"] = {
+            source_name(path, tools.PDF_DIR): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in find_pdfs(tools.PDF_DIR)
+        }
+        report["question_sets"] = [_display_path(path) for path in question_paths]
+    elif corpus is not None:
         report["corpus"]["source"] = f"pdf:{args.corpus.name}"
+        report["corpus"]["passages"] = args.passages
         report["corpus"]["pages"] = {name: len(pages) for name, pages in pages_by_doc.items()}
         # 入力の PDF そのもののハッシュ。チャンク化を変えても動かない（baseline との比較の可否に使う）
         report["corpus"]["pdf_sha256"] = {
@@ -489,7 +532,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             for path in find_pdfs(args.corpus)
         }
         report["evidence_pages"] = evidence_pages
-    suffix = f"_{args.corpus.name}" if args.corpus is not None else ""
+    suffix = "_app" if args.app else (f"_{args.corpus.name}" if args.corpus is not None else "")
     out = args.out or RESULTS_DIR / f"baseline_{args.mode}{suffix}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
