@@ -1,0 +1,225 @@
+"""資料群（ザーハードの .txt と、PDF のディレクトリ）をまたぐ検索のテスト。
+
+検索そのものの精度は tests/test_rag.py と評価（scripts/eval_retrieval.py）が見る。ここは、資料群を足しても
+他の資料群の結果が動かないこと、範囲の指定、PDF を取り込めないときの扱いを確かめる。
+"""
+
+import hashlib
+import logging
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.agents import tools
+from app.agents.graph import _compose_mock_reply
+from app.agents.tools import search_chunks, search_collections, search_documents
+from app.main import app
+from scripts import eval_retrieval as ev
+from tests.pdf_fixtures import build_pdf, paragraphs
+
+ROOT = Path(__file__).resolve().parents[1]
+EVAL_CAFE = ROOT / "evals" / "corpora" / "cafe"
+APP_CAFE = ROOT / "storage" / "pdf" / "cafe"
+
+
+@pytest.fixture
+def pdf_dir(tmp_path, monkeypatch):
+    """storage/pdf/ を空の一時ディレクトリに差し替える（読み込みのキャッシュも、前後で捨てる）。"""
+    root = tmp_path / "pdf"
+    root.mkdir()
+    monkeypatch.setattr(tools, "PDF_DIR", root)
+    tools._load_pdf_collections.cache_clear()
+    yield root
+    tools._load_pdf_collections.cache_clear()
+
+
+# ---- アプリの資料と、評価の資料 ----
+
+
+def test_app_pdf_is_the_one_the_cafe_baseline_measured():
+    # storage/pdf/ の PDF は評価用の PDF の写し。食い違うと、評価の baseline が、アプリの検索を測っていないことになる
+    app_pdf = APP_CAFE / "cafe_store_guide.pdf"
+    eval_pdf = EVAL_CAFE / "cafe_store_guide.pdf"
+    assert hashlib.sha256(app_pdf.read_bytes()).hexdigest() == hashlib.sha256(eval_pdf.read_bytes()).hexdigest()
+
+
+def test_app_searches_text_and_pdf_collections():
+    collections = tools.load_collections()
+    assert list(collections) == [tools.TEXT_COLLECTION, "cafe"]
+    assert set(collections["zahard"]) == {"ザーハード1.txt", "ザーハード2.txt", "ザーハード3.txt"}
+    assert set(collections["cafe"]) == {"cafe_store_guide.pdf"}
+
+
+@pytest.mark.parametrize("k", [2, 5])
+def test_a_collection_is_not_disturbed_by_the_others(k):
+    # 資料群を足しても、それぞれの質問に対する結果が変わらない（評価セットの全質問で、単独で検索したときと同じ）。
+    # 1 つに混ぜると崩れる: 「ザーハード」の出現率が下がって主題語として除外されず、返るファイルが増える
+    own_corpora = {
+        ROOT / "evals" / "questions.yaml": tools.load_chunks(),
+        EVAL_CAFE / "questions.yaml": ev.load_pdf_corpus(EVAL_CAFE)[0],
+    }
+    checked = 0
+    for path, own in own_corpora.items():
+        for q in ev.load_questions(path):
+            assert search_chunks(q.question, k) == search_chunks(q.question, k, own), q.id
+            checked += 1
+    assert checked >= 46
+
+
+def test_tool_returns_pdf_sources_in_the_same_format():
+    output = search_documents.invoke({"query": "みなとコーヒーの定休日"})
+    assert "[cafe_store_guide.pdf]\n" in output
+    reply = _compose_mock_reply("みなとコーヒーの定休日は？", output)
+    assert "出典: cafe_store_guide.pdf" in reply
+
+
+# ---- 資料群ごとの採点と、結果の合わせ方 ----
+
+# 「ザーハード」は 1 つの資料群の中では全ての文に出る主題語（除外される）。別の資料群の文が 20 文増えると、
+# 混ぜた全体では出現率が 25% を下回り、除外されなくなる
+THEME = {f"t{i}.txt": f"ザーハードの{topic}は{state}。" for i, (topic, state) in enumerate(
+    [("酸素", "薄い"), ("重力", "強い"), ("大気", "重い"), ("水", "少ない")]
+)}
+OTHER = {f"o{i}.txt": f"珈琲の{i}番の豆は、香りが深い。" for i in range(20)}
+
+
+def test_search_scores_each_collection_with_its_own_statistics():
+    query = "ザーハードの酸素"
+    alone = search_chunks(query, 4, THEME)
+    assert [name for name, _ in alone] == ["t0.txt"]
+
+    mixed = search_chunks(query, 4, {**THEME, **OTHER})  # 1 つに混ぜた場合: 主題語が除外されず、無関係な文まで返る
+    assert len([name for name, _ in mixed]) > 1
+
+    assert search_collections(query, 4, {"theme": THEME, "other": OTHER}) == alone
+
+
+def test_collections_are_taken_in_turn_by_rank():
+    a = {"a1.txt": "赤い林檎は甘い。", "a2.txt": "林檎の木は高い。\\林檎の花は白い。\\林檎は秋に実る。"}
+    b = {"b1.txt": "林檎のパイを焼く。\\林檎を煮る。", "b2.txt": "林檎の香りの茶もある。"}
+    # 1 つの資料群の中の順位（a1 が a2 より上、b1 が b2 より上）は、単独の検索で決まる
+    alone_a = [name for name, _ in search_chunks("林檎", 5, a)]
+    alone_b = [name for name, _ in search_chunks("林檎", 5, b)]
+    assert len(alone_a) == 2 and len(alone_b) == 2
+
+    def names(top_k, collections):
+        return [name for name, _ in search_collections("林檎", top_k, collections)]
+
+    assert names(1, {"a": a, "b": b}) == [alone_a[0]]
+    assert names(2, {"a": a, "b": b}) == [alone_a[0], alone_b[0]]
+    assert names(3, {"a": a, "b": b}) == [alone_a[0], alone_b[0], alone_a[1]]
+    assert names(4, {"a": a, "b": b}) == [alone_a[0], alone_b[0], alone_a[1], alone_b[1]]
+    assert names(9, {"b": b, "a": a}) == [alone_b[0], alone_a[0], alone_b[1], alone_a[1]]  # 資料群の並び順に従う
+    assert names(0, {"a": a, "b": b}) == []
+
+
+def test_a_collection_without_hits_does_not_take_a_slot():
+    a = {"a1.txt": "赤い林檎は甘い。", "a2.txt": "林檎の木は高い。\\林檎の花は白い。\\林檎は秋に実る。"}
+    b = {"b1.txt": "桜の花が咲く。"}
+    hits = search_collections("林檎", 2, {"a": a, "b": b})
+    assert [name for name, _ in hits] == [name for name, _ in search_chunks("林檎", 2, a)]
+    assert len(hits) == 2
+
+
+# ---- 範囲（SEARCH_SCOPE） ----
+
+ZAHARD_QUERY = "ザーハードの大気の酸素濃度はどれくらい？"
+CAFE_QUERY = "みなとコーヒーの定休日"
+
+
+def _files(query):
+    return {name for name, _ in search_chunks(query)}
+
+
+def test_scope_defaults_to_every_collection(monkeypatch):
+    monkeypatch.delenv(tools.SEARCH_SCOPE_ENV, raising=False)
+    assert tools.search_scope() == ["zahard", "cafe"]
+    assert _files(ZAHARD_QUERY) == {"ザーハード1.txt"}
+    assert _files(CAFE_QUERY) == {"cafe_store_guide.pdf"}
+
+
+@pytest.mark.parametrize("value", ["", "  ", "all", "ALL"])
+def test_scope_all_and_blank_mean_every_collection(monkeypatch, value):
+    monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, value)
+    assert tools.search_scope() == ["zahard", "cafe"]
+
+
+def test_scope_can_narrow_to_one_collection(monkeypatch):
+    monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, "zahard")
+    assert _files(ZAHARD_QUERY) == {"ザーハード1.txt"}
+    assert _files(CAFE_QUERY) == set()
+
+    monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, " cafe ")
+    assert _files(ZAHARD_QUERY) == set()
+    assert _files(CAFE_QUERY) == {"cafe_store_guide.pdf"}
+
+    monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, "cafe, zahard")
+    assert tools.search_scope() == ["cafe", "zahard"]
+
+
+@pytest.mark.parametrize("value", ["zahrd", "zahard,cafee", ","])
+def test_scope_with_an_unknown_name_is_an_error(monkeypatch, value):
+    monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, value)
+    with pytest.raises(ValueError) as excinfo:
+        tools.search_scope()
+    assert "SEARCH_SCOPE" in str(excinfo.value)
+    assert "zahard" in str(excinfo.value)  # 選べる名前を示す
+
+
+def test_unknown_scope_stops_the_app_at_startup(monkeypatch):
+    # 検索が黙って空になり、「資料には記載がありません」と答え続ける前に、起動で失敗させる
+    monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, "zahrd")
+    with pytest.raises(ValueError, match="SEARCH_SCOPE"):
+        with TestClient(app):
+            pass
+
+
+def test_the_app_starts_with_a_valid_scope(monkeypatch):
+    monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, "cafe")
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 200
+
+
+# ---- PDF の読み込み ----
+
+
+def test_a_pdf_that_cannot_be_read_is_left_out_and_logged(pdf_dir, caplog):
+    folder = pdf_dir / "faq"
+    folder.mkdir()
+    (folder / "good.pdf").write_bytes(build_pdf([paragraphs("返品は購入から七日以内に受け付けます。")]))
+    (folder / "broken.pdf").write_bytes(b"not a pdf")
+
+    with caplog.at_level(logging.WARNING, logger="app.agents.tools"):
+        collections = tools._load_pdf_collections()
+
+    assert list(collections) == ["faq"]
+    assert list(collections["faq"]) == ["good.pdf"]
+    messages = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("faq/broken.pdf" in m and "unreadable" in m for m in messages)
+    assert not any(str(pdf_dir) in m for m in messages)  # サーバーのパスは出さない
+
+
+def test_a_directory_without_readable_pdfs_is_not_a_collection(pdf_dir):
+    (pdf_dir / "empty").mkdir()
+    (pdf_dir / "bad").mkdir()
+    (pdf_dir / "bad" / "x.pdf").write_bytes(b"%PDF-1.4 broken")
+    assert tools._load_pdf_collections() == {}
+
+
+def test_pdfs_in_a_directory_named_like_the_text_collection_join_it(pdf_dir, monkeypatch):
+    monkeypatch.setattr(tools, "load_chunks", lambda: {"a.txt": "赤い林檎は甘い。"})
+    folder = pdf_dir / tools.TEXT_COLLECTION
+    folder.mkdir()
+    (folder / "b.pdf").write_bytes(build_pdf([paragraphs("青い海原は広い。")]))
+
+    collections = tools.load_collections()
+    assert list(collections) == [tools.TEXT_COLLECTION]
+    assert list(collections[tools.TEXT_COLLECTION]) == ["a.txt", "b.pdf"]
+
+
+def test_without_a_pdf_directory_only_the_text_collection_is_searched(pdf_dir, monkeypatch):
+    monkeypatch.setattr(tools, "PDF_DIR", pdf_dir / "none")
+    tools._load_pdf_collections.cache_clear()
+    assert list(tools.load_collections()) == [tools.TEXT_COLLECTION]
+    assert _files(ZAHARD_QUERY) == {"ザーハード1.txt"}

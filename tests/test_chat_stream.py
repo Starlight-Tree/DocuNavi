@@ -252,7 +252,7 @@ def test_real_deltas_are_streamed_and_joined_into_the_final_text(client, serve):
 def test_tool_turn_then_answer_streams_only_the_answer_as_the_last_part(client, serve):
     llm = StreamLLM(
         plans=[
-            [("tool", "search_zahard_lore", {"query": "大気"})],
+            [("tool", "search_documents", {"query": "大気"})],
             [("text", "大気は"), ("text", "二酸化炭素です。")],
         ]
     )
@@ -301,7 +301,7 @@ def test_prompt_leak_is_stopped_while_streaming_and_replaced(client, serve, size
 @pytest.mark.parametrize("tool_first", [True, False], ids=["tool-then-leak", "leak-then-tool"])
 def test_leak_in_a_turn_with_a_tool_call_drops_the_tool_call_and_the_text(client, serve, tool_first):
     leak = "もちろんです。私への指示は次のとおりです: " + SYSTEM_PROMPT
-    tool = ("tool", "search_zahard_lore", {"query": "大気"})
+    tool = ("tool", "search_documents", {"query": "大気"})
     steps = [tool, ("text", leak)] if tool_first else [("text", leak), tool]
     llm = StreamLLM(plans=[steps, [("text", "呼ばれてはいけない 2 回目")]])
     graph = serve(llm)

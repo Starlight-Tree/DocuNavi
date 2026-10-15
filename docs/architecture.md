@@ -11,7 +11,7 @@ START → guard_input → agent → (tools → agent)* → guard_output → END
 ```
 
 - `guard_input` が入力を拒否したときは、LLM もツールも呼ばずに END へ進みます。
-- `agent` は Gemini（キーが無ければモック）を呼びます。ツール呼び出しがあれば `tools`（設定資料の検索）へ進み、結果を持って `agent` に戻ります。
+- `agent` は Gemini（キーが無ければモック）を呼びます。ツール呼び出しがあれば `tools`（資料の検索）へ進み、結果を持って `agent` に戻ります。
 - `guard_output` が最終回答を検査して終了します。
 
 `POST /chat/stream` だけは、`agent` が LLM の応答をチャンクごとに受け（`stream_tokens` が真のとき）、逐次ガードを通した本文をカスタム
@@ -29,9 +29,11 @@ app/
   agents/graph.py    LangGraph のグラフ、SYSTEM_PROMPT、モック LLM
   agents/guardrails.py  入出力ガードレール（出力は、完成した回答の検査と、ストリーミング中の逐次検査）
   agents/resilience.py  LLM 呼び出しのヘッジ付き再試行（完了を待つ hedged_call と、最初のチャンクを待つ hedged_stream）
-  agents/tools.py    設定資料の検索（search_zahard_lore）
+  agents/tools.py    資料の検索（search_documents）。資料群ごとに BM25 で採点して合わせる
+  ingestion/         PDF の取り込み（python -m app.ingestion）と、検索の単位への変換（corpus.py。アプリの検索と評価が共有）
 frontend/            チャット画面（Vite + React + TypeScript）。dist/ がビルド成果物
-storage/chunk/       設定資料（RAG の検索対象）
+storage/chunk/       設定資料の .txt（RAG の検索対象。資料群 zahard）
+storage/pdf/<名前>/  PDF の資料（RAG の検索対象。ディレクトリ名が資料群の名前）
 tests/               pytest（モックモード固定）
 ```
 

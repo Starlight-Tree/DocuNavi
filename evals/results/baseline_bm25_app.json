@@ -1,0 +1,1327 @@
+{
+  "mode": "bm25",
+  "k": 5,
+  "generated_at": "2026-10-15T12:01:20+09:00",
+  "corpus": {
+    "files": [
+      "cafe_store_guide.pdf",
+      "ザーハード1.txt",
+      "ザーハード2.txt",
+      "ザーハード3.txt"
+    ],
+    "sha256": "b4bd65be89b115c021fd4a56e81bf150072fc8355fae6b150326aa35d83fe146",
+    "collections": {
+      "zahard": {
+        "files": [
+          "ザーハード1.txt",
+          "ザーハード2.txt",
+          "ザーハード3.txt"
+        ],
+        "sha256": "c9dc23a4dfb1c7fc9a65eee48f7b248c62a41f7db167e4984f660fa6da3ac424"
+      },
+      "cafe": {
+        "files": [
+          "cafe_store_guide.pdf"
+        ],
+        "sha256": "aaa3cd92952f784f8b1d20d029b69662e590dc05cc8746688c1bba479e48908d"
+      }
+    },
+    "source": "app",
+    "passages": "parent",
+    "pdf_sha256": {
+      "cafe/cafe_store_guide.pdf": "7233886141da5bbaf3f2a1f5ce1fdda4cb2f4352c1b5c247e4b40a77d0efa365"
+    }
+  },
+  "search_params": {
+    "TOP_K": 2,
+    "MAX_PASSAGES_PER_FILE": 3,
+    "CONTEXT_WINDOW": 1,
+    "RELATIVE_SCORE_CUTOFF": 0.4,
+    "GENERIC_TERM_RATIO": 0.25,
+    "MIN_SHARED_TERMS": 2
+  },
+  "summary": {
+    "total_questions": 46,
+    "answerable_questions": 32,
+    "out_of_scope_questions": 14,
+    "doc_recall_at_5": 0.9062,
+    "keyword_hit_rate_at_5": 0.8438,
+    "mrr": 0.9219,
+    "empty_answer_accuracy": 0.6429,
+    "counts": {
+      "doc_hit": 29,
+      "keyword_hit": 27,
+      "answered_empty": 9
+    },
+    "empty_answer_by_scope_kind": {
+      "off_topic": {
+        "n": 9,
+        "empty": 9,
+        "accuracy": 1.0
+      },
+      "on_topic_absent": {
+        "n": 5,
+        "empty": 0,
+        "accuracy": 0.0
+      }
+    },
+    "by_category": {
+      "factual": {
+        "n": 22,
+        "doc_hits": 22,
+        "keyword_hits": 21,
+        "doc_recall": 1.0,
+        "keyword_hit_rate": 0.9545,
+        "mrr": 1.0
+      },
+      "paraphrase": {
+        "n": 7,
+        "doc_hits": 5,
+        "keyword_hits": 4,
+        "doc_recall": 0.7143,
+        "keyword_hit_rate": 0.5714,
+        "mrr": 0.6429
+      },
+      "multi_hop": {
+        "n": 3,
+        "doc_hits": 2,
+        "keyword_hits": 2,
+        "doc_recall": 0.6667,
+        "keyword_hit_rate": 0.6667,
+        "mrr": 1.0
+      }
+    },
+    "failure_counts": {
+      "keyword_miss": 1,
+      "paraphrase_miss": 3,
+      "unexpected_result": 5,
+      "wrong_file": 1,
+      "wrong_rank": 1
+    }
+  },
+  "results": [
+    {
+      "id": "q001",
+      "question": "ザーハードの大気の酸素濃度はどれくらい？",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード1.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード1.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "地球の1/10以下"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.txt",
+          "text": "この惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・温度変化：日中と夜間の温度差が激しく、昼間は高温、夜間は極寒となります。"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "question": "遺跡の防衛システムについて教えて",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード2.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード2.txt",
+        "ザーハード3.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "高度な防衛システム"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.txt",
+          "text": "・遺跡の構造：遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されています。\n・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。\nこの惑星には、ザーハリアンの遺産を巡る冒険者たちが集まり、遺跡を探索し、未知の技術を解明しようとしています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.txt",
+          "text": "・エネルギーの種類：このエネルギー源は、異常に高い出力を持つ放射線を放出しており、その周囲に強力な磁場を形成しています。\n・エネルギー供給のメカニズム：エネルギー源は、惑星の内部からエネルギーを引き出し、それを外部に供給するシステムが存在しています。\n・エネルギー源の動力：未知のエネルギー粒子が生成され、その粒子が惑星の核心部から放出されています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。"
+        }
+      ]
+    },
+    {
+      "id": "q003",
+      "question": "遺跡の構造はどうなっていますか",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード2.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード2.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "多層的な構造"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.txt",
+          "text": "遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\n・遺跡の構造：遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されています。\n・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。"
+        }
+      ]
+    },
+    {
+      "id": "q004",
+      "question": "エネルギー源が暴走するとどうなる？",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード3.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード3.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "惑星を破壊する可能性"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.txt",
+          "text": "そのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。"
+        }
+      ]
+    },
+    {
+      "id": "q005",
+      "question": "ザーハードの最大の魅力は何ですか",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード3.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード3.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "最大の魅力"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.txt",
+          "text": "ザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。"
+        }
+      ]
+    },
+    {
+      "id": "q006",
+      "question": "守護機構は侵入者に対してどう働く？",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード3.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード3.txt",
+        "ザーハード2.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "侵入者に対して攻撃的"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.txt",
+          "text": "しかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード2.txt",
+          "text": "・遺跡の構造：遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されています。\n・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。\nこの惑星には、ザーハリアンの遺産を巡る冒険者たちが集まり、遺跡を探索し、未知の技術を解明しようとしています。"
+        }
+      ]
+    },
+    {
+      "id": "q007",
+      "question": "ザーハリアン文明が崩壊した原因は？",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード2.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード2.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "文明が崩壊",
+        "滅亡と関係"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.txt",
+          "text": "ザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\nザーハリアンは、惑星全体のエネルギー源を利用する技術を持っており、その力を使って自らの文明を築いてきました。\n・ザーハリアンの技術：彼らは、エネルギーを収集するための高度な装置を用い、惑星の中心部にある巨大なエネルギー源からエネルギーを引き出すことができました。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "question": "硫化水素",
+      "category": "factual",
+      "kind": "keyword",
+      "expected_doc_ids": [
+        "ザーハード1.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード1.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "硫化水素や二酸化炭素"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.txt",
+          "text": "・温度変化：日中と夜間の温度差が激しく、昼間は高温、夜間は極寒となります。\n・有害なガス：硫化水素や二酸化炭素が含まれており、呼吸すると中毒症状を引き起こす恐れがあります。\n惑星の表面には広大な砂漠地帯が広がっており、幾つかの巨大な岩山がそびえています。"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "question": "放射線",
+      "category": "factual",
+      "kind": "keyword",
+      "expected_doc_ids": [
+        "ザーハード3.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード3.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "放射線を放出"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.txt",
+          "text": "探査団による調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置である可能性が高いとされています。\n・エネルギーの種類：このエネルギー源は、異常に高い出力を持つ放射線を放出しており、その周囲に強力な磁場を形成しています。\n・エネルギー供給のメカニズム：エネルギー源は、惑星の内部からエネルギーを引き出し、それを外部に供給するシステムが存在しています。"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "question": "象形文字",
+      "category": "factual",
+      "kind": "keyword",
+      "expected_doc_ids": [
+        "ザーハード1.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード1.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "未解読の象形文字"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.txt",
+          "text": "この惑星には、非常に古い文明が存在した形跡があり、その文明の遺跡が砂漠の中に埋もれていることが確認されています。\n探査機によって発見された遺跡の中には、未解読の象形文字や高度な機械が数多く発見されており、その技術は現代のものと比較しても非常に先進的です。\nこれらの遺跡を解明することで、ザーハードのエネルギー源を制御する技術を理解し、他の文明に転用することができる可能性があります。"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "question": "磁場",
+      "category": "factual",
+      "kind": "keyword",
+      "expected_doc_ids": [
+        "ザーハード3.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード3.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "強力な磁場"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.txt",
+          "text": "探査団による調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置である可能性が高いとされています。\n・エネルギーの種類：このエネルギー源は、異常に高い出力を持つ放射線を放出しており、その周囲に強力な磁場を形成しています。\n・エネルギー供給のメカニズム：エネルギー源は、惑星の内部からエネルギーを引き出し、それを外部に供給するシステムが存在しています。"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "question": "昼と夜の気温差について教えて",
+      "category": "paraphrase",
+      "kind": "paraphrase",
+      "expected_doc_ids": [
+        "ザーハード1.txt"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": []
+    },
+    {
+      "id": "q013",
+      "question": "毒ガスは含まれていますか",
+      "category": "paraphrase",
+      "kind": "paraphrase",
+      "expected_doc_ids": [
+        "ザーハード1.txt"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": []
+    },
+    {
+      "id": "q014",
+      "question": "砂漠を移動するには何が必要？",
+      "category": "paraphrase",
+      "kind": "paraphrase",
+      "expected_doc_ids": [
+        "ザーハード1.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード1.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "高機動の車両"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.txt",
+          "text": "これらの岩山の内部には、未知の鉱物やエネルギー源が埋蔵されている可能性があります。\n・砂漠地帯の地形：広大な砂丘が続き、移動が困難であるため、探査には高機動の車両が必要です。\n・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "question": "エネルギー源は自然にできたものなの？",
+      "category": "paraphrase",
+      "kind": "paraphrase",
+      "expected_doc_ids": [
+        "ザーハード3.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード3.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "自然に発生したものではなく"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.txt",
+          "text": "このエネルギー源は、非常に強力であり、惑星全体にエネルギーを供給するだけでなく、周囲の星系にも影響を与えていると言われています。\n探査団による調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置である可能性が高いとされています。\n・エネルギーの種類：このエネルギー源は、異常に高い出力を持つ放射線を放出しており、その周囲に強力な磁場を形成しています。"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "question": "エネルギーを制御できたらどうなる",
+      "category": "paraphrase",
+      "kind": "paraphrase",
+      "expected_doc_ids": [
+        "ザーハード3.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード1.txt",
+        "ザーハード3.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 2,
+      "keyword_hits": [
+        "無限のエネルギー供給"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": "wrong_rank",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.txt",
+          "text": "探査機によって発見された遺跡の中には、未解読の象形文字や高度な機械が数多く発見されており、その技術は現代のものと比較しても非常に先進的です。\nこれらの遺跡を解明することで、ザーハードのエネルギー源を制御する技術を理解し、他の文明に転用することができる可能性があります。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.txt",
+          "text": "・エネルギー源の動力：未知のエネルギー粒子が生成され、その粒子が惑星の核心部から放出されています。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "question": "ザーハリアンって何者？",
+      "category": "factual",
+      "kind": "colloquial",
+      "expected_doc_ids": [
+        "ザーハード2.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード2.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ザーハリアン文明"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.txt",
+          "text": "ザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\nザーハリアンは、惑星全体のエネルギー源を利用する技術を持っており、その力を使って自らの文明を築いてきました。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\n・遺跡の構造：遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されています。\n・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。\nこの惑星には、ザーハリアンの遺産を巡る冒険者たちが集まり、遺跡を探索し、未知の技術を解明しようとしています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "question": "探査団は何を装備して挑むの",
+      "category": "factual",
+      "kind": "colloquial",
+      "expected_doc_ids": [
+        "ザーハード1.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード1.txt",
+        "ザーハード3.txt",
+        "ザーハード2.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "生命維持装置"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.txt",
+          "text": "未知の惑星ザーハードは、遥か彼方の銀河の端に位置しており、その存在自体が数世代にわたる探査団によっても解明されていません。\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.txt",
+          "text": "このエネルギー源は、非常に強力であり、惑星全体にエネルギーを供給するだけでなく、周囲の星系にも影響を与えていると言われています。\n探査団による調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置である可能性が高いとされています。\n・エネルギーの種類：このエネルギー源は、異常に高い出力を持つ放射線を放出しており、その周囲に強力な磁場を形成しています。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード2.txt",
+          "text": "これらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。\nそのため、ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられています。"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "question": "メタンガスって入ってる？",
+      "category": "factual",
+      "kind": "colloquial",
+      "expected_doc_ids": [
+        "ザーハード1.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード1.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "メタンガス"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.txt",
+          "text": "このため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・温度変化：日中と夜間の温度差が激しく、昼間は高温、夜間は極寒となります。"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "question": "冒険者が集まるのはなぜですか",
+      "category": "factual",
+      "kind": "colloquial",
+      "expected_doc_ids": [
+        "ザーハード2.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード2.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "冒険者たちが集まり"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.txt",
+          "text": "・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。\nこの惑星には、ザーハリアンの遺産を巡る冒険者たちが集まり、遺跡を探索し、未知の技術を解明しようとしています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。"
+        }
+      ]
+    },
+    {
+      "id": "q021",
+      "question": "古い文明の遺跡はどこに埋もれているの",
+      "category": "factual",
+      "kind": "colloquial",
+      "expected_doc_ids": [
+        "ザーハード1.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード1.txt",
+        "ザーハード2.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "砂漠の中に埋もれている"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.txt",
+          "text": "・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。\nこの惑星には、非常に古い文明が存在した形跡があり、その文明の遺跡が砂漠の中に埋もれていることが確認されています。\n探査機によって発見された遺跡の中には、未解読の象形文字や高度な機械が数多く発見されており、その技術は現代のものと比較しても非常に先進的です。\nこれらの遺跡を解明することで、ザーハードのエネルギー源を制御する技術を理解し、他の文明に転用することができる可能性があります。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード2.txt",
+          "text": "ザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\nザーハリアンは、惑星全体のエネルギー源を利用する技術を持っており、その力を使って自らの文明を築いてきました。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "question": "今日の東京の天気を教えてください",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q023",
+      "question": "おすすめのカレーのレシピは？",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q024",
+      "question": "Pythonでリストをソートする方法",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q025",
+      "question": "サッカーのワールドカップで優勝したのはどこ？",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q026",
+      "question": "こんにちは、元気ですか？",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q027",
+      "question": "木星の大きさはどのくらいですか",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q028",
+      "question": "火星には生命がいますか",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q029",
+      "question": "地球の人口は何人ですか",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q030",
+      "question": "ザーハリアンはエネルギー源を作った存在なのですか",
+      "category": "multi_hop",
+      "expected_doc_ids": [
+        "ザーハード2.txt",
+        "ザーハード3.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード2.txt"
+      ],
+      "doc_hit": false,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "エネルギー源を利用する技術"
+      ],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "wrong_file",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.txt",
+          "text": "ザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\nザーハリアンは、惑星全体のエネルギー源を利用する技術を持っており、その力を使って自らの文明を築いてきました。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\n・遺跡の構造：遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されています。\n・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。\nこの惑星には、ザーハリアンの遺産を巡る冒険者たちが集まり、遺跡を探索し、未知の技術を解明しようとしています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "question": "遺跡の防衛システムとエネルギー源の守護機構は、どちらも侵入者を攻撃しますか",
+      "category": "multi_hop",
+      "expected_doc_ids": [
+        "ザーハード2.txt",
+        "ザーハード3.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード2.txt",
+        "ザーハード3.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "激しい攻撃を仕掛ける",
+        "侵入者に対して攻撃的に働き"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.txt",
+          "text": "・遺跡の構造：遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されています。\n・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。\nこの惑星には、ザーハリアンの遺産を巡る冒険者たちが集まり、遺跡を探索し、未知の技術を解明しようとしています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.txt",
+          "text": "しかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "question": "遺跡を解明すると、エネルギー源の制御にどう役立ちますか",
+      "category": "multi_hop",
+      "expected_doc_ids": [
+        "ザーハード1.txt",
+        "ザーハード3.txt"
+      ],
+      "retrieved_files": [
+        "ザーハード1.txt",
+        "ザーハード2.txt",
+        "ザーハード3.txt"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "エネルギー源を制御する技術",
+        "無限のエネルギー供給"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.txt",
+          "text": "探査機によって発見された遺跡の中には、未解読の象形文字や高度な機械が数多く発見されており、その技術は現代のものと比較しても非常に先進的です。\nこれらの遺跡を解明することで、ザーハードのエネルギー源を制御する技術を理解し、他の文明に転用することができる可能性があります。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード2.txt",
+          "text": "・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。\nこの惑星には、ザーハリアンの遺産を巡る冒険者たちが集まり、遺跡を探索し、未知の技術を解明しようとしています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード3.txt",
+          "text": "・エネルギー源の動力：未知のエネルギー粒子が生成され、その粒子が惑星の核心部から放出されています。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。"
+        }
+      ]
+    },
+    {
+      "id": "q033",
+      "question": "ザーハードの人口は何人ですか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "ザーハード2.txt",
+        "ザーハード3.txt",
+        "ザーハード1.txt"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.txt",
+          "text": "ザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。\nそのため、ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.txt",
+          "text": "ザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード1.txt",
+          "text": "未知の惑星ザーハードは、遥か彼方の銀河の端に位置しており、その存在自体が数世代にわたる探査団によっても解明されていません。\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・砂漠地帯の地形：広大な砂丘が続き、移動が困難であるため、探査には高機動の車両が必要です。\n・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。\nこの惑星には、非常に古い文明が存在した形跡があり、その文明の遺跡が砂漠の中に埋もれていることが確認されています。"
+        }
+      ]
+    },
+    {
+      "id": "q034",
+      "question": "ザーハードの首都はどこにありますか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "ザーハード2.txt",
+        "ザーハード3.txt",
+        "ザーハード1.txt"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.txt",
+          "text": "ザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。\nそのため、ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.txt",
+          "text": "ザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード1.txt",
+          "text": "未知の惑星ザーハードは、遥か彼方の銀河の端に位置しており、その存在自体が数世代にわたる探査団によっても解明されていません。\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・砂漠地帯の地形：広大な砂丘が続き、移動が困難であるため、探査には高機動の車両が必要です。\n・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。\nこの惑星には、非常に古い文明が存在した形跡があり、その文明の遺跡が砂漠の中に埋もれていることが確認されています。"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "question": "ザーハードの公転周期は何日ですか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "ザーハード2.txt",
+        "ザーハード3.txt",
+        "ザーハード1.txt"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.txt",
+          "text": "ザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。\nそのため、ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.txt",
+          "text": "ザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード1.txt",
+          "text": "未知の惑星ザーハードは、遥か彼方の銀河の端に位置しており、その存在自体が数世代にわたる探査団によっても解明されていません。\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・砂漠地帯の地形：広大な砂丘が続き、移動が困難であるため、探査には高機動の車両が必要です。\n・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。\nこの惑星には、非常に古い文明が存在した形跡があり、その文明の遺跡が砂漠の中に埋もれていることが確認されています。"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "question": "ザーハードの重力は地球の何倍ですか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "ザーハード1.txt"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.txt",
+          "text": "この惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。"
+        }
+      ]
+    },
+    {
+      "id": "c001",
+      "question": "みなとコーヒーはいつ創業しましたか。",
+      "category": "factual",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "みなとコーヒー 店舗案内\nみなとコーヒーは、みなと市を中心にカフェを展開するチェーンです。\n会社の概要\nみなとコーヒーは、みなと市とその周辺で12店舗を運営しています。\n店舗は港町・駅前・丘の上・湖畔の4つのエリアに分かれています。\nどの店舗も、最寄りの駅やバス停から徒歩5分以内です。\nみなとコーヒーの理念は「港のように、人が集まる場所をつくる」ことです。\n社名のみなとは、この理念に由来しています。"
+        }
+      ]
+    },
+    {
+      "id": "c002",
+      "question": "湖畔ボート小屋店では、閉店の何分前に注文の受け付けが終わりますか。",
+      "category": "factual",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ただし、湖畔ボート小屋店は閉店の15分前に受け付けを終えます。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2021年8月には、湖畔エリアの1号店として湖畔テラス店を開きました。\n2024年3月に12店舗目となる湖畔ボート小屋店を開業し、現在の12店舗になりました。\n以降、新しい店舗は増えていません。\nラストオーダーは原則として閉店の30分前に受け付けを終えます。\nただし、湖畔ボート小屋店は閉店の15分前に受け付けを終えます。\nモバイルオーダー（略称 MO）は、公式アプリから事前に注文と支払いができる仕組みです。\nただし、一覧表で「なし」とある店舗は、年中無休で営業します。\n店舗名 エリア 住所 営業時間 定休日 座席数\n港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席\n港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席\n港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席\n港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席\n駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席\n駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席\n駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席\n丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席\n丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席\n丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席\n湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席\n湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席\n脚注1 配送は、金曜日と土曜日の午前中に行います。"
+        }
+      ]
+    },
+    {
+      "id": "c003",
+      "question": "みなとクラブでは、いくら買い物をするごとに1ポイントもらえますか。",
+      "category": "factual",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "会計100円（税込）ごとに1ポイントがたまります。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2014年10月には駅前エリアに進出し、駅前中央店を開きました。\n2016年9月に、ポイント会員制度「みなとクラブ」を始めました。\n2022年4月には、公式アプリとモバイルオーダーを始めました。\nポイント会員制度\nポイント会員制度「みなとクラブ」（略称 MC）は、入会費も年会費も無料です。\n会計100円（税込）ごとに1ポイントがたまります。\nポイントは、モバイルオーダーの会計でも同じようにたまります。"
+        }
+      ]
+    },
+    {
+      "id": "c004",
+      "question": "来店する前にスマートフォンで注文を済ませられる機能が使えないのは、どの店舗ですか。",
+      "category": "paraphrase",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2021年8月には、湖畔エリアの1号店として湖畔テラス店を開きました。\n2024年3月に12店舗目となる湖畔ボート小屋店を開業し、現在の12店舗になりました。\n以降、新しい店舗は増えていません。"
+        }
+      ]
+    },
+    {
+      "id": "c005",
+      "question": "ためたポイントを長いあいだ使わずにいると、どのくらいで失効してしまいますか。",
+      "category": "paraphrase",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ポイントの有効期限は、最後に利用した日から12か月です。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "テイクアウト（略称 TO）は、全店でご利用いただけます。\nポイント会員制度\nポイント会員制度「みなとクラブ」（略称 MC）は、入会費も年会費も無料です。\nポイントは、モバイルオーダーの会計でも同じようにたまります。\nポイントの有効期限は、最後に利用した日から12か月です。\nたまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。\n無料券は、会員証を店頭で提示すると使えます。"
+        }
+      ]
+    },
+    {
+      "id": "c006",
+      "question": "座席がいちばん多いのは、どの店舗ですか。",
+      "category": "factual",
+      "kind": "aggregate",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席",
+        "港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席",
+        "港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席",
+        "港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席",
+        "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席",
+        "駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席",
+        "駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席",
+        "丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席",
+        "丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席",
+        "丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席",
+        "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席",
+        "湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "ただし、一覧表で「なし」とある店舗は、年中無休で営業します。\n店舗名 エリア 住所 営業時間 定休日 座席数\n港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席\n港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席\n港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席\n港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席\n駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席\n駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席\n駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席\n丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席\n丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席\n丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席\n湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席\n湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席\n脚注1 配送は、金曜日と土曜日の午前中に行います。"
+        }
+      ]
+    },
+    {
+      "id": "c007",
+      "question": "日曜日が定休日になっている店舗を教えてください。",
+      "category": "factual",
+      "kind": "filter",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席",
+        "港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席",
+        "港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席",
+        "港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席",
+        "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席",
+        "駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席",
+        "駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席",
+        "丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席",
+        "丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席",
+        "丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席",
+        "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席",
+        "湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "内容は2026年4月1日時点のものです。\n店舗の営業時間や定休日の最新情報は、各店の掲示でも確認できます。\n会社の概要\n朝の開店が最も早いのは港町市場前店で、6時30分に開きます。\n定休日は、原則として店舗ごとに週に1日です。\nただし、一覧表で「なし」とある店舗は、年中無休で営業します。\n店舗名 エリア 住所 営業時間 定休日 座席数\n港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席\n港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席\n港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席\n港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席\n駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席\n駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席\n駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席\n丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席\n丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席\n丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席\n湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席\n湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席\n脚注1 配送は、金曜日と土曜日の午前中に行います。"
+        }
+      ]
+    },
+    {
+      "id": "c008",
+      "question": "駅前中央店と湖畔テラス店では、どちらのほうが営業時間が長いですか。",
+      "category": "factual",
+      "kind": "comparison",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席",
+        "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2018年6月に、丘の上エリアの1号店となる丘の上公園店を開業しました。\n2021年8月には、湖畔エリアの1号店として湖畔テラス店を開きました。\n2024年3月に12店舗目となる湖畔ボート小屋店を開業し、現在の12店舗になりました。\n駐車場は原則として設けていません。\nただし、湖畔テラス店には10台分の専用駐車場があります。\n車でお越しの場合、ほかの店舗では近隣の有料駐車場をご利用ください。\nただし、一覧表で「なし」とある店舗は、年中無休で営業します。\n店舗名 エリア 住所 営業時間 定休日 座席数\n港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席\n港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席\n港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席\n港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席\n駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席\n駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席\n駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席\n丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席\n丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席\n丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席\n湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席\n湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席\n脚注1 配送は、金曜日と土曜日の午前中に行います。"
+        }
+      ]
+    },
+    {
+      "id": "c009",
+      "question": "地球から月までの距離は、どのくらいですか。",
+      "category": "out_of_scope",
+      "kind": "out_of_scope",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "c010",
+      "question": "みなとブレンドは1杯いくらですか。",
+      "category": "out_of_scope",
+      "kind": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "最初の店は、港町に開いた現在の港町本店です。\n看板商品は、深煎りの豆を3種類ブレンドした「みなとブレンド」（略称 MB）です。\n豆は港町の自社工房で焙煎し、週に2回、各店へ届けています1。\n工房では毎日、味と香りの確認を行い、その記録を1年間保管しています。\nみなとブレンドのほかに、季節ごとに入れ替わる「季節のブレンド」があります。\n季節のブレンドは、3か月ごとに年4回切り替わります。\nご利用案内"
+        }
+      ]
+    }
+  ],
+  "question_sets": [
+    "evals/questions.yaml",
+    "evals/corpora/cafe/questions.yaml"
+  ]
+}

@@ -34,8 +34,17 @@ describe('parseSources', () => {
     ]);
   });
 
-  it('.txt 以外や行頭でない角括弧は見出しとみなさない', () => {
+  it('PDF の資料も出典として認識する', () => {
+    const context = '[ザーハード1.txt]\n大気は薄い。\n\n[cafe_store_guide.pdf]\n定休日は水曜日。';
+    expect(parseSources(context)).toEqual([
+      { name: 'ザーハード1.txt', text: '大気は薄い。' },
+      { name: 'cafe_store_guide.pdf', text: '定休日は水曜日。' },
+    ]);
+  });
+
+  it('.txt と .pdf 以外や行頭でない角括弧は見出しとみなさない', () => {
     expect(parseSources('[メモ]\n本文')).toEqual([]);
+    expect(parseSources('[メモ.md]\n本文')).toEqual([]);
     expect(parseSources('参照: [ザーハード1.txt] を見よ')).toEqual([]);
   });
 

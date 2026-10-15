@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-架空の惑星「ザーハード」の設定資料に答える RAG チャットボット。FastAPI + LangGraph + Gemini のバックエンドと、
+資料（架空の惑星「ザーハード」の設定資料と、PDF の資料）に答える RAG チャットボット。FastAPI + LangGraph + Gemini のバックエンドと、
 Vite + React + TypeScript のフロントエンド（ビルド成果物を FastAPI が配信）。入口は [README.md](README.md)、
 詳細は [docs/](docs/)（API は `docs/api.md`、環境変数は `docs/configuration.md`、今後の計画は `docs/roadmap.md`）。
 
@@ -28,7 +28,10 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - `app/history_admin.py`: 履歴の削除コマンド（`python -m app.history_admin`。既定は件数の表示だけ、`--apply` で削除）。アプリからは使わない
 - `app/frontend.py`: `frontend/dist` を配信し、ファイル名らしくない未知の GET/HEAD は `index.html` にフォールバックする
   （拡張子付きのパスや `/assets/` 配下は 404）
-- `storage/chunk/`: 設定資料（RAG のコーパス）
+- `storage/chunk/`: ザーハードの設定資料の .txt（資料群 `zahard`）
+- `storage/pdf/<名前>/`: PDF の資料。ディレクトリ名が資料群の名前（いまは `cafe`）。チャットの検索ツール `search_documents` は、
+  資料群ごとに別々に BM25 で採点して結果を合わせる（混ぜて採点しない。理由は `docs/configuration.md`）。
+  `storage/pdf/cafe/cafe_store_guide.pdf` は `evals/corpora/cafe/` の PDF の写し（作り直したら両方を更新する）
 - `frontend/`: UI。`dist/` と `node_modules/` は Git 管理外
 
 ## 守ること（コードを書く前に）

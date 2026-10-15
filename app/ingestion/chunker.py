@@ -8,14 +8,15 @@
   間隔に変化が無いページは、文末で終わる行の後ろと、短くて文末が無い行の前後で切る。
 - 段落は 1 つのチャンクにする。折り返された行はつなぎ、文は `\\n` で区切る（検索側が改行を文の区切りに使うため）。
 - 見出し（文字が大きい、または短くて文末が無い 1 行）は、チャンクにせず、後ろのチャンクの `heading` にする。
-- 間が空いたセルが 2 つ以上ある行が続いたら表とみなす。表は、行ごとに改行で区切った 1 つのチャンクにする
-  （見出し行つき。長ければ行の範囲で分け、見出し行を繰り返す）。ページをまたぐ表は、ページごとのチャンクになる。
-  続きのページに見出し行が無ければ、前のページの見出し行を補う。
+- 間が空いたセルが 2 つ以上ある行が続いたら表とみなす。表は、行ごとに改行で区切った 1 つのチャンク（`kind="table"`）にする
+  （見出し行つき）。**ページをまたいでも、全体が `HARD_LIMIT_CHARS` に収まるなら 1 つにまとめる**（`page` は先頭、`page_end` は最終ページ）。
+  続きのページで見出し行が繰り返されていれば、重ねない。収まらない表だけを行の範囲で分け、見出し行を繰り返す。
+  表のすぐ後に、同じ列数の表が次のページの先頭から続くときだけ、続きとみなす（間に段落や別の表があれば別の表）。
 - ページ番号（「3 / 4」など）は捨てる。
 
 **共通**
 
-- チャンクは 1 ページの中に収める（`page` が正確になる）。
+- 段落のチャンクは 1 ページの中に収める（`page` が正確になる）。表だけが、ページをまたぎうる（`page_end`）。
 - 長さで詰めて大きなチャンクにはしない。詰める方式は、段落を 1 つ書き換えて文字数が変わっただけで、後ろの切れ目がずれ、
   変わっていないチャンクまで「変更」になる（テストで確かめた）。段落単位なら、書き換えた段落のチャンクだけが変わる。
   段落の挿入・削除でも、増減するのはその段落のチャンクだけで、ほかのチャンクの内容（ハッシュ）は変わらない（番号は 1 つずれる）。
@@ -53,10 +54,12 @@ _PAGE_NUMBER = re.compile(r"^(?:[-–—]\s*)?\d+\s*(?:/\s*\d+)?(?:\s*[-–—])
 @dataclass(frozen=True)
 class Chunk:
     index: int  # 文書の中での順序（0 始まり）
-    page: int
+    page: int  # 先頭のページ
     heading: str | None
     text: str
     content_hash: str
+    page_end: int | None = None  # 表がページをまたぐときの最終ページ（またがなければ None）
+    kind: str = "text"  # text（段落）または table（表。1 行 1 行を改行で区切る）
 
 
 def normalize_for_hash(text: str) -> str:
@@ -204,23 +207,31 @@ def _blocks(lines: list[Line]) -> list[list[Line]]:
     return blocks
 
 
-def _table_chunks(rows: list[str]) -> list[list[str]]:
-    """表の行を、見出し行を繰り返しながら、長すぎるときだけ行の範囲で分ける。"""
+def _table_chunks(rows: list[tuple[str, int]]) -> list[list[tuple[str, int]]]:
+    """表の行（文字列, ページ）を、見出し行を繰り返しながら、長すぎるときだけ行の範囲で分ける。"""
     header, body = rows[0], rows[1:]
-    if sum(len(r) + 1 for r in rows) <= HARD_LIMIT_CHARS or not body:
+    if sum(len(r[0]) + 1 for r in rows) <= HARD_LIMIT_CHARS or not body:
         return [rows]
-    groups: list[list[str]] = []
-    current: list[str] = [header]
-    size = len(header) + 1
+    groups: list[list[tuple[str, int]]] = []
+    current: list[tuple[str, int]] = [header]
+    size = len(header[0]) + 1
     for row in body:
-        if len(current) > 1 and size + len(row) + 1 > HARD_LIMIT_CHARS:
+        if len(current) > 1 and size + len(row[0]) + 1 > HARD_LIMIT_CHARS:
             groups.append(current)
-            current, size = [header], len(header) + 1
+            current, size = [header], len(header[0]) + 1
         current.append(row)
-        size += len(row) + 1
+        size += len(row[0]) + 1
     if len(current) > 1:
         groups.append(current)
     return groups
+
+
+@dataclass
+class _PendingTable:
+    rows: list[tuple[str, int]]  # (行の文字列, ページ)
+    cells: int
+    heading: str | None
+    at_page_end: bool = False  # ページの最後のブロックが、この表だった
 
 
 def chunk_pages(pages: list[Page]) -> list[Chunk]:
@@ -230,15 +241,39 @@ def chunk_pages(pages: list[Page]) -> list[Chunk]:
 
     chunks: list[Chunk] = []
     heading: str | None = None
-    table_header: tuple[str, int] | None = None  # (見出し行, セル数)
+    pending: _PendingTable | None = None
 
-    def add(page: int, text: str) -> None:
+    def add(page: int, text: str, *, page_end: int | None = None, kind: str = "text", under: str | None = None):
         chunks.append(
-            Chunk(index=len(chunks), page=page, heading=heading, text=text, content_hash=content_hash(text))
+            Chunk(
+                index=len(chunks),
+                page=page,
+                heading=under if kind == "table" else heading,
+                text=text,
+                content_hash=content_hash(text),
+                page_end=page_end if page_end and page_end != page else None,
+                kind=kind,
+            )
         )
+
+    def flush() -> None:
+        nonlocal pending
+        if pending is None:
+            return
+        for group in _table_chunks(pending.rows):
+            pages_in = [r[1] for r in (group[1:] or group)]  # 見出し行は、繰り返されても範囲に数えない
+            add(
+                min(pages_in),
+                "\n".join(r[0] for r in group),
+                page_end=max(pages_in),
+                kind="table",
+                under=pending.heading,
+            )
+        pending = None
 
     for page in pages:
         if not page.lines:
+            flush()
             lines = [line.strip() for line in page.text.splitlines() if line.strip()]
             for group in _split_lines(lines):
                 add(page.number, "\n".join(group))
@@ -246,21 +281,29 @@ def chunk_pages(pages: list[Page]) -> list[Chunk]:
 
         body = [line for line in page.lines if not _is_page_number(line)]
         blocks = [part for block in _blocks(body) for part in _split_leading_headings(block, body_size)]
-        for block in blocks:
+        carried = pending is not None and pending.at_page_end  # 前のページの最後が表だった
+        if pending is not None:
+            pending.at_page_end = False
+        for number, block in enumerate(blocks):
             if _is_table_row(block[0]):
-                rows = [line.text for line in block]
+                rows = [(line.text, page.number) for line in block]
                 cells = len(block[0].cells)
-                if table_header is not None and table_header[1] == cells and rows[0] != table_header[0]:
-                    rows.insert(0, table_header[0])  # 続きのページに見出し行が無い
-                table_header = (rows[0], cells)
-                for group in _table_chunks(rows):
-                    add(page.number, "\n".join(group))
+                if pending is not None and carried and number == 0 and pending.cells == cells:
+                    if normalize_for_hash(rows[0][0]) == normalize_for_hash(pending.rows[0][0]):
+                        rows = rows[1:]  # 続きのページで繰り返された見出し行
+                    pending.rows.extend(rows)
+                else:
+                    flush()
+                    pending = _PendingTable(rows=rows, cells=cells, heading=heading)
                 continue
-            table_header = None
+            flush()
             if _is_heading(block, body_size):
                 heading = _join_wrapped([line.text.strip() for line in block])
                 continue
             paragraph = _join_wrapped([line.text.strip() for line in block])
             for group in _cap(_sentences(paragraph)):
                 add(page.number, "\n".join(group))
+        if pending is not None and blocks and _is_table_row(blocks[-1][0]):
+            pending.at_page_end = True
+    flush()
     return chunks

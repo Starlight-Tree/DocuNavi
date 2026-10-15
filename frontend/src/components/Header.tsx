@@ -13,7 +13,7 @@ export function Header({ mode, onNewConversation }: HeaderProps) {
 
   return (
     <header className="app-header">
-      <h1 className="app-title">ザーハード設定資料チャット</h1>
+      <h1 className="app-title">資料チャット</h1>
       <div className="app-header-actions">
         {modeInfo && (
           <span className={`mode-badge mode-${mode}`} title={modeInfo.hint}>

@@ -417,16 +417,47 @@ def test_a_table_is_one_chunk_with_its_header_and_one_row_per_line():
     ]
 
 
-def test_a_table_that_continues_on_the_next_page_gets_the_header_back():
+def test_a_small_table_across_a_page_break_is_one_chunk_with_a_page_range():
     chunks = _layout([[ROW_HEADER, ROWS[0]], [ROWS[1], ROWS[2]]])
-    assert [c.page for c in chunks] == [1, 2]
-    assert chunks[1].text.split("\n") == ["店舗名 エリア 座席数", "港町ベイ店 港町 42席", "湖畔テラス店 湖畔 76席"]
+
+    assert len(chunks) == 1
+    (table,) = chunks
+    assert (table.kind, table.page, table.page_end) == ("table", 1, 2)
+    assert table.text.split("\n") == [
+        "店舗名 エリア 座席数",
+        "港町本店 港町 68席",
+        "港町ベイ店 港町 42席",
+        "湖畔テラス店 湖畔 76席",
+    ]
 
 
 def test_a_repeated_header_on_the_next_page_is_not_doubled():
-    chunks = _layout([[ROW_HEADER, ROWS[0]], [ROW_HEADER, ROWS[1], ROWS[2]]])
-    assert chunks[1].text.split("\n")[:2] == ["店舗名 エリア 座席数", "港町ベイ店 港町 42席"]
-    assert chunks[1].text.count("店舗名") == 1
+    (table,) = _layout([[ROW_HEADER, ROWS[0]], [ROW_HEADER, ROWS[1], ROWS[2]]])
+    assert table.text.count("店舗名") == 1
+    assert len(table.text.split("\n")) == 4
+    assert (table.page, table.page_end) == (1, 2)
+
+
+def test_a_single_page_table_has_no_page_end():
+    chunks = _layout([["前の説明です。", "", ROW_HEADER, *ROWS]])
+    table = next(c for c in chunks if c.kind == "table")
+    assert (table.page, table.page_end) == (1, None)
+    assert all(c.kind == "text" for c in chunks if c is not table)
+
+
+def test_tables_are_not_merged_across_a_paragraph_or_with_a_different_column_count():
+    # 間に段落がある
+    chunks = _layout([[ROW_HEADER, ROWS[0]], ["間の説明です。", "", ROWS[1], ROWS[2]]])
+    assert [c.kind for c in chunks] == ["table", "text", "table"]
+    # 列数が違う表は、続きではなく別の表
+    other = [("名前", "値"), ("a", "1")]
+    chunks = _layout([[ROW_HEADER, ROWS[0]], other])
+    assert [(c.kind, c.page, c.page_end) for c in chunks] == [("table", 1, None), ("table", 2, None)]
+
+
+def test_a_table_that_ends_mid_page_is_not_continued_by_a_table_on_the_next_page():
+    chunks = _layout([[ROW_HEADER, ROWS[0], "", "表のあとの段落です。"], [ROW_HEADER, ROWS[1]]])
+    assert [c.kind for c in chunks] == ["table", "text", "table"]
 
 
 def test_a_long_table_is_split_by_rows_and_each_part_repeats_the_header(monkeypatch):
@@ -435,9 +466,23 @@ def test_a_long_table_is_split_by_rows_and_each_part_repeats_the_header(monkeypa
     chunks = _layout([[ROW_HEADER, *rows]])
 
     assert len(chunks) > 1
+    assert all(c.kind == "table" for c in chunks)
     assert all(c.text.split("\n")[0] == "店舗名 エリア 座席数" for c in chunks)
     body = [line for c in chunks for line in c.text.split("\n")[1:]]
     assert body == [f"店舗{i} 港町 {i}席" for i in range(1, 9)]  # 欠けも重複もない
+
+
+def test_a_long_table_across_pages_keeps_the_page_range_of_each_part(monkeypatch):
+    monkeypatch.setattr(chunker, "HARD_LIMIT_CHARS", 60)
+    rows = [(f"店舗{i}", "港町", f"{i}席") for i in range(1, 9)]
+    chunks = _layout([[ROW_HEADER, *rows[:4]], rows[4:]])
+
+    assert len(chunks) > 1
+    pages = [(c.page, c.page_end) for c in chunks]
+    assert pages[0][0] == 1 and pages[-1][1] in (None, 2)
+    assert any(page_end == 2 or page == 2 for page, page_end in pages)
+    for c in chunks:  # 各部分は、自分の行のページの範囲だけを持つ
+        assert c.page <= (c.page_end or c.page)
 
 
 def test_a_very_long_paragraph_is_split_at_sentence_ends(monkeypatch):
@@ -475,16 +520,18 @@ CAFE_PDF = Path(__file__).resolve().parents[1] / "evals" / "corpora" / "cafe" / 
 
 
 @pytest.mark.skipif(not CAFE_PDF.exists(), reason="評価用の PDF（evals/corpora/cafe/）が無い")
-def test_the_cafe_pdf_keeps_its_table_across_the_page_break():
+def test_the_cafe_pdf_keeps_its_table_as_one_chunk_across_the_page_break(monkeypatch):
+    monkeypatch.setattr(chunker, "HARD_LIMIT_CHARS", 1600)  # 共通設定の小さな上限ではなく、実際の上限で
     pages = extract_pages(CAFE_PDF)
     chunks = chunk_pages(pages)
 
-    tables = [c for c in chunks if c.text.startswith("店舗名 エリア 住所")]
-    assert [c.page for c in tables] == [3, 4]  # 表は 2 ページにまたがる
-    store_rows = [line for c in tables for line in c.text.split("\n")[1:]]
-    assert len(store_rows) == 12
-    assert any(row.startswith("湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席") for row in store_rows)
-    assert {c.heading for c in tables} == {"店舗一覧"}
+    (table,) = [c for c in chunks if c.kind == "table"]
+    assert (table.page, table.page_end) == (3, 4)  # 表は 2 ページにまたがる
+    rows = table.text.split("\n")
+    assert rows[0] == "店舗名 エリア 住所 営業時間 定休日 座席数"
+    assert len(rows) == 13  # 見出し行は 1 つ、店舗は 12 行
+    assert "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席" in rows
+    assert table.heading == "店舗一覧"
     # ページ番号は本文に入らない
     assert not any("3 / 4" in c.text or "4 / 4" in c.text for c in chunks)
     # 2 回読んでも、同じチャンク・同じハッシュ

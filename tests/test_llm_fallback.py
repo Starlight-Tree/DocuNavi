@@ -697,7 +697,7 @@ def test_stream_prefer_fallback_and_on_fallback():
 
 # --- 同じ質問の中で、フォールバックを覚える（グラフ）---------------------------------
 
-SEARCH = ("tool", "search_zahard_lore", {"query": "大気"})
+SEARCH = ("tool", "search_documents", {"query": "大気"})
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["invoke", "stream"])
