@@ -387,10 +387,14 @@ def test_app_baseline_is_the_sum_of_the_single_collection_baselines():
     results = ROOT / "evals" / "results"
     for suffix in ("", "_k2"):
         app = json.loads((results / f"baseline_bm25_app{suffix}.json").read_text(encoding="utf-8"))
-        parts = [json.loads((results / f"baseline_bm25{kind}{suffix}.json").read_text(encoding="utf-8")) for kind in ("", "_cafe")]
-        assert app["summary"]["counts"] == {
-            key: sum(part["summary"]["counts"][key] for part in parts) for key in app["summary"]["counts"]
-        }
+        parts = [json.loads((results / f"baseline_bm25{kind}{suffix}.json").read_text(encoding="utf-8")) for kind in ("", "_cafe", "_guides")]
+        summed = {key: sum(part["summary"]["counts"][key] for part in parts) for key in app["summary"]["counts"]}
+        # 答えのある質問は、各資料群を単独で評価した結果と同じ
+        assert app["summary"]["counts"]["doc_hit"] == summed["doc_hit"]
+        assert app["summary"]["counts"]["keyword_hit"] == summed["keyword_hit"]
+        # 資料外の質問は、他の資料群が偶然に返すことがあるので、単独の合計より増えるだけ（減ることはない）。
+        # 実測: t010（寮でペット）が cafe の PDF を返す（tests/test_collections.py の KNOWN_SPILL）
+        assert app["summary"]["counts"]["answered_empty"] <= summed["answered_empty"]
         assert app["summary"]["total_questions"] == sum(part["summary"]["total_questions"] for part in parts)
 
 
@@ -399,10 +403,18 @@ def test_app_mode_reports_the_sets_and_pdfs(tmp_path):
     assert ev.main(["--app", "--k", "3", "--out", str(out)]) == 0
     report = json.loads(out.read_text(encoding="utf-8"))
     assert report["corpus"]["source"] == "app"
-    assert set(report["corpus"]["collections"]) == {"zahard", "cafe"}
-    assert set(report["corpus"]["pdf_sha256"]) == {"cafe/cafe_store_guide.pdf"}
-    assert report["question_sets"] == ["evals/questions.yaml", "evals/corpora/cafe/questions.yaml"]
-    assert report["summary"]["total_questions"] == 46
+    assert set(report["corpus"]["collections"]) == {"zahard", "cafe", "guides"}
+    assert set(report["corpus"]["pdf_sha256"]) == {
+        "cafe/cafe_store_guide.pdf",
+        "guides/aoba_aw820_manual.pdf",
+        "guides/tsubasa_dorm_rules.pdf",
+    }
+    assert report["question_sets"] == [
+        "evals/questions.yaml",
+        "evals/corpora/cafe/questions.yaml",
+        "evals/corpora/guides/questions.yaml",
+    ]
+    assert report["summary"]["total_questions"] == 68
 
 
 def test_app_mode_rejects_ids_shared_between_question_sets(tmp_path, monkeypatch, capsys):
@@ -628,6 +640,144 @@ def test_corpus_mode_does_not_drop_a_pdf_that_cannot_be_read(tmp_path, capsys):
     err = capsys.readouterr().err
     assert "broken.pdf: unreadable" in err
     assert not (tmp_path / "r.json").exists()
+
+
+# ---- extraction_miss（根拠が抽出結果に無い質問を、止まらずに数える） ----
+
+EXTRACTION_QUESTIONS = """
+- id: p1
+  question: "座席数が最も多いのは？"
+  category: factual
+  expected_doc_ids: ["guide.pdf"]
+  evidence: ["座席数が最も多いのは湖畔テラス店です。"]
+- id: p2
+  question: "港町本店の駐車場は何台ですか？"
+  category: factual
+  expected_doc_ids: ["guide.pdf"]
+  evidence: ["港町本店の駐車場は 12 台です。"]
+- id: p3
+  question: "宇宙船の速度は？"
+  category: out_of_scope
+  scope_kind: off_topic
+"""
+
+
+def test_find_extraction_misses_lists_the_evidence_that_the_extraction_lacks():
+    corpus = {"a.pdf": "港町本店 68席\n湖畔テラス店 76席", "b.pdf": "キャンペーンは 4 月 1 日から"}
+    rows = ("港町本店 68席", "湖畔テラス店 76席", "天神本店 64席")
+    questions = [
+        _q(id="m_all", expected_doc_ids=("a.pdf",), evidence=rows, evidence_mode="all"),
+        _q(id="m_any_partial", expected_doc_ids=("a.pdf",), evidence=rows, evidence_mode="any"),
+        _q(id="ok", expected_doc_ids=("a.pdf",), evidence=rows[:2], evidence_mode="all"),
+        # 根拠は b にあるが、a には 1 つも無い（2 冊をあわせる質問で、a の根拠を読み取れていない）
+        _q(
+            id="m_doc_without",
+            expected_doc_ids=("a.pdf", "b.pdf"),
+            evidence=("港町本店 68席", "キャンペーンは 4 月 1 日から"),
+            evidence_mode="any",
+        ),
+        _q(id="no_file", expected_doc_ids=("nope.pdf",), evidence=("何か",)),
+        _q(id="off", category="out_of_scope", scope_kind="off_topic"),
+    ]
+    misses = ev.find_extraction_misses(questions, corpus)
+    assert set(misses) == {"m_all", "m_any_partial"}
+    assert misses["m_all"] == ["天神本店 64席"]
+    # 期待ファイルが資料に無いのは、読み取りの失敗ではなく評価セットの誤り（check_against_corpus が止める）
+    assert "no_file" not in misses and "off" not in misses
+    assert [m for m in ev.check_against_corpus(questions, corpus) if m.startswith("no_file")]
+
+
+def test_a_missing_evidence_is_counted_as_extraction_miss_instead_of_a_search_failure():
+    q = _q(expected_doc_ids=("g.pdf",), evidence=("港町本店の駐車場は 12 台です。",))
+    hits = [("g.pdf", "港町本店の定休日はありません。")]
+
+    plain = ev.evaluate_question(q, hits)
+    assert plain["failure_category"] == "keyword_miss" and "extraction_miss" not in plain
+
+    counted = ev.evaluate_question(q, hits, ["港町本店の駐車場は 12 台です。"])
+    assert counted["failure_category"] == "extraction_miss"
+    assert counted["extraction_miss"] is True
+    assert counted["missing_evidence"] == ["港町本店の駐車場は 12 台です。"]
+    # 検索そのものの結果（返ったファイル・順位）は消さない
+    assert counted["doc_hit"] is True and counted["retrieved_files"] == ["g.pdf"]
+
+
+def test_a_partly_missing_evidence_is_flagged_but_not_counted_as_a_failure_when_search_succeeds():
+    q = _q(expected_doc_ids=("g.pdf",), evidence=("答えの文。", "言い換えた別の文。"), evidence_mode="any")
+    record = ev.evaluate_question(q, [("g.pdf", "答えの文。")], ["言い換えた別の文。"])
+    assert record["keyword_hit"] is True
+    assert record["failure_category"] is None
+    assert record["extraction_miss"] is True
+
+
+def test_corpus_mode_stops_on_a_missing_evidence_unless_it_is_allowed(tmp_path, capsys):
+    corpus = _pdf_corpus(tmp_path, questions=EXTRACTION_QUESTIONS)
+    out = tmp_path / "r.json"
+    assert ev.main(["--corpus", str(corpus), "--out", str(out)]) == 2
+    err = capsys.readouterr().err
+    assert "駐車場は 12 台" in err and "--allow-missing-evidence" in err
+    assert not out.exists()
+
+
+def test_corpus_mode_counts_extraction_misses_when_allowed(tmp_path):
+    corpus = _pdf_corpus(tmp_path, questions=EXTRACTION_QUESTIONS)
+    out = tmp_path / "r.json"
+    assert ev.main(["--corpus", str(corpus), "--k", "3", "--allow-missing-evidence", "--out", str(out)]) == 0
+
+    report = json.loads(out.read_text(encoding="utf-8"))
+    summary = report["summary"]
+    assert summary["extraction_miss"]["n"] == 1
+    assert summary["extraction_miss"]["ids"] == ["p2"]
+    assert summary["failure_counts"] == {"extraction_miss": 1}
+    # 全体の指標は、読み取りの失敗も含む（パイプライン全体の結果）。読み取れた質問だけの指標も添える
+    assert summary["counts"]["keyword_hit"] == 1 and summary["answerable_questions"] == 2
+    only = summary["extraction_miss"]["extracted_only"]
+    assert (only["n"], only["doc_hits"], only["keyword_hits"]) == (1, 1, 1)
+    results = {r["id"]: r for r in report["results"]}
+    assert results["p2"]["failure_category"] == "extraction_miss"
+    assert "extraction_miss" not in results["p1"]
+    assert results["p3"]["answered_empty"] is True
+
+
+def test_the_report_has_no_extraction_miss_key_unless_it_is_allowed(tmp_path):
+    corpus = _pdf_corpus(tmp_path, questions=EXTRACTION_QUESTIONS.split("- id: p2")[0])
+    out = tmp_path / "r.json"
+    assert ev.main(["--corpus", str(corpus), "--out", str(out)]) == 0
+    assert "extraction_miss" not in json.loads(out.read_text(encoding="utf-8"))["summary"]
+
+
+def test_allowing_missing_evidence_does_not_hide_a_missing_expected_file(tmp_path, capsys):
+    corpus = _pdf_corpus(
+        tmp_path,
+        questions="""
+        - id: p1
+          question: "座席数が最も多いのは？"
+          category: factual
+          expected_doc_ids: ["nope.pdf"]
+          evidence: ["座席数が最も多いのは湖畔テラス店です。"]
+        """,
+    )
+    out = tmp_path / "r.json"
+    assert ev.main(["--corpus", str(corpus), "--allow-missing-evidence", "--out", str(out)]) == 2
+    assert "nope.pdf" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_a_page_of_an_extraction_miss_is_not_checked_when_it_is_allowed(tmp_path):
+    corpus = _pdf_corpus(
+        tmp_path,
+        questions="""
+        - id: p2
+          question: "港町本店の駐車場は何台ですか？"
+          category: factual
+          expected_doc_ids: ["guide.pdf"]
+          evidence: ["港町本店の駐車場は 12 台です。"]
+          page: 2
+        """,
+    )
+    out = tmp_path / "r.json"
+    assert ev.main(["--corpus", str(corpus), "--allow-missing-evidence", "--out", str(out)]) == 0
+    assert json.loads(out.read_text(encoding="utf-8"))["summary"]["extraction_miss"]["ids"] == ["p2"]
 
 
 CAFE_DIR = ROOT / "evals" / "corpora" / "cafe"

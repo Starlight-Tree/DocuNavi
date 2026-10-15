@@ -6,6 +6,7 @@ LLM も DB も呼ばない。検索の実体は app/agents/tools.py の search_c
     python -m scripts.eval_retrieval --mode bm25 --k 5                          # storage/chunk/（ザーハード）
     python -m scripts.eval_retrieval --mode bm25 --k 5 --corpus evals/corpora/cafe   # PDF の資料
     python -m scripts.eval_retrieval --mode bm25 --k 5 --app                    # アプリが検索する全資料（全部の質問）
+    python -m scripts.eval_retrieval --corpus <dir> --allow-missing-evidence    # 根拠が抽出に無い質問を、止まらずに数える
 """
 
 from __future__ import annotations
@@ -167,22 +168,51 @@ def _text_of(value: str | Sequence[Any]) -> str:
     return "\n".join(_text_of(item) for item in value)
 
 
-def check_against_corpus(questions: Sequence[Question], corpus: dict[str, Any]) -> list[str]:
-    """期待ファイル・根拠が資料に実在するかを検査する。資料を書き換えて評価が黙って無効になるのを防ぐ。"""
-    problems: list[str] = []
+def _corpus_problems(questions: Sequence[Question], corpus: dict[str, Any]) -> list[tuple[str, str, str]]:
+    """(質問 id, 種類, 文) の列。種類は file（期待ファイルが資料に無い）か evidence（根拠が抽出結果に無い）。"""
+    problems: list[tuple[str, str, str]] = []
     for q in questions:
         if not q.answerable:
             continue
         for name in q.expected_doc_ids:
             if name not in corpus:
-                problems.append(f"{q.id}: 資料に {name} がありません")
+                problems.append((q.id, "file", f"{q.id}: 資料に {name} がありません"))
             elif not any(_contains(_text_of(corpus[name]), ev) for ev in q.evidence):
-                problems.append(f"{q.id}: {name} に根拠 {list(q.evidence)} が見つかりません")
+                problems.append((q.id, "evidence", f"{q.id}: {name} に根拠 {list(q.evidence)} が見つかりません"))
         known = [_text_of(corpus[n]) for n in q.expected_doc_ids if n in corpus]
         for ev in q.evidence:
             if known and not any(_contains(text, ev) for text in known):
-                problems.append(f"{q.id}: 根拠 {ev!r} が期待ファイルのどれにもありません")
+                problems.append((q.id, "evidence", f"{q.id}: 根拠 {ev!r} が期待ファイルのどれにもありません"))
     return problems
+
+
+def check_against_corpus(questions: Sequence[Question], corpus: dict[str, Any]) -> list[str]:
+    """期待ファイル・根拠が資料に実在するかを検査する。資料を書き換えて評価が黙って無効になるのを防ぐ。"""
+    return [message for _, _, message in _corpus_problems(questions, corpus)]
+
+
+def find_extraction_misses(questions: Sequence[Question], corpus: dict[str, Any]) -> dict[str, list[str]]:
+    """根拠が抽出結果に無い質問（質問 id -> 抽出結果に無い根拠）。
+
+    期待ファイル自体が資料に無い質問は含めない（それは抽出の取りこぼしではなく、評価セットの誤り）。
+    根拠の原文は、PDF の見た目から書かれている（抽出結果から書いていない）ので、抽出が壊れていれば、ここに現れる。
+    根拠のどれかが期待ファイルのどれにも無い質問と、根拠が 1 つも無い期待ファイルがある質問（check_against_corpus が、
+    根拠の不一致として止める質問と同じ）。一部の根拠だけが無い質問は、採点はできるが、評価セットと抽出結果がずれている。
+    """
+    texts = {name: _text_of(value) for name, value in corpus.items()}
+    misses: dict[str, list[str]] = {}
+    for q in questions:
+        if not q.answerable:
+            continue
+        docs = [texts[name] for name in q.expected_doc_ids if name in texts]
+        if len(docs) != len(q.expected_doc_ids):
+            continue
+        missing = [ev for ev in q.evidence if not any(_contains(text, ev) for text in docs)]
+        if not missing and any(not any(_contains(text, ev) for ev in q.evidence) for text in docs):
+            missing = list(q.evidence)  # 根拠は他のファイルにあるが、根拠が 1 つも無い期待ファイルがある
+        if missing:
+            misses[q.id] = missing
+    return misses
 
 
 def classify_failure(
@@ -200,6 +230,8 @@ def classify_failure(
     keyword_miss      期待ファイルは先頭だが、根拠の文が返っていない
     paraphrase_miss   paraphrase の質問での no_hit / wrong_file / keyword_miss
     unexpected_result out_of_scope なのに何か返った
+    extraction_miss   根拠が抽出結果に無い（検索の失敗ではなく、PDF の読み取りの失敗）。evaluate_question が、
+                      --allow-missing-evidence のときだけ、上のどれよりも優先して付ける
     """
     if not q.answerable:
         return "unexpected_result" if retrieved_files else None
@@ -215,7 +247,8 @@ def classify_failure(
     return None
 
 
-def evaluate_question(q: Question, hits: list[tuple[str, str]]) -> dict[str, Any]:
+def evaluate_question(q: Question, hits: list[tuple[str, str]], missing_evidence: Sequence[str] = ()) -> dict[str, Any]:
+    """missing_evidence: 抽出結果に無い根拠（find_extraction_misses）。あれば、失敗は extraction_miss として数える。"""
     files = [name for name, _ in hits]
     record: dict[str, Any] = {
         "id": q.id,
@@ -269,6 +302,11 @@ def evaluate_question(q: Question, hits: list[tuple[str, str]]) -> dict[str, Any
         record["first_hit_rank"],
         bool(record["keyword_hit"]),
     )
+    if missing_evidence:
+        record["extraction_miss"] = True
+        record["missing_evidence"] = list(missing_evidence)
+        if record["failure_category"]:
+            record["failure_category"] = "extraction_miss"  # 検索より前（読み取り）で落ちている。検索の失敗に数えない
     record["retrieved"] = [
         {"rank": rank, "file": name, "text": text} for rank, (name, text) in enumerate(hits, start=1)
     ]
@@ -370,10 +408,28 @@ def run(
     k: int,
     corpus: dict[str, Any] | None = None,
     collections: dict[str, dict[str, Any]] | None = None,
+    extraction_misses: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
-    """corpus は 1 つの資料群（None なら storage/chunk/）。collections を渡すと、アプリと同じに資料群ごとに採点する。"""
+    """corpus は 1 つの資料群（None なら storage/chunk/）。collections を渡すと、アプリと同じに資料群ごとに採点する。
+
+    extraction_misses（find_extraction_misses の結果）を渡すと、根拠が抽出結果に無い質問を extraction_miss として数え、
+    summary に extraction_miss を足す。None（既定）なら、結果の形は変わらない。
+    """
     search = MODES[mode]
-    records = [evaluate_question(q, search(q.question, k, corpus, collections)) for q in questions]
+    records = [
+        evaluate_question(q, search(q.question, k, corpus, collections), (extraction_misses or {}).get(q.id, ()))
+        for q in questions
+    ]
+    summary = summarize(records, k)
+    if extraction_misses is not None:
+        answerable = [r for r in records if r["category"] != OUT_OF_SCOPE]
+        missed = [r for r in answerable if r.get("extraction_miss")]
+        summary["extraction_miss"] = {
+            "n": len(missed),
+            "ids": [r["id"] for r in missed],
+            # 読み取れた質問だけの指標（検索の良し悪しだけを見る。全体の指標は、読み取りの失敗も含む）
+            "extracted_only": _answerable_stats([r for r in answerable if not r.get("extraction_miss")]),
+        }
     if collections is not None:
         info = collections_info(collections)
     else:
@@ -384,7 +440,7 @@ def run(
         "generated_at": datetime.now(JST).isoformat(timespec="seconds"),
         "corpus": info,
         "search_params": search_params(),
-        "summary": summarize(records, k),
+        "summary": summary,
         "results": records,
     }
 
@@ -424,6 +480,13 @@ def print_summary(report: dict[str, Any]) -> None:
         print(f"    {kind}: {v['empty']}/{v['n']}")
     for cat, v in s["by_category"].items():
         print(f"  [{cat}] n={v['n']} doc_recall={v['doc_recall']} keyword={v['keyword_hit_rate']} mrr={v['mrr']}")
+    if "extraction_miss" in s:
+        miss = s["extraction_miss"]
+        only = miss["extracted_only"]
+        print(f"  extraction_miss    {miss['n']}/{s['answerable_questions']}  {miss['ids']}（根拠が抽出結果に無い質問）")
+        print(
+            f"  読み取れた質問だけ: doc {only['doc_hits']}/{only['n']}  keyword {only['keyword_hits']}/{only['n']}  mrr {only['mrr']}"
+        )
     failed = [r for r in report["results"] if r["failure_category"]]
     print(f"failures: {len(failed)}  {s['failure_counts']}")
     for r in failed:
@@ -451,6 +514,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="アプリが検索する全資料（storage/chunk/ の .txt と storage/pdf/ の PDF）を、アプリと同じ検索で採点する。"
         "質問は evals/questions.yaml と evals/corpora/*/questions.yaml の全部",
+    )
+    parser.add_argument(
+        "--allow-missing-evidence",
+        action="store_true",
+        help="根拠が抽出結果に無い質問があっても止まらず、extraction_miss として数えて測る"
+        "（既定は、評価が黙って無効になるのを防ぐために、終了コード 2 で止まる）。期待ファイルが資料に無い誤りは、止まる",
     )
     parser.add_argument("--questions", type=Path, default=None, help="評価セット（既定 evals/questions.yaml）")
     parser.add_argument(
@@ -496,14 +565,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             searched = {name: text for coll in collections.values() for name, text in coll.items()}
         else:
             searched = tools.load_chunks() if corpus is None else corpus
-        problems = check_against_corpus(questions, searched)
+        found_problems = _corpus_problems(questions, searched)
+        # 根拠が抽出結果に無い質問を、止まらずに数える指定。期待ファイルが無いなどの誤りは、指定があっても止まる
+        misses = find_extraction_misses(questions, searched) if args.allow_missing_evidence else None
+        problems = [
+            message for qid, kind, message in found_problems if misses is None or kind != "evidence"
+        ]
     except (QuestionsError, OSError, yaml.YAMLError) as exc:
         print(f"評価セットを読めません: {exc}", file=sys.stderr)
         return 2
     evidence_pages = {q.id: locate_evidence(q, pages_by_doc) for q in questions if q.answerable} if corpus else {}
     for q in questions:
         # 評価セットに page が書かれていれば、抽出結果と食い違わないことを確かめる
-        if q.page is not None and corpus is not None:
+        # （根拠が抽出結果に無い質問は、ページを確かめられない。extraction_miss として数える）
+        if q.page is not None and corpus is not None and q.id not in (misses or {}):
             found = {n for pages in evidence_pages.get(q.id, {}).values() for n in pages}
             if q.page not in found:
                 problems.append(f"{q.id}: page={q.page} と、抽出結果のページ {sorted(found)} が違います")
@@ -511,9 +586,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("評価セットが資料と合っていません:", file=sys.stderr)
         for problem in problems:
             print(f"  {problem}", file=sys.stderr)
+        if misses is None and any(kind == "evidence" for _, kind, _ in found_problems):
+            print(
+                "根拠が抽出結果に無いだけなら、--allow-missing-evidence で、extraction_miss として数えて測れます。",
+                file=sys.stderr,
+            )
         return 2
 
-    report = run(questions, args.mode, args.k, corpus, collections)
+    report = run(questions, args.mode, args.k, corpus, collections, misses)
     if collections is not None:
         report["corpus"]["source"] = "app"
         report["corpus"]["passages"] = "parent"
