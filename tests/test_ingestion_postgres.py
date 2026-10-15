@@ -188,3 +188,65 @@ def test_a_database_error_does_not_leak_the_url(monkeypatch, tmp_path, capsys):
     err = capsys.readouterr().err
     assert "s3cretpw" not in err
     assert "DB の操作に失敗しました" in err
+
+
+def _table_pdf(path):
+    rows = [("店舗名", "エリア", "座席数"), ("港町本店", "港町", "68席"), ("港町ベイ店", "港町", "42席"), ("湖畔テラス店", "湖畔", "76席")]
+    path.write_bytes(build_pdf([["前の説明です。", "", rows[0], rows[1]], [rows[2], rows[3], "", "後ろの説明です。"]]))
+    return path
+
+
+def test_a_table_across_pages_is_stored_with_its_page_range_and_kind(db, tmp_path):
+    conninfo, _ = db
+    pdf = _table_pdf(tmp_path / "guide.pdf")
+    (report,) = _run(conninfo, [pdf], tmp_path, apply=True)
+
+    assert report.status == "inserted"
+    rows = _rows(conninfo, "SELECT kind, page, page_end FROM chunks ORDER BY chunk_index")
+    assert rows == [("text", 1, None), ("table", 1, 2), ("text", 2, None)]
+    # 同じ PDF をもう一度: 行も範囲も変わらない
+    ids = _rows(conninfo, "SELECT id FROM chunks ORDER BY chunk_index")
+    (again,) = _run(conninfo, [pdf], tmp_path, apply=True)
+    assert again.status == "unchanged"
+    assert _rows(conninfo, "SELECT id FROM chunks ORDER BY chunk_index") == ids
+
+
+def test_tables_created_before_the_new_columns_are_upgraded(db, tmp_path):
+    conninfo, _ = db
+    with psycopg.connect(conninfo, autocommit=True) as conn:  # page_end・kind が無かった頃の定義
+        conn.execute(
+            """
+            CREATE TABLE documents (
+                id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, source text NOT NULL UNIQUE,
+                content_hash text NOT NULL, status text NOT NULL, failure_reason text,
+                pages integer NOT NULL DEFAULT 0, created_at timestamptz NOT NULL DEFAULT now(),
+                updated_at timestamptz NOT NULL DEFAULT now());
+            CREATE TABLE chunks (
+                id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                document_id bigint NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
+                chunk_index integer NOT NULL, page integer NOT NULL, heading text,
+                content text NOT NULL, content_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
+                UNIQUE (document_id, chunk_index) DEFERRABLE INITIALLY DEFERRED);
+            """
+        )
+    pdf = _table_pdf(tmp_path / "guide.pdf")
+    _run(conninfo, [pdf], tmp_path, apply=True)
+
+    assert _rows(conninfo, "SELECT kind, page_end FROM chunks WHERE kind = 'table'") == [("table", 2)]
+
+
+def test_an_unchanged_table_that_moves_to_another_page_keeps_its_row_and_gets_new_pages(db, tmp_path):
+    conninfo, _ = db
+    header, a, b, c = ("店舗名", "エリア", "座席数"), ("港町本店", "港町", "68席"), ("港町ベイ店", "港町", "42席"), ("湖畔テラス店", "湖畔", "76席")
+    pdf = tmp_path / "guide.pdf"
+    pdf.write_bytes(build_pdf([[header, a], [b, c]]))  # 表は 1〜2 ページ
+    _run(conninfo, [pdf], tmp_path, apply=True)
+    before = _rows(conninfo, "SELECT id, page, page_end FROM chunks WHERE kind = 'table'")
+    assert [(r[1], r[2]) for r in before] == [(1, 2)]
+
+    pdf.write_bytes(build_pdf([["前書きです。"], [header, a, b, c]]))  # 同じ表が、2 ページ目だけに入る
+    (report,) = _run(conninfo, [pdf], tmp_path, apply=True)
+
+    after = _rows(conninfo, "SELECT id, page, page_end FROM chunks WHERE kind = 'table'")
+    assert (report.new_chunks, report.removed_chunks) == (1, 0)  # 増えたのは前書きだけ
+    assert after == [(before[0][0], 2, None)]  # 同じ行で、ページだけが変わる

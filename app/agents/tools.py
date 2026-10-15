@@ -1,13 +1,25 @@
+import logging
 import math
+import os
 import re
 import unicodedata
+from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from langchain_core.tools import tool
 
-# リポジトリ直下の storage/chunk/
-CHUNK_DIR = Path(__file__).resolve().parents[2] / "storage" / "chunk"
+logger = logging.getLogger(__name__)
+
+_STORAGE_DIR = Path(__file__).resolve().parents[2] / "storage"
+# リポジトリ直下の storage/chunk/（.txt の資料。資料群 TEXT_COLLECTION）
+CHUNK_DIR = _STORAGE_DIR / "chunk"
+# storage/pdf/<資料群の名前>/ に PDF を置く。ディレクトリ名がそのまま資料群の名前になる
+PDF_DIR = _STORAGE_DIR / "pdf"
+TEXT_COLLECTION = "zahard"
+# 検索する資料群（名前をカンマ区切り。all か未設定なら全部）
+SEARCH_SCOPE_ENV = "SEARCH_SCOPE"
 TOP_K = 2
 
 # 1 ファイルから採用する「一致した文」の上限。全文を返すと無関係な文まで LLM に渡るため絞る
@@ -40,6 +52,58 @@ def load_chunks() -> dict[str, str]:
     }
 
 
+@lru_cache(maxsize=1)
+def _load_pdf_collections() -> dict[str, dict[str, list[Any]]]:
+    """storage/pdf/ の直下のディレクトリごとに、PDF を検索の単位にして読む（資料群の名前 -> ファイル名 -> 単位の列）。
+
+    取り込めない PDF は、その PDF だけを外して WARNING に残す（残りの資料で検索は動く）。
+    """
+    from app.ingestion.corpus import load_pdf_corpus  # PDF を使わないとき（pypdf）を読み込まない
+
+    if not PDF_DIR.is_dir():
+        return {}
+    collections: dict[str, dict[str, list[Any]]] = {}
+    for directory in sorted(p for p in PDF_DIR.iterdir() if p.is_dir()):
+        corpus, _, failures = load_pdf_corpus(directory)
+        for failure in failures:
+            logger.warning("PDF を検索の資料に入れられません: %s/%s", directory.name, failure)
+        if corpus:
+            collections[directory.name] = corpus
+    return collections
+
+
+def load_collections() -> dict[str, dict[str, Any]]:
+    """検索できる資料群（名前 -> (ファイル名 -> 本文))。.txt の資料群 TEXT_COLLECTION が先、PDF は名前順。
+
+    資料群ごとに、頻出語の判定や BM25 の統計を別々に持つ。混ぜて 1 つにすると、別の資料群が増えただけで
+    「ザーハード」のような主題語の出現率が下がり、除外されなくなる（GENERIC_TERM_RATIO）。
+    PDF のディレクトリ名が TEXT_COLLECTION と同じなら、その資料群に PDF も入る。
+    """
+    collections: dict[str, dict[str, Any]] = {}
+    texts = load_chunks()
+    if texts:
+        collections[TEXT_COLLECTION] = dict(texts)
+    for name, corpus in _load_pdf_collections().items():
+        collections.setdefault(name, {}).update(corpus)
+    return collections
+
+
+def search_scope() -> list[str]:
+    """環境変数 SEARCH_SCOPE で選ばれた資料群の名前。未設定か all なら全部。知らない名前は ValueError。"""
+    available = list(load_collections())
+    raw = os.environ.get(SEARCH_SCOPE_ENV, "").strip()
+    if raw.lower() in ("", "all"):
+        return available
+    wanted = [name.strip() for name in raw.split(",") if name.strip()]
+    unknown = [name for name in wanted if name not in available]
+    if unknown or not wanted:
+        raise ValueError(
+            f"{SEARCH_SCOPE_ENV} の資料群が見つかりません: {', '.join(unknown) or raw}"
+            f"（選べるのは all と {', '.join(available) or '（資料なし）'}）"
+        )
+    return wanted
+
+
 def bigrams(text: str) -> set[str]:
     # 日本語は空白区切りでないため、空白を除いた文字 2-gram で照合する
     compact = "".join(text.split())
@@ -70,24 +134,82 @@ def _split_passages(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"[\\\n]+", text) if part.strip()]
 
 
+def _units_of(value: str | Sequence[str | Sequence[str]]) -> tuple[list[str], list[tuple[int, int]]]:
+    """資料 1 件を、採点する単位（文）の列と、各文が属する「まとまり」の範囲（先頭, 末尾の位置）にする。
+
+    文字列なら、「\\」と改行で文に分ける（どの文も、自分 1 つのまとまり）。
+    列なら、文字列の要素は 1 つの文。文字列の列の要素（例: 表の行）は、1 つのまとまり: 行ごとに採点するが、
+    どれかが採用されたら、まとまり全体を返す（表を行に割って返さないため）。
+    """
+    if isinstance(value, str):
+        passages = _split_passages(value)
+        return passages, [(i, i) for i in range(len(passages))]
+    passages: list[str] = []
+    spans: list[tuple[int, int]] = []
+    for item in value:
+        members = [item] if isinstance(item, str) else list(item)
+        members = [m.strip() for m in members if m and m.strip()]
+        if not members:
+            continue
+        start = len(passages)
+        passages.extend(members)
+        spans.extend([(start, start + len(members) - 1)] * len(members))
+    return passages, spans
+
+
 def search_chunks(
-    query: str, top_k: int = TOP_K, corpus: dict[str, str] | None = None
+    query: str, top_k: int = TOP_K, corpus: Mapping[str, str | Sequence[str | Sequence[str]]] | None = None
 ) -> list[tuple[str, str]]:
     """クエリと関連度の高い箇所を (ファイル名, 本文) で最大 top_k ファイル分返す。
+
+    corpus が None なら、アプリが検索する資料群（SEARCH_SCOPE で選んだもの）を、資料群ごとに別々に採点して合わせる
+    （search_collections）。corpus が (ファイル名 -> 本文) なら、その 1 つの資料群だけを採点する。評価
+    （scripts/eval_retrieval.py）が、別の資料で同じ検索を試すための差し替え口。
+    """
+    if corpus is not None:
+        return _search_collection(query, top_k, corpus)
+    collections = load_collections()
+    return search_collections(query, top_k, {name: collections[name] for name in search_scope()})
+
+
+def search_collections(
+    query: str, top_k: int, collections: Mapping[str, Mapping[str, Any]]
+) -> list[tuple[str, str]]:
+    """資料群ごとに採点し、順位で交互に取って、最大 top_k ファイル分を返す。
+
+    BM25 のスコアは資料群の統計（頻出語・平均の長さ）に依存し、資料群をまたいで比べられない。そのため
+    スコアでは並べず、各資料群の 1 位、2 位…を、資料群の並び順で交互に採る。1 つの資料群しか当たらない
+    質問では、その資料群を単独で検索した結果と同じになる。複数の資料群が当たる質問は、どの資料群からも採る。
+    """
+    per_collection = [_search_collection(query, top_k, corpus) for corpus in collections.values()]
+    merged: list[tuple[str, str]] = []
+    for rank in range(max(top_k, 0)):
+        for hits in per_collection:
+            if rank < len(hits):
+                merged.append(hits[rank])
+                if len(merged) >= top_k:
+                    return merged
+    return merged
+
+
+def _search_collection(
+    query: str, top_k: int, chunks: Mapping[str, str | Sequence[str | Sequence[str]]]
+) -> list[tuple[str, str]]:
+    """1 つの資料群（ファイル名 -> 本文）を採点して、最大 top_k ファイル分を (ファイル名, 本文) で返す。
 
     ファイルを文単位に分けて BM25 で採点し、一致した文とその前後を元の順序で本文として返す。
     資料全体に頻出する語は採点から外し、クエリと共有する 2-gram が少ない文は関連なしとして
     落とすので、無関係な質問では空になる。
 
-    corpus は (ファイル名 -> 本文) の資料。None なら storage/chunk/ を使う（アプリはこちら）。
-    評価（scripts/eval_retrieval.py）が、別の資料で同じ検索を試すための差し替え口。
+    本文は、文字列（「\\」と改行で文に分ける）か、文の列。列の中の「文字列の列」（例: 表の行）は 1 つの
+    まとまりで、行ごとに採点し、採用されたらまとまり全体を返す（表のチャンクを、行に割らずに返すため）。
     """
-    chunks = load_chunks() if corpus is None else corpus
     all_query_terms = set(_terms(query))
     if not chunks or not all_query_terms or top_k <= 0:
         return []
 
-    sentences_by_file = {name: _split_passages(text) for name, text in chunks.items()}
+    units = {name: _units_of(text) for name, text in chunks.items()}
+    sentences_by_file = {name: passages for name, (passages, _) in units.items()}
     # (ファイル名, 文の位置, 文, 文の 2-gram 列)
     passages: list[tuple[str, int, str, list[str]]] = [
         (name, position, sentence, _terms(sentence))
@@ -146,17 +268,26 @@ def search_chunks(
     cutoff = max(best_by_file.values()) * RELATIVE_SCORE_CUTOFF
     results: list[tuple[str, str]] = []
     for name in top_files:
-        picked = sorted(
+        spans = units[name][1]
+        picked = []
+        seen: set[tuple[int, int]] = set()
+        for item in sorted(
             (item for item in scored if item[1] == name and item[0] >= cutoff),
             key=lambda item: -item[0],
-        )[:MAX_PASSAGES_PER_FILE]
+        ):
+            if spans[item[2]] in seen:
+                continue  # 同じまとまり（表）の別の行。まとまりは 1 つと数える
+            seen.add(spans[item[2]])
+            picked.append(item)
+            if len(picked) >= MAX_PASSAGES_PER_FILE:
+                break
         if picked:
-            # 採用した文とその前後を、資料中の出現順に並べて 1 つの本文にする
+            # 採用した文（まとまりなら全体）とその前後を、資料中の出現順に並べて 1 つの本文にする
             sentences = sentences_by_file[name]
             positions = {
                 pos
                 for _, _, position, _ in picked
-                for pos in range(position - CONTEXT_WINDOW, position + CONTEXT_WINDOW + 1)
+                for pos in range(spans[position][0] - CONTEXT_WINDOW, spans[position][1] + CONTEXT_WINDOW + 1)
                 if 0 <= pos < len(sentences)
             }
             results.append((name, "\n".join(sentences[pos] for pos in sorted(positions))))
@@ -164,11 +295,10 @@ def search_chunks(
 
 
 @tool
-def search_zahard_lore(query: str) -> str:
-    """架空の惑星「ザーハード」の設定資料を検索する。
+def search_documents(query: str) -> str:
+    """登録された資料（設定資料・店舗案内など）を検索する。
 
-    惑星の環境・大気・探査団・歴史など、ザーハードに関する質問に答える前に必ず使う。
-    query には質問の要点となるキーワードや短い文を渡す。
+    質問に答える前に必ず使う。query には質問の要点となるキーワードや短い文を渡す。
     """
     hits = search_chunks(query)
     if not hits:
@@ -176,4 +306,4 @@ def search_zahard_lore(query: str) -> str:
     return "\n\n".join(f"[{name}]\n{text}" for name, text in hits)
 
 
-TOOLS = [search_zahard_lore]
+TOOLS = [search_documents]

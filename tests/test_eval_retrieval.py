@@ -364,6 +364,76 @@ def test_current_search_does_not_regress_from_the_committed_baseline(tmp_path):
     )
 
 
+@pytest.mark.parametrize("name", ["baseline_bm25_app.json", "baseline_bm25_app_k2.json"])
+def test_app_search_matches_the_committed_baseline(name):
+    # アプリが検索する全資料（ザーハードの .txt と storage/pdf/ の PDF）を、全部の質問で。
+    # 件数ではなく、質問ごとに返るファイルの並びまで一致を求める。資料群を足したときに、既存の質問の結果が
+    # 良くも悪くも動いたら（混ざって採点された、など）知らせる。意図した変更なら baseline を取り直す
+    baseline = json.loads((ROOT / "evals" / "results" / name).read_text(encoding="utf-8"))
+    assert baseline["corpus"]["source"] == "app"
+    questions = [q for path in baseline["question_sets"] for q in ev.load_questions(ROOT / path)]
+    current = ev.run(questions, baseline["mode"], baseline["k"], collections=tools.load_collections())
+    if current["corpus"]["sha256"] != baseline["corpus"]["sha256"]:
+        pytest.skip("資料が変わった。baseline を取り直す（python -m scripts.eval_retrieval --mode bm25 --app）")
+
+    now = {r["id"]: r["retrieved_files"] for r in current["results"]}
+    then = {r["id"]: r["retrieved_files"] for r in baseline["results"]}
+    assert now == then
+    assert current["summary"]["counts"] == baseline["summary"]["counts"]
+
+
+def test_app_baseline_is_the_sum_of_the_single_collection_baselines():
+    # アプリ全体の結果は、各資料群を単独で評価した結果と同じ（互いに邪魔をしていない）
+    results = ROOT / "evals" / "results"
+    for suffix in ("", "_k2"):
+        app = json.loads((results / f"baseline_bm25_app{suffix}.json").read_text(encoding="utf-8"))
+        parts = [json.loads((results / f"baseline_bm25{kind}{suffix}.json").read_text(encoding="utf-8")) for kind in ("", "_cafe")]
+        assert app["summary"]["counts"] == {
+            key: sum(part["summary"]["counts"][key] for part in parts) for key in app["summary"]["counts"]
+        }
+        assert app["summary"]["total_questions"] == sum(part["summary"]["total_questions"] for part in parts)
+
+
+def test_app_mode_reports_the_sets_and_pdfs(tmp_path):
+    out = tmp_path / "app.json"
+    assert ev.main(["--app", "--k", "3", "--out", str(out)]) == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["corpus"]["source"] == "app"
+    assert set(report["corpus"]["collections"]) == {"zahard", "cafe"}
+    assert set(report["corpus"]["pdf_sha256"]) == {"cafe/cafe_store_guide.pdf"}
+    assert report["question_sets"] == ["evals/questions.yaml", "evals/corpora/cafe/questions.yaml"]
+    assert report["summary"]["total_questions"] == 46
+
+
+def test_app_mode_rejects_ids_shared_between_question_sets(tmp_path, monkeypatch, capsys):
+    # 評価セットをまたいで id が重なると、結果の対応が付かない。黙って片方を捨てずに止める
+    corpora = tmp_path / "corpora"
+    (corpora / "other").mkdir(parents=True)
+    (corpora / "other" / "questions.yaml").write_text(
+        textwrap.dedent(
+            """
+            - id: q001
+              question: "遺跡の構造は？"
+              category: factual
+              expected_doc_ids: ["ザーハード2.txt"]
+              evidence: ["多層的な構造"]
+            """
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ev, "CORPORA_DIR", corpora)
+
+    assert ev.main(["--app", "--out", str(tmp_path / "o.json")]) == 2
+    assert "q001" in capsys.readouterr().err
+    assert not (tmp_path / "o.json").exists()
+
+
+def test_app_and_corpus_cannot_be_combined(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        ev.main(["--app", "--corpus", str(ROOT / "evals" / "corpora" / "cafe")])
+    assert excinfo.value.code == 2
+
+
 # ---- evidence_mode / answer / page / PDF の資料 ----
 
 
@@ -451,7 +521,8 @@ def test_search_chunks_accepts_another_corpus_and_keeps_the_default():
     other = {"x.pdf": "湖畔テラス店は76席です。\n港町本店は68席です。"}
     hits = tools.search_chunks("湖畔テラス店", corpus=other)
     assert [name for name, _ in hits] == ["x.pdf"]
-    assert tools.search_chunks("湖畔テラス店") == []  # 既定の資料（storage/chunk/）には無い
+    # corpus を渡さなければ、アプリが検索する資料（storage/ の全部）。差し替えた資料は入らない
+    assert [name for name, _ in tools.search_chunks("湖畔テラス店")] == ["cafe_store_guide.pdf"]
 
 
 def _pdf_corpus(tmp_path, *, questions: str):
@@ -578,3 +649,102 @@ def test_cafe_pdf_search_does_not_regress_from_the_committed_baseline(tmp_path):
     regressed = {name: (then[name], now[name]) for name in then if now[name] < then[name]}
     assert not regressed, f"baseline より該当数が減った（baseline, 現在）: {regressed}"
     assert current["summary"]["total_questions"] == baseline["summary"]["total_questions"]
+
+
+# ---- まとまり（表）の返し方 ----
+
+TABLE = ("店舗名 エリア 座席数", "港町本店 港町 68席", "港町ベイ店 港町 42席", "湖畔テラス店 湖畔 76席", "鳥栖店 佐賀 30席")
+
+
+def test_a_group_is_returned_whole_when_one_of_its_rows_matches():
+    corpus = {"g.pdf": ["前置きの文です。", TABLE, "後置きの文です。"]}
+    ((name, text),) = tools.search_chunks("湖畔テラス店", corpus=corpus)
+
+    assert name == "g.pdf"
+    lines = text.split("\n")
+    assert lines[1:6] == list(TABLE)  # 表全体が、行の順のまま
+    assert "前置きの文です。" in lines and "後置きの文です。" in lines  # 前後の文は、これまでどおり付く
+
+
+def test_without_a_group_only_the_matching_row_and_its_neighbours_are_returned():
+    corpus = {"g.pdf": ["前置きの文です。", *TABLE, "後置きの文です。"]}
+    ((_, text),) = tools.search_chunks("湖畔テラス店", corpus=corpus)
+
+    assert "湖畔テラス店 湖畔 76席" in text
+    assert "店舗名 エリア 座席数" not in text  # 見出し行は、近くになければ返らない
+
+
+def test_rows_of_one_group_count_once_toward_the_per_file_limit(monkeypatch):
+    # 同じ表の複数の行が採用されても、別の文の枠を使い切らない
+    monkeypatch.setattr(tools, "MAX_PASSAGES_PER_FILE", 2)
+    table = ("テラス席の表 A", "テラス席の表 B", "テラス席の表 C")
+    corpus = {"g.pdf": [table, "ほかの話題です。", "テラス席の別の文です。", "さらに別の話題です。"]}
+    ((_, text),) = tools.search_chunks("テラス席", corpus=corpus)
+
+    assert all(row in text for row in table)
+    assert "テラス席の別の文です。" in text
+
+
+def test_units_of_a_plain_string_are_unchanged():
+    passages, spans = tools._units_of("一つ目です。\n二つ目です。\\三つ目です。")
+    assert passages == ["一つ目です。", "二つ目です。", "三つ目です。"]
+    assert spans == [(0, 0), (1, 1), (2, 2)]
+
+
+def test_units_of_a_list_with_groups_and_blanks():
+    passages, spans = tools._units_of(["文 A", ("行 1", "", "行 2"), "  ", "文 B"])
+    assert passages == ["文 A", "行 1", "行 2", "文 B"]
+    assert spans == [(0, 0), (1, 2), (1, 2), (3, 3)]
+
+
+def _table_pdf_corpus(tmp_path):
+    from tests.pdf_fixtures import Big, build_pdf
+
+    corpus = tmp_path / "tbl"
+    corpus.mkdir()
+    rows = [("店舗名", "エリア", "座席数")] + [(f"店舗{n}号店", "港町", f"{n * 10}席") for n in range(1, 7)]
+    (corpus / "guide.pdf").write_bytes(
+        build_pdf([[Big("店舗一覧"), "", "店舗の表です。", "", *rows, "", "おわりの説明です。"]])
+    )
+    evidence = "\n".join(f'    - "{" ".join(row)}"' for row in rows)
+    (corpus / "questions.yaml").write_text(
+        textwrap.dedent(
+            """
+            - id: t1
+              question: "店舗6号店の座席数は？"
+              category: factual
+              kind: aggregate
+              evidence_mode: all
+              expected_doc_ids: ["guide.pdf"]
+              evidence:
+            """
+        )
+        + evidence
+        + "\n",
+        encoding="utf-8",
+    )
+    return corpus
+
+
+def test_passages_parent_returns_the_whole_table_and_sentence_does_not(tmp_path):
+    corpus = _table_pdf_corpus(tmp_path)
+    results = {}
+    for mode in ("parent", "sentence"):
+        out = tmp_path / f"{mode}.json"
+        assert ev.main(["--corpus", str(corpus), "--passages", mode, "--k", "3", "--out", str(out)]) == 0
+        report = json.loads(out.read_text(encoding="utf-8"))
+        assert report["corpus"]["passages"] == mode
+        results[mode] = report["results"][0]
+
+    assert results["parent"]["keyword_hit"] is True
+    assert results["sentence"]["keyword_hit"] is False
+    assert results["sentence"]["failure_category"] == "keyword_miss"
+
+
+def test_parent_is_the_default_for_a_pdf_corpus(tmp_path):
+    corpus = _table_pdf_corpus(tmp_path)
+    out = tmp_path / "r.json"
+    assert ev.main(["--corpus", str(corpus), "--k", "3", "--out", str(out)]) == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["corpus"]["passages"] == "parent"
+    assert report["results"][0]["keyword_hit"] is True

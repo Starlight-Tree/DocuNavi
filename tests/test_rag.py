@@ -10,12 +10,12 @@ from app.agents.tools import (
     bigrams,
     load_chunks,
     search_chunks,
-    search_zahard_lore,
+    search_documents,
 )
 from tests.rag_eval_cases import ALL_CASES, RELATED_CASES, UNRELATED_CASES
 
 # graph._compose_mock_reply がツール出力をパースするのと同じ正規表現。これで割れることが契約
-SOURCE_HEADER = re.compile(r"(?m)^\[([^\]\n]+\.txt)\]\n")
+SOURCE_HEADER = re.compile(r"(?m)^\[([^\]\n]+\.(?:txt|pdf))\]\n")
 
 # 評価セットは 21 件と小さく、1 件の増減で 5% 動く。実測（hit@1 18/21, hit@2 19/21,
 # evidence 19/21）より 1 件分だけ余裕を持たせた下限で、大きな退行だけを検知する。
@@ -86,7 +86,7 @@ def test_related_queries_recall():
 @pytest.mark.parametrize("case", UNRELATED_CASES, ids=lambda case: case.query)
 def test_unrelated_queries_find_nothing(case):
     assert search_chunks(case.query) == []
-    assert _NOT_FOUND_MARK in search_zahard_lore.invoke({"query": case.query})
+    assert _NOT_FOUND_MARK in search_documents.invoke({"query": case.query})
 
 
 def test_returned_text_is_much_smaller_than_whole_files():
@@ -118,7 +118,7 @@ def test_search_chunks_contract(case):
 
 @pytest.mark.parametrize("case", HIT_CASES, ids=lambda case: case.query)
 def test_tool_output_is_parsable_by_mock_reply(case):
-    output = search_zahard_lore.invoke({"query": case.query})
+    output = search_documents.invoke({"query": case.query})
     assert _NOT_FOUND_MARK not in output
     parts = SOURCE_HEADER.split(output)
     # split の結果は ["", 名前, 本文, 名前, 本文, ...]
@@ -130,22 +130,22 @@ def test_tool_output_is_parsable_by_mock_reply(case):
 
 
 def test_tool_output_when_not_found():
-    output = search_zahard_lore.invoke({"query": "今日の天気"})
+    output = search_documents.invoke({"query": "今日の天気"})
     assert _NOT_FOUND_MARK in output
     assert SOURCE_HEADER.search(output) is None
 
 
 def test_tool_is_registered():
-    assert TOOLS == [search_zahard_lore]
-    assert search_zahard_lore.name == "search_zahard_lore"
+    assert TOOLS == [search_documents]
+    assert search_documents.name == "search_documents"
 
 
 def test_mock_reply_uses_search_output():
-    found = _compose_mock_reply("遺跡の構造は？", search_zahard_lore.invoke({"query": "遺跡の構造は？"}))
+    found = _compose_mock_reply("遺跡の構造は？", search_documents.invoke({"query": "遺跡の構造は？"}))
     assert "出典: ザーハード2.txt" in found
     assert "多層的な構造" in found
 
-    missing = _compose_mock_reply("今日の天気は？", search_zahard_lore.invoke({"query": "今日の天気は？"}))
+    missing = _compose_mock_reply("今日の天気は？", search_documents.invoke({"query": "今日の天気は？"}))
     assert "見つかりませんでした" in missing
     assert "出典" not in missing
 

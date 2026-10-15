@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
+from app.agents.tools import search_scope  # noqa: E402
 from app.api.routes import router  # noqa: E402
 from app.frontend import mount_frontend  # noqa: E402
 from app.history import history_store  # noqa: E402
@@ -41,13 +42,15 @@ _configure_app_logging()  # mount_frontend の起動ログより前に有効に�
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # 検索する資料群を決めて読み込む。SEARCH_SCOPE が知らない名前なら、検索が黙って空になる前に起動を失敗させる
+    logging.getLogger(__name__).info("検索する資料群: %s", ", ".join(search_scope()))
     # DATABASE_URL があれば、会話履歴の接続プールを起動時に開いて終了時に閉じる（無ければ何もしない）。
     # 開けなければ、履歴がメモリに切り替わらないよう、起動を失敗させる
     async with history_store():
         yield
 
 
-app = FastAPI(title="Zahard Chatbot", lifespan=lifespan)
+app = FastAPI(title="RAG Chatbot", lifespan=lifespan)
 
 origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
