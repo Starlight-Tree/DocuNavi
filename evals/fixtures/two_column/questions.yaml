@@ -1,0 +1,120 @@
+# 評価に使ってよい（事前検査済み）。ただし、user はこの質問を読んでいない。
+# 作成者の出力は 3 冊・33 問。ここは hidamari（2 段組み）の 11 問（h001-h011）。本文のまま、evals/corpora/guides/ から移した。
+# この PDF は抽出の段階で根拠の一部が欠ける（`--corpus` は「評価セットが資料と合っていません」で止まる。意図した動作）。
+# アプリの検索対象（storage/pdf/）にも、`--app` の評価セットにも入れない。理由と測定値は evals/README.md の「2 段組み」。
+# 作成者: subagent（検索の実装・既存の評価を知らない、分離した文脈。ツールもリポジトリも使っていない）
+# 作成日: 2026-10-15
+# 承認者: agent（user ではない。user は段階 2 の実施と手順に同意しただけで、質問の中身は未確認）
+# 承認日: 2026-10-15
+# 承認方法: 機械的な事前検査（検索のコードは使わない）。
+#           (1) 根拠（33 問分）がすべて資料の Markdown にそのまま存在する（表の行はセルを半角スペースでつないだ形）
+#           (2) 集計・絞り込み・比較（a007 h007 t007）の根拠は表・条文の全行（7・7・3）。答えを手で再計算して一致
+#           (3) 資料外 9 問（on_topic_absent）の答えが資料のどこにも無い（関連語が出る箇所を目で確かめた）
+# 承認基準: 質問が自然 / 正解が一意 / 引用が本文にそのまま存在 / 集計の行が全部ある / 資料外が本当に無い
+# 注意: 質問と期待値は作成者の出力のまま（編集していない）。承認後は変更しない。
+#       PDF 化で本文と抽出結果がずれた場合も、質問側は直さず、ずれを報告する。
+#       user が読んで直すと言ったときは、理由をコミットに書く。
+#       書式の調整（機械的）: 答えのある質問に `expected_doc_ids: [<doc の値>]` を足した（評価の道具が読むキー。作成者の出力は `doc`）。
+#       `doc` はそのまま残してある（資料外の質問では、どの資料の題材かを示すだけ）。PDF は source/make_pdfs.py で作る。
+- id: h001
+  doc: hidamari_waste_guide.pdf
+  expected_doc_ids: ["hidamari_waste_guide.pdf"]
+  question: "指定袋の大（45L）10 枚入りは、いくらですか？"
+  answer: "450 円です。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "指定袋は、大 (45L) 10 枚入りが 450 円、中 (30L) 10 枚入りが 300 円、小 (15L) 10 枚入りが 150 円です。"
+- id: h002
+  doc: hidamari_waste_guide.pdf
+  expected_doc_ids: ["hidamari_waste_guide.pdf"]
+  question: "大型ごみの申込みは、収集日の何日前までにすればよいですか？"
+  answer: "収集日の 7 日前までです。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "申込みは、収集日の 7 日前までに、電話かインターネットで受け付けます。"
+- id: h003
+  doc: hidamari_waste_guide.pdf
+  expected_doc_ids: ["hidamari_waste_guide.pdf"]
+  question: "年末年始に、ごみの収集が休みになるのはいつからいつまでですか？"
+  answer: "12 月 29 日から 1 月 3 日までです。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "年末年始は、12 月 29 日から 1 月 3 日まで、すべての収集を休みます。"
+- id: h004
+  doc: hidamari_waste_guide.pdf
+  expected_doc_ids: ["hidamari_waste_guide.pdf"]
+  question: "ペットボトルのふたは、どのごみとして出せばよいですか？"
+  answer: "プラスチック製容器包装として出します。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "外したキャップとラベルは、プラスチック製容器包装に出します。"
+- id: h005
+  doc: hidamari_waste_guide.pdf
+  expected_doc_ids: ["hidamari_waste_guide.pdf"]
+  question: "使い終えた電池や切れた蛍光灯は、どこに出せばよいですか？"
+  answer: "収集日には出せず、市内 12 か所の回収拠点に持ち込みます。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "市役所と公民館など、市内 12 か所の回収拠点に、直接持ち込んでください。"
+- id: h006
+  doc: hidamari_waste_guide.pdf
+  expected_doc_ids: ["hidamari_waste_guide.pdf"]
+  question: "自分でごみ処理施設に持ち込むと、料金はどのように決まりますか？"
+  answer: "10kg ごとに 110 円です。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "手数料は、10kg ごとに 110 円です。"
+- id: h007
+  doc: hidamari_waste_guide.pdf
+  expected_doc_ids: ["hidamari_waste_guide.pdf"]
+  question: "表にある燃やせるごみ・燃やせないごみ・資源のどれかが日曜日に収集される地区は、どこですか？"
+  answer: "東山（燃やせるごみ）、若葉町（資源）、風見台（資源）の 3 地区です。"
+  category: factual
+  kind: filter
+  evidence_mode: all
+  evidence:
+    - "桜台 月・木 第2・第4水曜 金"
+    - "緑ヶ丘 火・金 第1・第3水曜 木"
+    - "港町 月・木 第1・第3木曜 土"
+    - "柳原 水・土 第2・第4火曜 金"
+    - "若葉町 火・金 第1・第3月曜 日"
+    - "東山 水・日 第2・第4金曜 火"
+    - "風見台 月・木 第2・第4月曜 日"
+- id: h008
+  doc: hidamari_waste_guide.pdf
+  question: "大型ごみの申込みの電話番号は、何番ですか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+- id: h009
+  doc: hidamari_waste_guide.pdf
+  question: "生ごみ処理機を買うと、市から補助金はいくら出ますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+- id: h010
+  doc: hidamari_waste_guide.pdf
+  question: "ごみの収集を請け負っている会社の名前を教えてください。"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+- id: h011
+  doc: hidamari_waste_guide.pdf
+  question: "光は 1 秒間におよそ何キロメートル進みますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: off_topic
+  evidence_mode: any
+  evidence: []
