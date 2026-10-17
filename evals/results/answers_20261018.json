@@ -1,0 +1,184 @@
+{
+  "generated_at": "2026-10-18T02:34:40+09:00",
+  "model": "gemini-3.1-flash-lite",
+  "max_calls": 30,
+  "max_calls_per_question": 3,
+  "calls_used": 17,
+  "hedge": "off",
+  "path": "ainvoke（/chat と同じ。画面が使う /chat/stream ではない）",
+  "results": [
+    {
+      "id": "q033",
+      "role": "absent_spill",
+      "question": "ザーハードの人口は何人ですか",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 12.5,
+      "error": null,
+      "says_no_info": false,
+      "searches": [
+        {
+          "query": "ザーハード 人口",
+          "files": [
+            "ザーハード2.txt",
+            "ザーハード3.txt"
+          ],
+          "result": "[ザーハード2.txt]\nザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。\nそのため、ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられています。\n\n[ザーハード3.txt]\nザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        }
+      ],
+      "answer": "資料には、ザーハードの人口に関する記載はありません。"
+    },
+    {
+      "id": "q036",
+      "role": "absent_spill",
+      "question": "ザーハードの重力は地球の何倍ですか",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 16.4,
+      "error": "GoogleAPIError (status=504)",
+      "says_no_info": null,
+      "searches": [
+        {
+          "query": "ザーハード 重力 地球 何倍",
+          "files": [
+            "ザーハード1.txt"
+          ],
+          "result": "[ザーハード1.txt]\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。"
+        }
+      ],
+      "answer": null
+    },
+    {
+      "id": "c010",
+      "role": "absent_spill",
+      "question": "みなとブレンドは1杯いくらですか。",
+      "expected_answer": "資料には、みなとブレンドの価格が書かれていないため、答えられない。",
+      "calls": 1,
+      "elapsed_seconds": 14.3,
+      "error": "GoogleAPIError (status=504)",
+      "says_no_info": null,
+      "searches": [],
+      "answer": null
+    },
+    {
+      "id": "a008",
+      "role": "absent_spill",
+      "question": "この洗濯乾燥機の電源コードは、何メートルありますか？",
+      "expected_answer": "",
+      "calls": 1,
+      "elapsed_seconds": 14.5,
+      "error": "GoogleAPIError (status=504)",
+      "says_no_info": null,
+      "searches": [],
+      "answer": null
+    },
+    {
+      "id": "t008",
+      "role": "absent_spill",
+      "question": "寮の共用洗濯室を使うには、1 回いくらかかりますか？",
+      "expected_answer": "",
+      "calls": 1,
+      "elapsed_seconds": 6.3,
+      "error": "GoogleAPIError (status=503)",
+      "says_no_info": null,
+      "searches": [],
+      "answer": null
+    },
+    {
+      "id": "t010",
+      "role": "absent_spill",
+      "question": "寮で小型のペットを飼うことはできますか？",
+      "expected_answer": "",
+      "calls": 2,
+      "elapsed_seconds": 5.7,
+      "error": null,
+      "says_no_info": true,
+      "searches": [
+        {
+          "query": "ペット 飼育 寮",
+          "files": [
+            "cafe_store_guide.pdf"
+          ],
+          "result": "[cafe_store_guide.pdf]\n車でお越しの場合、ほかの店舗では近隣の有料駐車場をご利用ください。\nペットの同伴は、原則としてテラス席に限ります。\nただし、身体障害者補助犬は店内の席にも同伴できます。"
+        }
+      ],
+      "answer": "寮でのペットの飼育については、資料には記載がありません。"
+    },
+    {
+      "id": "a011",
+      "role": "off_topic",
+      "question": "富士山の標高は何メートルですか？",
+      "expected_answer": "",
+      "calls": 2,
+      "elapsed_seconds": 6.5,
+      "error": null,
+      "says_no_info": true,
+      "searches": [
+        {
+          "query": "富士山 標高",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
+        }
+      ],
+      "answer": "資料には記載がありません。"
+    },
+    {
+      "id": "q001",
+      "role": "answerable",
+      "question": "ザーハードの大気の酸素濃度はどれくらい？",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 10.6,
+      "error": null,
+      "says_no_info": false,
+      "searches": [
+        {
+          "query": "ザーハード 大気 酸素濃度",
+          "files": [
+            "ザーハード1.txt"
+          ],
+          "result": "[ザーハード1.txt]\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・温度変化：日中と夜間の温度差が激しく、昼間は高温、夜間は極寒となります。"
+        }
+      ],
+      "answer": "ザーハードの大気の酸素濃度は非常に低く、地球の1/10以下です。"
+    },
+    {
+      "id": "a001",
+      "role": "answerable",
+      "question": "糸くずフィルターの掃除は、洗濯何回ごとにすればよいですか？",
+      "expected_answer": "洗濯 10 回ごとに取り出して水洗いします。",
+      "calls": 2,
+      "elapsed_seconds": 9.6,
+      "error": null,
+      "says_no_info": false,
+      "searches": [
+        {
+          "query": "糸くずフィルター 掃除 回数",
+          "files": [
+            "aoba_aw820_manual.pdf"
+          ],
+          "result": "[aoba_aw820_manual.pdf]\nただし、ふんわり乾燥コースでは 2.0kg までです。\n乾燥のたびに、乾燥フィルターのごみを捨ててください。\n予約運転は、1 時間後から 24 時間後まで、1 時間単位で設定できます。\nお手入れ\n糸くずフィルターは、洗濯 10 回ごとに取り出して水洗いしてください。\n乾燥フィルターは、乾燥のたびに、ごみを取り除きます。\n洗濯槽の洗浄は、月に 1 回、「槽洗浄」コースで行います。"
+        }
+      ],
+      "answer": "糸くずフィルターは、洗濯10回ごとに取り出して水洗いをしてください。"
+    },
+    {
+      "id": "t001",
+      "role": "answerable",
+      "question": "入寮の申込みは、いつまでにすればよいですか？",
+      "expected_answer": "入寮を希望する年度の 2 月 28 日までです。",
+      "calls": 2,
+      "elapsed_seconds": 5.3,
+      "error": null,
+      "says_no_info": true,
+      "searches": [
+        {
+          "query": "入寮の申し込み期限",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
+        }
+      ],
+      "answer": "申し訳ございませんが、資料には入寮の申し込み期限に関する記載がありません。"
+    }
+  ]
+}

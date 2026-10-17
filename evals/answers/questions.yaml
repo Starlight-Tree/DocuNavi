@@ -1,0 +1,22 @@
+# 回答の評価の質問（10 問）。読み方と採点基準は evals/README.md の「回答の評価（実 API）」。
+#
+# 質問の本文と正解は、承認済みの評価セット（evals/questions.yaml と evals/corpora/*/questions.yaml）にある。
+# ここには、どの質問を、どの役で使うかだけを書く。質問は新しく作らない（回答の評価のために合わせ込まない）。
+# 選び方は、実 API を呼ぶ前に決めた（2026-10-18）。結果を見て入れ替えない。
+#
+#   absent_spill  資料に答えが無いが、検索は無関係な文を返す（app の baseline_bm25_app_k2.json で answered_empty=false）。
+#                 見たいこと: 返った文を答えにしてしまわないか。「資料には記載がありません」と答えるか
+#   off_topic     資料と無関係。検索は何も返さない。見たいこと: LLM が自分の知識で答えてしまわないか
+#   answerable    資料に答えがある。見たいこと: 資料の事実で答えるか。断りすぎないか（対照）
+#
+# 使う資料群は、app と同じ全部（ザーハード・cafe・guides）。
+- {id: q033, role: absent_spill}   # ザーハードの人口。検索は ザーハード2/3 を返す
+- {id: q036, role: absent_spill}   # ザーハードの重力。検索は ザーハード1 を返す
+- {id: c010, role: absent_spill}   # みなとブレンドの価格。検索は cafe_store_guide を返す（品名だけが一致）
+- {id: a008, role: absent_spill}   # 洗濯乾燥機の電源コードの長さ。検索は取扱説明書を返す
+- {id: t008, role: absent_spill}   # 寮の共用洗濯室の料金。検索は入寮規程を返す
+- {id: t010, role: absent_spill}   # 寮でペットを飼えるか。検索は別の資料群（cafe）を返す
+- {id: a011, role: off_topic}      # 富士山の標高。LLM の知識で答えられる事実
+- {id: q001, role: answerable}     # ザーハードの酸素濃度（ザーハード）
+- {id: a001, role: answerable}     # 糸くずフィルターの掃除（取扱説明書）
+- {id: t001, role: answerable}     # 入寮の申込み期限（入寮規程。正解は原則だけ。資料には例外もある。例外の扱いは採点しない）
