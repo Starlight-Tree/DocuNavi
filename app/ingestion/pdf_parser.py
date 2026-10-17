@@ -5,6 +5,7 @@
 """
 
 import math
+import statistics
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,10 +37,16 @@ class Line:
     y: float  # 行の縦位置（大きいほど上）
     size: float  # 文字の大きさ（行の中の最大）
     cells: tuple[str, ...]
+    xs: tuple[float, ...] = ()  # 各セルの左端の横位置（cells と同じ並び。折り返したセルを列に戻すのに使う）
+    low: float | None = None  # 折り返したセルを 1 行に組み直したときの、いちばん下の断片の縦位置（普通の行は None）
 
     @property
     def text(self) -> str:
         return " ".join(self.cells)
+
+    @property
+    def bottom(self) -> float:
+        return self.y if self.low is None else self.low
 
 
 @dataclass(frozen=True)
@@ -75,9 +82,131 @@ def _estimated_width(text: str, size: float) -> float:
     return sum(size if ord(ch) >= 0x2E80 else size * 0.5 for ch in text)
 
 
+Run = tuple[float, float, float, str]  # (y, x, size, text)
+
+# 2 段組みとみなす条件
+_MIN_WIDE_ROWS = 6  # 各段にある、段の幅の大半に届く長い行の数の下限（セルの短い表だけのページを、段と見なさない）
+_WIDE_RATIO = 0.75  # 「長い行」とみなす、段の幅に対する比
+_COLUMN_CROSSING_RATIO = 0.10  # 段の間をまたぐ行（題名など全幅の行）の割合の上限
+_COLUMN_OVERLAP = 0.6  # 左右の段が縦に重なる割合の下限（片方だけが縦に短いなら、段ではなく表や囲み）
+
+
+def _run_end(run: Run) -> float:
+    return run[1] + _estimated_width(run[3], run[2])
+
+
+def _group_rows(runs: list[Run]) -> list[list[Run]]:
+    """縦の位置が近い文字列を、行にまとめる（上から下へ）。"""
+    rows: list[list[Run]] = []
+    for run in sorted(runs, key=lambda r: -r[0]):
+        if rows and abs(rows[-1][0][0] - run[0]) <= _LINE_TOLERANCE * max(run[2], rows[-1][0][2]):
+            rows[-1].append(run)
+        else:
+            rows.append([run])
+    return rows
+
+
+def _split_columns(runs: list[Run]) -> list[list[Run]]:
+    """2 段組みのページなら、文字列を読み順（全幅の行、左の段、右の段）のまとまりに分ける。そうでなければ、そのまま 1 つ。
+
+    段の間の隙間を、ほとんどの行がまたがない位置（候補は、文字列の左端の少し手前）を探す。次のすべてを満たすときだけ、
+    2 段組みとみなす。左右それぞれに、段の幅の大半に届く長い行が `_MIN_WIDE_ROWS` 本以上ある（短いセルだけの表は段ではない）。
+    左右が縦に同じ範囲に広がっている（右にだけ縦に短い表や囲みは、段ではない）。隙間をまたぐ行は 1 割以下（またぐのは、題名など全幅の行）。
+    全幅の行で帯に区切り、帯ごとに左、右の順に並べる。
+    """
+    if len(runs) < 2 * _MIN_WIDE_ROWS:
+        return [runs]
+    rows = _group_rows(runs)
+    size = statistics.median(r[2] for r in runs)
+    x_min, x_max = min(r[1] for r in runs), max(_run_end(r) for r in runs)
+    span = x_max - x_min
+    if span <= 0:
+        return [runs]
+
+    best: tuple[int, float] | None = None
+    for start in sorted({round(r[1], 1) for r in runs if x_min + 0.25 * span <= r[1] <= x_min + 0.75 * span}):
+        gutter = start - 0.5 * size
+        crossing = sum(1 for row in rows if any(r[1] < gutter < _run_end(r) for r in row))
+        if crossing > _COLUMN_CROSSING_RATIO * len(rows):
+            continue
+        if best is None or (crossing, -gutter) < (best[0], -best[1]):
+            best = (crossing, gutter)
+    if best is None:
+        return [runs]
+    gutter = best[1]
+
+    left = [r for r in runs if _run_end(r) <= gutter]
+    right = [r for r in runs if r[1] >= gutter]
+    full = [r for r in runs if r[1] < gutter < _run_end(r)]
+    if not left or not right:
+        return [runs]
+
+    def wide_rows(column: list[Run]) -> int:
+        lo, hi = min(r[1] for r in column), max(_run_end(r) for r in column)
+        # 行の中の文字列の幅の合計（隙間は数えない）。セルの間が空いた表の行は、広がっていても短い
+        return sum(
+            1 for row in _group_rows(column) if sum(_run_end(r) - r[1] for r in row) >= _WIDE_RATIO * (hi - lo)
+        )
+
+    if wide_rows(left) < _MIN_WIDE_ROWS or wide_rows(right) < _MIN_WIDE_ROWS:
+        return [runs]
+    top_l, bottom_l = max(r[0] for r in left), min(r[0] for r in left)
+    top_r, bottom_r = max(r[0] for r in right), min(r[0] for r in right)
+    if min(top_l, top_r) - max(bottom_l, bottom_r) < _COLUMN_OVERLAP * max(top_l - bottom_l, top_r - bottom_r):
+        return [runs]
+
+    full.sort(key=lambda r: -r[0])
+    groups: list[list[Run]] = []
+    for band in range(len(full) + 1):
+        above = full[band - 1][0] if band else math.inf
+        below = full[band][0] if band < len(full) else -math.inf
+        for column in (left, right):
+            part = [r for r in column if below < r[0] < above]
+            if part:
+                groups.append(part)
+        if band < len(full):
+            groups.append([full[band]])
+    return groups
+
+
+def _lines_of(runs: list[Run]) -> list[Line]:
+    """同じ高さの文字列を 1 行にまとめ、間が空いた文字列を別のセルにする（上から下へ）。"""
+    runs = sorted(runs, key=lambda r: -r[0])
+    rows: list[list[Run]] = []
+    for run in runs:
+        if rows and abs(rows[-1][0][0] - run[0]) <= _LINE_TOLERANCE * max(run[2], rows[-1][0][2]):
+            rows[-1].append(run)
+        else:
+            rows.append([run])
+
+    lines: list[Line] = []
+    for row in rows:
+        row.sort(key=lambda r: r[1])
+        cells: list[str] = []
+        starts: list[float] = []
+        end_x = None
+        for _, x, size, text in row:
+            if end_x is not None and cells and x - end_x <= _CELL_GAP * size:
+                cells[-1] += text  # 同じセル（書式の途中の切れ目など）
+            else:
+                cells.append(text)
+                starts.append(x)
+            end_x = x + _estimated_width(text, size)
+        kept = [(c.strip(), x) for c, x in zip(cells, starts, strict=True) if c.strip()]
+        lines.append(
+            Line(
+                y=max(r[0] for r in row),
+                size=max(r[2] for r in row),
+                cells=tuple(c for c, _ in kept),
+                xs=tuple(x for _, x in kept),
+            )
+        )
+    return [line for line in lines if line.cells]
+
+
 def _layout_lines(page) -> tuple[Line, ...]:
-    """pypdf の visitor で、文字列ごとの位置を取り、同じ高さの文字列を 1 行にまとめる。"""
-    runs: list[tuple[float, float, float, str]] = []  # (y, x, size, text)
+    """pypdf の visitor で、文字列ごとの位置を取り、同じ高さの文字列を 1 行にまとめる（2 段組みなら、段ごとに読み順で）。"""
+    runs: list[Run] = []
 
     def visitor(text, cm, tm, font_dict, font_size):  # noqa: ARG001
         if not text or not text.strip():
@@ -90,34 +219,7 @@ def _layout_lines(page) -> tuple[Line, ...]:
     page.extract_text(visitor_text=visitor)
     if not runs:
         return ()
-
-    runs.sort(key=lambda r: -r[0])
-    rows: list[list[tuple[float, float, float, str]]] = []
-    for run in runs:
-        if rows and abs(rows[-1][0][0] - run[0]) <= _LINE_TOLERANCE * max(run[2], rows[-1][0][2]):
-            rows[-1].append(run)
-        else:
-            rows.append([run])
-
-    lines: list[Line] = []
-    for row in rows:
-        row.sort(key=lambda r: r[1])
-        cells: list[str] = []
-        end_x = None
-        for _, x, size, text in row:
-            if end_x is not None and cells and x - end_x <= _CELL_GAP * size:
-                cells[-1] += text  # 同じセル（書式の途中の切れ目など）
-            else:
-                cells.append(text)
-            end_x = x + _estimated_width(text, size)
-        lines.append(
-            Line(
-                y=max(r[0] for r in row),
-                size=max(r[2] for r in row),
-                cells=tuple(c.strip() for c in cells if c.strip()),
-            )
-        )
-    return tuple(line for line in lines if line.cells)
+    return tuple(line for group in _split_columns(runs) for line in _lines_of(group))
 
 
 def extract_pages(path: Path) -> list[Page]:

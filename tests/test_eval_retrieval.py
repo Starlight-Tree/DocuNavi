@@ -807,23 +807,20 @@ MENU_BASELINE = ROOT / "evals" / "results" / "baseline_bm25_menu.json"
 
 @pytest.mark.skipif(not (MENU_DIR / "cafe_menu.pdf").exists(), reason="評価用の PDF（evals/fixtures/menu/）が無い")
 def test_menu_pdfs_search_does_not_regress_from_the_committed_baseline(tmp_path):
-    # menu の 2 冊は、表のセルの折り返しで根拠が抽出結果に無い質問（p004・p005）を含むので、--allow-missing-evidence が要る
-    # （付けないと「評価セットが資料と合っていません」で止まる）。読み取りが良くなれば extraction_miss は減る
+    # 折り返したセルは、チャンク化（chunker._merge_wrapped_rows）が列ごとに 1 行へ組み直すので、根拠が抽出結果に無い質問は無い
+    # （--allow-missing-evidence は要らない）。組み直しが効かなくなると、「評価セットが資料と合っていません」で止まる
     baseline = json.loads(MENU_BASELINE.read_text(encoding="utf-8"))
     out = tmp_path / "r.json"
-    args = ["--corpus", str(MENU_DIR), "--k", str(baseline["k"]), "--out", str(out)]
-    assert ev.main(args) == 2
-    assert not out.exists()
-    assert ev.main([*args, "--allow-missing-evidence"]) == 0
+    assert ev.main(["--corpus", str(MENU_DIR), "--k", str(baseline["k"]), "--out", str(out)]) == 0
     current = json.loads(out.read_text(encoding="utf-8"))
     if current["corpus"]["pdf_sha256"] != baseline["corpus"]["pdf_sha256"]:
-        pytest.skip("PDF が変わった。baseline を取り直す（--corpus evals/fixtures/menu --allow-missing-evidence）")
+        pytest.skip("PDF が変わった。baseline を取り直す（--corpus evals/fixtures/menu）")
 
     now, then = current["summary"]["counts"], baseline["summary"]["counts"]
     regressed = {name: (then[name], now[name]) for name in then if now[name] < then[name]}
     assert not regressed, f"baseline より該当数が減った（baseline, 現在）: {regressed}"
     assert current["summary"]["total_questions"] == baseline["summary"]["total_questions"]
-    assert current["summary"]["extraction_miss"]["n"] <= baseline["summary"]["extraction_miss"]["n"]
+    assert "extraction_miss" not in current["summary"]
 
 
 def test_question_ids_do_not_collide_between_the_evaluated_sets_and_the_fixtures():

@@ -11,7 +11,7 @@ import pytest
 from pypdf import PdfReader, PdfWriter
 
 from app.ingestion import __main__ as cli
-from app.ingestion import chunker
+from app.ingestion import chunker, pdf_parser
 from app.ingestion.chunker import Chunk, chunk_pages, content_hash
 from app.ingestion.pdf_parser import IngestionError, Line, Page, extract_pages
 from app.ingestion.repository import MemoryRepository, diff_counts
@@ -536,3 +536,201 @@ def test_the_cafe_pdf_keeps_its_table_as_one_chunk_across_the_page_break(monkeyp
     assert not any("3 / 4" in c.text or "4 / 4" in c.text for c in chunks)
     # 2 回読んでも、同じチャンク・同じハッシュ
     assert [c.content_hash for c in chunks] == [c.content_hash for c in chunk_pages(extract_pages(CAFE_PDF))]
+
+
+# ---- 折り返したセルの組み直し ----
+
+
+def _cells(y, *cells, size=10.0):
+    """(左端の x, 文字列) の並びから Line を作る。"""
+    return Line(y=y, size=size, cells=tuple(t for _, t in cells), xs=tuple(x for x, _ in cells))
+
+
+# 縦の中央揃えで、「第1期」と「ドリンク20%引き」が 2 行に折り返された表（行の間隔 22、断片の間隔 7）
+WRAPPED_TABLE = [
+    _cells(610, (60, "期"), (100, "期間"), (220, "特典"), (320, "対象")),
+    _cells(588, (60, "第1"), (220, "ドリンク20%引")),
+    _cells(581, (100, "11月1日から11月10日"), (320, "SサイズとMサイズ")),
+    _cells(574, (60, "期"), (220, "き")),
+    _cells(552, (60, "第2")),
+    _cells(545, (100, "11月11日から11月20日"), (220, "フード15%引き"), (320, "6種類")),
+    _cells(538, (60, "期")),
+]
+MERGED_ROWS = [
+    "期 期間 特典 対象",
+    "第1期 11月1日から11月10日 ドリンク20%引き SサイズとMサイズ",
+    "第2期 11月11日から11月20日 フード15%引き 6種類",
+]
+
+
+def test_wrapped_cells_are_rebuilt_into_one_row_per_table_row():
+    rows = chunker._merge_wrapped_rows(WRAPPED_TABLE)
+    assert [line.text for line in rows] == MERGED_ROWS
+    assert [len(line.cells) for line in rows] == [4, 4, 4]
+
+    (chunk,) = chunk_pages([Page(1, "", tuple(WRAPPED_TABLE))])
+    assert (chunk.kind, chunk.text) == ("table", "\n".join(MERGED_ROWS))
+
+
+def test_a_rebuilt_row_keeps_the_gap_to_the_next_row_measured_from_its_bottom():
+    rows = chunker._merge_wrapped_rows(WRAPPED_TABLE)
+    assert (rows[1].y, rows[1].bottom, rows[2].y) == (588, 574, 552)
+    assert Line(y=5.0, size=1.0, cells=("a",)).bottom == 5.0
+
+
+def test_a_table_whose_rows_are_as_close_as_its_wrapped_lines_is_left_alone():
+    # 行どうしの間隔が断片の間隔と同じ（Word の既定）なら、行の切れ目が位置から分からない。組み直さない
+    compact = [
+        _cells(100, (60, "店舗"), (200, "席")),
+        _cells(93, (60, "港町"), (200, "68")),
+        _cells(86, (60, "湖畔"), (200, "76")),
+        _cells(79, (200, "30")),
+        _cells(72, (60, "鳥栖"), (200, "30")),
+    ]
+    assert chunker._merge_wrapped_rows(compact) == compact
+
+
+def test_a_plain_table_with_wide_row_gaps_is_left_alone():
+    plain = [_cells(600 - 22 * i, (60, a), (200, b)) for i, (a, b) in enumerate([("店舗", "席"), ("港町", "68"), ("湖畔", "76")])]
+    assert chunker._merge_wrapped_rows(plain) == plain
+
+
+def test_tightly_spaced_paragraph_lines_are_not_merged_even_next_to_a_table():
+    table = [_cells(600 - 22 * i, (60, a), (200, b)) for i, (a, b) in enumerate([("店舗", "席"), ("港町", "68")])]
+    text = [_cells(540 - 14 * i, (90, f"{i} 行目の本文です")) for i in range(3)]  # 左端が表の列と揃わない
+    lines = [*table, *text]
+    assert chunker._merge_wrapped_rows(lines) == lines
+
+
+def test_lines_without_positions_are_returned_unchanged():
+    lines = [Line(y=100 - 7 * i, size=10.0, cells=("a", "b") if i % 2 else ("c",)) for i in range(5)]
+    assert chunker._merge_wrapped_rows(lines) == lines
+
+
+MENU_DIR_FOR_WRAP = Path(__file__).resolve().parents[1] / "evals" / "fixtures" / "menu"
+
+
+@pytest.mark.skipif(not (MENU_DIR_FOR_WRAP / "cafe_campaign.pdf").exists(), reason="評価用の PDF（evals/fixtures/menu/）が無い")
+def test_the_campaign_pdf_keeps_its_two_wrapped_tables_readable(monkeypatch):
+    monkeypatch.setattr(chunker, "HARD_LIMIT_CHARS", 1600)
+    tables = [c for c in chunk_pages(extract_pages(MENU_DIR_FOR_WRAP / "cafe_campaign.pdf")) if c.kind == "table"]
+
+    assert [len(c.text.split("\n")) for c in tables] == [4, 4]
+    assert "第1期 11月1日から11月10日 ドリンク20%引き SサイズとMサイズ 不要" in tables[0].text
+    assert "特典 アプリのクーポン 持ち帰りの10円引き ポイントでの支払い" in tables[1].text
+    assert "第2期のフード15%引き 併用できない 併用できる 併用できる" in tables[1].text
+
+
+def test_a_column_that_exists_only_as_fragments_is_rebuilt():
+    # 「エリア」の列は、断片の行（1 セルだけ）にしか無く、表の行にはセルが 1 つも無い（上下中央揃え）
+    x = (60, 150, 270)
+    lines = [
+        _cells(600, (125, "エリ")),
+        _cells(594, (x[0], "店名"), (x[1], "住所"), (x[2], "営業時間")),
+        _cells(588, (125, "ア")),
+        _cells(568, (125, "青波")),
+        _cells(562, (x[0], "川沿い店"), (x[1], "青波市川原町2-5-1"), (x[2], "7:00-23:0")),
+        _cells(556, (125, "市"), (x[2], "0")),
+        _cells(536, (x[0], "公園前店"), (x[1], "青波市緑ヶ丘1-8-3"), (x[2], "6:00-24:00")),
+    ]
+    assert [line.text for line in chunker._merge_wrapped_rows(lines)] == [
+        "店名 エリア 住所 営業時間",
+        "川沿い店 青波市 青波市川原町2-5-1 7:00-23:00",
+        "公園前店 青波市緑ヶ丘1-8-3 6:00-24:00",
+    ]
+
+
+def test_a_lone_fragment_outside_the_known_columns_is_not_taken_as_a_column():
+    lines = [
+        _cells(600, (60, "店舗"), (200, "席")),
+        _cells(594, (130, "注")),  # 同じ左端の断片が 1 本だけ。別の行かもしれない
+        _cells(572, (60, "港町"), (200, "68")),
+        _cells(550, (60, "湖畔"), (200, "76")),
+    ]
+    assert chunker._merge_wrapped_rows(lines) == lines
+
+
+def test_cell_fragments_are_joined_without_a_space_between_digits_only():
+    assert chunker._join_wrapped(["7:00-23:0", "0"], digits=True) == "7:00-23:00"
+    assert chunker._join_wrapped(["Wrapped", "cell"], digits=True) == "Wrapped cell"
+    assert chunker._join_wrapped(["第1", "期"], digits=True) == "第1期"
+    assert chunker._join_wrapped(["7:00-23:0", "0"]) == "7:00-23:0 0"  # 段落のつなぎ方は変えていない
+
+
+GYM_GUIDE = Path(__file__).resolve().parents[1] / "evals" / "fixtures" / "gym" / "gym_guide.pdf"
+
+
+@pytest.mark.skipif(not GYM_GUIDE.exists(), reason="評価用の PDF（evals/fixtures/gym/）が無い")
+def test_the_gym_guide_store_table_is_one_chunk_with_its_wrapped_area_column(monkeypatch):
+    monkeypatch.setattr(chunker, "HARD_LIMIT_CHARS", 1600)
+    tables = [c for c in chunk_pages(extract_pages(GYM_GUIDE)) if c.kind == "table"]
+
+    (store,) = [c for c in tables if c.heading == "店舗一覧"]
+    rows = store.text.split("\n")
+    assert rows[0] == "店名 エリア 住所 営業時間 定休日 面積・定員 主な設備"
+    assert len(rows) == 9  # 見出し行と 8 店
+    assert "川沿い店 青波市 青波市川原町2-5-1 7:00-23:00 毎週水曜 2,400㎡・380名 プール・サウナ" in rows
+
+
+def test_rebuilding_rows_neither_drops_nor_invents_characters():
+    def chars(lines):
+        return sorted(ch for line in lines for cell in line.cells for ch in cell if not ch.isspace())
+
+    assert chars(chunker._merge_wrapped_rows(WRAPPED_TABLE)) == chars(WRAPPED_TABLE)
+
+
+# ---- 2 段組み ----
+
+
+def _text_runs(x, top, count, *, size=10.0, chars=20, step=18.0):
+    """左端が x で、全角 chars 文字の長い行を count 本、上から並べた文字列。"""
+    return [(top - step * i, x, size, "あ" * chars) for i in range(count)]
+
+
+def test_a_two_column_page_is_read_title_then_left_column_then_right_column():
+    title = [(800.0, 50.0, 16.0, "題" * 30)]  # 全幅（段の間をまたぐ）
+    left, right = _text_runs(50.0, 760.0, 10), _text_runs(300.0, 760.0, 10)
+
+    groups = pdf_parser._split_columns([*title, *right, *left])  # 入力の順は関係ない
+
+    assert [len(g) for g in groups] == [1, 10, 10]
+    assert groups[0] == title
+    assert sorted(groups[1]) == sorted(left) and sorted(groups[2]) == sorted(right)
+
+
+def test_a_one_column_page_is_not_split():
+    lines = _text_runs(50.0, 760.0, 12, chars=45)  # 段落の行は、ページの幅いっぱい
+    assert pdf_parser._split_columns(lines) == [lines]
+
+
+def test_a_page_of_short_table_cells_is_not_split_into_columns():
+    cells = [(760.0 - 18 * i, x, 10.0, "短い") for i in range(12) for x in (50.0, 150.0, 300.0, 400.0)]
+    assert pdf_parser._split_columns(cells) == [cells]
+
+
+def test_a_block_beside_the_text_that_is_much_shorter_is_not_a_column():
+    left = _text_runs(50.0, 760.0, 30, chars=20)
+    box = _text_runs(300.0, 760.0, 8, chars=20)  # 縦の範囲が左の 3 割未満
+    runs = [*left, *box]
+    assert pdf_parser._split_columns(runs) == [runs]
+
+
+HIDAMARI = Path(__file__).resolve().parents[1] / "evals" / "fixtures" / "two_column" / "hidamari_waste_guide.pdf"
+
+
+@pytest.mark.skipif(not HIDAMARI.exists(), reason="評価用の PDF（evals/fixtures/two_column/）が無い")
+def test_the_two_column_pdf_keeps_sentences_whole_and_its_wrapped_table_readable(monkeypatch):
+    monkeypatch.setattr(chunker, "HARD_LIMIT_CHARS", 1600)
+    chunks = chunk_pages(extract_pages(HIDAMARI))
+    text = "\n".join(c.text for c in chunks)
+
+    # 左右の段の文が混ざらず、段落の途中で切れない
+    assert "ペットボトルは、キャップとラベルを外し、軽くすすいでからつぶします。" in text
+    assert "指定袋は、大 (45L) 10 枚入りが 450 円" in text
+    assert "年末年始は、12 月 29 日から 1 月 3 日まで、すべての収集を休みます。" in text
+    # 段の中の表は、折り返したセルも 1 行になり、2 ページにまたがっても 1 つ
+    (table,) = [c for c in chunks if c.kind == "table"]
+    assert (table.page, table.page_end) == (1, 2)
+    assert table.text.split("\n")[0] == "地区 燃やせるごみ 燃やせないごみ 資源"
+    assert "緑ヶ丘 火・金 第1・第3水曜 木" in table.text.split("\n")
+    assert "若葉町 火・金 第1・第3月曜 日" in table.text.split("\n")

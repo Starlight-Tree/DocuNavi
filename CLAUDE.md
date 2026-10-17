@@ -32,7 +32,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - `storage/pdf/<名前>/`: PDF の資料。ディレクトリ名が資料群の名前（いまは `cafe` と `guides`）。チャットの検索ツール `search_documents` は、
   資料群ごとに別々に BM25 で採点して結果を合わせる（混ぜて採点しない。理由は `docs/configuration.md`）。
   `storage/pdf/cafe/` と `storage/pdf/guides/` の PDF は `evals/corpora/<同じ名前>/` の PDF の写し（作り直したら両方を更新する。
-  テストが一致を確かめる）。2 段組みの PDF は、抽出が壊れるのでアプリに置かない（`evals/fixtures/two_column/`）
+  テストが一致を確かめる）。2 段組みの PDF は、段を検出して読み順を組み直す（`pdf_parser._split_columns`）が、試したのは reportlab 製の 1 冊だけ。実物の書き出しで確かめるまで、アプリには置かない（`evals/fixtures/two_column/`）
 - `frontend/`: UI。`dist/` と `node_modules/` は Git 管理外
 
 ## 守ること（コードを書く前に）
