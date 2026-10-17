@@ -1,0 +1,278 @@
+# 承認済み。評価に使ってよい。22 問すべて、user が「全部 OK」と返した（2026-10-17）。直した質問は無い。
+# 作成者の出力は 2 冊・22 問（m001-m009、p001-p009、x001-x004）。質問と期待値は、作成者の出力のまま（編集していない）。
+# 作成者: subagent（検索の実装・既存の評価を知らない、分離した文脈。ツールもリポジトリも使わない指示。
+#         harness の記録では tool_uses が 1 回あり、返答の受け渡しと思われる。未確認）
+# 作成日: 2026-10-15
+# 承認者: user（chat の返答「全部 OK」。user が書いた文）
+# 承認日: 2026-10-17
+# 承認方法: 下の事前検査（agent、検索のコードは使わない）のあと、agent が質問セットの内容を説明し（2 冊・22 問、例 m001、
+#           p008 に注意）、user が「全部 OK」と返した。質問 ID ごとの返答ではない。確認表（質問・期待回答・根拠とページ）は、
+#           2026-10-15 の別セッションで chat に示したもので、今回の返答の前に示し直してはいない。
+#           user が PDF を直接読んだか、22 問を 1 問ずつ読んだかは、記録していない。
+# 事前検査（検索のコードは使わない。2026-10-15）:
+#   (1) 根拠（22 問分）がすべて、期待ファイルの Markdown にそのまま存在する（表の行はセルを半角スペースでつないだ形）。
+#       2 冊をあわせる質問（x001-x003）は、両方のファイルに根拠がある
+#   (2) 集計・絞り込み・比較（m005 m006 p004 p005）の根拠は、答えを決める表の行の全部。答えを表から再計算して一致
+#       （m005 抹茶ラテ 210kcal、m006 ホットサンドとモーニングセット）。2 冊をあわせる質問の答えも再計算して一致
+#       （m004 500 円、x001 350 円、x002 382 円、x003 45 ポイント）
+#   (3) 資料外 7 問のうち、on_topic_absent 5 問の答えが資料のどこにも無い（関連語が出る箇所を目で確かめた。
+#       p008 の「クーポン」は本文に出るが、有効期限は書かれていない。「有効期限」はポイントのもの）
+# 承認基準（user が読むとき）: 質問が自然 / 正解が一意 / 引用が本文にそのまま存在 / 集計の行が全部ある / 資料外が本当に無い
+# 注意: 承認後は変更しない。PDF 化で本文と抽出結果がずれた場合も、質問側は直さず、ずれを報告する。
+#       **p004・p005 は、根拠の表の行が PDF の抽出結果に無い**（セルが狭い列で折り返され、行として読めない）。
+#       質問は直さず、`--allow-missing-evidence` で extraction_miss として数える（理由は evals/README.md の menu の節）。
+#       そのため、この評価セットの `--corpus` は、`--allow-missing-evidence` を付けないと終了コード 2 で止まる。
+#       **アプリの検索対象（storage/pdf/）には入れていない**（`evals/corpora/` ではなく `evals/fixtures/` に置く理由）。
+#       入れて測ると、既存の質問 68 問のうち 14 問に、この 2 冊の文が混ざり、k=2（LLM が見る件数）で 2 問が当たりを失った
+#       （evals/README.md の menu の節）。入れるかどうかは user の判断。入れるなら `--app` にも `--allow-missing-evidence` が要る。
+#       evidence の表の行は、表のセルの値を左から順に半角スペースで区切った文字列。page は書かない（抽出結果から決める）。
+#       `doc` は関連する資料の名前（資料外の質問では、題材にした資料）。評価の道具が読むのは `expected_doc_ids`。
+#       PDF は source/make_pdfs.py で作る。
+- id: m001
+  doc: cafe_menu.pdf
+  expected_doc_ids: ["cafe_menu.pdf"]
+  question: "ドリンクのLサイズは、何mlですか？"
+  answer: "480mlです。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "ドリンクのサイズは、Sが240ml、Mが360ml、Lが480mlの3種類です。"
+
+- id: m002
+  doc: cafe_menu.pdf
+  expected_doc_ids: ["cafe_menu.pdf"]
+  question: "牛乳の代わりに大豆から作った飲み物にしたいとき、追加でいくらかかりますか？"
+  answer: "1杯につき50円です。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "ミルクを豆乳に変更する場合は、1杯につき50円がかかります。"
+
+- id: m003
+  doc: cafe_menu.pdf
+  expected_doc_ids: ["cafe_menu.pdf"]
+  question: "朝の時間帯だけ頼める、ドリンクとトーストのセットを、ドライブスルーで頼めるのは何時までですか？"
+  answer: "10時までです。セットの提供時間は7時から10時30分までですが、ドライブスルー併設店のドライブスルーでのご注文は10時までです。"
+  category: paraphrase
+  evidence_mode: all
+  evidence:
+    - "モーニングセットの提供時間は、7時から10時30分までです。"
+    - "ただし、ドライブスルー併設店のドライブスルーでのご注文は、10時までです。"
+
+- id: m004
+  doc: cafe_menu.pdf
+  expected_doc_ids: ["cafe_menu.pdf"]
+  question: "アイスの抹茶ラテのMサイズは、いくらですか？"
+  answer: "500円です。ホットのMサイズは480円で、抹茶ラテのアイスはホットより20円高くなります。"
+  category: factual
+  evidence_mode: all
+  evidence:
+    - "抹茶ラテ 420円 480円 540円 210kcal"
+    - "ただし、抹茶ラテのアイスは、ホットより20円高くなります。"
+
+- id: m005
+  doc: cafe_menu.pdf
+  expected_doc_ids: ["cafe_menu.pdf"]
+  question: "Mサイズのカロリーが一番高いドリンクは、どれですか？"
+  answer: "抹茶ラテです（210kcal）。"
+  category: factual
+  kind: comparison
+  evidence_mode: all
+  evidence:
+    - "ブレンドコーヒー 320円 380円 440円 8kcal"
+    - "アメリカーノ 340円 400円 460円 10kcal"
+    - "カフェラテ 380円 440円 500円 150kcal"
+    - "カプチーノ 380円 440円 500円 120kcal"
+    - "抹茶ラテ 420円 480円 540円 210kcal"
+    - "紅茶 300円 360円 420円 2kcal"
+    - "ミルクティー 380円 440円 500円 170kcal"
+    - "オレンジジュース 360円 420円 480円 160kcal"
+
+- id: m006
+  doc: cafe_menu.pdf
+  expected_doc_ids: ["cafe_menu.pdf"]
+  question: "卵を使っていないフードは、どれですか？"
+  answer: "ホットサンドとモーニングセットです。"
+  category: factual
+  kind: filter
+  evidence_mode: all
+  evidence:
+    - "ホットサンド なし あり あり なし"
+    - "ミートパイ あり あり あり なし"
+    - "チーズケーキ あり あり あり なし"
+    - "ガトーショコラ あり あり あり あり"
+    - "焼きりんごのタルト あり あり あり あり"
+    - "モーニングセット なし あり あり なし"
+    - "クラブハウスサンド あり あり あり なし"
+
+- id: m007
+  doc: cafe_menu.pdf
+  question: "デカフェ（カフェインレス）のコーヒーは、メニューにありますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+
+- id: m008
+  doc: cafe_menu.pdf
+  question: "ドリンクにホイップクリームを追加すると、いくらかかりますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+
+- id: m009
+  doc: cafe_menu.pdf
+  question: "東京から大阪まで、新幹線で何時間くらいかかりますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: off_topic
+  evidence_mode: any
+  evidence: []
+
+- id: p001
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_campaign.pdf"]
+  question: "第2期は、フードが何%引きになりますか？"
+  answer: "15%引きです。"
+  category: factual
+  evidence_mode: any
+  evidence:
+    - "第2期は、フードが15%引きになります。"
+
+- id: p002
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_campaign.pdf"]
+  question: "キャンペーン中にアプリへ初めて登録したら、何ポイントもらえますか？"
+  answer: "100ポイントです。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "キャンペーンの期間中に、アプリの会員に新しく登録した方には、100ポイントを差し上げます。"
+
+- id: p003
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_campaign.pdf"]
+  question: "一度の会計で、割引してもらえるのは、最大で何個までですか？"
+  answer: "ドリンクとフードを合わせて10点までです。11点目からは割引になりません。"
+  category: paraphrase
+  evidence_mode: any
+  evidence:
+    - "1回のお会計で割引になるのは、ドリンクとフードを合わせて、10点までです。"
+    - "11点目からは、割引になりません。"
+
+- id: p004
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_campaign.pdf"]
+  question: "第1期と第2期では、割引率が大きいのはどちらですか？"
+  answer: "第1期です。第1期は20%引き、第2期は15%引きです。"
+  category: factual
+  kind: comparison
+  evidence_mode: all
+  evidence:
+    - "第1期 11月1日から11月10日 ドリンク20%引き SサイズとMサイズ 不要"
+    - "第2期 11月11日から11月20日 フード15%引き モーニングセットを除く6種類 不要"
+
+- id: p005
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_campaign.pdf"]
+  question: "アプリのクーポンと併用できる特典は、どれですか？"
+  answer: "第3期のポイント5倍です。第1期のドリンク20%引きと、第2期のフード15%引きは、クーポンと併用できません。"
+  category: factual
+  kind: filter
+  evidence_mode: all
+  evidence:
+    - "第1期のドリンク20%引き 併用できない 併用できる 併用できる"
+    - "第2期のフード15%引き 併用できない 併用できる 併用できる"
+    - "第3期のポイント5倍 併用できる 併用できる 併用できる（支払い分は増量の対象外）"
+
+- id: p006
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_campaign.pdf"]
+  question: "11月23日にアプリでエントリーをしました。11月22日のお会計は、ポイントが増量されますか？"
+  answer: "増量されません。エントリーをする前のお会計は、増量の対象になりません。"
+  category: factual
+  evidence_mode: all
+  evidence:
+    - "ポイントの増量を受けるには、アプリでのエントリーが必要です。"
+    - "ただし、エントリーをする前のお会計は、増量の対象になりません。"
+
+- id: p007
+  doc: cafe_campaign.pdf
+  question: "学生証を見せると、さらに割引になりますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+
+- id: p008
+  doc: cafe_campaign.pdf
+  question: "アプリのクーポンの有効期限は、キャンペーンの期間中、延長されますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []
+
+- id: p009
+  doc: cafe_campaign.pdf
+  question: "リンゴ1個の重さは、平均すると何グラムくらいですか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: off_topic
+  evidence_mode: any
+  evidence: []
+
+- id: x001
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_menu.pdf", "cafe_campaign.pdf"]
+  question: "11月5日に、空港内の店舗の店内で、ブレンドコーヒーのSサイズを1杯飲むと、いくらですか？"
+  answer: "350円です。11月5日は第1期ですが、空港内の店舗は割引の対象外で、価格は表示価格の320円より30円高くなるため、350円です。"
+  category: multi_hop
+  kind: multi_hop
+  evidence_mode: all
+  evidence:
+    - "ブレンドコーヒー 320円 380円 440円 8kcal"
+    - "空港内の店舗では、すべての商品の価格が、表示価格より30円高くなります。"
+    - "空港内の店舗は、第1期と第2期の割引の対象外です。"
+
+- id: x002
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_menu.pdf", "cafe_campaign.pdf"]
+  question: "11月15日に、空港内ではない店舗の店内で、チーズケーキを1つ食べると、いくらですか？"
+  answer: "382円です。11月15日は第2期で、450円の15%引きは382.5円になり、1円未満を切り捨てるため、382円です。"
+  category: multi_hop
+  kind: multi_hop
+  evidence_mode: all
+  evidence:
+    - "チーズケーキ 450円 320kcal 終日"
+    - "第2期は、11月11日から11月20日までです。"
+    - "第2期は、フードが15%引きになります。"
+    - "割引後の価格の1円未満は、切り捨てます。"
+
+- id: x003
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_menu.pdf", "cafe_campaign.pdf"]
+  question: "11月25日の昼の12時ごろに、アプリでエントリーを済ませた状態で、空港内ではない店舗の店内で、ミートパイとカフェラテのMサイズを1つずつ買うと、何ポイントたまりますか？"
+  answer: "45ポイントです。ミートパイ480円とカフェラテのM440円で、税込合計は920円です。100円ごとに5ポイントで、端数の20円は対象にならないため、9かける5で45ポイントです。"
+  category: multi_hop
+  kind: multi_hop
+  evidence_mode: all
+  evidence:
+    - "ミートパイ 480円 380kcal 11時から"
+    - "カフェラテ 380円 440円 500円 150kcal"
+    - "第3期は、11月21日から11月30日までです。"
+    - "第3期は、お会計の税込合計100円ごとにたまるポイントが、通常の1ポイントから5ポイントになります。"
+    - "100円に満たない端数は、通常と同じく、ポイントの対象になりません。"
+
+- id: x004
+  doc: cafe_campaign.pdf
+  question: "キャンペーンの期間中に、チーズケーキのホール（丸ごと1台）を予約すると、いくらになりますか？"
+  answer: ""
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  evidence_mode: any
+  evidence: []

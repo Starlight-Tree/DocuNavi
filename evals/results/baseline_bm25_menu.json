@@ -1,0 +1,904 @@
+{
+  "mode": "bm25",
+  "k": 5,
+  "generated_at": "2026-10-17T21:49:14+09:00",
+  "corpus": {
+    "files": [
+      "cafe_campaign.pdf",
+      "cafe_menu.pdf"
+    ],
+    "sha256": "6c037ba9e8c4277966efe2a6d975283d676b4789f614b1e0f4b2b88f1e0a80ff",
+    "source": "pdf:menu",
+    "passages": "parent",
+    "pages": {
+      "cafe_campaign.pdf": 4,
+      "cafe_menu.pdf": 4
+    },
+    "pdf_sha256": {
+      "cafe_campaign.pdf": "0c56488ae368a3508716e1e4674131f24500abe253a235752e8ecabb898c859a",
+      "cafe_menu.pdf": "4b00521d89977ba4fef0e4ac38867084c5d517e1b6172a19224cc20abd4df6ca"
+    }
+  },
+  "search_params": {
+    "TOP_K": 2,
+    "MAX_PASSAGES_PER_FILE": 3,
+    "CONTEXT_WINDOW": 1,
+    "RELATIVE_SCORE_CUTOFF": 0.4,
+    "GENERIC_TERM_RATIO": 0.25,
+    "MIN_SHARED_TERMS": 2
+  },
+  "summary": {
+    "total_questions": 22,
+    "answerable_questions": 15,
+    "out_of_scope_questions": 7,
+    "doc_recall_at_5": 0.9333,
+    "keyword_hit_rate_at_5": 0.4,
+    "mrr": 0.9,
+    "empty_answer_accuracy": 0.4286,
+    "counts": {
+      "doc_hit": 14,
+      "keyword_hit": 6,
+      "answered_empty": 3
+    },
+    "empty_answer_by_scope_kind": {
+      "off_topic": {
+        "n": 2,
+        "empty": 2,
+        "accuracy": 1.0
+      },
+      "on_topic_absent": {
+        "n": 5,
+        "empty": 1,
+        "accuracy": 0.2
+      }
+    },
+    "by_category": {
+      "factual": {
+        "n": 8,
+        "doc_hits": 8,
+        "keyword_hits": 3,
+        "doc_recall": 1.0,
+        "keyword_hit_rate": 0.375,
+        "mrr": 0.9375
+      },
+      "paraphrase": {
+        "n": 4,
+        "doc_hits": 3,
+        "keyword_hits": 2,
+        "doc_recall": 0.75,
+        "keyword_hit_rate": 0.5,
+        "mrr": 0.75
+      },
+      "multi_hop": {
+        "n": 3,
+        "doc_hits": 3,
+        "keyword_hits": 1,
+        "doc_recall": 1.0,
+        "keyword_hit_rate": 0.3333,
+        "mrr": 1.0
+      }
+    },
+    "failure_counts": {
+      "extraction_miss": 2,
+      "keyword_miss": 4,
+      "paraphrase_miss": 2,
+      "unexpected_result": 4,
+      "wrong_rank": 1
+    },
+    "extraction_miss": {
+      "n": 2,
+      "ids": [
+        "p004",
+        "p005"
+      ],
+      "extracted_only": {
+        "n": 13,
+        "doc_hits": 12,
+        "keyword_hits": 6,
+        "doc_recall": 0.9231,
+        "keyword_hit_rate": 0.4615,
+        "mrr": 0.8846
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "m001",
+      "question": "ドリンクのLサイズは、何mlですか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "cafe_menu.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ドリンクのサイズは、Sが240ml、Mが360ml、Lが480mlの3種類です。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "ドリンクメニュー\nドリンクのサイズは、Sが240ml、Mが360ml、Lが480mlの3種類です。\nホットとアイスは、同じ価格です。\nただし、抹茶ラテのアイスは、ホットより20円高くなります。\n次の表は、ドリンクのサイズ別の価格と、Mサイズのカロリーです。\n1\nシロップの追加は1回につき40円、エスプレッソショットの追加は1回につき80円です。\nサイズ変更は、お支払いの前であれば、どのドリンクでも行えます。\nお支払いの後に変更する場合は、新しいドリンクとして、あらためてご注文ください。"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "第1期は、11月1日から11月10日までです。\n第1期は、ドリンクのSサイズとMサイズが、20%引きになります。\n第2期は、11月11日から11月20日までです。\n割引の対象と除外\n第1期のドリンクの20%引きは、SサイズとMサイズが対象です。\nLサイズは、対象外です。\nホットとアイスのどちらも対象です。"
+        }
+      ]
+    },
+    {
+      "id": "m002",
+      "question": "牛乳の代わりに大豆から作った飲み物にしたいとき、追加でいくらかかりますか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "cafe_menu.pdf"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": []
+    },
+    {
+      "id": "m003",
+      "question": "朝の時間帯だけ頼める、ドリンクとトーストのセットを、ドライブスルーで頼めるのは何時までですか？",
+      "category": "paraphrase",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_menu.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "モーニングセットの提供時間は、7時から10時30分までです。",
+        "ただし、ドライブスルー併設店のドライブスルーでのご注文は、10時までです。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "モーニングセットの提供時間は、7時から10時30分までです。\nただし、ドライブスルー併設店のドライブスルーでのご注文は、10時までです。\nミートパイとクラブハウスサンドは、11時からの提供です。\nただし、ドライブスルー併設店は6時30分から22時、空港内の店舗は6時から20時までです。\nドライブスルー併設店では、ドライブスルーでもご注文いただけます。\nただし、ドライブスルーでは、チーズケーキとガトーショコラを取り扱っていません。\nよくある質問\nQ. ドライブスルーで、モーニングセットは頼めますか。\nA. はい、頼めます。"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "みなとコーヒー 期間限定キャンペーンのご案内\nドライブスルーでは、車の中から、会員証の画面をお見せください。\n画面が見えにくい場合は、会員番号をお伝えいただいても、かまいません。\n空港内の店舗では、第3期のポイントの増量は、3倍になります。\nドライブスルー併設店では、ドライブスルーでのご注文も、割引とポイント増量の対象です。\nただし、ドライブスルーで取り扱っていない商品は、割引の対象になりません。\nそれ以外の店舗では、店内でのご注文も、持ち帰りのご注文も、すべての特典の対象です。"
+        }
+      ]
+    },
+    {
+      "id": "m004",
+      "question": "アイスの抹茶ラテのMサイズは、いくらですか？",
+      "category": "factual",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_menu.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ただし、抹茶ラテのアイスは、ホットより20円高くなります。"
+      ],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "ホットとアイスは、同じ価格です。\nただし、抹茶ラテのアイスは、ホットより20円高くなります。\n次の表は、ドリンクのサイズ別の価格と、Mサイズのカロリーです。\n1\nドライブスルー併設店のドライブスルーでは、10時までのご注文になります。\nQ. 抹茶ラテをアイスで頼むと、いくらになりますか。\nA. ホットの価格に、20円を足した価格です。"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "特典の内容は、次の表のとおりです。\n期 期間 特典 対象 エントリー\n第1 ドリンク20%引\n11月1日から11月10日 SサイズとMサイズ 不要\n期 き\n第2\n第1期は、11月1日から11月10日までです。\n第1期は、ドリンクのSサイズとMサイズが、20%引きになります。\n第2期は、11月11日から11月20日までです。\n割引の対象と除外\n第1期のドリンクの20%引きは、SサイズとMサイズが対象です。\nLサイズは、対象外です。"
+        }
+      ]
+    },
+    {
+      "id": "m005",
+      "question": "Mサイズのカロリーが一番高いドリンクは、どれですか？",
+      "category": "factual",
+      "kind": "comparison",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_menu.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "みなとコーヒーのメニューのご案内です。\nドリンクとフードの価格、サイズ、カロリー、アレルギー表示をまとめています。\n表示している価格は、すべて税込で、店内でお召し上がりの場合の価格です。\nただし、抹茶ラテのアイスは、ホットより20円高くなります。\n次の表は、ドリンクのサイズ別の価格と、Mサイズのカロリーです。\n1\nただし、ドリンクを3杯以上お持ち帰りの場合は、ドリンクキャリアが1枚につき10円かかります。\n脚注1 ドリンクのカロリーは、砂糖やシロップを加えない場合の値です。\nシロップを加えると、その分のカロリーが増えます。"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "第1期は、11月1日から11月10日までです。\n第1期は、ドリンクのSサイズとMサイズが、20%引きになります。\n第2期は、11月11日から11月20日までです。\n割引の対象と除外\n第1期のドリンクの20%引きは、SサイズとMサイズが対象です。\nLサイズは、対象外です。"
+        }
+      ]
+    },
+    {
+      "id": "m006",
+      "question": "卵を使っていないフードは、どれですか？",
+      "category": "factual",
+      "kind": "filter",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_menu.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_campaign.pdf",
+        "cafe_menu.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 2,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "wrong_rank",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_campaign.pdf",
+          "text": "第2期は、11月11日から11月20日までです。\n第2期は、フードが15%引きになります。\n第3期は、11月21日から11月30日までです。\n持ち帰りの10円引きは、割引の後の価格から引きます。\n割引は、ドリンクやフード本体の価格だけにかかります。\n豆乳への変更などのカスタマイズの料金は、割引の対象外です。\n併用できない 併用できる 併用できる\n引き第2期のフード15%引\n併用できない 併用できる 併用できる"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_menu.pdf",
+          "text": "お支払いの後に変更する場合は、新しいドリンクとして、あらためてご注文ください。\nフードメニュー\nフードは、全部で7種類です。\n次の表に、価格、1人前のカロリー、提供時間を示します。\n店内でのご利用は、混雑している時間帯は、90分までにご協力ください。\n持ち込みのドリンクやフードは、ご遠慮ください。\n忘れ物は、お預かりしてから、30日間保管します。"
+        }
+      ]
+    },
+    {
+      "id": "m007",
+      "question": "デカフェ（カフェインレス）のコーヒーは、メニューにありますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "はじめに\nみなとコーヒーのメニューのご案内です。\nドリンクとフードの価格、サイズ、カロリー、アレルギー表示をまとめています。\nお支払いの後に変更する場合は、新しいドリンクとして、あらためてご注文ください。\nフードメニュー\nフードは、全部で7種類です。\nポイントの有効期限は、最後にポイントがたまった日から、1年間です。\nメニューの入れ替えとご利用にあたって\n季節のドリンクとフードは、年に4回入れ替わります。"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "特典を受けるには\n特典を受けるには、みなとコーヒーのアプリの会員であることが必要です。\nアプリの会員登録は、無料です。\nモーニングセットは、もともとセット価格のため、割引の対象外です。\n割引は、メニューのご案内の表示価格にかかります。\n割引後の価格の1円未満は、切り捨てます。"
+        }
+      ]
+    },
+    {
+      "id": "m008",
+      "question": "ドリンクにホイップクリームを追加すると、いくらかかりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "ただし、抹茶ラテのアイスは、ホットより20円高くなります。\n次の表は、ドリンクのサイズ別の価格と、Mサイズのカロリーです。\n1\nチーズケーキとガトーショコラは、ドライブスルーでは買えません。\nQ. ドリンクの量を、あとから増やせますか。\nA. お支払いの前であれば、サイズを大きくできます。\nただし、ドリンクを3杯以上お持ち帰りの場合は、ドリンクキャリアが1枚につき10円かかります。\n脚注1 ドリンクのカロリーは、砂糖やシロップを加えない場合の値です。\nシロップを加えると、その分のカロリーが増えます。"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "特典の内容は、次の表のとおりです。\n期 期間 特典 対象 エントリー\n第1 ドリンク20%引\n11月1日から11月10日 SサイズとMサイズ 不要\n期 き\n第2\n持ち帰りの10円引きは、割引の後の価格から引きます。\n割引は、ドリンクやフード本体の価格だけにかかります。\n豆乳への変更などのカスタマイズの料金は、割引の対象外です。\nン き\n第1期のドリンク20%\n併用できない 併用できる 併用できる"
+        }
+      ]
+    },
+    {
+      "id": "m009",
+      "question": "東京から大阪まで、新幹線で何時間くらいかかりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "p001",
+      "question": "第2期は、フードが何%引きになりますか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "cafe_campaign.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_campaign.pdf",
+        "cafe_menu.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "第2期は、フードが15%引きになります。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_campaign.pdf",
+          "text": "第2期は、11月11日から11月20日までです。\n第2期は、フードが15%引きになります。\n第3期は、11月21日から11月30日までです。\nホットとアイスのどちらも対象です。\n第2期のフードの15%引きは、メニューのご案内に載っているフードのうち、モーニングセットを除く6種類が対象です。\nモーニングセットは、もともとセット価格のため、割引の対象外です。\n併用できない 併用できる 併用できる\n引き第2期のフード15%引\n併用できない 併用できる 併用できる"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_menu.pdf",
+          "text": "お支払いの後に変更する場合は、新しいドリンクとして、あらためてご注文ください。\nフードメニュー\nフードは、全部で7種類です。\n次の表に、価格、1人前のカロリー、提供時間を示します。\n店内でのご利用は、混雑している時間帯は、90分までにご協力ください。\n持ち込みのドリンクやフードは、ご遠慮ください。\n忘れ物は、お預かりしてから、30日間保管します。"
+        }
+      ]
+    },
+    {
+      "id": "p002",
+      "question": "キャンペーン中にアプリへ初めて登録したら、何ポイントもらえますか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "cafe_campaign.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_campaign.pdf",
+        "cafe_menu.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "キャンペーンの期間中に、アプリの会員に新しく登録した方には、100ポイントを差し上げます。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_campaign.pdf",
+          "text": "キャンペーンの概要\nみなとコーヒーは、日ごろのご愛顧に感謝して、2026年11月1日から11月30日まで、秋の感謝キャンペーンを行います。\nたまったポイントは、アプリのホーム画面で確認できます。\nキャンペーンが終わった後は、12月1日\nみなとコーヒー 期間限定キャンペーンのご案内\n新しく会員になった方へ\nキャンペーンの期間中に、アプリの会員に新しく登録した方には、100ポイントを差し上げます。\n100ポイントは、登録した日の翌日に、アプリに反映されます。"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_menu.pdf",
+          "text": "100円に満たない端数は、ポイントの対象になりません。\nキャンペーンの期間中は、ポイントが増えることがあります。\nたまったポイントは、1ポイントを1円として、次回からのお会計に使えます。"
+        }
+      ]
+    },
+    {
+      "id": "p003",
+      "question": "一度の会計で、割引してもらえるのは、最大で何個までですか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "cafe_campaign.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_campaign.pdf",
+          "text": "期\n第1期と第2期は、お会計のときに価格から割引をします。\n第3期は、割引ではなく、ポイントを増やします。\n100円に満たない端数は、通常と同じく、ポイントの対象になりません。\n1回のお会計でたまるポイントは、増量分を含めて、最大300ポイントまでです。\n1\n第3期のポイント5倍 併用できる 併用できる 併用できる（支払い分は増量の対象外）\nクーポンと割引が併用できない場合は、お会計のときに、どちらか1つをお選びください。\nポイントで支払った分は、第3期のポイントの増量の対象になりません。"
+        }
+      ]
+    },
+    {
+      "id": "p004",
+      "question": "第1期と第2期では、割引率が大きいのはどちらですか？",
+      "category": "factual",
+      "kind": "comparison",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_campaign.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "extraction_miss",
+      "extraction_miss": true,
+      "missing_evidence": [
+        "第1期 11月1日から11月10日 ドリンク20%引き SサイズとMサイズ 不要",
+        "第2期 11月11日から11月20日 フード15%引き モーニングセットを除く6種類 不要"
+      ],
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_campaign.pdf",
+          "text": "期\n第1期と第2期は、お会計のときに価格から割引をします。\n第3期は、割引ではなく、ポイントを増やします。\n登録には、メールアドレスが必要です。\n第1期と第2期の割引は、お会計のときに、アプリの会員証の画面をスタッフにお見せいただくと、自動で引かれます。\n会員証の画面をお見せいただけない場合は、割引になりません。\n店舗の区分による違い\n空港内の店舗は、第1期と第2期の割引の対象外です。\nこれは、空港内の店舗の価格の設定が、他の店舗と異なるためです。"
+        }
+      ]
+    },
+    {
+      "id": "p005",
+      "question": "アプリのクーポンと併用できる特典は、どれですか？",
+      "category": "factual",
+      "kind": "filter",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_campaign.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "第3期のポイント5倍 併用できる 併用できる 併用できる（支払い分は増量の対象外）"
+      ],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "extraction_miss",
+      "extraction_miss": true,
+      "missing_evidence": [
+        "第1期のドリンク20%引き 併用できない 併用できる 併用できる",
+        "第2期のフード15%引き 併用できない 併用できる 併用できる"
+      ],
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_campaign.pdf",
+          "text": "他の特典との併用\n割引やポイントの増量は、アプリのクーポンなどと、併用できるものとできないものがあります。\n併用の可否は、次の表のとおりです。\nアプリのクーポ 持ち帰りの10円引\n特典 ポイントでの支払い\nン き\n第1期のドリンク20%\n第3期のポイント5倍 併用できる 併用できる 併用できる（支払い分は増量の対象外）\nクーポンと割引が併用できない場合は、お会計のときに、どちらか1つをお選びください。\nポイントで支払った分は、第3期のポイントの増量の対象になりません。"
+        }
+      ]
+    },
+    {
+      "id": "p006",
+      "question": "11月23日にアプリでエントリーをしました。11月22日のお会計は、ポイントが増量されますか？",
+      "category": "factual",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_campaign.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_campaign.pdf",
+        "cafe_menu.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ポイントの増量を受けるには、アプリでのエントリーが必要です。",
+        "ただし、エントリーをする前のお会計は、増量の対象になりません。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_campaign.pdf",
+          "text": "1\nポイントの増量を受けるには、アプリでのエントリーが必要です。\nエントリーは、第3期が始まる前から、アプリの画面で行えます。\nただし、エントリーをする前のお会計は、増量の対象になりません。\n増量分のポイントも、通常のポイントと同じように、1ポイントを1円として使えます。\nA. 11月30日の営業終了まで、行えます。\nただし、エントリーをする前のお会計は、増量の対象になりません。\nQ. 新規会員の100ポイントは、何かを買わないともらえませんか。"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_menu.pdf",
+          "text": "ポイントとお支払い\nみなとコーヒーのアプリでは、お会計の税込合計100円ごとに、1ポイントがたまります。\n100円に満たない端数は、ポイントの対象になりません。\nキャンペーンの期間中は、ポイントが増えることがあります。\nたまったポイントは、1ポイントを1円として、次回からのお会計に使えます。\nただし、1回のお会計で使えるのは、お会計の合計金額の半分までです。"
+        }
+      ]
+    },
+    {
+      "id": "p007",
+      "question": "学生証を見せると、さらに割引になりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "p008",
+      "question": "アプリのクーポンの有効期限は、キャンペーンの期間中、延長されますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "100円に満たない端数は、ポイントの対象になりません。\nキャンペーンの期間中は、ポイントが増えることがあります。\nたまったポイントは、1ポイントを1円として、次回からのお会計に使えます。\nただし、1回のお会計で使えるのは、お会計の合計金額の半分までです。\nポイントの有効期限は、最後にポイントがたまった日から、1年間です。\nメニューの入れ替えとご利用にあたって"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "キャンペーンの概要\nみなとコーヒーは、日ごろのご愛顧に感謝して、2026年11月1日から11月30日まで、秋の感謝キャンペーンを行います。\n新しく会員になった方へ\nキャンペーンの期間中に、アプリの会員に新しく登録した方には、100ポイントを差し上げます。\n100ポイントは、登録した日の翌日に、アプリに反映されます。\n他の特典との併用\n割引やポイントの増量は、アプリのクーポンなどと、併用できるものとできないものがあります。\n併用の可否は、次の表のとおりです。"
+        }
+      ]
+    },
+    {
+      "id": "p009",
+      "question": "リンゴ1個の重さは、平均すると何グラムくらいですか？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "x001",
+      "question": "11月5日に、空港内の店舗の店内で、ブレンドコーヒーのSサイズを1杯飲むと、いくらですか？",
+      "category": "multi_hop",
+      "kind": "multi_hop",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ブレンドコーヒー 320円 380円 440円 8kcal",
+        "空港内の店舗では、すべての商品の価格が、表示価格より30円高くなります。",
+        "空港内の店舗は、第1期と第2期の割引の対象外です。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "1\n商品名 S M L Mのカロリー\nブレンドコーヒー 320円 380円 440円 8kcal\nアメリカーノ 340円 400円 460円 10kcal\nカフェラテ 380円 440円 500円 150kcal\nカプチーノ 380円 440円 500円 120kcal\n抹茶ラテ 420円 480円 540円 210kcal\n紅茶 300円 360円 420円 2kcal\nミルクティー 380円 440円 500円 170kcal\nオレンジジュース 360円 420円 480円 160kcal\nミルクを使うドリンクは、カフェラテ、カプチーノ、抹茶ラテ、ミルクティーの4つです。\nクラブハウスサンド 680円 560kcal 11時から\nモーニングセットは、ブレンドコーヒーのSサイズとトーストのセットです。\nドリンクを、カフェラテのSサイズに変更する場合は、表示価格の差額がかかります。\n空港内の店舗では、すべての商品の価格が、表示価格より30円高くなります。\n空港内の店舗では、持ち帰りの割引がないため、持ち帰りでも店内と同じ価格です。\nポイントとお支払い"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "キャンペーンの概要\nみなとコーヒーは、日ごろのご愛顧に感謝して、2026年11月1日から11月30日まで、秋の感謝キャンペーンを行います。\n期間は、3つに分かれていて、期間ごとに特典が異なります。\n特典の内容は、次の表のとおりです。\n期 期間 特典 対象 エントリー\n第1 ドリンク20%引\n11月1日から11月10日 SサイズとMサイズ 不要\n期 き\n第2\n空港内の店舗は、第1期と第2期の割引の対象外です。\nこれは、空港内の店舗の価格の設定が、他の店舗と異なるためです。\n空港内の店舗では、第3期のポイントの増量は、3倍になります。"
+        }
+      ]
+    },
+    {
+      "id": "x002",
+      "question": "11月15日に、空港内ではない店舗の店内で、チーズケーキを1つ食べると、いくらですか？",
+      "category": "multi_hop",
+      "kind": "multi_hop",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "チーズケーキ 450円 320kcal 終日",
+        "第2期は、11月11日から11月20日までです。",
+        "第2期は、フードが15%引きになります。"
+      ],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "次の表に、価格、1人前のカロリー、提供時間を示します。\n商品名 価格 カロリー 提供時間\nホットサンド 520円 410kcal 終日\nミートパイ 480円 380kcal 11時から\nチーズケーキ 450円 320kcal 終日\nガトーショコラ 460円 350kcal 終日\n焼きりんごのタルト 500円 390kcal 終日\nモーニングセット 600円 520kcal 7時から10時30分\nクラブハウスサンド 680円 560kcal 11時から\nモーニングセットは、ブレンドコーヒーのSサイズとトーストのセットです。\n2\n商品名 卵 乳 小麦 くるみ\nホットサンド なし あり あり なし\nミートパイ あり あり あり なし\nチーズケーキ あり あり あり なし\nガトーショコラ あり あり あり あり\n焼きりんごのタルト あり あり あり あり\nモーニングセット なし あり あり なし\nクラブハウスサンド あり あり あり なし\nドリンクのうち、乳を使うのは、カフェラテ、カプチーノ、抹茶ラテ、ミルクティーです。\n空港内の店舗では、すべての商品の価格が、表示価格より30円高くなります。\n空港内の店舗では、持ち帰りの割引がないため、持ち帰りでも店内と同じ価格です。\nポイントとお支払い"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "各期の内容\n第1期は、11月1日から11月10日までです。\n第1期は、ドリンクのSサイズとMサイズが、20%引きになります。\n第2期は、11月11日から11月20日までです。\n第2期は、フードが15%引きになります。\n空港内の店舗は、第1期と第2期の割引の対象外です。\nこれは、空港内の店舗の価格の設定が、他の店舗と異なるためです。\n空港内の店舗では、第3期のポイントの増量は、3倍になります。"
+        }
+      ]
+    },
+    {
+      "id": "x003",
+      "question": "11月25日の昼の12時ごろに、アプリでエントリーを済ませた状態で、空港内ではない店舗の店内で、ミートパイとカフェラテのMサイズを1つずつ買うと、何ポイントたまりますか？",
+      "category": "multi_hop",
+      "kind": "multi_hop",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "モーニングセットは、ブレンドコーヒーのSサイズとトーストのセットです。\nドリンクを、カフェラテのSサイズに変更する場合は、表示価格の差額がかかります。\nモーニングセットの提供時間は、7時から10時30分までです。\n2\n商品名 卵 乳 小麦 くるみ\nホットサンド なし あり あり なし\nミートパイ あり あり あり なし\nチーズケーキ あり あり あり なし\nガトーショコラ あり あり あり あり\n焼きりんごのタルト あり あり あり あり\nモーニングセット なし あり あり なし\nクラブハウスサンド あり あり あり なし\nドリンクのうち、乳を使うのは、カフェラテ、カプチーノ、抹茶ラテ、ミルクティーです。\n空港内の店舗では、すべての商品の価格が、表示価格より30円高くなります。\n空港内の店舗では、持ち帰りの割引がないため、持ち帰りでも店内と同じ価格です。\nポイントとお支払い"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "特典の内容は、次の表のとおりです。\n期 期間 特典 対象 エントリー\n第1 ドリンク20%引\n11月1日から11月10日 SサイズとMサイズ 不要\n期 き\n第2\n1\nポイントの増量を受けるには、アプリでのエントリーが必要です。\nエントリーは、第3期が始まる前から、アプリの画面で行えます。\nただし、エントリーをする前のお会計は、増量の対象になりません。"
+        }
+      ]
+    },
+    {
+      "id": "x004",
+      "question": "キャンペーンの期間中に、チーズケーキのホール（丸ごと1台）を予約すると、いくらになりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "cafe_menu.pdf",
+        "cafe_campaign.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_menu.pdf",
+          "text": "次の表に、価格、1人前のカロリー、提供時間を示します。\n商品名 価格 カロリー 提供時間\nホットサンド 520円 410kcal 終日\nミートパイ 480円 380kcal 11時から\nチーズケーキ 450円 320kcal 終日\nガトーショコラ 460円 350kcal 終日\n焼きりんごのタルト 500円 390kcal 終日\nモーニングセット 600円 520kcal 7時から10時30分\nクラブハウスサンド 680円 560kcal 11時から\nモーニングセットは、ブレンドコーヒーのSサイズとトーストのセットです。\n2\n商品名 卵 乳 小麦 くるみ\nホットサンド なし あり あり なし\nミートパイ あり あり あり なし\nチーズケーキ あり あり あり なし\nガトーショコラ あり あり あり あり\n焼きりんごのタルト あり あり あり あり\nモーニングセット なし あり あり なし\nクラブハウスサンド あり あり あり なし\nドリンクのうち、乳を使うのは、カフェラテ、カプチーノ、抹茶ラテ、ミルクティーです。\n100円に満たない端数は、ポイントの対象になりません。\nキャンペーンの期間中は、ポイントが増えることがあります。\nたまったポイントは、1ポイントを1円として、次回からのお会計に使えます。"
+        },
+        {
+          "rank": 2,
+          "file": "cafe_campaign.pdf",
+          "text": "キャンペーンの概要\nみなとコーヒーは、日ごろのご愛顧に感謝して、2026年11月1日から11月30日まで、秋の感謝キャンペーンを行います。\n最後に、引かれた金額をご確認のうえ、お支払いください。\nみなとコーヒー 期間限定キャンペーンのご案内\nドライブスルーでは、車の中から、会員証の画面をお見せください。\n新しく会員になった方へ\nキャンペーンの期間中に、アプリの会員に新しく登録した方には、100ポイントを差し上げます。\n100ポイントは、登録した日の翌日に、アプリに反映されます。"
+        }
+      ]
+    }
+  ],
+  "evidence_pages": {
+    "m001": {
+      "ドリンクのサイズは、Sが240ml、Mが360ml、Lが480mlの3種類です。": [
+        1
+      ]
+    },
+    "m002": {
+      "ミルクを豆乳に変更する場合は、1杯につき50円がかかります。": [
+        2
+      ]
+    },
+    "m003": {
+      "モーニングセットの提供時間は、7時から10時30分までです。": [
+        2
+      ],
+      "ただし、ドライブスルー併設店のドライブスルーでのご注文は、10時までです。": [
+        2
+      ]
+    },
+    "m004": {
+      "抹茶ラテ 420円 480円 540円 210kcal": [
+        1
+      ],
+      "ただし、抹茶ラテのアイスは、ホットより20円高くなります。": [
+        1
+      ]
+    },
+    "m005": {
+      "ブレンドコーヒー 320円 380円 440円 8kcal": [
+        1
+      ],
+      "アメリカーノ 340円 400円 460円 10kcal": [
+        1
+      ],
+      "カフェラテ 380円 440円 500円 150kcal": [
+        1
+      ],
+      "カプチーノ 380円 440円 500円 120kcal": [
+        1
+      ],
+      "抹茶ラテ 420円 480円 540円 210kcal": [
+        1
+      ],
+      "紅茶 300円 360円 420円 2kcal": [
+        1
+      ],
+      "ミルクティー 380円 440円 500円 170kcal": [
+        1
+      ],
+      "オレンジジュース 360円 420円 480円 160kcal": [
+        1
+      ]
+    },
+    "m006": {
+      "ホットサンド なし あり あり なし": [
+        2
+      ],
+      "ミートパイ あり あり あり なし": [
+        2
+      ],
+      "チーズケーキ あり あり あり なし": [
+        2
+      ],
+      "ガトーショコラ あり あり あり あり": [
+        2
+      ],
+      "焼きりんごのタルト あり あり あり あり": [
+        3
+      ],
+      "モーニングセット なし あり あり なし": [
+        3
+      ],
+      "クラブハウスサンド あり あり あり なし": [
+        3
+      ]
+    },
+    "p001": {
+      "第2期は、フードが15%引きになります。": [
+        1
+      ]
+    },
+    "p002": {
+      "キャンペーンの期間中に、アプリの会員に新しく登録した方には、100ポイントを差し上げます。": [
+        3
+      ]
+    },
+    "p003": {
+      "1回のお会計で割引になるのは、ドリンクとフードを合わせて、10点までです。": [
+        2
+      ],
+      "11点目からは、割引になりません。": [
+        2
+      ]
+    },
+    "p004": {
+      "第1期 11月1日から11月10日 ドリンク20%引き SサイズとMサイズ 不要": [
+        1
+      ],
+      "第2期 11月11日から11月20日 フード15%引き モーニングセットを除く6種類 不要": [
+        1
+      ]
+    },
+    "p005": {
+      "第1期のドリンク20%引き 併用できない 併用できる 併用できる": [
+        3
+      ],
+      "第2期のフード15%引き 併用できない 併用できる 併用できる": [
+        3
+      ],
+      "第3期のポイント5倍 併用できる 併用できる 併用できる（支払い分は増量の対象外）": [
+        3
+      ]
+    },
+    "p006": {
+      "ポイントの増量を受けるには、アプリでのエントリーが必要です。": [
+        2
+      ],
+      "ただし、エントリーをする前のお会計は、増量の対象になりません。": [
+        2,
+        4
+      ]
+    },
+    "x001": {
+      "ブレンドコーヒー 320円 380円 440円 8kcal": [
+        1
+      ],
+      "空港内の店舗では、すべての商品の価格が、表示価格より30円高くなります。": [
+        3
+      ],
+      "空港内の店舗は、第1期と第2期の割引の対象外です。": [
+        2
+      ]
+    },
+    "x002": {
+      "チーズケーキ 450円 320kcal 終日": [
+        2
+      ],
+      "第2期は、11月11日から11月20日までです。": [
+        1
+      ],
+      "第2期は、フードが15%引きになります。": [
+        1
+      ],
+      "割引後の価格の1円未満は、切り捨てます。": [
+        2
+      ]
+    },
+    "x003": {
+      "ミートパイ 480円 380kcal 11時から": [
+        2
+      ],
+      "カフェラテ 380円 440円 500円 150kcal": [
+        1
+      ],
+      "第3期は、11月21日から11月30日までです。": [
+        1
+      ],
+      "第3期は、お会計の税込合計100円ごとにたまるポイントが、通常の1ポイントから5ポイントになります。": [
+        2
+      ],
+      "100円に満たない端数は、通常と同じく、ポイントの対象になりません。": [
+        2
+      ]
+    }
+  }
+}
