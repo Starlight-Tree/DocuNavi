@@ -1,6 +1,9 @@
 interface HeaderProps {
   mode: string | null;
   onNewConversation: () => void;
+  /** ログイン中の利用者の表示名。ログインを使わない構成では渡さない。 */
+  userLabel?: string | undefined;
+  onSignOut?: (() => void) | undefined;
 }
 
 const MODE_LABELS: Record<string, { label: string; hint: string }> = {
@@ -8,7 +11,7 @@ const MODE_LABELS: Record<string, { label: string; hint: string }> = {
   gemini: { label: 'Gemini', hint: 'Gemini（本物の LLM）で動作しています' },
 };
 
-export function Header({ mode, onNewConversation }: HeaderProps) {
+export function Header({ mode, onNewConversation, userLabel, onSignOut }: HeaderProps) {
   const modeInfo = mode ? (MODE_LABELS[mode] ?? { label: mode, hint: `モード: ${mode}` }) : null;
 
   return (
@@ -21,9 +24,15 @@ export function Header({ mode, onNewConversation }: HeaderProps) {
             {modeInfo.label}
           </span>
         )}
+        {userLabel && <span className="user-label">{userLabel}</span>}
         <button type="button" className="btn btn-secondary" onClick={onNewConversation}>
           新しい会話
         </button>
+        {onSignOut && (
+          <button type="button" className="btn btn-secondary" onClick={onSignOut}>
+            ログアウト
+          </button>
+        )}
       </div>
     </header>
   );

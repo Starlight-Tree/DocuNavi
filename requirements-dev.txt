@@ -41,6 +41,7 @@ cryptography==50.0.2
     # via
     #   -c requirements.txt
     #   google-auth
+    #   pyjwt
 distro==1.9.0
     # via
     #   -c requirements.txt
@@ -220,6 +221,10 @@ pydantic-core==2.50.1
     #   pydantic
 pygments==2.21.0
     # via pytest
+pyjwt==2.15.1
+    # via
+    #   -c requirements.txt
+    #   -r requirements.in
 pypdf==6.19.0
     # via
     #   -c requirements.txt

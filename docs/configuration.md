@@ -20,6 +20,8 @@
 | `LLM_MAX_ATTEMPTS` | `3` | 1 回の LLM 呼び出しで投げる試行の最大数（最初の 1 回を含む）。`1` で追加・再試行なし。不正値は既定値に戻る |
 | `DATABASE_URL` | （空） | 会話履歴の保存先（Postgres の接続 URL）。空ならプロセス内メモリ。**秘密情報**（パスワードを含む）なのでコミットせず、ログにも出さない。下記「会話履歴の保存先」 |
 | `DATABASE_POOL_MAX_SIZE` | `5` | 1 インスタンスが DB へ張る接続の上限。不正値・1 未満は既定値に戻る |
+| `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream` にログイン（Supabase Auth の JWT）を要求する。`off` は匿名のまま動く（開発用）。**公開するときは `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
+| `SUPABASE_URL` | （空） | `AUTH_MODE=required` のとき必須。プロジェクトの URL（`https://<ref>.supabase.co`。公開してよい値だが、このリポジトリには書かない）。JWT の公開鍵（JWKS）の取得先と、発行元の確認に使う |
 | `SEARCH_SCOPE` | （空 = `all`） | チャットが検索する資料群（カンマ区切りの名前。`zahard` / `cafe` など）。`all` か空なら全部。知らない名前は起動を失敗させる（検索が黙って空になるのを防ぐ）。下記「検索する資料」 |
 | `SEARCH_BACKEND` | `bm25` | `vector` で、PDF の資料群をベクトル検索（Supabase / pgvector）にする。`.txt`（ザーハード）は BM25 のまま。**既定は `bm25`、切り替えの採否は未判断**。使える状態でなければ、起動を失敗させる。下記「ベクトル検索（実験的）」 |
 
@@ -87,6 +89,40 @@
   LLM が書く検索クエリ（評価は質問文のまま）での精度。実 API・実 LLM を通した回答の質。質問ごとの追加の遅延と費用
   （評価では、埋め込みの API は 8 件の 1 回で 1.1〜1.4 秒）。
 
+## ログイン（認証）
+
+`AUTH_MODE=required` にすると、`/chat` と `/chat/stream` が `Authorization: Bearer <アクセストークン>` を要求します
+（`/health` と画面の配信は認証なし）。トークンは Supabase Auth（Google ログイン）が発行する JWT で、バックエンド（`app/auth.py`）が検証します。
+`AUTH_MODE=off`（既定）では何も確かめず、従来どおり匿名で動きます。**公開する前に `required` にしてください。**
+
+- **検証すること:** 署名（`{SUPABASE_URL}/auth/v1/.well-known/jwks.json` の公開鍵。ES256 / RS256 だけ。`alg=none` と HS256 は受け付けない）、
+  `exp` `iss`（`{SUPABASE_URL}/auth/v1`）`aud`（`authenticated`）`sub` が全部あること、`sub` が UUID であること、`role` が `authenticated` であること。
+  匿名ログイン（`is_anonymous`）は受け付けない（ゲストは作らない）。失敗は、固定メッセージの 401（`WWW-Authenticate: Bearer`）。鍵を取得できないときは 503。
+- **鍵が無いときは止まる:** 起動時に JWKS を取得し、公開鍵が 1 つも無ければ（Supabase の JWT 署名鍵が共有秘密 HS256 のままの場合）、**共有秘密の検証へは切り替えず、起動を失敗させます。**
+  `SUPABASE_URL` が無い・JWKS を取得できない場合も同じです。Supabase の「JWT Keys」で非対称鍵（ECC P-256 など）に移してください。
+- **鍵の取り直し:** 取得した鍵は 10 分使い、過ぎたら取り直します（取り直しに失敗したら前の鍵で続けます）。知らない `kid` のトークンでは、60 秒に 1 回までしか取り直しません。
+- **会話と利用者の紐づけ:** 履歴のキーを `<利用者 ID>:<thread_id>` にします。利用者 ID は、検証に通ったトークンの `sub` だけから取り、クライアントが送った値は使いません。
+  `thread_id` は `:` を含められないので、他人の接頭辞を作って会話に届くことはできません。クライアントに返す `thread_id` は、接頭辞なしのままです。
+  同じ `thread_id` でも、利用者が違えば別の会話です。**`off` のときの履歴（接頭辞なしのキー）には、`required` から届きません。**
+- **会話の一覧・資料ごとの権限・ユーザー向けの削除は、まだありません**（利用者の紐づけは会話のキーだけ。専用のテーブルは作っていません）。
+  運用者が `python -m app.history_admin --thread-id` で消すときは、保存されているキー（`<利用者 ID>:<thread_id>`）を渡します。
+- ログにトークンは出しません。出すのは失敗の種類（例外のクラス名）だけです。
+
+ブラウザー側（Google ログイン）は、`frontend` のビルド時に `VITE_SUPABASE_URL` と `VITE_SUPABASE_PUBLISHABLE_KEY` を渡すと有効になります
+（[frontend/README.md](../frontend/README.md)）。どちらかが無ければログイン画面は出ず、従来どおり認証なしで動きます
+（その状態でバックエンドが `required` だと、チャットは 401 になります）。トークンの更新はブラウザー側の SDK が行い、期限切れだけではログイン画面に戻りません。
+
+**Supabase と Google 側の設定（コードとは別。利用者のコンソール操作）:**
+1. Google Cloud Console で OAuth クライアント（ウェブ アプリケーション）を作る。承認済みのリダイレクト URI は、Supabase の Google プロバイダの画面に出る `https://<ref>.supabase.co/auth/v1/callback`。
+2. Supabase の Authentication → Providers → Google を有効にして、クライアント ID とシークレットを入れる。
+3. Authentication → URL Configuration で、Site URL と Redirect URLs に画面の URL（開発は `http://localhost:5173`）を入れる。
+4. Project Settings → JWT Keys で、署名鍵が非対称鍵（ECC P-256 / RSA）であることを確かめる。
+- Supabase でメール確認を切る設定は、メールとパスワードのログインを使うときの開発用の話で、Google ログインでは使いません。
+
+**未確認（2026-10-18 時点）:** 実際の Supabase・Google に対する検証とログインは、まだ一度も動かしていません。テストは、手元で作った鍵と偽の JWKS だけを使います
+（`tests/test_auth.py`、`frontend/src/AuthApp.test.tsx`・`frontend/src/auth/`）。Supabase の JWKS の実物の形、`supabase-js` の実際のログインとトークン更新の動作、
+Docker イメージ（`VITE_*` をビルドに渡す設定は未対応）は未確認です。
+
 ## 会話履歴の保存先
 
 `DATABASE_URL` が空なら、履歴は従来どおりプロセス内メモリ（`MemorySaver`）に置きます。再起動で消え、複数のインスタンスの間では共有されません。
@@ -129,7 +165,7 @@ DATABASE_URL=postgresql://ユーザー:パスワード@ホスト:5432/データ�
   Postgres 17 で、同じ文言のエラーと、`grant` で通ることを確かめました）。Supabase の Data API には出さないでください
   （Settings → API → Exposed schemas にアプリのスキーマを入れない）。2026-10-14 時点で、この画面の設定は確かめていません。
 
-- **データの扱い:** 発言と回答の本文が DB に残ります。**保存期間は 90 日（最後の動きから）と決めました**（2026-10-14）。
+- **データの扱い:** 発言と回答の本文が DB に残ります。**保存期間は 90 日（最後の動きから）という方針です**（2026-10-14）が、**削除の定期実行がまだ無いので、いまは 90 日で消えることを保証していません。**
   期間を過ぎた会話・特定の会話は、運用者が次のコマンドで消せます
   （アプリと同じ `DATABASE_URL` を使い、`.env` も読みます。既定は件数の表示だけで、`--apply` を付けたときだけ削除します）。
   自動では実行されません。定期実行は、Cloud Run を始めるときに、同じイメージで Cloud Run Job を作り、Cloud Scheduler から
@@ -144,8 +180,9 @@ DATABASE_URL=postgresql://ユーザー:パスワード@ホスト:5432/データ�
   「動きのない」は、会話の最新のチェックポイントの時刻で決めます（続けて使われる会話は消えません）。表示するのは件数だけです
   （`thread_id` は出しません）。Supabase では、`--thread-id` での削除と、`--older-than-days` の件数の表示（0 件）を確かめました
   （2026-10-14）。`--older-than-days --apply` は、Supabase にまだ古い会話が無いため、Supabase では未実行です（ローカルと CI の Postgres では確認済み）。
-  `thread_id` を知っていれば誰でも続きを書けます（認証は [ロードマップ](roadmap.md) の段階 2）。利用者を特定できないので、
-  本人からの削除要求にも応えられません。公開する前に、この点を決めてください。
+  `AUTH_MODE=off` のあいだは、`thread_id` を知っていれば誰でも続きを書けます。`required` なら、履歴のキーに利用者 ID が付き、
+  他の利用者の会話には届きません（上の「ログイン（認証）」）。ただし、本人からの削除要求に応える仕組み（会話の一覧・削除の画面）は
+  まだありません。公開する前に、この点を決めてください。
 
 ## LLM の遅延・失敗への対処
 

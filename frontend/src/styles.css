@@ -117,6 +117,15 @@ textarea {
   gap: 0.5rem;
 }
 
+.user-label {
+  max-width: 14rem;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mode-badge {
   padding: 0.1rem 0.6rem;
   border: 1px solid var(--border);
@@ -125,6 +134,27 @@ textarea {
   color: var(--text-muted);
   font-size: 0.8rem;
   white-space: nowrap;
+}
+
+/* ---- ログイン画面 ---- */
+
+.login-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 4rem 1rem;
+  text-align: center;
+}
+
+.login-screen p {
+  margin: 0;
+}
+
+.login-notice {
+  justify-content: center;
 }
 
 /* ---- ボタン ---- */

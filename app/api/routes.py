@@ -12,7 +12,7 @@ from contextlib import aclosing
 from functools import lru_cache
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field, StringConstraints, field_validator
@@ -20,6 +20,7 @@ from starlette.background import BackgroundTask
 
 from app.agents.graph import STREAM_TOKENS_KEY, build_graph, is_mock_mode
 from app.api.ui_stream import DONE, KEEPALIVE, UI_STREAM_HEADERS, UIMessageStream, encode, is_text_event
+from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, history_backend
 
 logger = logging.getLogger(__name__)
@@ -260,10 +261,13 @@ async def _cancel_and_wait(*tasks: "asyncio.Future[object] | None") -> None:
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest, request: Request) -> ChatResponse | Response:
+async def chat(
+    req: ChatRequest, request: Request, user_id: Annotated[str | None, Depends(current_user)]
+) -> ChatResponse | Response:
     mode = current_mode()
     thread_id = req.thread_id or str(uuid.uuid4())
-    config = {"configurable": {"thread_id": thread_id}}
+    # 履歴のキーは、ログイン中なら利用者 ID つき。クライアントに返す thread_id は接頭辞なしのまま
+    config = {"configurable": {"thread_id": conversation_key(user_id, thread_id)}}
     started = time.monotonic()
     work: asyncio.Future | None = None
     gone: asyncio.Future | None = None
@@ -429,7 +433,9 @@ async def _stream_body(
     response_class=StreamingResponse,
     responses={200: {"description": "AI SDK の UI message stream（SSE）", "content": {"text/event-stream": {}}}},
 )
-async def chat_stream(req: ChatRequest, request: Request) -> Response:
+async def chat_stream(
+    req: ChatRequest, request: Request, user_id: Annotated[str | None, Depends(current_user)]
+) -> Response:
     """/chat と同じ入力で、回答を SSE で少しずつ返す。
 
     最初の本文が届くまで（または最後まで）は、レスポンスを始めない。その間の失敗は /chat と同じ
@@ -437,7 +443,7 @@ async def chat_stream(req: ChatRequest, request: Request) -> Response:
     """
     mode = current_mode()
     thread_id = req.thread_id or str(uuid.uuid4())
-    config = {"configurable": {"thread_id": thread_id, STREAM_TOKENS_KEY: True}}
+    config = {"configurable": {"thread_id": conversation_key(user_id, thread_id), STREAM_TOKENS_KEY: True}}
     # context は直近のターンの検索結果だけを返したいので、毎ターン空に戻す
     inputs = {"messages": [HumanMessage(content=req.message)], "context": ""}
     started = time.monotonic()

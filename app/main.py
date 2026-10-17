@@ -15,6 +15,7 @@ from app import search_vector  # noqa: E402
 from app.agents.graph import is_mock_mode, use_vertex_ai  # noqa: E402
 from app.agents.tools import search_scope, verify_search_backend  # noqa: E402
 from app.api.routes import router  # noqa: E402
+from app.auth import verify_auth_config  # noqa: E402
 from app.frontend import mount_frontend  # noqa: E402
 from app.history import history_store  # noqa: E402
 
@@ -46,6 +47,8 @@ _configure_app_logging()  # mount_frontend の起動ログより前に有効に�
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # 検索する資料群を決めて読み込む。SEARCH_SCOPE が知らない名前なら、検索が黙って空になる前に起動を失敗させる
     logging.getLogger(__name__).info("検索する資料群: %s", ", ".join(search_scope()))
+    # AUTH_MODE=required のとき、JWKS の公開鍵を取得できるかを確かめる。使えなければ、検証なしで動き出さないよう、起動を失敗させる
+    await verify_auth_config()
     # DATABASE_URL があれば、会話履歴の接続プールを起動時に開いて終了時に閉じる（無ければ何もしない）。
     # 開けなければ、履歴がメモリに切り替わらないよう、起動を失敗させる
     async with history_store():

@@ -10,3 +10,5 @@ langgraph-checkpoint-postgres>=3.1
 psycopg[binary,pool]>=3.2
 # PDF の取り込み（python -m app.ingestion。評価コーパスとアップロード資料の抽出）
 pypdf>=6.19
+# ログイン（AUTH_MODE=required）の JWT 検証。Supabase の JWKS（非対称鍵）で署名を確かめる。docs/configuration.md
+PyJWT[crypto]>=2.8

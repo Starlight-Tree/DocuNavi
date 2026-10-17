@@ -150,7 +150,7 @@ as_me gcloud secrets add-iam-policy-binding database-url \
 - Cloud Run から Supabase への接続は未確認です（開発コンテナからは、プーラーの URL で届くことを確かめました。2026-10-14）。
   直接接続は既定で IPv6 のため、IPv4 で届くプーラーの接続 URL を使う想定です。
   届くかどうかは、デプロイして `/health` の `history` が `postgres` になるかで確かめます。
-- 会話履歴の保存期間は 90 日です（`docs/configuration.md`）。削除は、同じイメージで Cloud Run Job を作り（コマンドを
+- 会話履歴の保存期間は 90 日という方針ですが、**削除の定期実行は未設定なので、いまは保証していません**（`docs/configuration.md`）。削除は、同じイメージで Cloud Run Job を作り（コマンドを
   `python -m app.history_admin --older-than-days 90 --apply` に上書き。`DATABASE_URL` は同じ Secret）、Cloud Scheduler から週次で呼ぶ予定です
   （未実施。Job の作成は、最初の 1 回を `--apply` なしで件数を見てから）。削除のために HTTP ルートは作りません（認証が無いため）。
 

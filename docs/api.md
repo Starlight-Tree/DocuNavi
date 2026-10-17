@@ -22,7 +22,11 @@
 | フィールド | 条件 |
 |---|---|
 | `message` | 必須。前後の空白を除いて 1〜2000 文字 |
-| `thread_id` | 省略可。`[A-Za-z0-9_-]` で 128 文字以内。省略すると UUID が採番される。同じ値を送ると会話が続く |
+| `thread_id` | 省略可。`[A-Za-z0-9_-]` で 128 文字以内。省略すると UUID が採番される。同じ値を送ると会話が続く（`AUTH_MODE=required` では、同じ利用者の中だけ） |
+
+`AUTH_MODE=required` のときは `Authorization: Bearer <アクセストークン>` が必要です（`/chat/stream` も同じ。[configuration.md](configuration.md) の「ログイン（認証）」）。
+トークンが無い・不正・期限切れなら `401`（`{"detail": "ログインが必要です。ログインし直してください。"}`、`WWW-Authenticate: Bearer`）、
+認証サービス（JWKS）に届かず検証できないときは `503`（固定メッセージ）です。`/health` は認証なしです。
 
 レスポンス:
 
