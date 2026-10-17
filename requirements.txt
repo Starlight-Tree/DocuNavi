@@ -24,7 +24,9 @@ charset-normalizer==3.5.2
 click==8.5.0
     # via uvicorn
 cryptography==50.0.2
-    # via google-auth
+    # via
+    #   google-auth
+    #   pyjwt
 distro==1.9.0
     # via
     #   google-genai
@@ -136,6 +138,8 @@ pydantic==2.14.1
     #   langsmith
 pydantic-core==2.50.1
     # via pydantic
+pyjwt==2.15.1
+    # via -r requirements.in
 pypdf==6.19.0
     # via -r requirements.in
 python-dotenv==1.2.4

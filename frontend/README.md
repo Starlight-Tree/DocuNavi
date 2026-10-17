@@ -56,6 +56,7 @@ VITE_DEV_PROXY_TARGET=http://localhost:9000 npm run dev
 | 変数 | 既定値 | 用途 |
 |---|---|---|
 | `VITE_DEV_PROXY_TARGET` | `http://localhost:8000` | 開発サーバーが `/chat`・`/chat/stream`・`/health` を転送する先（ビルド成果物には影響しない） |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` | 空 | 両方そろっていると Google ログイン（Supabase Auth）を使う。**ビルド時に埋め込まれる**。publishable（anon）キーは公開してよい鍵で、`service_role` は絶対に入れない。`.env.local`（Git 管理外）に書く。どちらかが空なら、ログイン画面は出ず認証なしで動く。バックエンドの `AUTH_MODE` と Supabase・Google 側の設定は [docs/configuration.md](../docs/configuration.md) の「ログイン（認証）」 |
 | `VITE_API_BASE_URL` | 空（相対 URL） | API のベース URL。**ビルド時に埋め込まれる**。別オリジンの API を直接呼ぶときだけ設定する（バックエンドの `CORS_ORIGINS` も必要） |
 
 クライアントは `${VITE_API_BASE_URL ?? ''}/chat/stream` のように相対 URL で API を呼びます。
@@ -82,11 +83,12 @@ frontend/
 ├── vite.config.ts            # プロキシ・ビルド・テストの設定
 ├── src/
 │   ├── api/chat.ts           # トランスポート用の fetch（HTTP エラー → ChatApiError）と /health
+│   ├── auth/                 # Google ログイン（Supabase Auth）。types.ts = 窓口の型、supabase.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
 │   ├── hooks/useChat.ts      # AI SDK の useChat を包み、会話の状態（messages / pending / error / thread_id）を作る
 │   ├── hooks/useBackendMode.ts
 │   ├── lib/sources.ts        # context から出典（ファイル名と本文）を取り出す
 │   ├── lib/storage.ts        # thread_id の sessionStorage 保存（失敗しても動く）
-│   ├── components/           # Header / MessageList / SourcesPanel / ErrorBanner / Composer
+│   ├── components/           # Header / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen
 │   ├── App.tsx, main.tsx, styles.css
 │   └── test/                 # テストの共通設定とヘルパー
 ```

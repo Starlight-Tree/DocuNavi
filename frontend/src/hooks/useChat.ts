@@ -8,11 +8,12 @@ import {
   MAX_MESSAGE_LENGTH,
   MAX_THREAD_ID_LENGTH,
   THREAD_ID_PATTERN,
-  chatFetch,
   endpoint,
   isJapaneseMessage,
 } from '../api/chat';
 import type { ChatMetadata } from '../api/chat';
+import { useAuth } from '../auth/AuthContext';
+import { createAuthedFetch } from '../auth/authFetch';
 import { loadThreadId, saveThreadId } from '../lib/storage';
 
 type ChatUIMessage = UIMessage<ChatMetadata>;
@@ -125,11 +126,21 @@ export function useChat(): UseChat {
   // 送信・再試行・リセットのたびに進める。リセット前の送信の完了が、新しい送信の pending を落とさないようにする
   const jobRef = useRef(0);
 
+  // ログイン中は、送る直前にアクセストークンを付ける（期限が近ければ更新し、401 なら 1 回だけ更新して送り直す）
+  const { client: authClient, expire } = useAuth();
+  const authClientRef = useRef(authClient);
+  const expireRef = useRef(expire);
+  authClientRef.current = authClient;
+  expireRef.current = expire;
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatUIMessage>({
         api: endpoint(CHAT_STREAM_PATH),
-        fetch: chatFetch,
+        fetch: createAuthedFetch(
+          () => authClientRef.current,
+          () => expireRef.current(),
+        ),
         headers: { Accept: 'text/event-stream' },
         // 履歴はサーバーが thread_id ごとに持つので、最後の発言だけを送る（最初の送信は thread_id も送らない）
         prepareSendMessagesRequest: ({ messages }) => {
