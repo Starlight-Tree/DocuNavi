@@ -11,7 +11,9 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
-from app.agents.tools import search_scope  # noqa: E402
+from app import search_vector  # noqa: E402
+from app.agents.graph import is_mock_mode, use_vertex_ai  # noqa: E402
+from app.agents.tools import search_scope, verify_search_backend  # noqa: E402
 from app.api.routes import router  # noqa: E402
 from app.frontend import mount_frontend  # noqa: E402
 from app.history import history_store  # noqa: E402
@@ -47,7 +49,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # DATABASE_URL があれば、会話履歴の接続プールを起動時に開いて終了時に閉じる（無ければ何もしない）。
     # 開けなければ、履歴がメモリに切り替わらないよう、起動を失敗させる
     async with history_store():
-        yield
+        # SEARCH_BACKEND=vector のとき、DB の資料と埋め込みが使える状態かを確かめる。使えなければ、BM25 に黙って切り替えず、起動を失敗させる
+        # （接続プールは history_store が開く。ベクトル検索はそれを借りる）
+        await verify_search_backend(mock=is_mock_mode(), vertex=use_vertex_ai())
+        try:
+            yield
+        finally:
+            await search_vector.close()
 
 
 app = FastAPI(title="RAG Chatbot", lifespan=lifespan)

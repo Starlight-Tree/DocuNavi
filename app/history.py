@@ -13,6 +13,7 @@ import os
 import random
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
@@ -31,6 +32,8 @@ _SETUP_RETRY_SECONDS = 0.5
 
 # lifespan の間だけ入る。get_checkpointer() の呼び出し側（routes.get_graph）が読む
 _checkpointer: BaseCheckpointSaver | None = None
+# 同じ接続プール。履歴のほかに、ベクトル検索（app/search_vector.py）も借りる。接続の上限（DATABASE_POOL_MAX_SIZE）は共有になる
+_pool: Any | None = None
 
 
 def database_url() -> str:
@@ -53,6 +56,11 @@ def pool_max_size() -> int:
 def get_checkpointer() -> BaseCheckpointSaver | None:
     """開いている Postgres の checkpointer。無ければ None（グラフは MemorySaver を使う）。"""
     return _checkpointer
+
+
+def get_pool() -> Any | None:
+    """開いている接続プール（psycopg_pool.AsyncConnectionPool）。lifespan の外、または DATABASE_URL が空なら None。"""
+    return _pool
 
 
 def history_backend() -> str:
@@ -79,7 +87,7 @@ async def _setup_with_retry(saver) -> None:
 @asynccontextmanager
 async def history_store() -> AsyncIterator[BaseCheckpointSaver | None]:
     """`DATABASE_URL` があれば Postgres の checkpointer を開いて渡し、抜けるときに閉じる。無ければ None。"""
-    global _checkpointer
+    global _checkpointer, _pool
 
     url = database_url()
     if not url:
@@ -118,9 +126,11 @@ async def history_store() -> AsyncIterator[BaseCheckpointSaver | None]:
         raise
 
     _checkpointer = saver
+    _pool = pool
     logger.info("会話履歴の保存先: Postgres（接続プールの上限 %d）", max_size)
     try:
         yield saver
     finally:
         _checkpointer = None
+        _pool = None
         await pool.close()
