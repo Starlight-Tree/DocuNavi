@@ -801,6 +801,42 @@ def test_cafe_pdf_search_does_not_regress_from_the_committed_baseline(tmp_path):
     assert current["summary"]["total_questions"] == baseline["summary"]["total_questions"]
 
 
+MENU_DIR = ROOT / "evals" / "fixtures" / "menu"
+MENU_BASELINE = ROOT / "evals" / "results" / "baseline_bm25_menu.json"
+
+
+@pytest.mark.skipif(not (MENU_DIR / "cafe_menu.pdf").exists(), reason="評価用の PDF（evals/fixtures/menu/）が無い")
+def test_menu_pdfs_search_does_not_regress_from_the_committed_baseline(tmp_path):
+    # menu の 2 冊は、表のセルの折り返しで根拠が抽出結果に無い質問（p004・p005）を含むので、--allow-missing-evidence が要る
+    # （付けないと「評価セットが資料と合っていません」で止まる）。読み取りが良くなれば extraction_miss は減る
+    baseline = json.loads(MENU_BASELINE.read_text(encoding="utf-8"))
+    out = tmp_path / "r.json"
+    args = ["--corpus", str(MENU_DIR), "--k", str(baseline["k"]), "--out", str(out)]
+    assert ev.main(args) == 2
+    assert not out.exists()
+    assert ev.main([*args, "--allow-missing-evidence"]) == 0
+    current = json.loads(out.read_text(encoding="utf-8"))
+    if current["corpus"]["pdf_sha256"] != baseline["corpus"]["pdf_sha256"]:
+        pytest.skip("PDF が変わった。baseline を取り直す（--corpus evals/fixtures/menu --allow-missing-evidence）")
+
+    now, then = current["summary"]["counts"], baseline["summary"]["counts"]
+    regressed = {name: (then[name], now[name]) for name in then if now[name] < then[name]}
+    assert not regressed, f"baseline より該当数が減った（baseline, 現在）: {regressed}"
+    assert current["summary"]["total_questions"] == baseline["summary"]["total_questions"]
+    assert current["summary"]["extraction_miss"]["n"] <= baseline["summary"]["extraction_miss"]["n"]
+
+
+def test_question_ids_do_not_collide_between_the_evaluated_sets_and_the_fixtures():
+    # --app は評価セットの間の重なりを調べるが、fixtures の質問は --app に入らない。id が重なると、結果の取り違えのもとになる
+    seen: dict[str, Path] = {}
+    paths = [ROOT / "evals" / "questions.yaml", *sorted((ROOT / "evals").glob("corpora/*/questions.yaml"))]
+    paths += sorted((ROOT / "evals").glob("fixtures/*/questions.yaml"))
+    for path in paths:
+        for q in ev.load_questions(path):
+            assert q.id not in seen, f"{q.id}: {seen[q.id].name} と {path} で重なっています"
+            seen[q.id] = path
+
+
 # ---- まとまり（表）の返し方 ----
 
 TABLE = ("店舗名 エリア 座席数", "港町本店 港町 68席", "港町ベイ店 港町 42席", "湖畔テラス店 湖畔 76席", "鳥栖店 佐賀 30席")
