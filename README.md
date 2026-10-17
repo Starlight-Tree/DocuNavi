@@ -18,6 +18,8 @@
 
 ## 起動
 
+### Python で起動
+
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -25,10 +27,12 @@ cp .env.example .env        # GEMINI_API_KEY を設定（未設定ならモッ�
 uvicorn app.main:app --reload
 ```
 
+### Docker Compose
+
 Docker Compose を使う場合は、ホスト側で `docker compose up --build` を実行します（`.env` が無くても起動し、その場合はモックモードです）。
 イメージのビルド時にフロントエンドもビルドされるので、起動後は <http://localhost:8000> で画面を開けます。
 
-画面を手元でビルド・開発するとき:
+### 画面を手元でビルド・開発する
 
 ```bash
 cd frontend
@@ -88,14 +92,6 @@ cd frontend && npm test         # フロントエンド（Vitest）
 | [docs/roadmap.md](docs/roadmap.md) | これからの拡張計画（DB、認証、Cloudflare、R2、Vercel）と、先に要る変更 |
 | [.devcontainer/README.md](.devcontainer/README.md) | 開発コンテナの gcloud・gh のログインとガード |
 | [CLAUDE.md](CLAUDE.md) | エージェント（Claude Code）が守ること |
-
-## 開発環境の gcloud（ログインとガード）
-
-開発コンテナの gcloud のログイン手順と、それを守る層の説明は [.devcontainer/README.md](.devcontainer/README.md) に移しました。
-
-## 開発環境の GitHub CLI（gh）
-
-開発コンテナの gh のトークンの作り方と、それを守る層の説明は [.devcontainer/README.md](.devcontainer/README.md) に移しました。
 
 ## ライセンス
 
