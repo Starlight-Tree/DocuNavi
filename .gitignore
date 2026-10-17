@@ -6,3 +6,6 @@ __pycache__/
 
 # gcloud の短期トークン（scripts/issue-agent-token.sh が書き出す。コミットしない）
 .gcloud-token*
+
+# ベクトル検索の評価が作る、質問の埋め込みのキャッシュ（scripts/eval_vector.py。コミットしない）
+/evals/cache/

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import math
 import os
@@ -8,7 +9,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from langchain_core.tools import tool
+from langchain_core.tools import StructuredTool
+
+from app import search_vector
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +184,11 @@ def search_collections(
     スコアでは並べず、各資料群の 1 位、2 位…を、資料群の並び順で交互に採る。1 つの資料群しか当たらない
     質問では、その資料群を単独で検索した結果と同じになる。複数の資料群が当たる質問は、どの資料群からも採る。
     """
-    per_collection = [_search_collection(query, top_k, corpus) for corpus in collections.values()]
+    return _interleave([_search_collection(query, top_k, corpus) for corpus in collections.values()], top_k)
+
+
+def _interleave(per_collection: Sequence[Sequence[tuple[str, str]]], top_k: int) -> list[tuple[str, str]]:
+    """各資料群の結果の 1 位、2 位…を、資料群の並び順で交互に採って、最大 top_k 件にする。"""
     merged: list[tuple[str, str]] = []
     for rank in range(max(top_k, 0)):
         for hits in per_collection:
@@ -190,6 +197,51 @@ def search_collections(
                 if len(merged) >= top_k:
                     return merged
     return merged
+
+
+def _vector_files(scope: Sequence[str]) -> dict[str, Path]:
+    """SEARCH_BACKEND=vector のとき、ベクトルで検索する PDF（ファイル名 -> パス）。検索する資料群の PDF 全部。
+
+    DB の documents.source はファイル名なので、資料群をまたいで同じ名前の PDF があると区別できない（起動を失敗させる）。
+    """
+    files: dict[str, Path] = {}
+    for collection, corpus in _load_pdf_collections().items():
+        if collection not in scope:
+            continue
+        for name in corpus:
+            if name in files:
+                raise ValueError(f"同じ名前の PDF が複数の資料群にあります（ベクトル検索は区別できません）: {name}")
+            files[name] = PDF_DIR / collection / name
+    return files
+
+
+async def verify_search_backend(*, mock: bool, vertex: bool) -> None:
+    """起動時の検査（app/main.py の lifespan）。bm25 なら何もしない。vector で使える状態でなければ、起動を失敗させる。"""
+    if search_vector.search_backend() != "vector":
+        return
+    await search_vector.verify(_vector_files(search_scope()), mock=mock, vertex=vertex)
+    logger.info("検索の経路: vector（PDF の資料群はベクトル、.txt は BM25）")
+
+
+async def search_chunks_async(query: str, top_k: int = TOP_K) -> list[tuple[str, str]]:
+    """search_chunks の非同期版。SEARCH_BACKEND=vector のときだけ、PDF の資料群をベクトルで検索する。
+
+    ・bm25（既定）: search_chunks と同じ（スレッドで実行する。従来の同期ツールと同じ動き）。
+    ・vector: .txt の資料群（ザーハード）は BM25、PDF の資料群は pgvector のコサイン類似度（しきい値未満は返さない）。
+      両者を、BM25 のときと同じ交互採用で合わせる。クエリの埋め込み・DB が失敗したら、その呼び出しだけ BM25（全資料群）で検索する。
+    """
+    if search_vector.search_backend() != "vector":
+        return await asyncio.to_thread(search_chunks, query, top_k)
+    scope = search_scope()
+    files = _vector_files(scope)
+    texts = load_chunks() if TEXT_COLLECTION in scope else {}
+    try:
+        vector_hits = await search_vector.search(query, top_k, list(files)) if files else []
+    except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・URL・本文が入りうる。型の名前だけを残す
+        logger.warning("ベクトル検索に失敗したため、この呼び出しだけ BM25 で検索します (%s)", type(exc).__name__)
+        return await asyncio.to_thread(search_chunks, query, top_k)
+    text_hits = await asyncio.to_thread(_search_collection, query, top_k, texts) if texts else []
+    return _interleave([text_hits, vector_hits], top_k)
 
 
 def _search_collection(
@@ -294,16 +346,34 @@ def _search_collection(
     return results
 
 
-@tool
-def search_documents(query: str) -> str:
-    """登録された資料（設定資料・店舗案内など）を検索する。
+_NOT_FOUND_TEXT = "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
+# LLM に見せるツールの説明。変えると、モデルが見るツールの定義が変わる（tests/test_search_vector.py が固定している）
+_SEARCH_DESCRIPTION = (
+    "登録された資料（設定資料・店舗案内など）を検索する。\n\n"
+    "質問に答える前に必ず使う。query には質問の要点となるキーワードや短い文を渡す。"
+)
 
-    質問に答える前に必ず使う。query には質問の要点となるキーワードや短い文を渡す。
-    """
-    hits = search_chunks(query)
+
+def _format_hits(hits: Sequence[tuple[str, str]]) -> str:
     if not hits:
-        return "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
+        return _NOT_FOUND_TEXT
     return "\n\n".join(f"[{name}]\n{text}" for name, text in hits)
 
+
+def _search_documents(query: str) -> str:
+    """同期版（.invoke）。常に BM25。SEARCH_BACKEND=vector はグラフが使う非同期版（.ainvoke）だけに効く。"""
+    return _format_hits(search_chunks(query))
+
+
+async def _asearch_documents(query: str) -> str:
+    return _format_hits(await search_chunks_async(query))
+
+
+search_documents = StructuredTool.from_function(
+    func=_search_documents,
+    coroutine=_asearch_documents,
+    name="search_documents",
+    description=_SEARCH_DESCRIPTION,
+)
 
 TOOLS = [search_documents]
