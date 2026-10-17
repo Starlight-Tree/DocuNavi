@@ -1047,7 +1047,10 @@ def test_streaming_graph_opens_the_breaker_when_the_primary_failed_before_the_fa
     breaker = PrimaryBreaker(60, clock=Clock())
     primary = PlanLLM(plans=[[("sleep", 0.01), ("raise", Unavailable("503"))], SLOW])
     fallback = PlanLLM(plans=[ANSWER])
-    graph = build_graph(primary, hedge=FAST, fallback_llm=fallback, fallback_breaker=breaker)
+    # 失敗（0.01 秒）がヘッジ（FAST は 0.05 秒）より先に来る前提のテスト。間が 40 ms しかないと、実行環境が少し止まっただけで
+    # 順序が入れ替わり、再試行の前にフォールバックが並行して投げられる（CI で一度だけ 1 == 2 で落ちた）。時刻を大きく離す
+    hedge = HedgePolicy(hedge_delay=0.3, max_attempts=3, retry_delay=0.01, rate_limit_delay=0.02)
+    graph = build_graph(primary, hedge=hedge, fallback_llm=fallback, fallback_breaker=breaker)
 
     first = ask(graph, stream=True)
     second = ask(graph, stream=True)
