@@ -8,6 +8,8 @@ os.environ["GEMINI_API_KEY"] = ""
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 # .env に DATABASE_URL があっても、テストが本物の DB（会話履歴の保存先）へ書かないよう、空にしてメモリ履歴に固定する
 os.environ["DATABASE_URL"] = ""
+# .env に SEARCH_BACKEND=vector があっても、テストが DB と埋め込みの API を使わないよう、BM25 に固定する
+os.environ["SEARCH_BACKEND"] = "bm25"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

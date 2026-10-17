@@ -25,6 +25,10 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   フォールバックの `call_with_fallback` / `stream_with_fallback` と、主モデルを一時的に飛ばす `PrimaryBreaker` もここ）
 - `app/history.py`: 会話履歴の保存先。`DATABASE_URL` があれば Postgres（接続プールを lifespan で開閉）、空ならメモリ。
   開けなければ起動を失敗させ、メモリへは切り替えない
+- `app/search_vector.py`: PDF の資料のベクトル検索（Supabase / pgvector。質問を `gemini-embedding-2` で埋め込み、コサイン類似度で取る）。
+  `SEARCH_BACKEND=vector` のときだけ、`search_documents` の非同期経路（`tools.search_chunks_async`）が使う。既定は `bm25`。
+  zahard の .txt は BM25 のまま、失敗した呼び出しだけ BM25 に戻る。起動時に DB の状態を検査し、合わなければ起動を失敗させる。
+  回答の質・遅延・費用は未測定（`docs/configuration.md` の「ベクトル検索（実験的）」、評価は `evals/README.md`）
 - `app/history_admin.py`: 履歴の削除コマンド（`python -m app.history_admin`。既定は件数の表示だけ、`--apply` で削除）。アプリからは使わない
 - `app/frontend.py`: `frontend/dist` を配信し、ファイル名らしくない未知の GET/HEAD は `index.html` にフォールバックする
   （拡張子付きのパスや `/assets/` 配下は 404）

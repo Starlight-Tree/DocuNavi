@@ -1,0 +1,1699 @@
+{
+  "split": "dev",
+  "generated_at": "2026-10-18T04:09:07+09:00",
+  "git_head": "44fd28b",
+  "plan_sha256": "7808cc1461552f472494b09e97ee081cb61882f0db3ed929ddbaac8861e7b225",
+  "corpus_fingerprint": "b39b7f1ada4063036d1e79dcd2c11278a50ccf31c057df3c9f5762d2e837978c",
+  "model": "gemini-embedding-2",
+  "dimensions": 768,
+  "ks": [
+    1,
+    3,
+    5
+  ],
+  "list_depth": 20,
+  "rrf_k": 60,
+  "bm25_params": {
+    "TOP_K": 2,
+    "MAX_PASSAGES_PER_FILE": 3,
+    "CONTEXT_WINDOW": 1,
+    "RELATIVE_SCORE_CUTOFF": 0.4,
+    "GENERIC_TERM_RATIO": 0.25,
+    "MIN_SHARED_TERMS": 2
+  },
+  "tau": {
+    "vector": 0.728959,
+    "hybrid": 0.713484
+  },
+  "tau_inf": {
+    "vector": null,
+    "hybrid": null
+  },
+  "api_usage": {
+    "texts_sent": 32,
+    "calls": 4,
+    "limit_texts": 40,
+    "limit_calls": 5,
+    "failed_calls": 0,
+    "query_chars_total": 1813,
+    "estimated_cost_usd": 0.000363
+  },
+  "summary": {
+    "n_answerable": 13,
+    "n_out_of_scope": 6,
+    "bm25": {
+      "mrr": 0.6731,
+      "hit_at": {
+        "1": 8,
+        "3": 9,
+        "5": 10
+      },
+      "hit_depth": 10,
+      "not_abstained_and_hit_at": {
+        "1": 8,
+        "3": 9,
+        "5": 10
+      },
+      "answerable_abstained": 1,
+      "out_of_scope_abstained": 3,
+      "text_hit_at": {
+        "1": 7,
+        "3": 8,
+        "5": 9
+      }
+    },
+    "vector": {
+      "mrr": 0.9231,
+      "hit_at": {
+        "1": 11,
+        "3": 13,
+        "5": 13
+      },
+      "hit_depth": 13,
+      "not_abstained_and_hit_at": {
+        "1": 10,
+        "3": 12,
+        "5": 12
+      },
+      "answerable_abstained": 1,
+      "out_of_scope_abstained": 5
+    },
+    "hybrid": {
+      "mrr": 0.8462,
+      "hit_at": {
+        "1": 9,
+        "3": 13,
+        "5": 13
+      },
+      "hit_depth": 13,
+      "not_abstained_and_hit_at": {
+        "1": 8,
+        "3": 12,
+        "5": 12
+      },
+      "answerable_abstained": 1,
+      "out_of_scope_abstained": 3
+    },
+    "top1_similarity": {
+      "answerable": {
+        "min": 0.6815,
+        "median": 0.7775,
+        "max": 0.8629
+      },
+      "out_of_scope": {
+        "min": 0.5699,
+        "median": 0.6981999999999999,
+        "max": 0.767
+      }
+    },
+    "latency_ms_median": {
+      "bm25_search": 4.61,
+      "vector_db_query": 24.65,
+      "query_embedding_batch_per_text": 151.38
+    }
+  },
+  "results": [
+    {
+      "id": "c003",
+      "question": "みなとクラブでは、いくら買い物をするごとに1ポイントもらえますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "top1_sim": 0.8158,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            8,
+            18,
+            19,
+            1
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "text_hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            18,
+            8,
+            1,
+            29,
+            4
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.8158,
+            0.7266,
+            0.6807,
+            0.6676,
+            0.6643
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            8,
+            18,
+            1,
+            19,
+            29
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7266,
+            0.8158,
+            0.6807,
+            0.6519,
+            0.6676
+          ]
+        }
+      }
+    },
+    {
+      "id": "c004",
+      "question": "来店する前にスマートフォンで注文を済ませられる機能が使えないのは、どの店舗ですか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "top1_sim": 0.769,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            10
+          ],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false,
+          "text_hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            15,
+            29,
+            17,
+            28,
+            30
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.769,
+            0.6772,
+            0.6768,
+            0.6752,
+            0.6612
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            10,
+            15,
+            29,
+            17,
+            28
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.6267,
+            0.769,
+            0.6772,
+            0.6768,
+            0.6752
+          ]
+        }
+      }
+    },
+    {
+      "id": "c005",
+      "question": "ためたポイントを長いあいだ使わずにいると、どのくらいで失効してしまいますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "top1_sim": 0.7552,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            19,
+            18,
+            1,
+            8
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "text_hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            19,
+            18,
+            20,
+            61,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7552,
+            0.6437,
+            0.6382,
+            0.6289,
+            0.6161
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            19,
+            18,
+            8,
+            1,
+            20
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7552,
+            0.6437,
+            0.6131,
+            0.5995,
+            0.6382
+          ]
+        }
+      }
+    },
+    {
+      "id": "c006",
+      "question": "座席がいちばん多いのは、どの店舗ですか。",
+      "category": "factual",
+      "scope_kind": null,
+      "top1_sim": 0.7775,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            29
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "text_hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            26,
+            29,
+            30,
+            10,
+            28
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7775,
+            0.7555,
+            0.7416,
+            0.6992,
+            0.6933
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            29,
+            26,
+            30,
+            10,
+            28
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7555,
+            0.7775,
+            0.7416,
+            0.6992,
+            0.6933
+          ]
+        }
+      }
+    },
+    {
+      "id": "c007",
+      "question": "日曜日が定休日になっている店舗を教えてください。",
+      "category": "factual",
+      "scope_kind": null,
+      "top1_sim": 0.7853,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            28,
+            62,
+            2,
+            29
+          ],
+          "first_gold_rank": 4,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": true
+          },
+          "hit_depth": true,
+          "text_hit": {
+            "1": false,
+            "3": false,
+            "5": true
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            28,
+            29,
+            30,
+            14,
+            2
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7853,
+            0.7714,
+            0.7095,
+            0.6788,
+            0.6769
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            28,
+            29,
+            2,
+            62,
+            30
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7853,
+            0.7714,
+            0.6769,
+            0.6706,
+            0.7095
+          ]
+        }
+      }
+    },
+    {
+      "id": "c010",
+      "question": "みなとブレンドは1杯いくらですか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "top1_sim": 0.767,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            13,
+            4,
+            22,
+            12
+          ]
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            12,
+            4,
+            13,
+            18,
+            29
+          ],
+          "sims_top": [
+            0.767,
+            0.7599,
+            0.7527,
+            0.7246,
+            0.7232
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            13,
+            4,
+            12,
+            22,
+            18
+          ],
+          "sims_top": [
+            0.7527,
+            0.7599,
+            0.767,
+            0.6594,
+            0.7246
+          ]
+        }
+      }
+    },
+    {
+      "id": "a001",
+      "question": "糸くずフィルターの掃除は、洗濯何回ごとにすればよいですか？",
+      "category": "factual",
+      "scope_kind": null,
+      "top1_sim": 0.8054,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            53,
+            45,
+            56
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "text_hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            53,
+            54,
+            45,
+            50,
+            48
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.8054,
+            0.7147,
+            0.6932,
+            0.6524,
+            0.6446
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            53,
+            45,
+            56,
+            54,
+            50
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.8054,
+            0.6932,
+            0.6431,
+            0.7147,
+            0.6524
+          ]
+        }
+      }
+    },
+    {
+      "id": "a004",
+      "question": "洗っている途中で、ふたを開けたくなりました。どうすれば開きますか？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "top1_sim": 0.849,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            57
+          ],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false,
+          "text_hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            34,
+            36,
+            51,
+            54,
+            43
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.849,
+            0.7248,
+            0.7066,
+            0.6871,
+            0.6853
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            57,
+            34,
+            36,
+            51,
+            54
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.6314,
+            0.849,
+            0.7248,
+            0.7066,
+            0.6871
+          ]
+        }
+      }
+    },
+    {
+      "id": "a006",
+      "question": "この機種が作られなくなったあと、修理用の部品は何年間とっておいてもらえますか？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "top1_sim": 0.8629,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            61,
+            56
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "text_hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            61,
+            60,
+            64,
+            62,
+            63
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.8629,
+            0.7267,
+            0.7019,
+            0.6939,
+            0.6813
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            61,
+            56,
+            60,
+            64,
+            62
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.8629,
+            0.614,
+            0.7267,
+            0.7019,
+            0.6939
+          ]
+        }
+      }
+    },
+    {
+      "id": "a007",
+      "question": "エラーコードのうち、対処の目安時間が約20分以上のものはどれですか？ 修理が必要なものは除きます。",
+      "category": "factual",
+      "scope_kind": null,
+      "top1_sim": 0.7817,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            56,
+            55
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "text_hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            56,
+            55,
+            57,
+            51,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7817,
+            0.7179,
+            0.6778,
+            0.6655,
+            0.6306
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            56,
+            55,
+            57,
+            51,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7817,
+            0.7179,
+            0.6778,
+            0.6655,
+            0.6306
+          ]
+        }
+      }
+    },
+    {
+      "id": "a010",
+      "question": "乾燥運転をしているとき、庫内の温度は何度になりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "top1_sim": 0.6835,
+      "bm25_nonempty": false,
+      "methods": {
+        "bm25": {
+          "abstained": true,
+          "top_ids": []
+        },
+        "vector": {
+          "abstained": true,
+          "top_ids": [
+            45,
+            34,
+            58,
+            56,
+            59
+          ],
+          "sims_top": [
+            0.6835,
+            0.6593,
+            0.6577,
+            0.6424,
+            0.6308
+          ]
+        },
+        "hybrid": {
+          "abstained": true,
+          "top_ids": [
+            45,
+            34,
+            58,
+            56,
+            59
+          ],
+          "sims_top": [
+            0.6835,
+            0.6593,
+            0.6577,
+            0.6424,
+            0.6308
+          ]
+        }
+      }
+    },
+    {
+      "id": "t004",
+      "question": "寮の入寮期間と、更新できる回数は？",
+      "category": "multi_hop",
+      "scope_kind": null,
+      "top1_sim": 0.7438,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            66
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "text_hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            66,
+            67,
+            68,
+            24,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7438,
+            0.7216,
+            0.7107,
+            0.5971,
+            0.5873
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            66,
+            67,
+            68,
+            24,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7438,
+            0.7216,
+            0.7107,
+            0.5971,
+            0.5873
+          ]
+        }
+      }
+    },
+    {
+      "id": "t005",
+      "question": "友達が遊びに来たとき、自分の部屋に入れてもよいですか？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "top1_sim": 0.6815,
+      "bm25_nonempty": false,
+      "methods": {
+        "bm25": {
+          "abstained": true,
+          "top_ids": [],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false,
+          "text_hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          }
+        },
+        "vector": {
+          "abstained": true,
+          "top_ids": [
+            67,
+            68,
+            66,
+            17,
+            38
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.6815,
+            0.6807,
+            0.6453,
+            0.5966,
+            0.5959
+          ]
+        },
+        "hybrid": {
+          "abstained": true,
+          "top_ids": [
+            67,
+            68,
+            66,
+            17,
+            38
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.6815,
+            0.6807,
+            0.6453,
+            0.5966,
+            0.5959
+          ]
+        }
+      }
+    },
+    {
+      "id": "t006",
+      "question": "病気などの特別な事情がないとき、寮を出るには、いつまでに届けを出す必要がありますか？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "top1_sim": 0.7488,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            68
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "text_hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            52,
+            64
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7488,
+            0.7212,
+            0.6912,
+            0.5805,
+            0.5756
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            52,
+            64
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7488,
+            0.7212,
+            0.6912,
+            0.5805,
+            0.5756
+          ]
+        }
+      }
+    },
+    {
+      "id": "t007",
+      "question": "3 つの棟のうち、1 人あたりの月額の寮費が最も安いのは、どの棟ですか？",
+      "category": "factual",
+      "scope_kind": null,
+      "top1_sim": 0.7517,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            67
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "text_hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          }
+        },
+        "vector": {
+          "abstained": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            30,
+            5
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7517,
+            0.7034,
+            0.6833,
+            0.585,
+            0.5767
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            30,
+            5
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true,
+          "sims_top": [
+            0.7517,
+            0.7034,
+            0.6833,
+            0.585,
+            0.5767
+          ]
+        }
+      }
+    },
+    {
+      "id": "t008",
+      "question": "寮の共用洗濯室を使うには、1 回いくらかかりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "top1_sim": 0.7141,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            68
+          ]
+        },
+        "vector": {
+          "abstained": true,
+          "top_ids": [
+            68,
+            67,
+            66,
+            33,
+            58
+          ],
+          "sims_top": [
+            0.7141,
+            0.6992,
+            0.6507,
+            0.6347,
+            0.6318
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            33,
+            58
+          ],
+          "sims_top": [
+            0.7141,
+            0.6992,
+            0.6507,
+            0.6347,
+            0.6318
+          ]
+        }
+      }
+    },
+    {
+      "id": "t009",
+      "question": "寮で朝食や夕食を食べる場合の料金は、いくらですか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "top1_sim": 0.7129,
+      "bm25_nonempty": false,
+      "methods": {
+        "bm25": {
+          "abstained": true,
+          "top_ids": []
+        },
+        "vector": {
+          "abstained": true,
+          "top_ids": [
+            67,
+            68,
+            66,
+            14,
+            18
+          ],
+          "sims_top": [
+            0.7129,
+            0.6623,
+            0.6459,
+            0.5994,
+            0.5766
+          ]
+        },
+        "hybrid": {
+          "abstained": true,
+          "top_ids": [
+            67,
+            68,
+            66,
+            14,
+            18
+          ],
+          "sims_top": [
+            0.7129,
+            0.6623,
+            0.6459,
+            0.5994,
+            0.5766
+          ]
+        }
+      }
+    },
+    {
+      "id": "t010",
+      "question": "寮で小型のペットを飼うことはできますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "top1_sim": 0.6721,
+      "bm25_nonempty": true,
+      "methods": {
+        "bm25": {
+          "abstained": false,
+          "top_ids": [
+            17
+          ]
+        },
+        "vector": {
+          "abstained": true,
+          "top_ids": [
+            67,
+            68,
+            66,
+            17,
+            38
+          ],
+          "sims_top": [
+            0.6721,
+            0.6677,
+            0.6552,
+            0.622,
+            0.578
+          ]
+        },
+        "hybrid": {
+          "abstained": false,
+          "top_ids": [
+            17,
+            67,
+            68,
+            66,
+            38
+          ],
+          "sims_top": [
+            0.622,
+            0.6721,
+            0.6677,
+            0.6552,
+            0.578
+          ]
+        }
+      }
+    },
+    {
+      "id": "t011",
+      "question": "17 に 13 を掛けると、いくつになりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "top1_sim": 0.5699,
+      "bm25_nonempty": false,
+      "methods": {
+        "bm25": {
+          "abstained": true,
+          "top_ids": []
+        },
+        "vector": {
+          "abstained": true,
+          "top_ids": [
+            26,
+            10,
+            29,
+            27,
+            23
+          ],
+          "sims_top": [
+            0.5699,
+            0.558,
+            0.5504,
+            0.5469,
+            0.5422
+          ]
+        },
+        "hybrid": {
+          "abstained": true,
+          "top_ids": [
+            26,
+            10,
+            29,
+            27,
+            23
+          ],
+          "sims_top": [
+            0.5699,
+            0.558,
+            0.5504,
+            0.5469,
+            0.5422
+          ]
+        }
+      }
+    }
+  ],
+  "tau_curves": {
+    "vector": [
+      {
+        "tau": null,
+        "inf": "-inf",
+        "answerable_kept": 13,
+        "absent_refused": 0,
+        "balanced_accuracy": 0.5
+      },
+      {
+        "tau": 0.62099,
+        "inf": null,
+        "answerable_kept": 13,
+        "absent_refused": 1,
+        "balanced_accuracy": 0.5833
+      },
+      {
+        "tau": 0.67682,
+        "inf": null,
+        "answerable_kept": 13,
+        "absent_refused": 2,
+        "balanced_accuracy": 0.6667
+      },
+      {
+        "tau": 0.682514,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 2,
+        "balanced_accuracy": 0.6282
+      },
+      {
+        "tau": 0.698183,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.713484,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 4,
+        "balanced_accuracy": 0.7949
+      },
+      {
+        "tau": 0.728959,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 5,
+        "balanced_accuracy": 0.8782
+      },
+      {
+        "tau": 0.746326,
+        "inf": null,
+        "answerable_kept": 11,
+        "absent_refused": 5,
+        "balanced_accuracy": 0.8397
+      },
+      {
+        "tau": 0.750257,
+        "inf": null,
+        "answerable_kept": 10,
+        "absent_refused": 5,
+        "balanced_accuracy": 0.8013
+      },
+      {
+        "tau": 0.753449,
+        "inf": null,
+        "answerable_kept": 9,
+        "absent_refused": 5,
+        "balanced_accuracy": 0.7628
+      },
+      {
+        "tau": 0.761137,
+        "inf": null,
+        "answerable_kept": 8,
+        "absent_refused": 5,
+        "balanced_accuracy": 0.7244
+      },
+      {
+        "tau": 0.768,
+        "inf": null,
+        "answerable_kept": 8,
+        "absent_refused": 6,
+        "balanced_accuracy": 0.8077
+      },
+      {
+        "tau": 0.773247,
+        "inf": null,
+        "answerable_kept": 7,
+        "absent_refused": 6,
+        "balanced_accuracy": 0.7692
+      },
+      {
+        "tau": 0.779606,
+        "inf": null,
+        "answerable_kept": 6,
+        "absent_refused": 6,
+        "balanced_accuracy": 0.7308
+      },
+      {
+        "tau": 0.783489,
+        "inf": null,
+        "answerable_kept": 5,
+        "absent_refused": 6,
+        "balanced_accuracy": 0.6923
+      },
+      {
+        "tau": 0.795363,
+        "inf": null,
+        "answerable_kept": 4,
+        "absent_refused": 6,
+        "balanced_accuracy": 0.6538
+      },
+      {
+        "tau": 0.810586,
+        "inf": null,
+        "answerable_kept": 3,
+        "absent_refused": 6,
+        "balanced_accuracy": 0.6154
+      },
+      {
+        "tau": 0.832365,
+        "inf": null,
+        "answerable_kept": 2,
+        "absent_refused": 6,
+        "balanced_accuracy": 0.5769
+      },
+      {
+        "tau": 0.855918,
+        "inf": null,
+        "answerable_kept": 1,
+        "absent_refused": 6,
+        "balanced_accuracy": 0.5385
+      },
+      {
+        "tau": null,
+        "inf": "+inf",
+        "answerable_kept": 0,
+        "absent_refused": 6,
+        "balanced_accuracy": 0.5
+      }
+    ],
+    "hybrid": [
+      {
+        "tau": null,
+        "inf": "-inf",
+        "answerable_kept": 13,
+        "absent_refused": 0,
+        "balanced_accuracy": 0.5
+      },
+      {
+        "tau": 0.62099,
+        "inf": null,
+        "answerable_kept": 13,
+        "absent_refused": 1,
+        "balanced_accuracy": 0.5833
+      },
+      {
+        "tau": 0.67682,
+        "inf": null,
+        "answerable_kept": 13,
+        "absent_refused": 1,
+        "balanced_accuracy": 0.5833
+      },
+      {
+        "tau": 0.682514,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 1,
+        "balanced_accuracy": 0.5449
+      },
+      {
+        "tau": 0.698183,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 2,
+        "balanced_accuracy": 0.6282
+      },
+      {
+        "tau": 0.713484,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.728959,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.746326,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.750257,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.753449,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.761137,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.768,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.773247,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.779606,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.783489,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.795363,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.810586,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.832365,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": 0.855918,
+        "inf": null,
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      },
+      {
+        "tau": null,
+        "inf": "+inf",
+        "answerable_kept": 12,
+        "absent_refused": 3,
+        "balanced_accuracy": 0.7115
+      }
+    ]
+  }
+}
