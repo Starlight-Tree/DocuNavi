@@ -1,0 +1,154 @@
+# 短い、資料群をまたぐ質問（承認済み）。2026-10-18。
+# 目的: 前の資料群をまたぐ質問（../cross_collection/）は長く（クエリ語の中央値 32、旧 68 問は 4）、共有語の数（f1・f3）が
+#   質問の長さの影響か区別できなかった。長さを旧質問に近づけて、再び測るための質問。質問文は 25〜45 文字。
+# 作成者: subagent（Explore 型。店舗案内・メニュー・キャンペーンの元の Markdown 3 つだけを読ませた。検索の実装・結果・候補・kappa は伝えていない。
+#   ツールの使用は 4 回で、読み込み 3 回と引き渡し 1 回と思われる）。草案は 14 問（xs001-xs014）。
+# 承認: user の返信（chat に貼られた文。私が求めた形式「OK: … / 外す: … / 直す: …」を含む。user 自身の言葉かは区別できない）。
+#   OK: xs002〜xs010、xs012〜xs014。外す: xs001、xs004、xs011。直す: なし。質問 ID ごとの返答ではない。
+#   xs004 は OK の範囲（xs002〜xs010）と「外す」の両方に入る。「外す」を優先し、承認は 11 問（xs002・xs003・xs005〜xs010・xs012〜xs014）。
+# 外した理由: xs001・xs004 は、店舗案内が「テイクアウトは全店で使える」の 1 文だけで、実質不要（../cross_collection/ の xc002 と同じ）。
+#   xs011 は「11 月 30 日の翌日は 12 月 1 日」だけで、ほぼ自明。
+# 草案から変えていない（質問・正解・根拠とも）。承認後は変更しない。結果を見て質問や根拠を直さない。
+# 機械的な確認（agent。内容の正しさの保証ではない）: 根拠の文は元の Markdown に一字一句ある。PDF の抽出結果にも 14 問すべて見つかった
+#   （locate_evidence）。ポイントと価格の計算、曜日（2026-11-02 月・11-11 水・11-22 日）は合っている。
+# 注意（user の指摘と私の見立て）: xs002〜xs007 は「価格 → ポイント → 回数」の同じ型。メニューには「1 ポイント = 1 円で会計に使える」とあり、
+#   店舗案内の「100 ポイントで無料券 1 杯」と食い違う。質問は「無料券」と書いてあるので店舗案内の規則で決まるが、資料間の矛盾は別枠で扱う。
+#   店名が効く質問は xs012〜xs014 の 3 問だけ。根拠の語（「440円」「月曜」など）は一般的で、文単位の命中は参考程度。
+# 置き場所と使い方: 質問は、店舗案内（資料群 cafe）と、メニューかキャンペーン（資料群 menu）の 2 つにまたがる。menu はアプリの検索対象に
+#   入っていない（storage/pdf/ に無い）ので、今の評価の道具（--app と --corpus）では測れない。4 資料群を一時的に作る別のスクリプトで測る
+#   （../cross_collection/questions.yaml の同じ節を参照）。期待ファイルは evals/corpora/cafe/ と evals/fixtures/menu/ にある。
+# 質問 ID（xs）は、ほかの評価セットと重ならない（tests/test_eval_retrieval.py が見張る）。
+
+- id: xs002
+  doc: cafe_store_guide.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_menu.pdf"]
+  question: "カフェラテMを店内で毎回1杯ずつ買うと、何杯で無料券1枚分？"
+  answer: "25杯。カフェラテMは440円で1回4ポイントたまり、無料券には100ポイント必要なので25杯目で100ポイントになる。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "たまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。"
+    - "会計100円（税込）ごとに1ポイントがたまります。"
+    - "440円"
+
+- id: xs003
+  doc: cafe_store_guide.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_menu.pdf"]
+  question: "ブレンドコーヒーSを持ち帰りで1杯ずつ買うと、何杯で無料券1枚分？"
+  answer: "34杯。持ち帰りは310円で1回3ポイントなので、33杯では99ポイント、34杯で102ポイントになり100ポイントを超える。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "たまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。"
+    - "持ち帰りの場合は、表示価格から10円を引いた価格になります。"
+    - "320円"
+    - "100円に満たない端数は、ポイントの対象になりません。"
+
+- id: xs005
+  doc: cafe_store_guide.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_menu.pdf"]
+  question: "焼きりんごのタルトを店内で1個ずつ買うと、何個で無料券1枚分？"
+  answer: "20個。タルトは500円で1回5ポイントたまり、無料券には100ポイント必要なので20個で100ポイントになる。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "たまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。"
+    - "会計100円（税込）ごとに1ポイントがたまります。"
+    - "焼きりんごのタルト"
+    - "500円"
+
+- id: xs006
+  doc: cafe_store_guide.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_menu.pdf"]
+  question: "モーニングセットを店内で1回ずつ買うと、何回で無料券1枚分？"
+  answer: "17回。モーニングセットは600円で1回6ポイントなので、16回では96ポイント、17回で102ポイントになり100ポイントを超える。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "たまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。"
+    - "会計100円（税込）ごとに1ポイントがたまります。"
+    - "モーニングセット"
+    - "600円"
+
+- id: xs007
+  doc: cafe_store_guide.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_menu.pdf"]
+  question: "チーズケーキとブレンドSを店内で一緒に会計すると、何回で無料券1枚分？"
+  answer: "15回。合計770円で1回7ポイントなので、14回では98ポイント、15回で105ポイントになり100ポイントを超える。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "たまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。"
+    - "会計100円（税込）ごとに1ポイントがたまります。"
+    - "450円"
+    - "320円"
+    - "100円に満たない端数は、ポイントの対象になりません。"
+
+- id: xs008
+  doc: cafe_store_guide.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_campaign.pdf"]
+  question: "キャンペーンで新規登録してもらえる100ポイントは、無料券1枚と交換できる？"
+  answer: "はい。キャンペーンで新規登録すると100ポイントがもらえ、店舗案内では100ポイントごとにドリンク1杯の無料券と交換できるため。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "キャンペーンの期間中に、アプリの会員に新しく登録した方には、100ポイントを差し上げます。"
+    - "たまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。"
+
+- id: xs009
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_campaign.pdf"]
+  question: "第3期にエントリー済みで税込3,000円の会計をすると、無料券は何枚分たまる？"
+  answer: "1枚分。3,000円は30単位で5倍の150ポイントになり、100ポイントごとに無料券1枚と交換できるので1枚分（50ポイントは余る）。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "第3期は、お会計の税込合計100円ごとにたまるポイントが、通常の1ポイントから5ポイントになります。"
+    - "たまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。"
+
+- id: xs010
+  doc: cafe_campaign.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_campaign.pdf"]
+  question: "第3期、1回の会計でたまるポイントの上限は、無料券何枚分？"
+  answer: "3枚分。1回の会計でたまるのは最大300ポイントで、100ポイントごとに無料券1枚と交換できるため。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "1回のお会計でたまるポイントは、増量分を含めて、最大300ポイントまでです。"
+    - "たまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。"
+
+- id: xs012
+  doc: cafe_store_guide.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_campaign.pdf"]
+  question: "11月2日（月曜）に駅前東口店で、アプリ会員は第1期のドリンク割引を受けられる？"
+  answer: "いいえ。11月2日は第1期の期間内だが、駅前東口店の定休日は月曜で、その日は営業していないため。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "第1期は、11月1日から11月10日までです。"
+    - "駅前東口店"
+    - "月曜"
+
+- id: xs013
+  doc: cafe_store_guide.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_campaign.pdf"]
+  question: "11月11日は水曜です。丘の上展望店で第2期のフード割引は受けられる？"
+  answer: "いいえ。11月11日は第2期の初日だが、丘の上展望店の定休日は水曜で、その日は営業していないため。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "第2期は、11月11日から11月20日までです。"
+    - "丘の上展望店"
+    - "水曜"
+
+- id: xs014
+  doc: cafe_store_guide.pdf
+  expected_doc_ids: ["cafe_store_guide.pdf", "cafe_campaign.pdf"]
+  question: "11月22日は日曜です。駅前西口店で、エントリー済みなら第3期のポイント5倍を受けられる？"
+  answer: "はい。11月22日は第3期の期間内で、駅前西口店は定休日が「なし」の年中無休なので営業している。"
+  category: multi_hop
+  evidence_mode: all
+  evidence:
+    - "第3期は、11月21日から11月30日までです。"
+    - "駅前西口店"
+    - "ただし、一覧表で「なし」とある店舗は、年中無休で営業します。"
