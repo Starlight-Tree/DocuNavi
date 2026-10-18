@@ -230,3 +230,21 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
   残らないよう、`claude mcp remove playwright --scope local` で消してください。
 - 再ビルドで確かめたのは、Chromium のキャッシュ（ボリューム）が残ること、MCP の登録が有効なことです。ライブラリーの導入は、再ビルド直後に apt のロック競合で失敗したため、試し直しと失敗の検知を足しました。
   試し直しは、ロックを人為的に持たせて確かめました（回復・失敗時の終了コード 1・通常の実行）。足したあとの再ビルドは、まだ行っていません（開発コンテナの中には Docker が無いため）。
+
+## Supabase MCP（読み取り専用の共有）
+
+リポジトリ直下の `.mcp.json` に、`supabase`（読み取り専用）の定義があります。DB の中身（`documents` / `chunks` など）を、エージェントが読んで確かめるためのものです。
+
+- **読み取り専用です。** URL の `read_only=true` で、書き込み（マイグレーションの適用、書き込みの SQL）を止めます。実際の接続で確かめました（2026-10-18）。
+  `apply_migration` のツールは出ず、`CREATE TEMP TABLE` は読み取り専用のトランザクションとして拒否され、`list_tables` などの読み取りは通りました。
+- **プロジェクト参照は、リポジトリに書きません。** URL の `${SUPABASE_PROJECT_REF}` は、環境変数から展開します。
+  値（Supabase の Project Settings → General の Reference ID）は、自分の `~/.claude/settings.json` の `env` に `"SUPABASE_PROJECT_REF": "<参照ID>"` として書くのが主な手順です。
+  このファイルは `~/.claude` のボリュームにあるので、再ビルドしても残り、リポジトリには入りません。設定したあとは `/mcp` で再接続すると反映されます。
+  未設定のときは接続に失敗します（接続できません。空にすると、プロジェクトを絞らない接続になりうるので、空にはしません）。
+  代わりに、ホスト側の環境変数を渡す方法もあります。`devcontainer.json` の `containerEnv` に `"SUPABASE_PROJECT_REF": "${localEnv:SUPABASE_PROJECT_REF}"` を足します（この方法では確かめていません）。
+  macOS で Dock から VS Code を起動すると、シェルの環境変数が届かないことがあります。ターミナルから `code .` で開くか、設定したあとで VS Code を起動し直します。
+- **認証は OAuth です。** トークンは設定ファイルに無く、初回は `/mcp` の画面でブラウザーからログインします。トークンは `~/.claude` のボリュームにあり、再ビルドのあとに再認証は要りませんでした（2026-10-18 に 2 回の再ビルドで確認。1 回の環境での結果です）。
+- **書き込みは、別名のローカル登録で行います**（共有の `supabase` と同じ名前だと、ローカル登録が優先されて、共有側が隠れます）。
+  `claude mcp add --scope local --transport http supabase-write "https://mcp.supabase.com/mcp?project_ref=<参照ID>&features=database,docs"`。
+  DDL は `db/migrations/` に SQL を残してから、`apply_migration` で適用します。参照 ID は、リポジトリにも会話の記録にも残しません。
+- 変数が未設定でも、`.mcp.json` 全体は壊れません（`claude mcp list` に警告が出て、`${…}` の文字のまま使われます。公式の説明で、スクラッチの読み込みでも確認しました）。Playwright は影響を受けません。
