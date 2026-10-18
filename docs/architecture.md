@@ -32,8 +32,8 @@ app/
   agents/tools.py    資料の検索（search_documents）。資料群ごとに BM25 で採点して合わせる
   ingestion/         PDF の取り込み（python -m app.ingestion）と、検索の単位への変換（corpus.py。アプリの検索と評価が共有）
 frontend/            チャット画面（Vite + React + TypeScript）。dist/ がビルド成果物
-storage/chunk/       設定資料の .txt（RAG の検索対象。資料群 zahard）
-storage/pdf/<名前>/  PDF の資料（RAG の検索対象。ディレクトリ名が資料群の名前）
+storage/pdf/<名前>/  PDF の資料（RAG の検索対象。ディレクトリ名が資料群の名前。いまは zahard・cafe・guides）
+storage/chunk/       .txt の資料の置き場（いまは空。ザーハードは PDF に移した。コードの経路は残している）
 tests/               pytest（モックモード固定）
 ```
 

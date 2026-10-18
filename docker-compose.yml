@@ -15,7 +15,7 @@ services:
       WATCHFILES_FORCE_POLLING: "true"
     volumes:
       # app/ の親が /code になるため `app.main:app` のモジュールパスが保たれ、
-      # tools.py の ../../storage/chunk も /code/storage/chunk に解決される。
+      # tools.py の ../../storage/pdf も /code/storage/pdf に解決される。
       # compose はホストで実行する前提（devcontainer 内には Docker を入れていない）。
       - ./app:/code/app
       - ./storage:/code/storage:ro

@@ -23,7 +23,7 @@
 | `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Supabase Auth の JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
 | `SUPABASE_URL` | （空） | `AUTH_MODE=required` のとき必須。プロジェクトの URL（`https://<ref>.supabase.co`。公開してよい値だが、このリポジトリには書かない）。JWT の公開鍵（JWKS）の取得先と、発行元の確認に使う |
 | `SEARCH_SCOPE` | （空 = `all`） | チャットが検索する資料群（カンマ区切りの名前。`zahard` / `cafe` など）。`all` か空なら全部。知らない名前は起動を失敗させる（検索が黙って空になるのを防ぐ）。下記「検索する資料」 |
-| `SEARCH_BACKEND` | `bm25` | `vector` で、PDF の資料群をベクトル検索（Supabase / pgvector）にする。`.txt`（ザーハード）は BM25 のまま。**既定は `bm25`、切り替えの採否は未判断**。使える状態でなければ、起動を失敗させる。下記「ベクトル検索（実験的）」 |
+| `SEARCH_BACKEND` | `bm25` | `vector` で、PDF の資料群（ザーハードも PDF）をベクトル検索（Supabase / pgvector）にする。**既定は `bm25` で、DB も埋め込みも使わない。** `vector` には、PDF の DB への取り込みと埋め込みが要る。`storage/chunk/` に置いた .txt だけは BM25 のまま。**切り替えの採否は未判断**。使える状態でなければ、起動を失敗させる。下記「ベクトル検索（実験的）」 |
 
 ## 検索する資料
 
@@ -31,8 +31,8 @@
 
 | 資料群の名前 | 置き場所 | 内容 |
 |---|---|---|
-| `zahard` | `storage/chunk/*.txt` | 架空の惑星「ザーハード」の設定資料 |
-| ディレクトリ名（例: `cafe`、`guides`） | `storage/pdf/<名前>/*.pdf` | PDF の資料。取り込みと同じ経路で、見出し・段落・表を組み立てて検索の単位にする |
+| ディレクトリ名（`zahard`・`cafe`・`guides`） | `storage/pdf/<名前>/*.pdf` | PDF の資料。取り込みと同じ経路で、見出し・段落・表を組み立てて検索の単位にする。`zahard` は架空の惑星「ザーハード」の設定資料 |
+| `zahard`（.txt） | `storage/chunk/*.txt` | .txt の資料の置き場。**いまは空**（ザーハードは PDF に移した。元の .txt は `evals/fixtures/zahard_txt/`）。置けば `zahard` の資料群に入る（コードに残してある） |
 
 - **なぜ資料群ごとか。** BM25 のスコアと、頻出語の除外（`GENERIC_TERM_RATIO`）は、資料全体の統計に依存します。1 つに混ぜると、
   別の資料群が増えただけで「ザーハード」のような主題語の出現率が下がり、除外されなくなって、無関係な文まで返ります
@@ -52,6 +52,10 @@
   `storage/pdf/guides/` の 2 冊は `evals/corpora/guides/` の同名の PDF と、それぞれ同じファイルです
   （`tests/test_collections.py` が一致を確かめる）。差し替えるときは、両方を更新し、評価の baseline を取り直します
   （[evals/README.md](../evals/README.md)）。
+- **資料群の並び。** 名前順（`cafe`・`guides`・`zahard`）で、結果の交互採用もこの順です。ザーハードが .txt だった時代は `zahard` が先頭でしたが、
+  PDF に移しても、評価セットの全質問（68 問、k=2・5）で、返るファイルと本文は変わりませんでした（`tests/test_eval_retrieval.py` が、移す前後の baseline の一致を確かめる）。
+- **ザーハードの PDF。** `storage/pdf/zahard/` の 3 冊は、元の .txt を PDF にしたものです（作り方と、段落の分け方を選んだ根拠は
+  [evals/fixtures/zahard_pdf/README.md](../evals/fixtures/zahard_pdf/README.md)）。PDF の見た目は未確認です（資料一覧で開いて目視する）。
 - **範囲を絞る。** `SEARCH_SCOPE=zahard` のように指定します。絞ったあとの検索は、その資料群を単独で検索した結果と同じです。
 - **本物の Gemini での確認（2026-10-15、`gemini-3.1-flash-lite`、10 問。グラフを直接呼び、ツール呼び出しと結果を記録した。限られた範囲）。**
   一般化した `search_documents` とプロンプトは、実 API でも動いた: ザーハード・カフェのどちらの質問でも、モデルは `search_documents` を
@@ -72,8 +76,8 @@
 （`app/search_vector.py`）。**既定は `bm25` で、挙動は変わりません。** 同期の `.invoke` は、設定にかかわらず常に BM25 です。
 
 - **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元。質問ごとに API を 1 回呼ぶ）、`chunks.embedding` との
-  コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。`.txt` の資料群（ザーハード）は DB に無いので BM25 のままで、
-  両者を BM25 のときと同じ交互採用（`.txt` が先）で合わせます。返す形は `[ファイル名]\n見出し\n本文` で、BM25 と同じです。
+  コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。ザーハードの PDF も、DB に取り込み・埋め込み済みであることが要ります。
+  `storage/chunk/` に .txt を置いた場合だけ、その資料群は DB に無いので BM25 のままで、両者を BM25 のときと同じ交互採用（`.txt` が先）で合わせます。返す形は `[ファイル名]\n見出し\n本文` で、BM25 と同じです。
 - **必要なもの。** `DATABASE_URL`（履歴と同じ接続プールを借りる。`DATABASE_POOL_MAX_SIZE` は共有）、`GEMINI_API_KEY`（Vertex AI モードは未対応）、
   実 LLM（モックモードでは使えない）。DB には、`python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で、
   `storage/pdf/` の PDF を取り込み・埋め込み済みであること。

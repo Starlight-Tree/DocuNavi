@@ -18,147 +18,147 @@
   question: "ザーハードの大気の酸素濃度はどれくらい？"
   category: factual
   kind: direct
-  expected_doc_ids: ["ザーハード1.txt"]
+  expected_doc_ids: ["ザーハード1.pdf"]
   evidence: ["地球の1/10以下"]
 
 - id: q002
   question: "遺跡の防衛システムについて教えて"
   category: factual
   kind: direct
-  expected_doc_ids: ["ザーハード2.txt"]
+  expected_doc_ids: ["ザーハード2.pdf"]
   evidence: ["高度な防衛システム"]
 
 - id: q003
   question: "遺跡の構造はどうなっていますか"
   category: factual
   kind: direct
-  expected_doc_ids: ["ザーハード2.txt"]
+  expected_doc_ids: ["ザーハード2.pdf"]
   evidence: ["多層的な構造"]
 
 - id: q004
   question: "エネルギー源が暴走するとどうなる？"
   category: factual
   kind: direct
-  expected_doc_ids: ["ザーハード3.txt"]
+  expected_doc_ids: ["ザーハード3.pdf"]
   evidence: ["惑星を破壊する可能性"]
 
 - id: q005
   question: "ザーハードの最大の魅力は何ですか"
   category: factual
   kind: direct
-  expected_doc_ids: ["ザーハード3.txt"]
+  expected_doc_ids: ["ザーハード3.pdf"]
   evidence: ["最大の魅力"]
 
 - id: q006
   question: "守護機構は侵入者に対してどう働く？"
   category: factual
   kind: direct
-  expected_doc_ids: ["ザーハード3.txt"]
+  expected_doc_ids: ["ザーハード3.pdf"]
   evidence: ["侵入者に対して攻撃的"]
 
 - id: q007
   question: "ザーハリアン文明が崩壊した原因は？"
   category: factual
   kind: direct
-  expected_doc_ids: ["ザーハード2.txt"]
+  expected_doc_ids: ["ザーハード2.pdf"]
   evidence: ["文明が崩壊", "滅亡と関係"]
 
 - id: q008
   question: "硫化水素"
   category: factual
   kind: keyword
-  expected_doc_ids: ["ザーハード1.txt"]
+  expected_doc_ids: ["ザーハード1.pdf"]
   evidence: ["硫化水素や二酸化炭素"]
 
 - id: q009
   question: "放射線"
   category: factual
   kind: keyword
-  expected_doc_ids: ["ザーハード3.txt"]
+  expected_doc_ids: ["ザーハード3.pdf"]
   evidence: ["放射線を放出"]
 
 - id: q010
   question: "象形文字"
   category: factual
   kind: keyword
-  expected_doc_ids: ["ザーハード1.txt"]
+  expected_doc_ids: ["ザーハード1.pdf"]
   evidence: ["未解読の象形文字"]
 
 - id: q011
   question: "磁場"
   category: factual
   kind: keyword
-  expected_doc_ids: ["ザーハード3.txt"]
+  expected_doc_ids: ["ザーハード3.pdf"]
   evidence: ["強力な磁場"]
 
 - id: q012
   question: "昼と夜の気温差について教えて"
   category: paraphrase
   kind: paraphrase
-  expected_doc_ids: ["ザーハード1.txt"]
+  expected_doc_ids: ["ザーハード1.pdf"]
   evidence: ["日中と夜間の温度差"]
 
 - id: q013
   question: "毒ガスは含まれていますか"
   category: paraphrase
   kind: paraphrase
-  expected_doc_ids: ["ザーハード1.txt"]
+  expected_doc_ids: ["ザーハード1.pdf"]
   evidence: ["有害なガス", "硫化水素や二酸化炭素"]
 
 - id: q014
   question: "砂漠を移動するには何が必要？"
   category: paraphrase
   kind: paraphrase
-  expected_doc_ids: ["ザーハード1.txt"]
+  expected_doc_ids: ["ザーハード1.pdf"]
   evidence: ["高機動の車両"]
 
 - id: q015
   question: "エネルギー源は自然にできたものなの？"
   category: paraphrase
   kind: paraphrase
-  expected_doc_ids: ["ザーハード3.txt"]
+  expected_doc_ids: ["ザーハード3.pdf"]
   evidence: ["自然に発生したものではなく"]
 
 - id: q016
   question: "エネルギーを制御できたらどうなる"
   category: paraphrase
   kind: paraphrase
-  expected_doc_ids: ["ザーハード3.txt"]
+  expected_doc_ids: ["ザーハード3.pdf"]
   evidence: ["無限のエネルギー供給"]
 
 - id: q017
   question: "ザーハリアンって何者？"
   category: factual
   kind: colloquial
-  expected_doc_ids: ["ザーハード2.txt"]
+  expected_doc_ids: ["ザーハード2.pdf"]
   evidence: ["ザーハリアン文明"]
 
 - id: q018
   question: "探査団は何を装備して挑むの"
   category: factual
   kind: colloquial
-  expected_doc_ids: ["ザーハード1.txt"]
+  expected_doc_ids: ["ザーハード1.pdf"]
   evidence: ["生命維持装置"]
 
 - id: q019
   question: "メタンガスって入ってる？"
   category: factual
   kind: colloquial
-  expected_doc_ids: ["ザーハード1.txt"]
+  expected_doc_ids: ["ザーハード1.pdf"]
   evidence: ["メタンガス"]
 
 - id: q020
   question: "冒険者が集まるのはなぜですか"
   category: factual
   kind: colloquial
-  expected_doc_ids: ["ザーハード2.txt"]
+  expected_doc_ids: ["ザーハード2.pdf"]
   evidence: ["冒険者たちが集まり"]
 
 - id: q021
   question: "古い文明の遺跡はどこに埋もれているの"
   category: factual
   kind: colloquial
-  expected_doc_ids: ["ザーハード1.txt"]
+  expected_doc_ids: ["ザーハード1.pdf"]
   evidence: ["砂漠の中に埋もれている"]
 
 - id: q022
@@ -212,19 +212,19 @@
 - id: q030
   question: "ザーハリアンはエネルギー源を作った存在なのですか"
   category: multi_hop
-  expected_doc_ids: ["ザーハード2.txt", "ザーハード3.txt"]
+  expected_doc_ids: ["ザーハード2.pdf", "ザーハード3.pdf"]
   evidence: ["異星人によって作られた", "エネルギー源を利用する技術"]
 
 - id: q031
   question: "遺跡の防衛システムとエネルギー源の守護機構は、どちらも侵入者を攻撃しますか"
   category: multi_hop
-  expected_doc_ids: ["ザーハード2.txt", "ザーハード3.txt"]
+  expected_doc_ids: ["ザーハード2.pdf", "ザーハード3.pdf"]
   evidence: ["激しい攻撃を仕掛ける", "侵入者に対して攻撃的に働き"]
 
 - id: q032
   question: "遺跡を解明すると、エネルギー源の制御にどう役立ちますか"
   category: multi_hop
-  expected_doc_ids: ["ザーハード1.txt", "ザーハード3.txt"]
+  expected_doc_ids: ["ザーハード1.pdf", "ザーハード3.pdf"]
   evidence: ["エネルギー源を制御する技術", "無限のエネルギー供給"]
 
 # --- ザーハードの話だが、資料に書かれていない質問 ---

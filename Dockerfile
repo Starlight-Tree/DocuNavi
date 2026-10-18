@@ -25,7 +25,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# /code 直下に app/ と storage/ を置く（tools.py は ../../storage/chunk を参照する）。
+# /code 直下に app/ と storage/ を置く（tools.py は ../../storage/pdf を参照する）。
 # app/frontend.py は /code/frontend/dist（このイメージでは Stage 1 の成果物）を配信する
 WORKDIR /code
 
