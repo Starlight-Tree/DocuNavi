@@ -307,9 +307,9 @@ def test_purge_keeps_a_thread_with_any_recent_checkpoint(db, capsys):
             f'WHERE thread_id = %s AND checkpoint_id = (SELECT min(checkpoint_id) FROM "{schema}".checkpoints WHERE thread_id = %s)',
             (fresh, fresh),
         )
-        total = admin.execute(
-            f'SELECT count(*) FROM "{schema}".checkpoints WHERE thread_id = %s', (fresh,)
-        ).fetchone()[0]
+        total = admin.execute(f'SELECT count(*) FROM "{schema}".checkpoints WHERE thread_id = %s', (fresh,)).fetchone()[
+            0
+        ]
     assert total >= 2  # 古い 1 行と、新しい行がある
 
     assert history_admin.main(["--older-than-days", "30", "--apply"]) == 0

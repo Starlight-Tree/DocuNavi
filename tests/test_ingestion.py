@@ -591,7 +591,10 @@ def test_a_table_whose_rows_are_as_close_as_its_wrapped_lines_is_left_alone():
 
 
 def test_a_plain_table_with_wide_row_gaps_is_left_alone():
-    plain = [_cells(600 - 22 * i, (60, a), (200, b)) for i, (a, b) in enumerate([("店舗", "席"), ("港町", "68"), ("湖畔", "76")])]
+    plain = [
+        _cells(600 - 22 * i, (60, a), (200, b))
+        for i, (a, b) in enumerate([("店舗", "席"), ("港町", "68"), ("湖畔", "76")])
+    ]
     assert chunker._merge_wrapped_rows(plain) == plain
 
 
@@ -610,7 +613,9 @@ def test_lines_without_positions_are_returned_unchanged():
 MENU_DIR_FOR_WRAP = Path(__file__).resolve().parents[1] / "evals" / "fixtures" / "menu"
 
 
-@pytest.mark.skipif(not (MENU_DIR_FOR_WRAP / "cafe_campaign.pdf").exists(), reason="評価用の PDF（evals/fixtures/menu/）が無い")
+@pytest.mark.skipif(
+    not (MENU_DIR_FOR_WRAP / "cafe_campaign.pdf").exists(), reason="評価用の PDF（evals/fixtures/menu/）が無い"
+)
 def test_the_campaign_pdf_keeps_its_two_wrapped_tables_readable(monkeypatch):
     monkeypatch.setattr(chunker, "HARD_LIMIT_CHARS", 1600)
     tables = [c for c in chunk_pages(extract_pages(MENU_DIR_FOR_WRAP / "cafe_campaign.pdf")) if c.kind == "table"]

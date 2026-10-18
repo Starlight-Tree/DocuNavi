@@ -76,7 +76,10 @@ def test_apply_creates_the_tables_only_in_the_target_schema(db, tmp_path):
     pdf = _pdf(tmp_path / "guide.pdf", [BODY[:4]])
     _run(conninfo, [pdf], tmp_path, apply=True)
 
-    names = {r[0] for r in _rows(conninfo, "SELECT table_name FROM information_schema.tables WHERE table_schema = %s", (schema,))}
+    names = {
+        r[0]
+        for r in _rows(conninfo, "SELECT table_name FROM information_schema.tables WHERE table_schema = %s", (schema,))
+    }
     assert names == {"documents", "chunks"}
 
 
@@ -191,7 +194,12 @@ def test_a_database_error_does_not_leak_the_url(monkeypatch, tmp_path, capsys):
 
 
 def _table_pdf(path):
-    rows = [("店舗名", "エリア", "座席数"), ("港町本店", "港町", "68席"), ("港町ベイ店", "港町", "42席"), ("湖畔テラス店", "湖畔", "76席")]
+    rows = [
+        ("店舗名", "エリア", "座席数"),
+        ("港町本店", "港町", "68席"),
+        ("港町ベイ店", "港町", "42席"),
+        ("湖畔テラス店", "湖畔", "76席"),
+    ]
     path.write_bytes(build_pdf([["前の説明です。", "", rows[0], rows[1]], [rows[2], rows[3], "", "後ろの説明です。"]]))
     return path
 
@@ -237,7 +245,12 @@ def test_tables_created_before_the_new_columns_are_upgraded(db, tmp_path):
 
 def test_an_unchanged_table_that_moves_to_another_page_keeps_its_row_and_gets_new_pages(db, tmp_path):
     conninfo, _ = db
-    header, a, b, c = ("店舗名", "エリア", "座席数"), ("港町本店", "港町", "68席"), ("港町ベイ店", "港町", "42席"), ("湖畔テラス店", "湖畔", "76席")
+    header, a, b, c = (
+        ("店舗名", "エリア", "座席数"),
+        ("港町本店", "港町", "68席"),
+        ("港町ベイ店", "港町", "42席"),
+        ("湖畔テラス店", "湖畔", "76席"),
+    )
     pdf = tmp_path / "guide.pdf"
     pdf.write_bytes(build_pdf([[header, a], [b, c]]))  # 表は 1〜2 ページ
     _run(conninfo, [pdf], tmp_path, apply=True)

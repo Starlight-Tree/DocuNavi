@@ -54,10 +54,7 @@ def load_chunks() -> dict[str, str]:
     """storage/chunk/ 内の .txt を全て読み込む（ファイル名 -> 本文）。"""
     if not CHUNK_DIR.is_dir():
         return {}
-    return {
-        path.name: path.read_text(encoding="utf-8")
-        for path in sorted(CHUNK_DIR.glob("*.txt"))
-    }
+    return {path.name: path.read_text(encoding="utf-8") for path in sorted(CHUNK_DIR.glob("*.txt"))}
 
 
 @lru_cache(maxsize=1)
@@ -172,9 +169,7 @@ def search_chunks(
     return search_collections(query, top_k, {name: collections[name] for name in search_scope()})
 
 
-def search_collections(
-    query: str, top_k: int, collections: Mapping[str, Mapping[str, Any]]
-) -> list[tuple[str, str]]:
+def search_collections(query: str, top_k: int, collections: Mapping[str, Mapping[str, Any]]) -> list[tuple[str, str]]:
     """資料群ごとに採点し、順位で交互に取って、最大 top_k ファイル分を返す。
 
     BM25 のスコアは資料群の統計（頻出語・平均の長さ）に依存し、資料群をまたいで比べられない。そのため
@@ -235,9 +230,7 @@ def _search_collection(
     known_terms = {term for term in all_query_terms if doc_freq.get(term, 0)}
     if not known_terms:
         return []
-    query_terms = {
-        term for term in known_terms if doc_freq[term] / total < GENERIC_TERM_RATIO
-    } or known_terms
+    query_terms = {term for term in known_terms if doc_freq[term] / total < GENERIC_TERM_RATIO} or known_terms
 
     def bm25(terms: list[str]) -> float:
         score = 0.0

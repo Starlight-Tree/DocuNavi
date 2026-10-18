@@ -147,9 +147,7 @@ def _split_columns(runs: list[Run]) -> list[list[Run]]:
     def wide_rows(column: list[Run]) -> int:
         lo, hi = min(r[1] for r in column), max(_run_end(r) for r in column)
         # 行の中の文字列の幅の合計（隙間は数えない）。セルの間が空いた表の行は、広がっていても短い
-        return sum(
-            1 for row in _group_rows(column) if sum(_run_end(r) - r[1] for r in row) >= _WIDE_RATIO * (hi - lo)
-        )
+        return sum(1 for row in _group_rows(column) if sum(_run_end(r) - r[1] for r in row) >= _WIDE_RATIO * (hi - lo))
 
     if wide_rows(left) < _MIN_WIDE_ROWS or wide_rows(right) < _MIN_WIDE_ROWS:
         return [runs]

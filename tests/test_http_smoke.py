@@ -87,8 +87,16 @@ def base_url() -> Iterator[str]:
         log_path = log.name
         proc = subprocess.Popen(
             [
-                sys.executable, "-m", "uvicorn", "app.main:app",
-                "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning",
+                sys.executable,
+                "-m",
+                "uvicorn",
+                "app.main:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+                "--log-level",
+                "warning",
             ],
             cwd=REPO_ROOT,
             env=env,

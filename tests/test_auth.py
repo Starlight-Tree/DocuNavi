@@ -306,6 +306,7 @@ def test_hs256_signed_with_the_public_key_is_401(client, required, signer):
         serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
     )
     payload = {"iss": ISSUER, "aud": "authenticated", "sub": USER_A, "role": "authenticated", "exp": 4_000_000_000}
+
     # PyJWT 自身は PEM の公開鍵での HS256 署名を拒むので、署名は手で組み立てる
     def b64(data: bytes) -> bytes:
         return base64.urlsafe_b64encode(data).rstrip(b"=")
@@ -412,7 +413,13 @@ def test_startup_required_without_supabase_url_fails(monkeypatch, jwks, clock):
 
 @pytest.mark.parametrize(
     "url",
-    ["http://project.supabase.co", "ftp://x.example", "https://x.supabase.co/auth/v1", "https://x.supabase.co?a=1", "x.supabase.co"],
+    [
+        "http://project.supabase.co",
+        "ftp://x.example",
+        "https://x.supabase.co/auth/v1",
+        "https://x.supabase.co?a=1",
+        "x.supabase.co",
+    ],
 )
 def test_startup_rejects_bad_supabase_urls(monkeypatch, jwks, clock, url):
     monkeypatch.setenv("AUTH_MODE", "required")

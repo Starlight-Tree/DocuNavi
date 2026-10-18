@@ -212,9 +212,7 @@ def _create_gemini(model: str) -> ChatGoogleGenerativeAI:
         if location := os.environ.get("GOOGLE_CLOUD_LOCATION", "").strip():
             kwargs["location"] = location
         return _with_retry_policy(ChatGoogleGenerativeAI(model=model, vertexai=True, **kwargs))
-    return _with_retry_policy(
-        ChatGoogleGenerativeAI(model=model, google_api_key=os.environ["GEMINI_API_KEY"])
-    )
+    return _with_retry_policy(ChatGoogleGenerativeAI(model=model, google_api_key=os.environ["GEMINI_API_KEY"]))
 
 
 def create_llm() -> BaseChatModel:

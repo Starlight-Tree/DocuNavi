@@ -49,6 +49,11 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+      # 設定は pyproject.toml の [tool.ruff]。整形、lint、テストの順（版は requirements-dev.txt で固定）
+      - name: Check formatting (ruff format)
+        run: ruff format --check .
+      - name: Lint (ruff check)
+        run: ruff check .
       # tests/conftest.py が GEMINI_API_KEY を空にしてモックモードに固定する。実 API は呼ばない。
       # tests/test_http_smoke.py は、実際の uvicorn を空きポートで起動して HTTP で確かめる。
       - name: Run pytest

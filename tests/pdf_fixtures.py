@@ -25,6 +25,7 @@ def paragraphs(*texts: str) -> list[str]:
         lines.append(text)
     return lines
 
+
 _TO_UNICODE = b"""/CIDInit /ProcSet findresource begin
 12 dict begin
 begincmap
@@ -91,9 +92,7 @@ def build_pdf(pages: list[list], title: str | None = None) -> bytes:
         b"<< /Type /FontDescriptor /FontName /TestFont /Flags 4 /FontBBox [0 -200 1000 900] "
         b"/ItalicAngle 0 /Ascent 880 /Descent -120 /CapHeight 700 /StemV 80 >>"
     )
-    add(
-        b"<< /Length %d >>\nstream\n" % len(_TO_UNICODE) + _TO_UNICODE + b"\nendstream"
-    )
+    add(b"<< /Length %d >>\nstream\n" % len(_TO_UNICODE) + _TO_UNICODE + b"\nendstream")
     assert font == 3  # 上のオブジェクト番号（3 = Font, 4 = CIDFont, 5 = Descriptor, 6 = ToUnicode）を前提にしている
 
     page_ids: list[int] = []

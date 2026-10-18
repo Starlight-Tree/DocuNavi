@@ -71,7 +71,7 @@ def decision(command: str) -> str:
         "sudo gcloud run services delete chatbot",
         "echo chatbot | xargs gcloud run services delete",
         "bash -c 'gcloud run services delete chatbot'",
-        "sh -c \"cd /tmp && gcloud projects delete p\"",
+        'sh -c "cd /tmp && gcloud projects delete p"',
         "eval 'gcloud run services delete chatbot'",
         "(gcloud run services delete chatbot)",
         "true && gcloud run services delete chatbot",
@@ -152,7 +152,9 @@ def test_other_tools_are_ignored():
 
 
 def test_unreadable_input_fails_closed():
-    proc = subprocess.run([sys.executable, "-I", str(HOOK)], input="not json", capture_output=True, text=True, timeout=20)
+    proc = subprocess.run(
+        [sys.executable, "-I", str(HOOK)], input="not json", capture_output=True, text=True, timeout=20
+    )
     assert proc.returncode == 2
 
 
@@ -553,9 +555,9 @@ def test_shell_syntax_does_not_cause_false_positives(command):
         "echo $((gh run delete 1))",
         "echo $(( $(gh run delete 1) + 1 ))",
         "for ((i=0;i<3;i++)); do gh run delete 1; done",
-        "echo \"$(case x in x) gh run delete 1;; esac)\"",
-        "echo \"$(case x in (x) gh run delete 1;; esac)\"",
-        "echo \"$(echo hi # )\ngh run delete 1)\"",
+        'echo "$(case x in x) gh run delete 1;; esac)"',
+        'echo "$(case x in (x) gh run delete 1;; esac)"',
+        'echo "$(echo hi # )\ngh run delete 1)"',
         "x=\"$(cat <<'EOF'\na)\nEOF\ngh run delete 1\n)\"",
         "echo `echo \\`gh run delete 1\\``",
         "echo \"$(echo $'x\\')' ; gh run delete 1)\"",
@@ -564,7 +566,7 @@ def test_shell_syntax_does_not_cause_false_positives(command):
         "{fd}>/dev/null gh run delete 1",
         "echo ${x:-{}; gh run delete 1; echo }}",
         "echo ${x:-${y:-#}}; gh run delete 1",
-        "echo ${x#\"}\"}; gh run delete 1",
+        'echo ${x#"}"}; gh run delete 1',
         "echo $((1<<2)); gh run delete 1",
         "echo $(( 1 + $(gh run delete 1) ))",
         "a=(x $(gh run delete 1))",
@@ -678,9 +680,9 @@ def test_round2_bypasses_are_denied(command):
         "gcloud secrets versions add my-secret --data-file=x",
         # 標準入力から読むインタプリタ・文章を受け取るオプション（書き込みなので確認になる）・ダウンロード
         "echo \"import os; os.system('gh run delete 1')\" | python3",
-        "gh pr create -t \"docs: .gh-config\" -b x",
-        "gh pr create --title \"docs: ~/.config/gh\" --body x",
-        "gh release create v1 -n \"mention ~/.config/gh\" -t x",
+        'gh pr create -t "docs: .gh-config" -b x',
+        'gh pr create --title "docs: ~/.config/gh" --body x',
+        'gh release create v1 -n "mention ~/.config/gh" -t x',
         "gh run download 123",
         "gh repo clone Book358/chatbot",
     ],
@@ -702,7 +704,7 @@ def test_round2_write_like_commands_force_a_confirmation(command):
         "command -v gh gcloud docker",
         "command -v gcloud docker gh",
         "which gh gcloud",
-        "tools=(gcloud gh terraform)\necho \"${tools[@]}\"",
+        'tools=(gcloud gh terraform)\necho "${tools[@]}"',
         # ~/* は ~/.config に一致しない。~ への書き込みは、認証情報を読まない
         "ls -la ~/*",
         "du -sh ~/*",
@@ -718,13 +720,13 @@ def test_round2_write_like_commands_force_a_confirmation(command):
         "gh run delete 1 --help",
         "gcloud run services list -h",
         # 文章（コミットメッセージ・検索の q・テストの選択式・git の -c の値）に書いただけ
-        "git commit -S -m \"docs: mention .gh-config\"",
-        "git merge -S -m \"merge: mention .gh-config\" topic",
+        'git commit -S -m "docs: mention .gh-config"',
+        'git merge -S -m "merge: mention .gh-config" topic',
         "gh api search/issues -X GET -f q=.config/gh",
         "gh api -X GET search/issues -f q='.gh-config repo:o/r'",
-        "pytest tests/test_guard_cloud_cli.py -k \"GH_CONFIG_DIR\"",
-        "python3 -m pytest -q -k \"print-access-token\"",
-        ".venv/bin/python -m pytest tests/test_guard_cloud_cli.py -k \".config/gh\"",
+        'pytest tests/test_guard_cloud_cli.py -k "GH_CONFIG_DIR"',
+        'python3 -m pytest -q -k "print-access-token"',
+        '.venv/bin/python -m pytest tests/test_guard_cloud_cli.py -k ".config/gh"',
         "git -c color.ui=always grep -n .config/gh",
         # 算術式・case・${...}・配列のあとの、読み取りだけのコマンド
         "echo $((1<<2))\ngh run list",
@@ -775,8 +777,8 @@ def test_round2_false_positives_pass(command):
         "verb=delete; gh run $verb 1",
         "d=~/.config/gcloud; cat $d/credentials.db",
         "d=$HOME/.config; cat $d/gh/hosts.yml",
-        "g=gh; echo \"$($g run delete 1)\"",
-        "x=gh; bash -c \"$x run delete 1\"",
+        'g=gh; echo "$($g run delete 1)"',
+        'x=gh; bash -c "$x run delete 1"',
         # プログラム名がコマンド置換（which / command -v の結果）
         "$(which gh) run delete 1",
         "$(command -v gh) run delete 1",
@@ -1041,22 +1043,22 @@ def test_round4_a_get_credentials_style_verb_is_not_a_secret_getter():
         "for c in $(which gh); do $c run delete 1; done",
         "GH=$(which gh); env $GH run delete 1",
         # 引用符が変数名の終わり
-        "g=gcl; \"$g\"oud projects delete p",
-        "g=g; \"$g\"h run delete 1",
+        'g=gcl; "$g"oud projects delete p',
+        'g=g; "$g"h run delete 1',
         "g=g; $g'h' run delete 1",
-        "g=g; $g\"\"h run delete 1",
+        'g=g; $g""h run delete 1',
         "g=g; $g\\h run delete 1",
-        "gh$IFS\"run\"$IFS\"delete\"$IFS\"1\"",
-        "d=.gh-; cat ~/\"$d\"config/hosts.yml",
+        'gh$IFS"run"$IFS"delete"$IFS"1"',
+        'd=.gh-; cat ~/"$d"config/hosts.yml',
         # 未設定の変数は空になる
         "g${x}h run delete 1",
-        "\"$x\"gh run delete 1",
+        '"$x"gh run delete 1',
         "g$@h run delete 1",
         # 引用符を含む語のブレース展開
-        "{gh,run,delete,1}\"\"",
-        "{gh,\"run\",delete,1}",
+        '{gh,run,delete,1}""',
+        '{gh,"run",delete,1}',
         "{gh,run,'delete',1}",
-        "{\"gh\",run,delete,1}",
+        '{"gh",run,delete,1}',
         # ${...} の既定値・空白・位置パラメータ
         "${x:-gh run delete 1}",
         "${x:=gh run delete 1}",
@@ -1079,7 +1081,7 @@ def test_round4_a_get_credentials_style_verb_is_not_a_secret_getter():
         "A=auth sh -c 'gh $A token'",
         # bash -c の後ろの語は $0 $1 ...
         "bash -c 'exec \"$@\"' _ gh run delete 1",
-        "sh -c 'exec \"$0\" \"$@\"' gh run delete 1",
+        'sh -c \'exec "$0" "$@"\' gh run delete 1',
         "bash -c '$1 $2 $3 $4' _ gh run delete 1",
         "env sh -c 'exec \"$@\"' _ gh run delete 1",
         "find . -maxdepth 0 -exec sh -c 'exec \"$@\"' _ gh run delete 1 \\;",
@@ -1141,8 +1143,8 @@ def test_round4_a_get_credentials_style_verb_is_not_a_secret_getter():
         "kubectl --namespace prod delete deployment web",
         # GraphQL のコメントの中の "
         "gh api graphql -f query='# \"\nmutation { x }\n# \"'",
-        "gh api graphql -f query='# \"\nmutation { addStar(input:{starrableId:\"X\"}) { clientMutationId } } # \"'",
-        "gh api graphql -f query='# \"\"\"\nmutation { x } # \"\"\"'",
+        'gh api graphql -f query=\'# "\nmutation { addStar(input:{starrableId:"X"}) { clientMutationId } } # "\'',
+        'gh api graphql -f query=\'# """\nmutation { x } # """\'',
         # 入れ子が深すぎて検査できないものは、通さない
         "eval eval eval eval eval eval git credential fill",
         "eval eval eval eval eval eval export GH_TOKEN=abc",
@@ -1196,12 +1198,12 @@ def test_round5_unreadable_or_sensitive_commands_force_a_confirmation(command):
         # find -exec の中の文章
         "find . -name '*.md' -exec grep -n 'gh auth token' {} +",
         "find . -name '*.md' -exec echo 'gh auth token' \\;",
-        "find docs -type f -exec grep -n \"gcloud auth\" {} +",
+        'find docs -type f -exec grep -n "gcloud auth" {} +',
         # for の見出しと、[ ] / test
-        "for t in gh gcloud docker node; do command -v $t || echo \"$t missing\"; done",
+        'for t in gh gcloud docker node; do command -v $t || echo "$t missing"; done',
         "for t in gcloud gh; do $t --version | head -1; done",
         "for f in gh gcloud; do which $f; done",
-        "[ \"$TOOL\" = gh ] && echo yes",
+        '[ "$TOOL" = gh ] && echo yes',
         "[ -x /usr/bin/gh ] && echo yes",
         "[[ $TOOL == gh ]] && echo yes",
         "test -x /usr/bin/gh && echo yes",
@@ -1214,8 +1216,8 @@ def test_round5_unreadable_or_sensitive_commands_force_a_confirmation(command):
         "ls infra/terraform infra/docker",
         "cp -r infra/terraform /tmp/tf-backup",
         # スクリプトのファイルへ渡す標準入力は、データ
-        "echo '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"gh run list\"}}' | python3 .claude/hooks/guard-cloud-cli.py",
-        "echo '{\"a\":\"gh run list\"}' | python3 -m json.tool",
+        'echo \'{"tool_name":"Bash","tool_input":{"command":"gh run list"}}\' | python3 .claude/hooks/guard-cloud-cli.py',
+        'echo \'{"a":"gh run list"}\' | python3 -m json.tool',
         "python3 scripts/parse.py <<<'gh run list'",
         "ls /usr/lib/git-core/git-credential-store",
         "which git-credential-store",
@@ -1238,8 +1240,8 @@ def test_round5_unreadable_or_sensitive_commands_force_a_confirmation(command):
         "gcloud version",
         "gcloud info --format=json",
         # 置換・変数・空白を含むが、実行するのは CLI の読み取りや、CLI でないもの
-        "[ \"$(gh run view 123 --json status -q .status)\" = completed ] && echo done",
-        "until [ \"$(gh run view 123 --json status -q .status)\" = completed ]; do sleep 5; done",
+        '[ "$(gh run view 123 --json status -q .status)" = completed ] && echo done',
+        'until [ "$(gh run view 123 --json status -q .status)" = completed ]; do sleep 5; done',
         "for id in $(gh run list -L 5 --json databaseId -q '.[].databaseId'); do gh run view $id --json conclusion -q .conclusion; done",
         "${HOME}/$(basename x)/run.sh arg",
         "./$(echo x)/run arg",
@@ -1287,7 +1289,10 @@ def test_deeply_nested_substitutions_are_checked_in_bounded_time():
 
 
 def test_a_crashing_check_fails_closed():
-    for payload in ({"tool_name": "Bash", "tool_input": {"command": 123}}, {"tool_name": "Bash", "tool_input": {"command": ["gh"]}}):
+    for payload in (
+        {"tool_name": "Bash", "tool_input": {"command": 123}},
+        {"tool_name": "Bash", "tool_input": {"command": ["gh"]}},
+    ):
         proc = subprocess.run(
             [sys.executable, "-I", str(HOOK)], input=json.dumps(payload), capture_output=True, text=True, timeout=20
         )

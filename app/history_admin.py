@@ -37,7 +37,9 @@ def _parser() -> argparse.ArgumentParser:
         description="会話履歴の削除（既定は確認だけ。--apply で削除する）",
     )
     target = parser.add_mutually_exclusive_group(required=True)
-    target.add_argument("--older-than-days", type=int, metavar="N", help="N 日以上動きのない会話を対象にする（N は 1 以上）")
+    target.add_argument(
+        "--older-than-days", type=int, metavar="N", help="N 日以上動きのない会話を対象にする（N は 1 以上）"
+    )
     target.add_argument("--thread-id", metavar="ID", help="この 1 件の会話を対象にする")
     parser.add_argument("--apply", action="store_true", help="実際に削除する（無ければ件数を表示するだけ）")
     return parser

@@ -37,7 +37,9 @@ class FakeStore:
     """EmbeddingStore の偽物。保存した行は、次の pending から消える（本物と同じ）。"""
 
     def __init__(self, n: int, *, stale_hash_ids: frozenset[int] = frozenset()) -> None:
-        self.chunks = {i: PendingChunk(i, f"h{i}", None if i % 2 else f"見出し{i}", f"本文{i}") for i in range(1, n + 1)}
+        self.chunks = {
+            i: PendingChunk(i, f"h{i}", None if i % 2 else f"見出し{i}", f"本文{i}") for i in range(1, n + 1)
+        }
         self.done: dict[int, list[float]] = {}
         self.done_input: dict[int, str] = {}
         self.stale = stale_hash_ids
@@ -335,7 +337,16 @@ class _FakeConn:
 
 
 def _row(chunk: PendingChunk, *, has_vector=True, model="gemini-embedding-2", dims=768, stored=None):
-    return (chunk.id, chunk.content_hash, chunk.heading, chunk.content, has_vector, model, dims, stored or chunk.input_hash)
+    return (
+        chunk.id,
+        chunk.content_hash,
+        chunk.heading,
+        chunk.content,
+        has_vector,
+        model,
+        dims,
+        stored or chunk.input_hash,
+    )
 
 
 def test_the_store_selects_rows_that_are_missing_or_made_from_another_input():

@@ -17,7 +17,9 @@ from scripts.eval_vector import (
 def _q(qid: str, doc: str | None = "a.pdf", evidence: tuple[str, ...] = ("甲",), mode: str = "any") -> Question:
     if doc is None:
         return Question(id=qid, question="資料外", category="out_of_scope", scope_kind="off_topic")
-    return Question(id=qid, question="質問", category="factual", expected_doc_ids=(doc,), evidence=evidence, evidence_mode=mode)
+    return Question(
+        id=qid, question="質問", category="factual", expected_doc_ids=(doc,), evidence=evidence, evidence_mode=mode
+    )
 
 
 def _c(cid: int, source: str, content: str, heading: str | None = None) -> Chunk:
@@ -25,7 +27,11 @@ def _c(cid: int, source: str, content: str, heading: str | None = None) -> Chunk
 
 
 def test_split_is_deterministic_and_stratified() -> None:
-    questions = [_q(f"a{i:02d}", "a.pdf") for i in range(7)] + [_q(f"b{i:02d}", "b.pdf") for i in range(5)] + [_q(f"x{i:02d}", None) for i in range(10)]
+    questions = (
+        [_q(f"a{i:02d}", "a.pdf") for i in range(7)]
+        + [_q(f"b{i:02d}", "b.pdf") for i in range(5)]
+        + [_q(f"x{i:02d}", None) for i in range(10)]
+    )
     first = split_questions(questions)
     assert first == split_questions(list(reversed(questions)))
     for prefix, n in (("a", 7), ("b", 5), ("x", 10)):

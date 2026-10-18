@@ -203,7 +203,9 @@ async def verify_auth_config() -> None:
     try:
         count = await cache.refresh()
     except Exception as exc:
-        raise AuthConfigError(f"JWKS を取得できませんでした ({type(exc).__name__})。SUPABASE_URL を確認してください。") from exc
+        raise AuthConfigError(
+            f"JWKS を取得できませんでした ({type(exc).__name__})。SUPABASE_URL を確認してください。"
+        ) from exc
     if count == 0:
         # 共有秘密（HS256）の旧方式のプロジェクトは、ここが空になる。黙って別の検証方式へ切り替えない
         raise AuthConfigError(
@@ -264,9 +266,7 @@ async def current_user(request: Request) -> str | None:
     """FastAPI の依存。AUTH_MODE=off なら None（匿名）、required なら検証済みの利用者 ID。"""
     if auth_mode() == "off":
         return None
-    unauthorized = HTTPException(
-        status_code=401, detail=_DETAIL_UNAUTHORIZED, headers={"WWW-Authenticate": "Bearer"}
-    )
+    unauthorized = HTTPException(status_code=401, detail=_DETAIL_UNAUTHORIZED, headers={"WWW-Authenticate": "Bearer"})
     token = _bearer_token(request)
     if token is None:
         raise unauthorized

@@ -127,7 +127,9 @@ class StreamLLM(BaseChatModel):
 class FakeStreamGraph:
     """get_graph の代わりに差し込む偽グラフ。items を流してから、exc があれば送出する。"""
 
-    def __init__(self, items: list[tuple[str, Any]] | None = None, exc: BaseException | None = None, delay: float = 0.0):
+    def __init__(
+        self, items: list[tuple[str, Any]] | None = None, exc: BaseException | None = None, delay: float = 0.0
+    ):
         self.items = items or []
         self.exc = exc
         self.delay = delay

@@ -216,7 +216,12 @@ async def hedged_call(
             trace.tried = True
         if launched > 1:
             logger.warning(
-                "%s: %s（%d/%d 本目、開始から %.1f 秒）", name, reason, launched, policy.max_attempts, loop.time() - started
+                "%s: %s（%d/%d 本目、開始から %.1f 秒）",
+                name,
+                reason,
+                launched,
+                policy.max_attempts,
+                loop.time() - started,
             )
         next_launch_at = loop.time() + policy.hedge_delay
 
@@ -246,7 +251,9 @@ async def hedged_call(
                     continue
                 exc = task.exception()
                 if exc is not None and is_fallback:
-                    logger.warning("%s: 並行して投げた %s の試行が失敗しました（%s）", name, fallback_name, type(exc).__name__)
+                    logger.warning(
+                        "%s: 並行して投げた %s の試行が失敗しました（%s）", name, fallback_name, type(exc).__name__
+                    )
                     continue  # 主モデルの試行の扱い（429 の待ち・即時失敗・最後の失敗）に影響させない
                 if exc is not None and classify_failure(exc) is Failure.RETRY:
                     trace.primary_failed = True  # 同じ回にフォールバックが先に採られても、この失敗は残す
@@ -496,7 +503,9 @@ async def call_with_fallback(
             try:
                 result = await fallback()
             except Exception as exc:
-                logger.warning("%s: %s が失敗しました（%s）。主モデルを試します", name, fallback_name, type(exc).__name__)
+                logger.warning(
+                    "%s: %s が失敗しました（%s）。主モデルを試します", name, fallback_name, type(exc).__name__
+                )
                 if breaker is not None:
                     breaker.fallback_failed()
                 if trace is not None:
@@ -596,7 +605,9 @@ async def stream_with_fallback(
             except Exception as exc:
                 if sent:
                     raise  # 送り始めた後の失敗は、別の試行に置き換えられない
-                logger.warning("%s: %s が失敗しました（%s）。主モデルを試します", name, fallback_name, type(exc).__name__)
+                logger.warning(
+                    "%s: %s が失敗しました（%s）。主モデルを試します", name, fallback_name, type(exc).__name__
+                )
                 if breaker is not None:
                     breaker.fallback_failed()
                 if trace is not None:
