@@ -41,7 +41,7 @@ def test_pgroonga_query_is_none_without_usable_words() -> None:
 def test_pgroonga_query_never_contains_query_syntax() -> None:
     query = pgroonga_query('「(営業) OR -休み」"time:*" AND (x)') or ""
     # 構文の文字（括弧・引用符・コロン・*・先頭の -）は、語の核には入らない。OR は結合のためのものだけ（小文字化で、質問の中の OR は語になる）
-    for ch in '()"\':*\\':
+    for ch in "()\"':*\\":
         assert ch not in query
     assert all(not part.startswith("-") for part in query.split(" OR "))
     assert "AND" not in query  # 大文字の AND は構文になりうるので、小文字にしてある
@@ -121,6 +121,8 @@ def test_final_groups_split_by_file_and_by_whether_the_gold_chunk_overlaps_the_s
     assert set(groups) == {"overall", "file:claude", "file:independent", "new_chunk", "overlap_chunk"}
     assert groups["overall"]["n_answerable"] == 2 and groups["overall"]["n_out_of_scope"] == 1
     assert groups["file:independent"]["n_answerable"] == 1 and groups["file:independent"]["n_out_of_scope"] == 1
-    assert groups["new_chunk"]["n_answerable"] == 1 and groups["new_chunk"]["bm25"]["hit_at"]["1"] == 0  # 資料外は入らない
+    assert (
+        groups["new_chunk"]["n_answerable"] == 1 and groups["new_chunk"]["bm25"]["hit_at"]["1"] == 0
+    )  # 資料外は入らない
     assert groups["overlap_chunk"]["n_answerable"] == 1 and groups["overlap_chunk"]["bm25"]["hit_at"]["1"] == 1
     assert groups["new_chunk"]["n_out_of_scope"] == 0

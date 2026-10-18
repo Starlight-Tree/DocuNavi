@@ -19,9 +19,7 @@ def _config(thread_id: str) -> dict:
 
 
 def _turn(graph, message: str, thread_id: str) -> dict:
-    return asyncio.run(
-        graph.ainvoke({"messages": [HumanMessage(content=message)], "context": ""}, _config(thread_id))
-    )
+    return asyncio.run(graph.ainvoke({"messages": [HumanMessage(content=message)], "context": ""}, _config(thread_id)))
 
 
 def _history(graph, thread_id: str) -> list:

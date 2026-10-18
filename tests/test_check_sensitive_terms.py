@@ -21,9 +21,7 @@ def run(repo: Path, *args: str, terms: str | None = TERM) -> subprocess.Complete
     env = {k: v for k, v in os.environ.items() if k != "SENSITIVE_TERMS"}
     if terms is not None:
         env["SENSITIVE_TERMS"] = terms
-    return subprocess.run(
-        ["bash", str(SCRIPT), *args], cwd=repo, env=env, capture_output=True, text=True, check=False
-    )
+    return subprocess.run(["bash", str(SCRIPT), *args], cwd=repo, env=env, capture_output=True, text=True, check=False)
 
 
 @pytest.fixture

@@ -363,11 +363,22 @@ def test_current_search_does_not_regress_from_the_committed_baseline(name, tmp_p
     # 件数が少ないので、割合ではなく件数で比べる
     baseline = json.loads((RESULTS / name).read_text(encoding="utf-8"))
     out = tmp_path / "r.json"
-    argv = ["--corpus", str(ZAHARD_PDF_DIR), "--questions", str(QUESTIONS), "--k", str(baseline["k"]), "--out", str(out)]
+    argv = [
+        "--corpus",
+        str(ZAHARD_PDF_DIR),
+        "--questions",
+        str(QUESTIONS),
+        "--k",
+        str(baseline["k"]),
+        "--out",
+        str(out),
+    ]
     assert ev.main(argv) == 0
     current = json.loads(out.read_text(encoding="utf-8"))
     if current["corpus"]["pdf_sha256"] != baseline["corpus"]["pdf_sha256"]:
-        pytest.skip("PDF が変わった。baseline を取り直す（--corpus storage/pdf/zahard --questions evals/questions.yaml）")
+        pytest.skip(
+            "PDF が変わった。baseline を取り直す（--corpus storage/pdf/zahard --questions evals/questions.yaml）"
+        )
 
     now, then = current["summary"]["counts"], baseline["summary"]["counts"]
     regressed = {name: (then[name], now[name]) for name in then if now[name] < then[name]}
@@ -534,7 +545,12 @@ def test_load_questions_reads_the_optional_fields(tmp_path):
         """,
     )
     first, second = ev.load_questions(path)
-    assert (first.evidence_mode, first.answer, first.page, first.kind) == ("all", "湖畔テラス店です。", None, "aggregate")
+    assert (first.evidence_mode, first.answer, first.page, first.kind) == (
+        "all",
+        "湖畔テラス店です。",
+        None,
+        "aggregate",
+    )
     assert (second.evidence_mode, second.answer, second.page) == ("any", None, 2)
 
 
@@ -823,7 +839,9 @@ CAFE_DIR = ROOT / "evals" / "corpora" / "cafe"
 CAFE_BASELINE = ROOT / "evals" / "results" / "baseline_bm25_cafe.json"
 
 
-@pytest.mark.skipif(not (CAFE_DIR / "cafe_store_guide.pdf").exists(), reason="評価用の PDF（evals/corpora/cafe/）が無い")
+@pytest.mark.skipif(
+    not (CAFE_DIR / "cafe_store_guide.pdf").exists(), reason="評価用の PDF（evals/corpora/cafe/）が無い"
+)
 def test_cafe_pdf_search_does_not_regress_from_the_committed_baseline(tmp_path):
     # baseline は「現行の抽出・チャンク化・BM25 の実測」。同じ PDF で、該当数が baseline を下回ったら退行。
     # 比べるのは入力の PDF が同じときだけ（チャンク化を変えても PDF のハッシュは動かない）。上回ったら baseline を取り直す
@@ -875,7 +893,13 @@ def test_question_ids_do_not_collide_between_the_evaluated_sets_and_the_fixtures
 
 # ---- まとまり（表）の返し方 ----
 
-TABLE = ("店舗名 エリア 座席数", "港町本店 港町 68席", "港町ベイ店 港町 42席", "湖畔テラス店 湖畔 76席", "鳥栖店 佐賀 30席")
+TABLE = (
+    "店舗名 エリア 座席数",
+    "港町本店 港町 68席",
+    "港町ベイ店 港町 42席",
+    "湖畔テラス店 湖畔 76席",
+    "鳥栖店 佐賀 30席",
+)
 
 
 def test_a_group_is_returned_whole_when_one_of_its_rows_matches():

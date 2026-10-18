@@ -76,10 +76,7 @@ def build(txt_path: Path, pdf_path: Path, title: str, groups: dict[str, list[int
     body = ParagraphStyle(
         "body", fontName=FONT_NAME, fontSize=12, leading=23, wordWrap="CJK", alignment=TA_LEFT, spaceAfter=7
     )
-    story = [
-        KeepTogether([Paragraph("".join(group), body)])
-        for group in groups_of(sentences_of(raw), groups)
-    ]
+    story = [KeepTogether([Paragraph("".join(group), body)]) for group in groups_of(sentences_of(raw), groups)]
     doc = SimpleDocTemplate(
         str(pdf_path),
         pagesize=A4,

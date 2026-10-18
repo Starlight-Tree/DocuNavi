@@ -150,9 +150,7 @@ def _is_table_row(line: Line) -> bool:
 
 
 def _is_heading(block: list[Line], body_size: float) -> bool:
-    if body_size > 0 and all(
-        line.size >= body_size * _HEADING_SIZE and not _is_table_row(line) for line in block
-    ):
+    if body_size > 0 and all(line.size >= body_size * _HEADING_SIZE and not _is_table_row(line) for line in block):
         return True  # 大きな文字だけの行（折り返した見出しを含む）
     if len(block) != 1 or _is_table_row(block[0]):
         return False
@@ -171,11 +169,7 @@ def _split_leading_headings(block: list[Line], body_size: float) -> list[list[Li
     if body_size <= 0 or len(block) < 2:
         return [block]
     count = 0
-    while (
-        count < len(block) - 1
-        and not _is_table_row(block[count])
-        and block[count].size >= body_size * _HEADING_SIZE
-    ):
+    while count < len(block) - 1 and not _is_table_row(block[count]) and block[count].size >= body_size * _HEADING_SIZE:
         count += 1
     if count == 0:
         return [block]
@@ -327,9 +321,7 @@ def _blocks(lines: list[Line]) -> list[list[Line]]:
             split = False  # 表の行どうしは、間隔に関係なく続ける
         else:
             split = (
-                prev.text.strip().endswith(_SENTENCE_END)
-                or _is_short_unterminated(prev)
-                or _is_short_unterminated(cur)
+                prev.text.strip().endswith(_SENTENCE_END) or _is_short_unterminated(prev) or _is_short_unterminated(cur)
             )
         if split or _is_table_row(prev) != _is_table_row(cur):
             blocks.append([cur])

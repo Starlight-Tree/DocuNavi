@@ -190,7 +190,9 @@ def build_single(md: Path, out: Path, *, header: str | None, size: float, leadin
     top = MARGIN + (6 * mm if header else 0)
     width = PAGE_W - 2 * MARGIN
     frame = Frame(MARGIN, 22 * mm, width, PAGE_H - top - 22 * mm, id="body", leftPadding=0, rightPadding=0)
-    story, title = _story(parse_markdown(md.read_text(encoding="utf-8")), _styles(size, leading, cell), width, title_break=False)
+    story, title = _story(
+        parse_markdown(md.read_text(encoding="utf-8")), _styles(size, leading, cell), width, title_break=False
+    )
     doc = BaseDocTemplate(str(out), pagesize=A4, title="", author="", invariant=True)
     doc.title = title
     doc.addPageTemplates([PageTemplate(id="main", frames=[frame])])
@@ -211,13 +213,23 @@ def build_two_columns(md: Path, out: Path, *, size: float, leading: float, cell:
     first = PageTemplate(
         id="first",
         frames=[
-            Frame(MARGIN, PAGE_H - MARGIN - title_h, PAGE_W - 2 * MARGIN, title_h, id="title", leftPadding=0, rightPadding=0),
+            Frame(
+                MARGIN,
+                PAGE_H - MARGIN - title_h,
+                PAGE_W - 2 * MARGIN,
+                title_h,
+                id="title",
+                leftPadding=0,
+                rightPadding=0,
+            ),
             column(xs[0], bottom, full_h - title_h, "c1"),
             column(xs[1], bottom, full_h - title_h, "c2"),
         ],
     )
     later = PageTemplate(id="later", frames=[column(xs[0], bottom, full_h, "l1"), column(xs[1], bottom, full_h, "l2")])
-    story, title = _story(parse_markdown(md.read_text(encoding="utf-8")), _styles(size, leading, cell), col_w, title_break=True)
+    story, title = _story(
+        parse_markdown(md.read_text(encoding="utf-8")), _styles(size, leading, cell), col_w, title_break=True
+    )
     story.insert(0, NextPageTemplate("later"))
     doc = BaseDocTemplate(str(out), pagesize=A4, title="", author="", invariant=True)
     doc.title = title
@@ -238,7 +250,14 @@ def main() -> None:
     args = parser.parse_args()
     pdfmetrics.registerFont(TTFont(FONT_NAME, str(args.font)))
 
-    build_single(HERE / "aoba_aw820_manual.md", args.out_dir / "aoba_aw820_manual.pdf", header=None, size=11.5, leading=21, cell=10)
+    build_single(
+        HERE / "aoba_aw820_manual.md",
+        args.out_dir / "aoba_aw820_manual.pdf",
+        header=None,
+        size=11.5,
+        leading=21,
+        cell=10,
+    )
     build_two_columns(
         HERE / "hidamari_waste_guide.md", args.fixture_dir / "hidamari_waste_guide.pdf", size=10.5, leading=18, cell=8.5
     )

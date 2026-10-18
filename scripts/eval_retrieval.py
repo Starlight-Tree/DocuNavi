@@ -25,9 +25,9 @@ from typing import Any
 
 import yaml
 
-from scripts import bm25_baseline as tools
 from app.ingestion.corpus import PASSAGES, load_pdf_corpus
 from app.ingestion.service import find_pdfs, source_name
+from scripts import bm25_baseline as tools
 
 ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS_PATH = ROOT / "evals" / "questions.yaml"
@@ -471,7 +471,9 @@ def print_summary(report: dict[str, Any]) -> None:
     s, k = report["summary"], report["k"]
     c = s["counts"]
     print(f"mode={report['mode']} k={k} corpus={len(report['corpus']['files'])} files")
-    print(f"questions: {s['total_questions']} (answerable {s['answerable_questions']}, out_of_scope {s['out_of_scope_questions']})")
+    print(
+        f"questions: {s['total_questions']} (answerable {s['answerable_questions']}, out_of_scope {s['out_of_scope_questions']})"
+    )
     print(f"  doc_recall@{k}        {c['doc_hit']}/{s['answerable_questions']}  {s[f'doc_recall_at_{k}']}")
     print(f"  keyword_hit_rate@{k}  {c['keyword_hit']}/{s['answerable_questions']}  {s[f'keyword_hit_rate_at_{k}']}")
     print(f"  mrr                {s['mrr']}")
@@ -483,7 +485,9 @@ def print_summary(report: dict[str, Any]) -> None:
     if "extraction_miss" in s:
         miss = s["extraction_miss"]
         only = miss["extracted_only"]
-        print(f"  extraction_miss    {miss['n']}/{s['answerable_questions']}  {miss['ids']}（根拠が抽出結果に無い質問）")
+        print(
+            f"  extraction_miss    {miss['n']}/{s['answerable_questions']}  {miss['ids']}（根拠が抽出結果に無い質問）"
+        )
         print(
             f"  読み取れた質問だけ: doc {only['doc_hits']}/{only['n']}  keyword {only['keyword_hits']}/{only['n']}  mrr {only['mrr']}"
         )
@@ -568,9 +572,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         found_problems = _corpus_problems(questions, searched)
         # 根拠が抽出結果に無い質問を、止まらずに数える指定。期待ファイルが無いなどの誤りは、指定があっても止まる
         misses = find_extraction_misses(questions, searched) if args.allow_missing_evidence else None
-        problems = [
-            message for qid, kind, message in found_problems if misses is None or kind != "evidence"
-        ]
+        problems = [message for qid, kind, message in found_problems if misses is None or kind != "evidence"]
     except (QuestionsError, OSError, yaml.YAMLError) as exc:
         print(f"評価セットを読めません: {exc}", file=sys.stderr)
         return 2

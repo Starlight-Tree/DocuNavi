@@ -1,0 +1,22 @@
+# ツールの設定（ruff と pytest）
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+# ガードのフックは、lint や整形で書き換えない
+extend-exclude = [".claude"]
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I"]
+# 日本語のコメントが長い行は、桁数では数えない
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest のフィクスチャを import して引数に使うと、F811（再定義）と誤検出される
+"tests/**" = ["F811"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "real_search: アプリの検索（app/search_vector.py）を本物のまま使う（conftest の偽の検索への差し替えを外す。DB と埋め込みは、テスト自身が偽物にする）",
+]

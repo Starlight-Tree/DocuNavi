@@ -50,9 +50,9 @@ def test_eval_evidence_exists_in_expected_files(case):
     assert case.expected_files
     for name in case.expected_files:
         assert name in chunks
-    assert any(
-        evidence in chunks[name] for evidence in case.evidence for name in case.expected_files
-    ), f"根拠 {case.evidence} が {case.expected_files} に見つからない"
+    assert any(evidence in chunks[name] for evidence in case.evidence for name in case.expected_files), (
+        f"根拠 {case.evidence} が {case.expected_files} に見つからない"
+    )
 
 
 # ---- 検索精度（評価セットによる回帰テスト） ----

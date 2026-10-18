@@ -622,7 +622,9 @@ def test_on_fallback_is_called_only_when_the_fallback_answered():
     assert served == []
 
     asyncio.run(call_with_fallback(Sequence(Unavailable("503")), Sequence("F"), on_fallback=lambda: served.append("b")))
-    asyncio.run(call_with_fallback(Sequence("P"), Sequence("F"), prefer_fallback=True, on_fallback=lambda: served.append("c")))
+    asyncio.run(
+        call_with_fallback(Sequence("P"), Sequence("F"), prefer_fallback=True, on_fallback=lambda: served.append("c"))
+    )
     assert served == ["b", "c"]
 
 
@@ -654,7 +656,9 @@ def test_stream_first_primary_chunk_closes_the_breaker_even_if_the_consumer_stop
     clock.now += 61
 
     async def go() -> None:
-        stream = stream_with_fallback(Streams(("yield", "P1"), ("yield", "P2")), Streams(("yield", "F")), breaker=breaker)
+        stream = stream_with_fallback(
+            Streams(("yield", "P1"), ("yield", "P2")), Streams(("yield", "F")), breaker=breaker
+        )
         async with aclosing(stream) as items:
             async for _ in items:
                 break  # 最初のチャンクだけ受けて、やめる
@@ -972,9 +976,7 @@ def test_fallback_already_tried_in_the_race_is_not_called_again_after_the_primar
     primary, fallback = Hangs(0.2, primary_failure), Sequence(Unavailable("503 fallback"))
 
     with pytest.raises(Unavailable) as raised:
-        asyncio.run(
-            call_with_fallback(_hedged_primary(primary, fallback, trace), fallback, trace=trace, name="Gemini")
-        )
+        asyncio.run(call_with_fallback(_hedged_primary(primary, fallback, trace), fallback, trace=trace, name="Gemini"))
 
     assert raised.value is primary_failure
     assert fallback.count == 1  # 並行して投げた 1 回で終わり。逐次でもう一度試さない
