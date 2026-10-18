@@ -30,57 +30,23 @@
   },
   "counts": {
     "explicit": 10,
-    "implicit": 11,
+    "implicit_term": 9,
+    "implicit_other": 2,
     "predicted_non_structural": 10,
+    "predicted_uses_term": 9,
     "predicted_same_chapter": 29
   },
   "precision": 1.0,
   "recall_explicit": 1.0,
-  "recall_implicit": 0.0,
-  "recall_all": 0.47619047619047616,
-  "f1_all": 0.6451612903225806,
+  "term_precision": 1.0,
+  "term_recall": 1.0,
+  "recall_implicit_other": 0.0,
+  "precision_all": 1.0,
+  "recall_all": 0.9047619047619048,
+  "f1_all": 0.9500000000000001,
   "missed_explicit": [],
-  "missed_implicit": [
-    [
-      "references",
-      "a11p1",
-      "a10p1"
-    ],
-    [
-      "references",
-      "a11p2",
-      "a10p1"
-    ],
-    [
-      "references",
-      "a14p2",
-      "a14p1"
-    ],
-    [
-      "references",
-      "a15p1",
-      "a13p1"
-    ],
-    [
-      "references",
-      "a15p1",
-      "a14p1"
-    ],
-    [
-      "references",
-      "a16p2",
-      "a16p1"
-    ],
-    [
-      "references",
-      "a17p1",
-      "a13p1"
-    ],
-    [
-      "references",
-      "a18p1",
-      "a13p1"
-    ],
+  "missed_term": [],
+  "missed_other": [
     [
       "references",
       "a27p1",
@@ -90,14 +56,10 @@
       "references",
       "a29p2",
       "a15p2"
-    ],
-    [
-      "references",
-      "fn1",
-      "a13p1"
     ]
   ],
   "false_positives": [],
+  "false_positive_terms": [],
   "wrong_type": [],
   "same_chapter_missing": [],
   "same_chapter_extra": [],
@@ -106,6 +68,9 @@
     "split": true,
     "explicit_recall >= 0.9": true,
     "precision >= 0.9": true,
+    "term_recall >= 0.9": true,
+    "term_precision >= 0.9": true,
+    "wrong_type == 0": true,
     "same_chapter exact": true,
     "evidence 100%": true
   },

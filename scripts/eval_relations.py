@@ -19,6 +19,7 @@ from app.relations.extract import Edge, extract_edges
 ROOT = Path(__file__).resolve().parent.parent
 PDF = ROOT / "storage/pdf/guides/tsubasa_dorm_rules.pdf"
 GOLD = ROOT / "evals/relations/tsubasa_gold.yaml"
+TERMS = ROOT / "evals/relations/tsubasa_terms.yaml"
 RESULT = ROOT / "evals/relations/result.json"
 
 Key = tuple[str, str, str]
@@ -54,17 +55,21 @@ def check_structure(reg: Regulation, gold: dict) -> dict:
 
 def evidence_ok(reg: Regulation, edges: list[Edge]) -> list[Edge]:
     """根拠本文が出典で確かめられない辺（空であるべき）。same_chapter は章の見出しで確かめる。"""
-    paras = {p.id: p for a in reg.articles for p in a.paragraphs}
+    texts = {p.id: p.raw for a in reg.articles for p in a.paragraphs} | {f.id: f.text for f in reg.footnotes}
     headings = {c.heading for c in reg.chapters}
     bad = []
     for e in edges:
         if e.type == "same_chapter":
             good = e.evidence in headings
         else:
-            good = bool(e.evidence) and e.src in paras and e.evidence in paras[e.src].raw
+            good = bool(e.evidence) and e.src in texts and e.evidence in texts[e.src]
         if not good:
             bad.append(e)
     return bad
+
+
+def _gold(gold: dict, kind: str) -> set[Key]:
+    return {(g["type"], g["src"], g["dst"]) for g in gold["edges"] if g["kind"] == kind}
 
 
 def evaluate(reg: Regulation, edges: list[Edge], gold: dict) -> dict:
@@ -74,18 +79,22 @@ def evaluate(reg: Regulation, edges: list[Edge], gold: dict) -> dict:
         for n in range(lo, hi + 1)
     }
     pred_chapter = {(e.type, e.src, e.dst) for e in edges if e.type == "same_chapter"}
-    pred: set[Key] = {(e.type, e.src, e.dst) for e in edges if e.type != "same_chapter"}
-    explicit = {(g["type"], g["src"], g["dst"]) for g in gold["edges"] if g["kind"] == "explicit"}
-    implicit = {(g["type"], g["src"], g["dst"]) for g in gold["edges"] if g["kind"] == "implicit"}
-    everything = explicit | implicit
+    pred_term = {(e.type, e.src, e.dst) for e in edges if e.type == "uses_term"}
+    pred: set[Key] = {(e.type, e.src, e.dst) for e in edges if e.type not in {"same_chapter", "uses_term"}}
+    explicit, term, other = _gold(gold, "explicit"), _gold(gold, "implicit_term"), _gold(gold, "implicit_other")
+    non_term_gold = explicit | other
+    everything = non_term_gold | term
 
-    tp = pred & everything
-    precision = len(tp) / len(pred) if pred else 0.0
-    recall_all = len(tp) / len(everything)
+    precision = len(pred & non_term_gold) / len(pred) if pred else 0.0
     recall_explicit = len(pred & explicit) / len(explicit)
-    recall_implicit = len(pred & implicit) / len(implicit)
+    term_precision = len(pred_term & term) / len(pred_term) if pred_term else 0.0
+    term_recall = len(pred_term & term) / len(term)
+    recall_other = len(pred & other) / len(other)
+    predicted_all = pred | pred_term
+    precision_all = len(predicted_all & everything) / len(predicted_all) if predicted_all else 0.0
+    recall_all = len(predicted_all & everything) / len(everything)
     pairs = {(s, d): t for t, s, d in everything}
-    wrong_type = sorted((t, s, d, pairs[(s, d)]) for t, s, d in pred - everything if (s, d) in pairs)
+    wrong_type = sorted((t, s, d, pairs[(s, d)]) for t, s, d in predicted_all - everything if (s, d) in pairs)
     bad_evidence = evidence_ok(reg, edges)
 
     structure = check_structure(reg, gold)
@@ -93,6 +102,9 @@ def evaluate(reg: Regulation, edges: list[Edge], gold: dict) -> dict:
         "split": structure["ok"],
         "explicit_recall >= 0.9": recall_explicit >= 0.9,
         "precision >= 0.9": precision >= 0.9,
+        "term_recall >= 0.9": term_recall >= 0.9,
+        "term_precision >= 0.9": term_precision >= 0.9,
+        "wrong_type == 0": not wrong_type,
         "same_chapter exact": pred_chapter == chapters_gold,
         "evidence 100%": not bad_evidence,
     }
@@ -100,18 +112,25 @@ def evaluate(reg: Regulation, edges: list[Edge], gold: dict) -> dict:
         "structure": structure,
         "counts": {
             "explicit": len(explicit),
-            "implicit": len(implicit),
+            "implicit_term": len(term),
+            "implicit_other": len(other),
             "predicted_non_structural": len(pred),
+            "predicted_uses_term": len(pred_term),
             "predicted_same_chapter": len(pred_chapter),
         },
         "precision": precision,
         "recall_explicit": recall_explicit,
-        "recall_implicit": recall_implicit,
+        "term_precision": term_precision,
+        "term_recall": term_recall,
+        "recall_implicit_other": recall_other,
+        "precision_all": precision_all,
         "recall_all": recall_all,
-        "f1_all": _f1(precision, recall_all),
+        "f1_all": _f1(precision_all, recall_all),
         "missed_explicit": sorted(explicit - pred),
-        "missed_implicit": sorted(implicit - pred),
-        "false_positives": sorted(pred - everything),
+        "missed_term": sorted(term - pred_term),
+        "missed_other": sorted(other - pred),
+        "false_positives": sorted(pred - non_term_gold),
+        "false_positive_terms": sorted(pred_term - term),
         "wrong_type": wrong_type,
         "same_chapter_missing": sorted(chapters_gold - pred_chapter),
         "same_chapter_extra": sorted(pred_chapter - chapters_gold),
@@ -128,7 +147,8 @@ def main() -> None:
 
     gold = yaml.safe_load(GOLD.read_text(encoding="utf-8"))
     reg = parse_regulation(extract_pages(PDF))
-    edges = extract_edges(reg)
+    terms = yaml.safe_load(TERMS.read_text(encoding="utf-8"))
+    edges = extract_edges(reg, terms=terms)
     result = evaluate(reg, edges, gold)
     text = json.dumps(result, ensure_ascii=False, indent=2)
     print(text)

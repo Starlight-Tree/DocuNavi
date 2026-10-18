@@ -9,10 +9,14 @@
 pass_line:
   split: "条 29・項 50・章 5 が、expected_structure と完全に一致する"
   explicit_recall: ">= 0.9  （explicit の 10 件のうち 9 件以上を、種類まで合わせて拾う）"
-  precision: ">= 0.9  （same_chapter 以外の予測のうち、正解（explicit + implicit）に入るものの割合）"
+  precision: ">= 0.9  （uses_term と same_chapter 以外の予測のうち、正解（explicit + implicit_other）に入るものの割合）"
+  # 2026-10-18 追記（用語の規則。測定前に固定。辞書 = tsubasa_terms.yaml の 4 語）
+  term_recall: ">= 0.9  （implicit_term の 9 件のうち、種類（uses_term）まで合わせて拾った割合）"
+  term_precision: ">= 0.9  （予測した uses_term の辺のうち、implicit_term の正解に入るもの）"
+  wrong_type: "0  （端点は正解と同じで type だけ違う辺が無い）"
   same_chapter: "章への所属 29 件が完全一致（過不足なし）"
   evidence: "全ての辺に根拠本文があり、その本文が出典の項の本文に含まれる（100%）"
-  report_only: "implicit の再現率（承認された 3 種類では拾えない前提。合否に使わない）、F1、種類違い（端点は合うが type が違う）の件数"
+  report_only: "implicit_other の再現率（辞書の外。拾えない見込みで、合否に使わない）、全体の再現率・F1"
 
 expected_structure:
   chapters:
@@ -39,15 +43,20 @@ edges:
   - {type: references,   src: a13p1, dst: a13p3,  kind: explicit, evidence: "次のとおりとする"}
   - {type: references,   src: a12p2, dst: fn1,    kind: explicit, evidence: "脚注の番号 1"}
 
-  # ---- implicit: 他の条で定義された語を使う関係（11 件）。承認された 3 種類の規則では拾えない見込み ----
-  - {type: references, src: a15p1, dst: a13p1, kind: implicit, evidence: "寮費（第13条で定める）"}
-  - {type: references, src: a15p1, dst: a14p1, kind: implicit, evidence: "共益費（第14条で定める）"}
-  - {type: references, src: a17p1, dst: a13p1, kind: implicit, evidence: "寮費"}
-  - {type: references, src: a18p1, dst: a13p1, kind: implicit, evidence: "寮費の 3 割"}
-  - {type: references, src: a11p1, dst: a10p1, kind: implicit, evidence: "入寮期間"}
-  - {type: references, src: a11p2, dst: a10p1, kind: implicit, evidence: "入寮期間が満了する年"}
-  - {type: references, src: a27p1, dst: a26p1, kind: implicit, evidence: "退寮日（退寮予定日）"}
-  - {type: references, src: fn1,   dst: a13p1, kind: implicit, evidence: "休学中の寮費"}
-  - {type: references, src: a14p2, dst: a14p1, kind: implicit, evidence: "共益費"}
-  - {type: references, src: a16p2, dst: a16p1, kind: implicit, evidence: "保証金"}
-  - {type: references, src: a29p2, dst: a15p2, kind: implicit, evidence: "退寮を命じる（同じ処分）"}
+  # ---- implicit_term: 他の条（または同じ条の別の項）で定義された語を使う関係（9 件）。type は uses_term ----
+  # 2026-10-18 追記: 段階 1 の測定（implicit 0/11）のあとで、利用者の承認を受けて「用語の規則」を足すために、
+  # implicit を implicit_term（9 件。type を references から uses_term に変更）と implicit_other（2 件）に分けた。
+  # 各項に 4 語（寮費・共益費・入寮期間・保証金）が出る箇所は機械的に数えて、この 9 件と過不足がないことを、規則を書く前に確かめた。
+  - {type: uses_term, src: a15p1, dst: a13p1, kind: implicit_term, evidence: "寮費"}
+  - {type: uses_term, src: a15p1, dst: a14p1, kind: implicit_term, evidence: "共益費"}
+  - {type: uses_term, src: a17p1, dst: a13p1, kind: implicit_term, evidence: "寮費"}
+  - {type: uses_term, src: a18p1, dst: a13p1, kind: implicit_term, evidence: "寮費"}
+  - {type: uses_term, src: a11p1, dst: a10p1, kind: implicit_term, evidence: "入寮期間"}
+  - {type: uses_term, src: a11p2, dst: a10p1, kind: implicit_term, evidence: "入寮期間"}
+  - {type: uses_term, src: fn1,   dst: a13p1, kind: implicit_term, evidence: "寮費"}
+  - {type: uses_term, src: a14p2, dst: a14p1, kind: implicit_term, evidence: "共益費"}
+  - {type: uses_term, src: a16p2, dst: a16p1, kind: implicit_term, evidence: "保証金"}
+
+  # ---- implicit_other: 定義語の辞書では拾えない関係（2 件）。承認された範囲の規則では拾えない見込み。報告のみ ----
+  - {type: references, src: a27p1, dst: a26p1, kind: implicit_other, evidence: "退寮日（退寮予定日）"}
+  - {type: references, src: a29p2, dst: a15p2, kind: implicit_other, evidence: "退寮を命じる（同じ処分）"}
