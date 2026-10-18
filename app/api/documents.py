@@ -1,7 +1,6 @@
 """資料の一覧（読み取り専用）。DB（`documents` / `chunks`）に保存された内容を、そのまま見せる。
 
-- BM25 検索は、この DB を読まない（起動時に `storage/pdf/` の PDF を読み直す）。ここに出る本文は「DB に保存された資料」で、
-  BM25 が採点する本文と同じとは限らない。ベクトル検索（`SEARCH_BACKEND=vector`）だけがこの DB を読む
+- チャットの検索（ベクトル検索）が読むのと同じ DB。ここに出る本文が、検索の対象になる本文そのもの（`status = 'ready'` の文書）
 - `GET /documents/{id}/file` は取り込んだ元の PDF を返す（名前と内容のハッシュが DB と合うものだけ。`app/pdf_originals.py`）
 - `AUTH_MODE=required` のときは、`/chat` と同じ検証（`current_user`）を通った人だけが読める。資料ごとの閲覧権限は
   まだ無く、ログインした人は全員が全文を読める

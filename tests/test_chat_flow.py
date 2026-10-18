@@ -11,6 +11,8 @@ import uuid
 import pytest
 from langchain_core.messages import HumanMessage
 
+from app.agents import tools
+from app.agents.graph import MOCK_REPLY
 from app.api import routes
 from tests.zahard_corpus import zahard_texts
 
@@ -57,6 +59,19 @@ def test_chat_returns_expected_shape_in_mock_mode(client):
     assert isinstance(body["context"], str)
 
 
+def test_mock_mode_replies_with_the_fixed_text_and_never_searches(client, monkeypatch):
+    # モックモード（GEMINI_API_KEY が未設定）は、資料の検索も回答もしない固定の返答。DB も埋め込みの API も使わない
+    async def must_not_run(*args, **kwargs):
+        raise AssertionError("モックモードで資料を検索してはいけない")
+
+    monkeypatch.setattr(tools, "search_chunks_async", must_not_run)
+    for question in ("ザーハードの大気について教えて", _NOT_FOUND_QUESTION):
+        body = _chat(client, question, str(uuid.uuid4())).json()
+        assert body["reply"] == MOCK_REPLY
+        assert body["context"] == ""
+        assert "出典" not in body["reply"]
+
+
 def test_chat_assigns_uuid_thread_id_when_omitted(client):
     first = _chat(client, "ザーハードの大気について教えて").json()["thread_id"]
     second = _chat(client, "ザーハードの大気について教えて").json()["thread_id"]
@@ -78,7 +93,7 @@ def test_chat_assigns_uuid_thread_id_when_omitted(client):
         ("エネルギー源の正体は", "ザーハード3.pdf"),  # 未知のエネルギー源
     ],
 )
-def test_rag_returns_sources_from_chunks(client, question, expected_chunk):
+def test_rag_returns_sources_from_chunks(client, searching_llm, question, expected_chunk):
     # 前提: 期待するチャンクが実在する（資料を差し替えたらここで気づける）
     assert expected_chunk in zahard_texts()
 
@@ -98,7 +113,7 @@ def test_rag_returns_sources_from_chunks(client, question, expected_chunk):
 # --- 3. 該当なし -------------------------------------------------------------
 
 
-def test_unrelated_question_has_no_source_citation(client):
+def test_unrelated_question_has_no_source_citation(client, searching_llm):
     res = _chat(client, _NOT_FOUND_QUESTION, str(uuid.uuid4()))
 
     assert res.status_code == 200
@@ -140,7 +155,7 @@ def test_different_threads_have_isolated_history(client):
     assert _human_texts(thread_b) == ["ザーハリアン文明とは何ですか"]
 
 
-def test_context_is_replaced_every_turn(client):
+def test_context_is_replaced_every_turn(client, searching_llm):
     thread_id = str(uuid.uuid4())
 
     first = _chat(client, "ザーハリアン文明とは何ですか", thread_id).json()

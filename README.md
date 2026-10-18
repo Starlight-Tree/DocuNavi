@@ -4,14 +4,15 @@
 架空の惑星「ザーハード」の設定資料（`zahard/`）、架空のカフェチェーン「みなとコーヒー」の店舗案内（`cafe/`）、
 架空の洗濯乾燥機の取扱説明書・学生寮の入寮規程（`guides/`）があります。
 
-チャット（`/chat`・`/chat/stream`）が検索します。資料群ごとに別々に採点して結果を合わせるので、資料群を足しても、
-他の資料群の結果は（ほとんど）変わりません。例外は、他の資料群の文が偶然に返ることです（[docs/configuration.md](docs/configuration.md)）。検索する資料群は環境変数 `SEARCH_SCOPE` で絞れます（[docs/configuration.md](docs/configuration.md)）。
+チャット（`/chat`・`/chat/stream`）は、DB（Supabase / pgvector）に取り込んだ資料を、質問の埋め込みとのコサイン類似度で検索します
+（検索の設計と、見直す条件は [docs/search-design.md](docs/search-design.md)）。本物の LLM には `DATABASE_URL` と `GEMINI_API_KEY` が要ります
+（[docs/configuration.md](docs/configuration.md)）。
 バックエンド（FastAPI）に加えて、チャット画面（Vite + React + TypeScript、`frontend/`）を同じサーバーから配信します。
 
 - **FastAPI**: HTTP API（`/chat`, `/chat/stream`, `/health`）
 - **LangGraph**: 入力ガード → エージェント（ツール呼び出しのループ）→ 出力ガード
 - **Gemini**（`gemini-3.1-flash-lite`）: 回答生成。Gemini API キーまたは Vertex AI（ADC）で認証し、どちらも未設定ならモックモードで動く
-- **RAG**: 資料を文単位に分けて BM25 で検索（外部の埋め込み API・ベクトル DB は不使用）。PDF は、ページの文字の位置から見出し・段落・表を組み立てて検索の単位にする
+- **RAG**: PDF を、ページの文字の位置から見出し・段落・表を組み立ててチャンクにし、DB に取り込んで埋め込む（`python -m app.ingestion`）。質問ごとに埋め込みを作り、類似度の高いチャンクを LLM に渡す
 - **画面**: `frontend/`（Vite + React + TypeScript）。ビルド成果物 `frontend/dist` を FastAPI が `/` で配信する
 
 ## 起動
@@ -44,13 +45,14 @@ npm run dev          # 開発サーバー（http://localhost:5173）。/chat（/
 
 ## 設定
 
-最低限は次の 2 つです。どちらも未設定ならモックモードで動きます。会話履歴を再起動後も残したいときだけ、`DATABASE_URL` を足します。
+`GEMINI_API_KEY`（または Vertex AI）が未設定ならモックモードで動きます（資料を検索せず、固定の返答を返す。画面と API の動作確認用）。
+本物の LLM では、資料の検索に `DATABASE_URL` も要ります（DB に資料を取り込み・埋め込み済みであること。[docs/configuration.md](docs/configuration.md) の「資料の検索」）。
 
 | 環境変数 | 説明 |
 |---|---|
 | `GEMINI_API_KEY` | Gemini API キー。空または `your_api_key_here` のときはモックモード |
 | `GOOGLE_GENAI_USE_VERTEXAI` | `true` で Vertex AI を使う。キー不要で ADC（Cloud Run ならサービスアカウント）で認証する |
-| `DATABASE_URL` | 会話履歴の保存先（Postgres の接続 URL）。空ならプロセス内メモリで、再起動で消える。パスワードを含むのでコミットしない。詳細は [docs/configuration.md](docs/configuration.md) の「会話履歴の保存先」 |
+| `DATABASE_URL` | Postgres の接続 URL。本物の LLM では必須（資料の検索）で、会話履歴の保存先も兼ねる（モックモードで空ならプロセス内メモリ）。パスワードを含むのでコミットしない。詳細は [docs/configuration.md](docs/configuration.md) |
 
 モデル、主モデルが落ちたときの別モデルへのフォールバック（`GEMINI_FALLBACK_MODEL`。既定は無効）、CORS、LLM のタイムアウトや再試行などの全一覧は [docs/configuration.md](docs/configuration.md) にあります。
 

@@ -6,9 +6,9 @@
 
     python -m scripts.eval_answers                 # 質問の一覧と上限を表示するだけ（API は呼ばない）
     python -m scripts.eval_answers --run           # 実 API で測る（既定の上限: 全体 30 回、1 問 3 回）
-    python -m scripts.eval_answers --run --backend vector --min-similarity 0.65 \\
+    python -m scripts.eval_answers --run --min-similarity 0.65 \\
         --questions evals/answers/questions_vector.yaml --max-calls 40 --out evals/results/answers_vector_<日付>.json
-                                                   # ベクトル検索で測る（しきい値は、この実行の中だけ差し替える。アプリのコードは変えない）
+                                                   # しきい値をこの実行の中だけ差し替える（付けなければ、アプリの MIN_SIMILARITY）。DB の接続は .env の DATABASE_URL
 
 ヘッジ（追加の試行）とフォールバックは切る。切らないと、1 回の呼び出しが何本の試行になるか数えられない。
 キーは .env から app と同じ経路で読み、表示しない。
@@ -149,8 +149,8 @@ async def run_one(graph: Any, question: Question, budget: CallBudget) -> dict[st
 
 
 @asynccontextmanager
-async def vector_search_session(min_similarity: float) -> AsyncIterator[None]:
-    """SEARCH_BACKEND=vector で測るあいだだけ、DB の接続プールを開き、しきい値を差し替える（アプリのコードは変えない）。
+async def vector_search_session(min_similarity: float | None) -> AsyncIterator[None]:
+    """測るあいだだけ、DB の接続プールを開き、しきい値を差し替える（min_similarity が None ならアプリの値のまま。アプリのコードは変えない）。
 
     app の lifespan と違い、履歴の checkpointer は作らない（テーブルの作成も書き込みもしない）。検索（app/search_vector.py）が借りる
     プールだけを、history の _pool に入れる。起動時の検査（資料と埋め込みが DB と合っているか）は app と同じものを通す。
@@ -159,8 +159,6 @@ async def vector_search_session(min_similarity: float) -> AsyncIterator[None]:
     from psycopg_pool import AsyncConnectionPool
 
     from app import history, search_vector
-    from app.agents.graph import is_mock_mode, use_vertex_ai
-    from app.agents.tools import verify_search_backend
 
     url = history.database_url()
     if not url:
@@ -177,9 +175,10 @@ async def vector_search_session(min_similarity: float) -> AsyncIterator[None]:
     await pool.open(wait=True, timeout=10.0)
     original = search_vector.MIN_SIMILARITY
     history._pool = pool
-    search_vector.MIN_SIMILARITY = min_similarity
+    if min_similarity is not None:
+        search_vector.MIN_SIMILARITY = min_similarity
     try:
-        await verify_search_backend(mock=is_mock_mode(), vertex=use_vertex_ai())
+        await search_vector.verify()
         yield
     finally:
         search_vector.MIN_SIMILARITY = original
@@ -188,9 +187,7 @@ async def vector_search_session(min_similarity: float) -> AsyncIterator[None]:
         await pool.close()
 
 
-async def run_backend(plan: list[tuple[Question, str]], budget: CallBudget, backend: str, min_similarity: float) -> tuple[list[dict[str, Any]], str]:
-    if backend != "vector":
-        return await run_all(plan, budget)
+async def run_with_search(plan: list[tuple[Question, str]], budget: CallBudget, min_similarity: float | None) -> tuple[list[dict[str, Any]], str]:
     async with vector_search_session(min_similarity):
         return await run_all(plan, budget)
 
@@ -223,6 +220,12 @@ async def run_all(plan: list[tuple[Question, str]], budget: CallBudget) -> tuple
     return records, str(model)
 
 
+def search_floor() -> float:
+    from app import search_vector
+
+    return search_vector.MIN_SIMILARITY
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="回答の評価（実 API）")
     parser.add_argument("--run", action="store_true", help="実 API を呼ぶ（付けなければ質問の一覧を表示するだけ）")
@@ -231,16 +234,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--only", help="測る質問の id（カンマ区切り）。API の一時的な失敗で取れなかった質問をやり直すとき")
     parser.add_argument("--out", type=Path, help="出力先（既定 evals/results/answers_<日付>.json。あるファイルは上書きしない）")
     parser.add_argument("--questions", type=Path, default=ANSWERS_QUESTIONS_PATH, help="質問の一覧（既定 evals/answers/questions.yaml）")
-    parser.add_argument("--backend", choices=("bm25", "vector"), default="bm25", help="検索の経路（既定 bm25。vector は DB と埋め込みの API も使う）")
-    parser.add_argument("--min-similarity", type=float, help="vector のときの類似度のしきい値（この実行の中だけ差し替える。vector のとき必須）")
+    parser.add_argument("--min-similarity", type=float, help="検索の類似度のしきい値（この実行の中だけ差し替える。省略はアプリの MIN_SIMILARITY）")
     args = parser.parse_args(argv)
 
-    if args.backend == "vector" and args.min_similarity is None:
-        print("--backend vector には --min-similarity が要ります（アプリの既定を黙って使わない）", file=sys.stderr)
-        return 2
-    if args.backend != "vector" and args.min_similarity is not None:
-        print("--min-similarity は --backend vector のときだけ使えます", file=sys.stderr)
-        return 2
     plan = load_plan(args.questions)
     if args.only:
         wanted = [qid.strip() for qid in args.only.split(",") if qid.strip()]
@@ -249,7 +245,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"質問にありません: {', '.join(unknown)}", file=sys.stderr)
             return 2
         plan = [(q, role) for q, role in plan if q.id in wanted]
-    print(f"質問 {len(plan)} 問、上限: 全体 {args.max_calls} 回、1 問 {args.per_question} 回、検索: {args.backend}")
+    print(f"質問 {len(plan)} 問、上限: 全体 {args.max_calls} 回、1 問 {args.per_question} 回、検索: ベクトル（しきい値 {args.min_similarity if args.min_similarity is not None else 'アプリの値'}）")
     for question, role in plan:
         print(f"  {question.id} [{role}] {question.question}")
     if not args.run:
@@ -262,8 +258,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"出力先がすでにあります（上書きしません。--out で別の名前にしてください）: {out.name}", file=sys.stderr)
         return 2
     load_dotenv()
-    if args.backend == "vector":
-        os.environ["SEARCH_BACKEND"] = "vector"
     # 追加の試行（ヘッジ）・再試行・フォールバックは切る。1 回の呼び出しを 1 本にして、回数を数えられるようにする
     os.environ["LLM_HEDGE_DELAY_SECONDS"] = "0"
     os.environ["LLM_MAX_ATTEMPTS"] = "1"
@@ -275,7 +269,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     budget = CallBudget(args.max_calls, args.per_question)
-    records, model = asyncio.run(run_backend(plan, budget, args.backend, args.min_similarity or 0.0))
+    records, model = asyncio.run(run_with_search(plan, budget, args.min_similarity))
     now = datetime.now(JST)
     report = {
         "generated_at": now.isoformat(timespec="seconds"),
@@ -284,7 +278,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "max_calls_per_question": args.per_question,
         "calls_used": budget.total,
         "hedge": "off",
-        "search": {"backend": args.backend, "min_similarity": args.min_similarity},
+        "search": {"backend": "vector", "min_similarity": args.min_similarity if args.min_similarity is not None else search_floor()},
         "path": "ainvoke（/chat と同じ。画面が使う /chat/stream ではない）",
         "results": records,
     }

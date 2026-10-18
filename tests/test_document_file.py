@@ -14,7 +14,6 @@ from urllib.parse import quote
 import pytest
 
 from app import pdf_originals
-from app.agents import tools
 from app.api import documents
 from tests.test_documents import SECRET, FakePool, chunk_row, required, summary_row, use_pool  # noqa: F401
 
@@ -36,7 +35,7 @@ def store(tmp_path, monkeypatch) -> Path:
     root = tmp_path / "pdf"
     (root / "cafe").mkdir(parents=True)
     (root / "guides").mkdir()
-    monkeypatch.setattr(tools, "PDF_DIR", root)
+    monkeypatch.setattr(pdf_originals, "PDF_DIR", root)
     return root
 
 
@@ -146,7 +145,7 @@ def test_a_missing_file_is_404_with_a_fixed_message(client, use_pool, store):
 
 
 def test_a_missing_pdf_directory_is_404(client, use_pool, tmp_path, monkeypatch):
-    monkeypatch.setattr(tools, "PDF_DIR", tmp_path / "no-such-dir")
+    monkeypatch.setattr(pdf_originals, "PDF_DIR", tmp_path / "no-such-dir")
     use_pool(FakePool(document=[doc_row(content_hash=sha(PDF_A))]))
     assert client.get("/documents/1/file").status_code == 404
 
@@ -218,7 +217,7 @@ def test_a_symlinked_collection_directory_leading_outside_is_not_searched(client
     elsewhere.mkdir()
     (elsewhere / "tsubasa_dorm_rules.pdf").write_bytes(PDF_A)
     (root / "linked").symlink_to(elsewhere, target_is_directory=True)
-    monkeypatch.setattr(tools, "PDF_DIR", root)
+    monkeypatch.setattr(pdf_originals, "PDF_DIR", root)
     use_pool(FakePool(document=[doc_row(content_hash=sha(PDF_A))]))
     assert client.get("/documents/1/file").status_code == 404
 

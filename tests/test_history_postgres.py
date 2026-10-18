@@ -17,8 +17,9 @@ from langchain_core.messages import HumanMessage
 from psycopg.conninfo import make_conninfo
 
 from app import history
-from app.agents.graph import MockChatModel, build_graph
+from app.agents.graph import build_graph
 from app.main import app
+from tests.fakes import SearchingMockLLM
 
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "").strip()
 
@@ -49,12 +50,12 @@ def _config(thread_id: str) -> dict:
 
 
 async def _turn(saver, message: str, thread_id: str) -> dict:
-    graph = build_graph(MockChatModel(), checkpointer=saver)
+    graph = build_graph(SearchingMockLLM(), checkpointer=saver)
     return await graph.ainvoke({"messages": [HumanMessage(content=message)], "context": ""}, _config(thread_id))
 
 
 async def _messages(saver, thread_id: str) -> list:
-    graph = build_graph(MockChatModel(), checkpointer=saver)
+    graph = build_graph(SearchingMockLLM(), checkpointer=saver)
     return list((await graph.aget_state(_config(thread_id))).values.get("messages", []))
 
 

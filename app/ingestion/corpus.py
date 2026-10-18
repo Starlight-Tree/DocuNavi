@@ -1,6 +1,6 @@
-"""PDF を、検索（app/agents/tools.py の search_chunks）が採点する単位の列にする。
+"""PDF を、BM25 の基準線（scripts/bm25_baseline.py）が採点する単位の列にする。
 
-アプリの検索と評価（scripts/eval_retrieval.py）が同じ関数を通る。評価の baseline が、アプリの検索を測っていると言える根拠。
+評価（scripts/eval_retrieval.py・eval_vector.py）の BM25 の経路が、同じ関数を通る。アプリの検索は DB のベクトル検索なので、アプリは使わない。
 """
 
 from pathlib import Path

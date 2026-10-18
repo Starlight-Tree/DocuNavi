@@ -23,9 +23,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from app.agents import tools
-
 logger = logging.getLogger(__name__)
+
+# 元 PDF の置き場（リポジトリ直下の storage/pdf/）。直下のディレクトリが資料群で、その下に PDF を置く。検索には使わない（検索は DB だけを読む）
+PDF_DIR = Path(__file__).resolve().parents[1] / "storage" / "pdf"
 
 # 元 PDF として読む上限。いまの PDF は 100 KB 前後。応答はメモリに載せるので、これを超えるものは返さない
 MAX_ORIGINAL_BYTES = 20 * 1024 * 1024
@@ -98,7 +99,7 @@ def find_original(source: object, content_hash: object) -> OriginalPdf:
     """
     if not _usable_name(source):
         return _missing()
-    root = Path(tools.PDF_DIR)
+    root = Path(PDF_DIR)
     try:
         root = root.resolve(strict=True)
     except OSError:

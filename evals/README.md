@@ -1,7 +1,11 @@
 # 検索の評価（evals）
 
-資料の検索（`app/agents/tools.py` の `search_chunks`、BM25）だけを、質問と正解の組で採点します。
-資料群ごとの評価（`--corpus`・既定）と、アプリが実際に検索する全資料の評価（`--app`）があります。
+**2026-10-18 以降、アプリの検索は DB のベクトル検索だけです**（[docs/search-design.md](../docs/search-design.md)）。以前アプリが使っていた BM25 は、
+評価の基準線として `scripts/bm25_baseline.py`（以前は `app/agents/tools.py`）に残してあります。この README の BM25 の数字は、その基準線のもので、
+アプリの現在の挙動ではありません。ベクトル検索の比較は、末尾近くの「ベクトル検索の比較」「最終確認」の節にあります。
+
+以下の `--corpus` / `--app` の評価は、基準線の BM25（`scripts/bm25_baseline.py` の `search_chunks`）を、質問と正解の組で採点します。
+資料群ごとの評価（`--corpus`・既定）と、`storage/pdf/` の全資料の評価（`--app`）があります。
 **LLM も DB も呼びません**（無料で、毎回同じ結果になります）。検索を変える前後の差を数字で見るための道具です。
 
 ## 実行
@@ -397,7 +401,7 @@ guides の t007、カフェの c006・c007 と同じ系統（集計・絞り込�
 
 - **答えのある質問の該当数は、各資料群を単独で評価した合計と一致する**（doc_hit 40 = 21 + 8 + 11、keyword_hit 36 = 21 + 6 + 9。
   `tests/test_eval_retrieval.py`）。
-- **ただし、返るファイルは単独のときと同じではない。他の資料群のファイルが足される質問が 2 問ある**（`tests/test_collections.py` の `KNOWN_SPILL`）:
+- **ただし、返るファイルは単独のときと同じではない。他の資料群のファイルが足される質問が 2 問ある**（`tests/test_bm25_collections.py` の `KNOWN_SPILL`）:
   c007「日曜日が定休日の店舗」に、取扱説明書（「土曜日、日曜日、祝日はお休み」）が足された。t010「寮でペットを飼えるか」（資料外）は、
   guides の中だけなら空だが、アプリでは cafe の PDF が返る。**指標では、c007 は「当たり」のまま変わらず、t010 だけが 1 件分の空返しの失敗として表れる**。
   足された文が無関係かどうかは、keyword_hit では測れない（LLM に渡る文脈が汚れる）。資料群が増えるほど起きやすい。
@@ -723,7 +727,7 @@ python -m scripts.eval_vector final                   # 固定したまま held-
   held-out 13 問（答えあり 9・資料外 4）。held-out は、方式・しきい値の調整に使っていない（`final` は `vector_dev.json` のしきい値をそのまま読む）。
 - **正解チャンク。** DB のチャンク本文（見出しを含む）に、質問の根拠が正規化後に含まれるチャンク。答えのある 22 問すべてで、根拠ごとにちょうど 1 チャンク
   （`evals/vector/plan.json`）。採点の意味は既存の `keyword_hit` と同じ（any: 期待ファイルごとに根拠のどれか / all: 根拠の全部）を、チャンク単位にしたもの。
-- **3 方式。** BM25 = アプリの採点（`tools.search_collections`）を、順位をつける単位だけファイルからチャンクに変えたもの（採点する文の集合は同じ。DB のチャンクが
+- **3 方式。** BM25 = 基準線の採点（`bm25_baseline.search_collections`。当時はアプリの採点）を、順位をつける単位だけファイルからチャンクに変えたもの（採点する文の集合は同じ。DB のチャンクが
   PDF からの作り直しと一致することも確かめる）。ベクトル = pgvector のコサイン（`OPERATOR(extensions.<=>)`）。ハイブリッド = 上位 20 件ずつの
   Reciprocal Rank Fusion（定数 60。調整していない）。
 - **答えなしの規則（先に固定）。** BM25 は、何も当たらなければ空。ベクトルは、1 位の類似度がしきい値未満。ハイブリッドは、BM25 が空かつ類似度がしきい値未満。
@@ -762,6 +766,19 @@ BM25 が返す本文（採点した文とその前後）に根拠があるかで
 - **回答の質は測っていない。** 検索が良くなったことと、回答が良くなったことは別。資料群は 2 つ（68 チャンク）で、資料が増えたときの挙動も未確認。
 - **再現。** 質問の埋め込みは `evals/cache/`（Git 管理外）にあり、消すと 32 件を取り直す（API の埋め込みは同じ入力でも僅かに揺れうる）。`plan.json` と結果は DB のチャンクの指紋
   （`corpus_fingerprint`）を持ち、DB が変わると `dev` / `final` は止まる。コードは `git_head` の時点のもの（結果ファイルに記録。未コミットの変更があれば、その分は含まない）。
+
+## 最終確認と、ベクトルでの回答の評価（2026-10-18。ベクトル検索に一本化する前の測定）
+
+方式を選んだ質問（68 問）とは別に、**52 問を固定して 1 回だけ**測った。質問は、別の subagent に書かせた 26 問（`evals/search_compare/final_questions_independent.yaml`）と
+Claude が書いた 26 問（`final_questions_claude.yaml`）。答えのある 38 問・資料外 14 問。道具は `scripts/eval_search_compare.py`
+（`embed-queries` → `final`。5 経路: BM25・ベクトル・pgroonga・BM25 + ベクトル・pgroonga + ベクトル。結果は `evals/search_compare/final.json`、質問ファイルの sha256 を記録）。
+
+**結果: ベクトル単独が最良**（MRR 0.925、hit@1 32、hit@3 38/38）。BM25 は MRR 0.699、BM25 + ベクトルは 0.858、pgroonga + ベクトルは 0.862、pgroonga 単独は 0.670。
+選定用の質問で最良に見えた pgroonga + ベクトルは、再現しなかった。表と作成者別・新規チャンク別の内訳、限界は [docs/search-design.md](../docs/search-design.md)。
+
+**回答の評価（実 API、ベクトル検索、類似度の下限 0.65）。** `evals/answers/questions_vector.yaml` の 14 問（資料にない話題 11・答えのある 3）を、`scripts/eval_answers.py` で
+LLM まで通した（`evals/results/answers_vector_20261018*.json`。使った呼び出しは 38/40 回）。資料にない話題の 11 問は全て断り、答えのある 3 問は断りすぎなかった
+（境界例が 1 問、a010）。`temperature` が 1.0 なので、傾向として読む。採点は Claude で、user は未確認。
 
 ## 更新のしかた
 

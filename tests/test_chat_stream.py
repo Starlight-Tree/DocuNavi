@@ -181,7 +181,7 @@ def test_stream_has_the_ui_message_stream_shape_in_mock_mode(client):
     assert set(inner) == {"text-start", "text-delta", "text-end"}
 
 
-def test_stream_final_text_and_context_match_chat(client):
+def test_stream_final_text_and_context_match_chat(client, searching_llm):
     # 同じ質問は、/chat の reply と /chat/stream の最後のテキスト部分が一致し、context も同じ
     reference = client.post("/chat", json={"message": QUESTION, "thread_id": "ref-1"}).json()
 

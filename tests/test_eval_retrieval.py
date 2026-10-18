@@ -1,6 +1,6 @@
 """scripts/eval_retrieval.py（検索の評価）のテスト。
 
-検索そのものの精度は tests/test_rag.py が見る。ここは「評価の道具」が正しく採点し、
+検索そのものの精度は tests/test_bm25_baseline.py が見る。ここは「評価の道具」が正しく採点し、
 LLM・DB・ネットワークに触れないことを確かめる。
 """
 
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from app.agents import tools
+from scripts import bm25_baseline as tools
 from scripts import eval_retrieval as ev
 from tests.rag_eval_cases import ALL_CASES
 from tests.zahard_corpus import ZAHARD_PDF_DIR
@@ -86,7 +86,7 @@ def test_questions_file_is_valid_and_matches_corpus():
 
 
 def test_questions_include_the_cases_of_test_rag():
-    # tests/rag_eval_cases.py（test_rag.py の回帰テストの元）と評価セットが食い違うと、
+    # tests/rag_eval_cases.py（test_bm25_baseline.py の回帰テストの元）と評価セットが食い違うと、
     # 同じ質問に 2 通りの期待値ができる。移した質問は同じ期待値のままであること
     by_text = {q.question: q for q in ev.load_questions()}
     for case in ALL_CASES:
@@ -429,7 +429,7 @@ def test_app_baseline_is_the_sum_of_the_single_collection_baselines():
         assert app["summary"]["counts"]["doc_hit"] == summed["doc_hit"]
         assert app["summary"]["counts"]["keyword_hit"] == summed["keyword_hit"]
         # 資料外の質問は、他の資料群が偶然に返すことがあるので、単独の合計より増えるだけ（減ることはない）。
-        # 実測: t010（寮でペット）が cafe の PDF を返す（tests/test_collections.py の KNOWN_SPILL）
+        # 実測: t010（寮でペット）が cafe の PDF を返す（tests/test_bm25_collections.py の KNOWN_SPILL）
         assert app["summary"]["counts"]["answered_empty"] <= summed["answered_empty"]
         assert app["summary"]["total_questions"] == sum(part["summary"]["total_questions"] for part in parts)
 
@@ -572,7 +572,7 @@ def test_search_chunks_accepts_another_corpus_and_keeps_the_default():
     other = {"x.pdf": "湖畔テラス店は76席です。\n港町本店は68席です。"}
     hits = tools.search_chunks("湖畔テラス店", corpus=other)
     assert [name for name, _ in hits] == ["x.pdf"]
-    # corpus を渡さなければ、アプリが検索する資料（storage/ の全部）。差し替えた資料は入らない
+    # corpus を渡さなければ、BM25 の基準線が検索する資料（storage/ の全部）。差し替えた資料は入らない
     assert [name for name, _ in tools.search_chunks("湖畔テラス店")] == ["cafe_store_guide.pdf"]
 
 

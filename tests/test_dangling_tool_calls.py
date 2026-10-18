@@ -15,15 +15,16 @@ from langchain_core.outputs import ChatResult
 from langgraph.graph import START
 from pydantic import Field
 
-from app.agents.graph import INTERRUPTED_TOOL_CALL_NOTE, MockChatModel, build_graph
+from app.agents.graph import INTERRUPTED_TOOL_CALL_NOTE, build_graph
 from app.agents.guardrails import INPUT_REFUSAL_REPLY
 from app.agents.tools import TOOLS
+from tests.fakes import SearchingMockLLM
 
 TOOL_NAME = TOOLS[0].name
 
 
-class RecordingLLM(MockChatModel):
-    """MockChatModel と同じ挙動で、LLM に渡った入力を記録する。"""
+class RecordingLLM(SearchingMockLLM):
+    """SearchingMockLLM と同じ挙動で、LLM に渡った入力を記録する。"""
 
     calls: list[list[BaseMessage]] = Field(default_factory=list)
 

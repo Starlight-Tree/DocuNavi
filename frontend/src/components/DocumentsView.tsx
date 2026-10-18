@@ -5,7 +5,7 @@ import { useDocumentChunks, useDocumentList, useDocumentPdf } from '../hooks/use
 import type { Loaded } from '../hooks/useDocuments';
 
 export const MSG_DOCUMENTS_NOTE =
-  'この画面は DB に保存された資料を表示しています。BM25 検索は、別にローカルの PDF を読み込んでいます。';
+  'この画面は DB に保存された資料を表示しています。チャットは、ここにある「取り込み済み」の資料を検索して答えます。';
 export const MSG_NOT_CONFIGURED = '資料のデータベースが設定されていません。';
 export const MSG_NO_DOCUMENTS = '登録された資料はありません。';
 
