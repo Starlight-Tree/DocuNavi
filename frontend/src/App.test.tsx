@@ -97,16 +97,18 @@ describe('チャット UI: 送受信', () => {
     expect(second).toEqual({ message: '二つ目', thread_id: 'srv-thread-42' });
   });
 
-  it('返答は HTML として解釈せず、改行を保ったテキストで表示する', async () => {
+  it('返答は HTML として解釈せず、改行を保ったテキストで表示する（Markdown は整形する）', async () => {
     const reply = '<img src=x onerror="alert(1)">\n二行目';
     installFetch(() => replyResponse({ reply }));
     const { user } = setup();
 
     await sendMessage(user, 'x');
 
-    const text = await screen.findByText((_, element) => element?.textContent === reply);
-    expect(text.tagName).toBe('P');
-    expect(text).toHaveClass('message-text');
+    await screen.findByText(/二行目/);
+    const text = document.querySelector('.message-assistant .message-text')!;
+    expect(text).toHaveClass('markdown');
+    expect(text.textContent).toBe('<img src=x onerror="alert(1)">二行目'); // 改行は <br>（文字としては空）
+    expect(text.querySelectorAll('br')).toHaveLength(1);
     expect(document.querySelector('img')).toBeNull();
   });
 

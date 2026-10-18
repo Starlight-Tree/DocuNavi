@@ -243,6 +243,80 @@ textarea {
   white-space: pre-wrap;
 }
 
+/* 回答の Markdown。段落の間隔は詰め、先頭と末尾の余白は付けない */
+.markdown {
+  white-space: normal;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p {
+  margin: 0 0 0.6rem;
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0 0 0.6rem;
+  padding-left: 1.4rem;
+}
+
+.markdown li + li {
+  margin-top: 0.2rem;
+}
+
+.markdown .md-heading {
+  margin-top: 0.8rem;
+  font-weight: 700;
+}
+
+.markdown code {
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.3rem;
+  background: var(--surface-muted);
+  font-size: 0.9em;
+}
+
+.markdown .md-code {
+  margin: 0 0 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  overflow-x: auto;
+}
+
+.markdown .md-code code {
+  padding: 0;
+  background: none;
+}
+
+.md-table-wrap {
+  margin: 0 0 0.6rem;
+  overflow-x: auto;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.markdown th,
+.markdown td {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown th {
+  background: var(--surface-muted);
+}
+
 .message-pending {
   display: flex;
   align-items: center;
