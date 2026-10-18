@@ -17,6 +17,8 @@ export interface ChatMetadata {
   mode?: string;
   /** 回答の根拠として検索された設定資料。未検索なら空文字。完了の直前に届く。 */
   context?: string;
+  /** context の出典と同じ順の {name, page, page_end}。完了の直前に届く。サーバーの値なので、使う前に `parseSourceRefs` で確かめる。 */
+  sources?: unknown;
 }
 
 export interface HealthResponse {

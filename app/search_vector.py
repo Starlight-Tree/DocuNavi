@@ -18,7 +18,7 @@ import asyncio
 import logging
 import os
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, NamedTuple
 
 from app.history import get_pool
 from app.ingestion import embedding
@@ -33,7 +33,7 @@ EMBED_TIMEOUT_SECONDS = 10.0
 _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
 
 _SEARCH_SQL = (
-    "SELECT d.source AS source, c.heading AS heading, c.content AS content, "
+    "SELECT d.source AS source, c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end, "
     "1 - (c.embedding OPERATOR(extensions.<=>) %(q)s::extensions.vector(768)) AS sim "
     "FROM chunks c JOIN documents d ON d.id = c.document_id "
     "WHERE d.status = 'ready' AND c.embedding IS NOT NULL "
@@ -48,6 +48,15 @@ _VERIFY_SQL = (
     "c.embedding_dimensions AS dims, c.embedding_input_hash AS input_hash "
     "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id"
 )
+
+
+class Hit(NamedTuple):
+    """検索で拾った 1 チャンク。`page` は PDF の 1 始まりのページ、`page_end` はページをまたぐ表の最終ページ（またがなければ None）。"""
+
+    source: str
+    text: str
+    page: int | None = None
+    page_end: int | None = None
 
 
 class VectorSearchError(RuntimeError):
@@ -105,8 +114,8 @@ def _chunk_text(heading: str | None, content: str) -> str:
     return f"{heading}\n{content}" if heading else content
 
 
-async def search(query: str, top_k: int) -> list[tuple[str, str]]:
-    """類似度がしきい値以上のチャンクを、近い順に上位 top_k 件、(ファイル名, 本文) で返す。"""
+async def search(query: str, top_k: int) -> list[Hit]:
+    """類似度がしきい値以上のチャンクを、近い順に上位 top_k 件、`Hit`（ファイル名・本文・ページ）で返す。"""
     if top_k <= 0 or not query.strip():
         return []
     pool = get_pool()
@@ -118,7 +127,7 @@ async def search(query: str, top_k: int) -> list[tuple[str, str]]:
         cursor = await conn.execute(_SEARCH_SQL, params)
         rows = await cursor.fetchall()
     return [
-        (row["source"], _chunk_text(row["heading"], row["content"]))
+        Hit(row["source"], _chunk_text(row["heading"], row["content"]), row.get("page"), row.get("page_end"))
         for row in rows
         if float(row["sim"]) >= MIN_SIMILARITY
     ]

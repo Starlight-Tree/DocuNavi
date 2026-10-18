@@ -456,6 +456,7 @@ def build_graph(
                 AIMessage(content=INPUT_REFUSAL_REPLY),
             ],
             "context": "",
+            "sources": [],
             "guard_reason": reason,
             "fallback_used": False,
         }
@@ -514,7 +515,15 @@ def build_graph(
     async def tools(state: AgentState) -> dict:
         result = await tool_node.ainvoke(state)
         retrieved = "\n\n".join(str(m.content) for m in result["messages"])
-        return {**result, "context": retrieved}
+        # 出典のページは、ツールが artifact で返したものを、context と同じ順に並べる（LLM は content だけを見る）
+        sources = [
+            source
+            for m in result["messages"]
+            if isinstance(getattr(m, "artifact", None), list)
+            for source in m.artifact
+            if isinstance(source, dict)
+        ]
+        return {**result, "context": retrieved, "sources": sources}
 
     async def guard_output(state: AgentState) -> dict:
         last = state["messages"][-1]

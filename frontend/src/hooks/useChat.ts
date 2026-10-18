@@ -14,6 +14,8 @@ import {
 import type { ChatMetadata } from '../api/chat';
 import { useAuth } from '../auth/AuthContext';
 import { createAuthedFetch } from '../auth/authFetch';
+import { parseSourceRefs } from '../lib/sources';
+import type { SourceRef } from '../lib/sources';
 import { loadThreadId, saveThreadId } from '../lib/storage';
 
 type ChatUIMessage = UIMessage<ChatMetadata>;
@@ -24,6 +26,8 @@ export interface ChatMessage {
   text: string;
   /** assistant のみ。そのターンで検索された設定資料（未検索なら空文字）。回答の完了の直前に届く。 */
   context?: string;
+  /** assistant のみ。context の出典と同じ順のページ。届かなかった（古いサーバー）・形が違うときは無い。 */
+  sources?: SourceRef[];
 }
 
 export interface ChatError {
@@ -74,6 +78,8 @@ function toChatMessages(messages: ChatUIMessage[]): ChatMessage[] {
       if (!text) continue;
       const item: ChatMessage = { id: message.id, role: 'assistant', text };
       if (message.metadata?.context !== undefined) item.context = message.metadata.context;
+      const sources = parseSourceRefs(message.metadata?.sources);
+      if (sources) item.sources = sources;
       result.push(item);
     }
   }

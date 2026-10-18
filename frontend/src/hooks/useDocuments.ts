@@ -127,22 +127,30 @@ export type OpenSourceResult = 'opened' | 'notfound' | 'error';
 
 /**
  * チャットの出典（ファイル名と抜粋）から、資料の元PDF を、その箇所のページで開く。
- * 資料の一覧からファイル名で資料を探し、チャンクと突き合わせてページを決める。ページが決まらなくても、資料は開く。
+ * 資料の一覧からファイル名で資料を探す。ページは、検索が返した値（knownPage）を使い、無ければチャンクと突き合わせて決める。
+ * ページが決まらなくても、資料は開く。
  */
-export function useOpenSource(): (source: string, excerpt: string) => Promise<OpenSourceResult> {
+export function useOpenSource(): (
+  source: string,
+  excerpt: string,
+  knownPage?: number,
+) => Promise<OpenSourceResult> {
   const fetcher = useAuthedJsonFetch();
   const { navigate } = useUrlState();
   return useCallback(
-    async (source: string, excerpt: string) => {
+    async (source: string, excerpt: string, knownPage?: number) => {
       try {
         const list = await fetchDocuments(fetcher);
         const document = list.documents.find((d) => d.source === source);
         if (!document) return 'notfound';
-        let page: number | null = null;
-        try {
-          page = findSourcePage((await fetchDocumentChunks(fetcher, document.id)).chunks, excerpt);
-        } catch {
-          // ページが分からなくても、資料は開く
+        // サーバーが検索で返したページがあればそれを使う。無いとき（古い応答）だけ、抜粋とチャンクの突き合わせで探す
+        let page: number | null = knownPage ?? null;
+        if (knownPage === undefined) {
+          try {
+            page = findSourcePage((await fetchDocumentChunks(fetcher, document.id)).chunks, excerpt);
+          } catch {
+            // ページが分からなくても、資料は開く
+          }
         }
         navigate({ tab: 'documents', doc: document.id, view: 'pdf', page });
         return 'opened';

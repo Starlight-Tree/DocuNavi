@@ -9,7 +9,7 @@
     start（messageId、messageMetadata = {thread_id, mode}）
     text-start → text-delta … → text-end      （LLM の応答ごと。ツール呼び出しの前置きがあれば複数）
     [最終回答が直前の部分と違うときだけ] text-start → text-delta → text-end
-    message-metadata（messageMetadata = {context}）
+    message-metadata（messageMetadata = {context, sources}。sources は context の出典と同じ順の {name, page, page_end}）
     finish
     [DONE]
 
@@ -111,7 +111,10 @@ class UIMessageStream:
         chunks.append(
             {
                 "type": "message-metadata",
-                "messageMetadata": {"context": str(self._state.get("context") or "")},
+                "messageMetadata": {
+                    "context": str(self._state.get("context") or ""),
+                    "sources": list(self._state.get("sources") or []),
+                },
             }
         )
         chunks.append({"type": "finish"})
