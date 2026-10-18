@@ -1,28 +1,28 @@
-import { useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { Composer } from './components/Composer';
 import { DocumentsView } from './components/DocumentsView';
 import { ErrorBanner } from './components/ErrorBanner';
 import { Header } from './components/Header';
-import type { View } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
 import { MessageList } from './components/MessageList';
 import { useBackendMode } from './hooks/useBackendMode';
 import { useChat } from './hooks/useChat';
+import { useUrlState } from './lib/urlState';
 
 function ChatScreen() {
   const chat = useChat();
   const healthMode = useBackendMode();
   const { state, signOut } = useAuth();
   const signedIn = state.status === 'signedIn';
-  const [view, setView] = useState<View>('chat');
+  // 開いている画面は URL が決める（戻る・再読み込み・共有で戻れる）
+  const { tab: view, navigate } = useUrlState();
 
   return (
     <div className="app">
       <Header
         mode={chat.mode ?? healthMode}
         view={view}
-        onViewChange={setView}
+        onViewChange={(tab) => navigate({ tab })}
         onNewConversation={chat.reset}
         userLabel={state.status === 'signedIn' ? (state.user.email ?? 'ログイン中') : undefined}
         onSignOut={signedIn ? () => void signOut() : undefined}

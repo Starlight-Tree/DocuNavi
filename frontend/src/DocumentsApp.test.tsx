@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -580,5 +580,60 @@ describe('資料一覧: 元PDF', () => {
     await screen.findByTitle('つばさ大学学生寮 入寮規程 の元PDF');
     const file = calls.find((c) => c.url.endsWith('/file'))!;
     expect(new Headers(file.init.headers).get('Authorization')).toBeNull();
+  });
+});
+
+describe('画面の状態は URL が持つ', () => {
+  const DETAIL = { document: summary(1, 'tsubasa_dorm_rules.pdf', 3, 3), chunks: [chunk(0, '第1条 本文')] };
+  const routes = (url: string) => jsonResponse(url === '/documents' ? LIST : DETAIL);
+
+  it('資料一覧に切り替えると URL が変わり、「戻る」でチャットに戻る', async () => {
+    installDocsFetch(routes);
+    const { user } = setup();
+    await openDocuments(user);
+    expect(window.location.search).toBe('?tab=documents');
+
+    window.history.back();
+
+    expect(await screen.findByRole('textbox', { name: 'メッセージ' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'チャット' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('資料を開くと doc が付き、再読み込みしても同じ資料が開く。一覧に戻ると doc が外れる', async () => {
+    installDocsFetch(routes);
+    const { user } = setup();
+    await openDocuments(user);
+    await user.click(await screen.findByRole('button', { name: 'tsubasa_dorm_rules.pdf を開く' }));
+    expect(window.location.search).toBe('?tab=documents&doc=1');
+    await screen.findByText('第1条 本文');
+
+    // 再読み込み: 画面を作り直しても、URL から同じ画面になる
+    cleanup();
+    setup();
+    expect(await screen.findByText('第1条 本文')).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: '資料一覧に戻る' }));
+    expect(window.location.search).toBe('?tab=documents');
+    expect(await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ })).toBeInTheDocument();
+  });
+
+  it('URL を渡された別のセッションでも、同じ資料が開く', async () => {
+    window.history.replaceState(null, '', '/?tab=documents&doc=1');
+    installDocsFetch(routes);
+    setup();
+
+    expect(await screen.findByText('第1条 本文')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '資料一覧' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('一覧に無い資料の ID は、一覧を出して、URL から外す（履歴は増やさない）', async () => {
+    window.history.replaceState(null, '', '/?tab=documents&doc=99');
+    const before = window.history.length;
+    installDocsFetch(routes);
+    setup();
+
+    expect(await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ })).toBeInTheDocument();
+    expect(window.location.search).toBe('?tab=documents');
+    expect(window.history.length).toBe(before);
   });
 });
