@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse  # noqa: E402
 from app import search_vector  # noqa: E402
 from app.agents.graph import is_mock_mode  # noqa: E402
 from app.api.documents import router as documents_router  # noqa: E402
+from app.api.graph import router as graph_router  # noqa: E402
 from app.api.routes import router  # noqa: E402
 from app.auth import verify_auth_config  # noqa: E402
 from app.frontend import mount_frontend  # noqa: E402
@@ -72,6 +73,7 @@ app.add_middleware(
 
 app.include_router(router)
 app.include_router(documents_router)
+app.include_router(graph_router)
 
 
 @app.exception_handler(Exception)
