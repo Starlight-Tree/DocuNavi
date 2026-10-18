@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { MSG_PDF_UNAVAILABLE } from '../api/documents';
-import type { ChunkItem, DocumentSummary } from '../api/documents';
+import type { ChunkItem, DocumentList, DocumentSummary } from '../api/documents';
 import { GRAPH_SOURCE } from '../api/graph';
 import { useDocumentChunks, useDocumentList, useDocumentPdf } from '../hooks/useDocuments';
+import type { Loaded } from '../hooks/useDocuments';
+import type { DetailView } from '../lib/urlState';
+import { useUrlState } from '../lib/urlState';
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
 
@@ -52,10 +55,14 @@ function pageLabel(chunk: ChunkItem): string | null {
     : `p.${chunk.page}`;
 }
 
-function DocumentTable({ onOpen }: { onOpen: (document: DocumentSummary) => void }) {
-  const [state, reload] = useDocumentList();
+interface DocumentTableProps {
+  state: Loaded<DocumentList>;
+  onRetry: () => void;
+  onOpen: (document: DocumentSummary) => void;
+}
 
-  if (state.status !== 'ready') return <Status state={state} onRetry={reload} />;
+function DocumentTable({ state, onRetry, onOpen }: DocumentTableProps) {
+  if (state.status !== 'ready') return <Status state={state} onRetry={onRetry} />;
   if (!state.data.configured) return <p>{MSG_NOT_CONFIGURED}</p>;
   if (state.data.documents.length === 0) return <p>{MSG_NO_DOCUMENTS}</p>;
 
@@ -100,8 +107,6 @@ function DocumentTable({ onOpen }: { onOpen: (document: DocumentSummary) => void
   );
 }
 
-type ViewMode = 'pdf' | 'text' | 'graph';
-
 /** 元の PDF。ブラウザー内蔵の PDF 表示（iframe）に、認証付きで取った PDF の Blob URL を渡す。 */
 function OriginalPdf({ document, id }: { document: DocumentSummary; id: number }) {
   const [state, reload] = useDocumentPdf(id);
@@ -109,14 +114,22 @@ function OriginalPdf({ document, id }: { document: DocumentSummary; id: number }
   return <iframe className="pdf-frame" src={state.data.url} title={`${displayName(document)} の元PDF`} />;
 }
 
-function DocumentChunks({ document, onBack }: { document: DocumentSummary; onBack: () => void }) {
+interface DocumentChunksProps {
+  document: DocumentSummary;
+  /** URL で指定された表示。無ければ null（元の PDF があれば PDF、無ければ AI 用テキスト）。 */
+  view: DetailView | null;
+  onViewChange: (view: DetailView) => void;
+  onBack: () => void;
+}
+
+function DocumentChunks({ document, view, onViewChange, onBack }: DocumentChunksProps) {
   const [state, reload] = useDocumentChunks(document.id);
-  const [choice, setChoice] = useState<ViewMode | null>(null);
   const originalPdf = state.status === 'ready' && state.data.originalPdf;
   // 関係図は入寮規程だけ。サーバーが元の PDF から計算するので、元の PDF が使えるときだけ出す
   const hasGraph = originalPdf && document.source === GRAPH_SOURCE;
   // 元の PDF があれば、それを先に見せる。無ければ AI 用テキスト（切り替えは出さず、使えない旨を示す）
-  const mode: ViewMode = originalPdf ? (choice ?? 'pdf') : 'text';
+  // 関係図が使えない資料に ?view=graph が付いていたら、PDF にする（URL が古い・手で書き換えられたとき）
+  const mode: DetailView = originalPdf ? (view === 'graph' && !hasGraph ? 'pdf' : (view ?? 'pdf')) : 'text';
 
   return (
     <section aria-label={`${displayName(document)} のチャンク`}>
@@ -136,7 +149,7 @@ function DocumentChunks({ document, onBack }: { document: DocumentSummary; onBac
                 type="button"
                 className="btn btn-secondary"
                 aria-pressed={mode === 'pdf'}
-                onClick={() => setChoice('pdf')}
+                onClick={() => onViewChange('pdf')}
               >
                 元PDF
               </button>
@@ -144,7 +157,7 @@ function DocumentChunks({ document, onBack }: { document: DocumentSummary; onBac
                 type="button"
                 className="btn btn-secondary"
                 aria-pressed={mode === 'text'}
-                onClick={() => setChoice('text')}
+                onClick={() => onViewChange('text')}
               >
                 AI用テキスト
               </button>
@@ -153,7 +166,7 @@ function DocumentChunks({ document, onBack }: { document: DocumentSummary; onBac
                   type="button"
                   className="btn btn-secondary"
                   aria-pressed={mode === 'graph'}
-                  onClick={() => setChoice('graph')}
+                  onClick={() => onViewChange('graph')}
                 >
                   関係図
                 </button>
@@ -199,16 +212,33 @@ function DocumentChunks({ document, onBack }: { document: DocumentSummary; onBac
   );
 }
 
-/** 資料一覧（読み取り専用）。DB に保存された資料を、文書ごとに、チャンクの全文まで見せる。 */
+/**
+ * 資料一覧（読み取り専用）。DB に保存された資料を、文書ごとに、チャンクの全文まで見せる。
+ * 開いている資料・表示・関係図の項は、URL が決める（戻る・再読み込み・共有で戻れる）。
+ */
 export function DocumentsView() {
-  const [selected, setSelected] = useState<DocumentSummary | null>(null);
+  const { doc, view, navigate } = useUrlState();
+  const [state, reload] = useDocumentList();
+  const selected =
+    doc !== null && state.status === 'ready' ? (state.data.documents.find((d) => d.id === doc) ?? null) : null;
+  const unknownDoc = doc !== null && state.status === 'ready' && selected === null;
+
+  // 一覧に無い資料の ID（消えた・手で書き換えた）は、一覧に戻す。履歴は増やさない
+  useEffect(() => {
+    if (unknownDoc) navigate({ doc: null }, 'replace');
+  }, [unknownDoc, navigate]);
 
   return (
     <main className="documents" aria-label="資料一覧">
       {selected ? (
-        <DocumentChunks document={selected} onBack={() => setSelected(null)} />
+        <DocumentChunks
+          document={selected}
+          view={view}
+          onViewChange={(next) => navigate({ view: next })}
+          onBack={() => navigate({ doc: null })}
+        />
       ) : (
-        <DocumentTable onOpen={setSelected} />
+        <DocumentTable state={state} onRetry={reload} onOpen={(d) => navigate({ doc: d.id })} />
       )}
     </main>
   );

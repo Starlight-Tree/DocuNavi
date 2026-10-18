@@ -1,4 +1,6 @@
-export type View = 'chat' | 'documents';
+import type { Tab } from '../lib/urlState';
+
+export type View = Tab;
 
 interface HeaderProps {
   mode: string | null;
