@@ -426,3 +426,176 @@ textarea {
   align-items: center;
   gap: 0.5rem;
 }
+
+/* ---- 画面の切り替え（チャット / 資料一覧）---- */
+
+.view-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.view-tab {
+  padding: 0.3rem 0.75rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.view-tab:hover {
+  color: var(--text);
+}
+
+.view-tab[aria-current='page'] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* 隠すだけで残す。表示中は、元の縦並び（メッセージ・エラー・入力欄）をそのまま保つ */
+.chat-pane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-pane[hidden] {
+  display: none;
+}
+
+/* ---- 資料一覧 ---- */
+
+.documents {
+  flex: 1;
+  min-height: 0;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.documents-note {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.documents-title {
+  margin: 1rem 0 0.25rem;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.documents-summary {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.documents-table-wrap {
+  overflow-x: auto;
+}
+
+.documents-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.documents-table th,
+.documents-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.documents-table th[scope='row'] {
+  overflow-wrap: anywhere;
+}
+
+.document-name,
+.document-file {
+  display: block;
+}
+
+.document-file {
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: normal;
+}
+
+.documents-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.view-switch {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+
+.view-switch .btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--surface-muted);
+  font-weight: 700;
+}
+
+.pdf-frame {
+  display: block;
+  width: 100%;
+  height: 75vh;
+  min-height: 24rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+}
+
+.documents-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.chunk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chunk {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+}
+
+.chunk-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.chunk-index {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.chunk-text {
+  margin: 0.5rem 0 0;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

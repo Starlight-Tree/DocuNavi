@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.ingestion.chunker import chunk_pages
-from app.ingestion.pdf_parser import IngestionError, extract_pages
+from app.ingestion.pdf_parser import IngestionError, extract_pages, extract_title
 from app.ingestion.repository import Repository, diff_counts
 
 
@@ -20,6 +20,7 @@ class DocumentReport:
     unchanged_chunks: int = 0
     removed_chunks: int = 0
     reason: str | None = None  # failed のときの理由コード（pdf_parser.REASONS）
+    title: str | None = None  # PDF のメタデータ /Title（無い・使えないときは None）
 
 
 def find_pdfs(target: Path) -> list[Path]:
@@ -48,6 +49,7 @@ def ingest_file(path: Path, source: str, repo: Repository, *, apply: bool) -> Do
             repo.mark_failed(source, file_hash, exc.reason)
         return DocumentReport(source=source, status="failed", reason=exc.reason)
 
+    title = extract_title(path)
     chunks = chunk_pages(pages)
     new_hashes = [c.content_hash for c in chunks]
     stored = repo.stored_hashes(source)
@@ -62,7 +64,8 @@ def ingest_file(path: Path, source: str, repo: Repository, *, apply: bool) -> Do
 
     if apply:
         # 内容が同じでも保存する。直前に failed と記録されていれば ready に戻る（チャンクの行は、ハッシュが同じなら触らない）
-        repo.save(source, file_hash, len(pages), chunks)
+        # 題名は PDF の /Title をそのまま渡す。PDF に題名が無ければ None で、保存済みの題名も消える（PDF が正）
+        repo.save(source, file_hash, len(pages), chunks, title=title)
 
     return DocumentReport(
         source=source,
@@ -72,6 +75,7 @@ def ingest_file(path: Path, source: str, repo: Repository, *, apply: bool) -> Do
         new_chunks=new,
         unchanged_chunks=unchanged,
         removed_chunks=removed,
+        title=title,
     )
 
 

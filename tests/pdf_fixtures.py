@@ -65,8 +65,8 @@ def _content(lines: list) -> bytes:
     return "\n".join(ops).encode("ascii")
 
 
-def build_pdf(pages: list[list]) -> bytes:
-    """pages: ページごとの行のリスト。空のリストは、文字の無いページになる。
+def build_pdf(pages: list[list], title: str | None = None) -> bytes:
+    """pages: ページごとの行のリスト。空のリストは、文字の無いページになる。title: メタデータ /Title（None なら Info 辞書を付けない）。
 
     行は str（1 行）・Big（見出し）・tuple（表の 1 行。セルを横に並べる）・""（1 行分の空き）。
     """
@@ -110,6 +110,11 @@ def build_pdf(pages: list[list]) -> bytes:
     kids = b" ".join(b"%d 0 R" % pid for pid in page_ids)
     objects[1] = b"<< /Type /Pages /Kids [%s] /Count %d >>" % (kids, len(page_ids))
 
+    info = ""
+    if title is not None:
+        info_id = add(b"<< /Title <FEFF%s> >>" % title.encode("utf-16-be").hex().upper().encode("ascii"))
+        info = f" /Info {info_id} 0 R"
+
     out = bytearray(b"%PDF-1.5\n")
     offsets: list[int] = []
     for number, body in enumerate(objects, start=1):
@@ -120,5 +125,9 @@ def build_pdf(pages: list[list]) -> bytes:
     out += b"0000000000 65535 f \n"
     for offset in offsets:
         out += b"%010d 00000 n \n" % offset
-    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objects) + 1, xref)
+    out += b"trailer\n<< /Size %d /Root 1 0 R%s >>\nstartxref\n%d\n%%%%EOF\n" % (
+        len(objects) + 1,
+        info.encode("ascii"),
+        xref,
+    )
     return bytes(out)

@@ -20,7 +20,7 @@
 | `LLM_MAX_ATTEMPTS` | `3` | 1 回の LLM 呼び出しで投げる試行の最大数（最初の 1 回を含む）。`1` で追加・再試行なし。不正値は既定値に戻る |
 | `DATABASE_URL` | （空） | 会話履歴の保存先（Postgres の接続 URL）。空ならプロセス内メモリ。**秘密情報**（パスワードを含む）なのでコミットせず、ログにも出さない。下記「会話履歴の保存先」 |
 | `DATABASE_POOL_MAX_SIZE` | `5` | 1 インスタンスが DB へ張る接続の上限。不正値・1 未満は既定値に戻る |
-| `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream` にログイン（Supabase Auth の JWT）を要求する。`off` は匿名のまま動く（開発用）。**公開するときは `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
+| `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Supabase Auth の JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
 | `SUPABASE_URL` | （空） | `AUTH_MODE=required` のとき必須。プロジェクトの URL（`https://<ref>.supabase.co`。公開してよい値だが、このリポジトリには書かない）。JWT の公開鍵（JWKS）の取得先と、発行元の確認に使う |
 | `SEARCH_SCOPE` | （空 = `all`） | チャットが検索する資料群（カンマ区切りの名前。`zahard` / `cafe` など）。`all` か空なら全部。知らない名前は起動を失敗させる（検索が黙って空になるのを防ぐ）。下記「検索する資料」 |
 | `SEARCH_BACKEND` | `bm25` | `vector` で、PDF の資料群をベクトル検索（Supabase / pgvector）にする。`.txt`（ザーハード）は BM25 のまま。**既定は `bm25`、切り替えの採否は未判断**。使える状態でなければ、起動を失敗させる。下記「ベクトル検索（実験的）」 |
@@ -91,7 +91,7 @@
 
 ## ログイン（認証）
 
-`AUTH_MODE=required` にすると、`/chat` と `/chat/stream` が `Authorization: Bearer <アクセストークン>` を要求します
+`AUTH_MODE=required` にすると、`/chat`・`/chat/stream`・`/documents`（資料一覧。`docs/api.md`）が `Authorization: Bearer <アクセストークン>` を要求します
 （`/health` と画面の配信は認証なし）。トークンは Supabase Auth（Google ログイン）が発行する JWT で、バックエンド（`app/auth.py`）が検証します。
 `AUTH_MODE=off`（既定）では何も確かめず、従来どおり匿名で動きます。**公開する前に `required` にしてください。**
 
