@@ -113,6 +113,7 @@ export default function RelationCanvas({ placed, edges, selected, kinds, walked,
       edges={flowEdges}
       nodeTypes={nodeTypes}
       colorMode="system"
+      attributionPosition="bottom-left"
       defaultViewport={{ x: 8, y: 8, zoom: 0.8 }}
       minZoom={0.2}
       maxZoom={1.5}
@@ -124,7 +125,7 @@ export default function RelationCanvas({ placed, edges, selected, kinds, walked,
     >
       <FocusOnImpact ids={[...kinds.keys()]} />
       <Background />
-      <Controls showInteractive={false} />
+      <Controls showInteractive={false} orientation="horizontal" position="bottom-right" />
     </ReactFlow>
   );
 }
