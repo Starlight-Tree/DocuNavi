@@ -2,17 +2,18 @@
 
 import asyncio
 
+from app.search_vector import Hit
 from tests.fakes import FakeSearch
 
 
-def search(query: str, top_k: int = 2) -> list[tuple[str, str]]:
+def search(query: str, top_k: int = 2) -> list[Hit]:
     return asyncio.run(FakeSearch()(query, top_k))
 
 
 def test_a_keyword_in_the_query_returns_that_file():
-    assert [name for name, _ in search("ザーハードの大気について教えて")] == ["ザーハード1.pdf"]
-    assert [name for name, _ in search("ザーハリアン文明とは何ですか")] == ["ザーハード2.pdf"]
-    assert [name for name, _ in search("エネルギー源の正体は")] == ["ザーハード3.pdf"]
+    assert [hit.source for hit in search("ザーハードの大気について教えて")] == ["ザーハード1.pdf"]
+    assert [hit.source for hit in search("ザーハリアン文明とは何ですか")] == ["ザーハード2.pdf"]
+    assert [hit.source for hit in search("エネルギー源の正体は")] == ["ザーハード3.pdf"]
 
 
 def test_a_query_without_a_keyword_finds_nothing():

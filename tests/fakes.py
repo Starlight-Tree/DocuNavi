@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from app.agents.graph import MockChatModel
+from app.search_vector import Hit
 
 # search_documents の出力 "[ファイル名.pdf]\n本文" の、ファイル名の行
 SOURCE_HEADER = re.compile(r"(?m)^\[([^\]\n]+\.(?:txt|pdf))\]\n")
@@ -59,14 +60,17 @@ class FakeSearch:
     PDF も DB も BM25 も読まない。資料はこのクラスの中にあり、実際の資料とは関係がない（実際の PDF は tests/test_zahard_pdf.py が見る）。
     """
 
-    # (キーワード, ファイル名, 本文)。上から順に調べ、キーワードが質問に含まれるものを、top_k 件まで返す
-    CHUNKS: tuple[tuple[tuple[str, ...], str, str], ...] = (
-        (("大気",), "ザーハード1.pdf", "ザーハードの大気は薄く、二酸化炭素が主成分である。"),
-        (("ザーハリアン", "文明"), "ザーハード2.pdf", "ザーハリアン文明は、遺跡だけを残して姿を消した。"),
-        (("エネルギー",), "ザーハード3.pdf", "岩山の内部には、未知のエネルギー源が眠っている可能性がある。"),
+    # (キーワード, ファイル名, 本文, ページ)。上から順に調べ、キーワードが質問に含まれるものを、top_k 件まで返す。
+    # ページは、出典のページが画面まで正しく届くことを確かめるための、ファイルごとに違う値
+    CHUNKS: tuple[tuple[tuple[str, ...], str, str, int], ...] = (
+        (("大気",), "ザーハード1.pdf", "ザーハードの大気は薄く、二酸化炭素が主成分である。", 1),
+        (("ザーハリアン", "文明"), "ザーハード2.pdf", "ザーハリアン文明は、遺跡だけを残して姿を消した。", 2),
+        (("エネルギー",), "ザーハード3.pdf", "岩山の内部には、未知のエネルギー源が眠っている可能性がある。", 3),
     )
-    FILE_NAMES = frozenset(name for _, name, _ in CHUNKS)
+    FILE_NAMES = frozenset(name for _, name, _, _ in CHUNKS)
 
-    async def __call__(self, query: str, top_k: int = 2) -> list[tuple[str, str]]:
-        hits = [(name, text) for keywords, name, text in self.CHUNKS if any(k in query for k in keywords)]
+    async def __call__(self, query: str, top_k: int = 2) -> list[Hit]:
+        hits = [
+            Hit(name, text, page) for keywords, name, text, page in self.CHUNKS if any(k in query for k in keywords)
+        ]
         return hits[:top_k]

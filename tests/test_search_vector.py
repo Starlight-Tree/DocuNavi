@@ -109,6 +109,62 @@ def test_the_tool_has_no_synchronous_path():
         search_documents.invoke({"query": "大気"})
 
 
+# ---- 出典のページ（LLM には見せず、画面にだけ渡す） ----
+
+
+def call_tool(query: str):
+    """ToolCall の形で呼ぶ（グラフの ToolNode と同じ）。ToolMessage の content が LLM に見える文面、artifact が画面に渡す出典。"""
+    call = {"name": "search_documents", "args": {"query": query}, "id": "call-1", "type": "tool_call"}
+    return asyncio.run(search_documents.ainvoke(call))
+
+
+def test_the_page_goes_to_the_artifact_and_never_into_the_text_the_model_sees(vector_env):
+    pool, _ = vector_env
+    pool.rows = [{**aoba_row(0.81), "page": 3, "page_end": 4}]
+
+    message = call_tool("糸くずフィルターの掃除")
+
+    assert message.content == "[aoba_aw820_manual.pdf]\nお手入れ\n糸くずフィルターは、洗濯のたびに掃除する。"
+    assert message.artifact == [{"name": "aoba_aw820_manual.pdf", "page": 3, "page_end": 4}]
+    # ページの値は、どの形でも文面に混ざらない
+    assert "3" not in message.content and "p." not in message.content
+
+
+def test_the_search_asks_the_database_for_the_page_columns(vector_env):
+    pool, _ = vector_env
+    ainvoke("糸くずフィルターの掃除")
+    ((sql, _),) = pool.calls
+    assert "c.page AS page" in sql and "c.page_end AS page_end" in sql
+
+
+@pytest.mark.parametrize(
+    ("page", "page_end", "expected"),
+    [
+        (2, None, (2, None)),
+        (2, 3, (2, 3)),
+        (2, 2, (2, None)),  # またがっていない
+        (2, 1, (2, None)),  # 逆転した値は捨てる
+        (0, 3, (None, None)),  # 1 未満のページは出さない（page_end も意味を失う）
+        (None, 3, (None, None)),
+        ("2", None, (None, None)),  # 整数でない値は出さない
+    ],
+)
+def test_invalid_pages_become_none_so_the_screen_shows_nothing(vector_env, page, page_end, expected):
+    pool, _ = vector_env
+    pool.rows = [{**aoba_row(0.81), "page": page, "page_end": page_end}]
+    assert call_tool("糸くずフィルターの掃除").artifact == [
+        {"name": "aoba_aw820_manual.pdf", "page": expected[0], "page_end": expected[1]}
+    ]
+
+
+def test_no_hit_gives_an_empty_artifact(vector_env):
+    pool, _ = vector_env
+    pool.rows = []
+    message = call_tool("関係のない質問")
+    assert message.content == tools._NOT_FOUND_TEXT
+    assert message.artifact == []
+
+
 # ---- 検索 ----
 
 

@@ -5,10 +5,12 @@
 
 import logging
 from collections.abc import Sequence
+from typing import Any
 
 from langchain_core.tools import StructuredTool
 
 from app import search_vector
+from app.search_vector import Hit
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +26,8 @@ _SEARCH_DESCRIPTION = (
 )
 
 
-async def search_chunks_async(query: str, top_k: int = TOP_K) -> list[tuple[str, str]]:
-    """クエリに近い資料の箇所を、(ファイル名, 本文) で最大 top_k 件返す（DB のベクトル検索。しきい値未満は返さない）。
+async def search_chunks_async(query: str, top_k: int = TOP_K) -> list[Hit]:
+    """クエリに近い資料の箇所を、`Hit`（ファイル名・本文・ページ）で最大 top_k 件返す（DB のベクトル検索。しきい値未満は返さない）。
 
     失敗しても BM25 などには戻らない（どちらで答えたかが曖昧になるため）。`VectorSearchError` を投げ、API が 503 の固定文にする。
     """
@@ -38,14 +40,29 @@ async def search_chunks_async(query: str, top_k: int = TOP_K) -> list[tuple[str,
         raise search_vector.VectorSearchError(_SEARCH_FAILED_TEXT) from None
 
 
-def _format_hits(hits: Sequence[tuple[str, str]]) -> str:
+def _format_hits(hits: Sequence[Hit]) -> str:
+    """LLM に見せる文面。ページは載せない（載せると回答が変わりうる。ページは `_sources` で画面にだけ渡す）。"""
     if not hits:
         return _NOT_FOUND_TEXT
-    return "\n\n".join(f"[{name}]\n{text}" for name, text in hits)
+    return "\n\n".join(f"[{hit.source}]\n{hit.text}" for hit in hits)
 
 
-async def _asearch_documents(query: str) -> str:
-    return _format_hits(await search_chunks_async(query))
+def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
+    """画面に渡す出典の一覧（`_format_hits` の見出しと同じ順）。ツールの artifact で、LLM には渡らない。
+
+    `page` は 1 以上の整数だけ、`page_end` は `page` より大きいときだけ入れる（不正な値は None にして、画面が表示しない）。
+    """
+    sources: list[dict[str, Any]] = []
+    for hit in hits:
+        page = hit.page if isinstance(hit.page, int) and hit.page >= 1 else None
+        page_end = hit.page_end if page is not None and isinstance(hit.page_end, int) and hit.page_end > page else None
+        sources.append({"name": hit.source, "page": page, "page_end": page_end})
+    return sources
+
+
+async def _asearch_documents(query: str) -> tuple[str, list[dict[str, Any]]]:
+    hits = await search_chunks_async(query)
+    return _format_hits(hits), _sources(hits)
 
 
 # 非同期だけ（グラフは .ainvoke で呼ぶ）。同期の .invoke は用意しない（DB とネットワークを同期で呼ばないため）
@@ -53,6 +70,8 @@ search_documents = StructuredTool.from_function(
     coroutine=_asearch_documents,
     name="search_documents",
     description=_SEARCH_DESCRIPTION,
+    # 戻り値は (LLM に見せる文面, 画面にだけ渡す出典の一覧)。ToolMessage.content が前者、.artifact が後者になる
+    response_format="content_and_artifact",
 )
 
 TOOLS = [search_documents]

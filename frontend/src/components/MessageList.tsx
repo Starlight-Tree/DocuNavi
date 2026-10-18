@@ -132,7 +132,7 @@ export function MessageList({
               <p className="message-text">{message.text}</p>
             )}
             {message.role === 'assistant' && message.context && !generating && (
-              <SourcesPanel context={message.context} />
+              <SourcesPanel context={message.context} sources={message.sources} />
             )}
             {message.role === 'assistant' && !generating && (
               <div className="message-actions">

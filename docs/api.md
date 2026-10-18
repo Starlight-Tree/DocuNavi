@@ -74,7 +74,7 @@ data: {"type":"start","messageId":"…","messageMetadata":{"thread_id":"…","mo
 data: {"type":"text-start","id":"text-0"}
 data: {"type":"text-delta","id":"text-0","delta":"ザーハードの大気は…"}
 data: {"type":"text-end","id":"text-0"}
-data: {"type":"message-metadata","messageMetadata":{"context":"[ザーハード1.pdf]\n…"}}
+data: {"type":"message-metadata","messageMetadata":{"context":"[ザーハード1.pdf]\n…","sources":[{"name":"ザーハード1.pdf","page":1,"page_end":null}]}}
 data: {"type":"finish"}
 data: [DONE]
 ```
@@ -84,6 +84,10 @@ data: [DONE]
   回答を定型文に置き換えたときは、最後に正しい本文が新しいテキスト部分として届きます（先に届いた部分は無視してよい）。
   最後のテキスト部分は、`/chat` の `reply` と同じ文です。
 - **`message-metadata` の `context`**: `/chat` の `context` と同じ（今回のターンで検索された設定資料。完了の直前に届く）。
+- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end}`。`page` は DB の `chunks.page`（PDF の 1 始まりのページ）、
+  `page_end` はページをまたぐ表の最終ページ（またがなければ `null`）。値が不正なとき（1 未満・整数でない・`page_end` が `page` 以下）は `null`。
+  LLM に渡す文面（`context`）にはページを載せない（ツールの `artifact` で画面にだけ渡す）。検索しなかったターン・入力ガードが拒否したターンは空の配列。
+  `/chat` の応答にはない。
 - **出力ガードの保持:** 本文は、末尾の正規化後 31 文字ぶんを手元に残して送ります（システムプロンプトの連続一致が
   24 文字に達する前に止めるため）。短い回答は、終わりにまとめて届きます。ガードが漏洩を検知したら、受信をやめて定型文を送ります。
   検知の前に届く本文は、漏洩とみなされる長さに達しません。
