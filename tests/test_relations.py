@@ -8,7 +8,7 @@ import yaml
 from app.ingestion.pdf_parser import Page, extract_pages
 from app.relations.articles import parse_regulation
 from app.relations.extract import extract_edges
-from scripts.eval_relations import GOLD, PDF, evaluate
+from scripts.eval_relations import GOLD, PDF, TERMS, evaluate
 
 NOW = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
 
@@ -128,5 +128,55 @@ def test_edge_metadata_and_article_hash():
 def test_dorm_rules_meet_the_pass_line():
     gold = yaml.safe_load(Path(GOLD).read_text(encoding="utf-8"))
     reg = parse_regulation(extract_pages(PDF))
-    result = evaluate(reg, extract_edges(reg, now=NOW), gold)
+    terms = yaml.safe_load(Path(TERMS).read_text(encoding="utf-8"))
+    result = evaluate(reg, extract_edges(reg, terms=terms, now=NOW), gold)
     assert result["verdict"] == {k: True for k in result["verdict"]}, result
+
+
+TERM_SAMPLE = """題名
+第1章 総則
+第1条 寮費は、月額 100 円とする。
+第2条 寮費は、毎月納める。
+2 共益費は、寮費に含まれない。
+第3条 共益費は、月額 10 円とする。1
+脚注
+1 寮費は変わらない。
+"""
+SAMPLE_TERMS = {"寮費": "a1p1", "共益費": "a3p1"}
+
+
+def test_uses_term_edges_point_to_the_defining_paragraph():
+    edges = {(e.type, e.src, e.dst): e for e in extract_edges(_reg(TERM_SAMPLE), terms=SAMPLE_TERMS, now=NOW)}
+    assert ("uses_term", "a2p1", "a1p1") in edges
+    assert ("uses_term", "a2p2", "a1p1") in edges  # 1 つの項に 2 語: それぞれの定義へ
+    assert ("uses_term", "a2p2", "a3p1") in edges
+    assert ("uses_term", "fn1", "a1p1") in edges  # 脚注からも張る
+    edge = edges[("uses_term", "a2p1", "a1p1")]
+    assert (edge.evidence, edge.extracted_by, edge.page, edge.updated_at) == (
+        "寮費",
+        "rule",
+        1,
+        "2026-10-18T12:00:00+00:00",
+    )
+
+
+def test_uses_term_skips_the_definition_itself_and_needs_a_dictionary():
+    edges = extract_edges(_reg(TERM_SAMPLE), terms=SAMPLE_TERMS, now=NOW)
+    assert not [e for e in edges if e.type == "uses_term" and e.src == e.dst]
+    assert not [e for e in edges if e.type == "uses_term" and e.src in {"a1p1", "a3p1"}]  # 自分が定義する語だけの項
+    assert not [e for e in extract_edges(_reg(TERM_SAMPLE), now=NOW) if e.type == "uses_term"]  # 辞書なし
+
+
+def test_a_dictionary_pointing_at_a_missing_paragraph_is_an_error():
+    import pytest
+
+    with pytest.raises(ValueError):
+        extract_edges(_reg(TERM_SAMPLE), terms={"寮費": "a9p1"}, now=NOW)
+
+
+def test_changing_article_13_reaches_articles_15_17_18_through_terms():
+    reg = parse_regulation(extract_pages(PDF))
+    terms = yaml.safe_load(Path(TERMS).read_text(encoding="utf-8"))
+    edges = extract_edges(reg, terms=terms, now=NOW)
+    users = {e.src for e in edges if e.type == "uses_term" and e.dst == "a13p1"}
+    assert users == {"a15p1", "a17p1", "a18p1", "fn1"}

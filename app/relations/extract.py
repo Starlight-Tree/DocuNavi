@@ -4,12 +4,14 @@
     exception_of  「前項の定めにかかわらず」「第N条の規定にかかわらず」がある項 → 例外の対象の項
     references    「前項」「前条」「第N条（第M項）」「次のとおり」の参照、脚注の番号。src の項 → 参照先の項（または脚注）
     same_chapter  条 → それが属する章（条同士の全組み合わせは持たない。所属から導ける）
+    uses_term     手作りの辞書（語 → 定義している項）にある語を使っている項（または脚注）→ 定義の項。定義の項そのものには張らない
 
 条の名前だけの参照（前条・第N条）は、参照先の第 1 項を指す。参照先が無い（前項が無い、存在しない条）ときは辺を作らない。
 各辺に、出典のページ・根拠の本文・extracted_by・updated_at を付ける。
 """
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -76,7 +78,25 @@ def _paragraph_edges(reg: Regulation, article: Article, para: Paragraph, stamp: 
     return edges
 
 
-def extract_edges(reg: Regulation, *, now: datetime | None = None) -> list[Edge]:
+def _term_edges(reg: Regulation, terms: Mapping[str, str], stamp: str) -> list[Edge]:
+    """辞書の語が出る項・脚注から、その語を定義している項への辺。語は文字列の一致で探す（辞書の語は、より長い語の一部にならないものを選ぶ）。"""
+    known = {p.id for a in reg.articles for p in a.paragraphs}
+    missing = sorted({d for d in terms.values() if d not in known})
+    if missing:
+        raise ValueError(f"定義の項が存在しない: {missing}")
+    sources = [(p.id, p.raw, p.page) for a in reg.articles for p in a.paragraphs]
+    sources += [(f.id, f.text, f.page) for f in reg.footnotes]
+    edges = []
+    for src, text, page in sources:
+        for term, definer in terms.items():
+            if src != definer and term in text:
+                edges.append(Edge("uses_term", src, definer, term, page, "rule", stamp))
+    return edges
+
+
+def extract_edges(
+    reg: Regulation, *, terms: Mapping[str, str] | None = None, now: datetime | None = None
+) -> list[Edge]:
     stamp = (now or datetime.now(UTC)).isoformat(timespec="seconds")
     chapters = {c.number: c for c in reg.chapters}
     edges: list[Edge] = []
@@ -86,6 +106,8 @@ def extract_edges(reg: Regulation, *, now: datetime | None = None) -> list[Edge]
             edges.append(Edge("same_chapter", article.id, chapter.id, chapter.heading, article.page, "rule", stamp))
         for para in article.paragraphs:
             edges.extend(_paragraph_edges(reg, article, para, stamp))
+    if terms:
+        edges.extend(_term_edges(reg, terms, stamp))
     seen: set[tuple[str, str, str]] = set()
     unique: list[Edge] = []
     for e in edges:
