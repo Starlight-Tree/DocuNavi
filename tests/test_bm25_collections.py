@@ -1,6 +1,6 @@
 """BM25 の基準線（scripts/bm25_baseline.py）の、資料群（storage/pdf/ の PDF のディレクトリ。ザーハードも PDF）をまたぐ検索のテスト。
 
-アプリの検索ではない（アプリは DB のベクトル検索）。評価の BM25 の経路と、conftest の偽の検索が使う実装なので、挙動を固定しておく。
+アプリの検索ではない（アプリは DB のベクトル検索）。評価の BM25 の経路が使う実装なので、挙動を固定しておく。
 検索そのものの精度は tests/test_bm25_baseline.py と評価（scripts/eval_retrieval.py）が見る。ここは、資料群を足しても
 他の資料群の結果が動かないこと、範囲の指定、PDF を取り込めないときの扱いを確かめる。
 """
@@ -14,6 +14,7 @@ import pytest
 from scripts import bm25_baseline as tools
 from scripts import eval_retrieval as ev
 from scripts.bm25_baseline import search_chunks, search_collections
+from tests.bm25_fixtures import txt_dir  # noqa: F401  (フィクスチャ)
 from tests.pdf_fixtures import build_pdf, paragraphs
 from tests.zahard_corpus import ZAHARD_FILES, ZAHARD_PDF_DIR
 
