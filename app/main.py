@@ -60,7 +60,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             await search_vector.close()
 
 
-app = FastAPI(title="RAG Chatbot", lifespan=lifespan)
+app = FastAPI(title="DocuNavi", description="資料を聞く・探す", lifespan=lifespan)
 
 origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
