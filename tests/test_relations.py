@@ -8,6 +8,7 @@ import yaml
 from app.ingestion.pdf_parser import Page, extract_pages
 from app.relations.articles import parse_regulation
 from app.relations.extract import extract_edges
+from app.relations.terms import TSUBASA_DORM_TERMS
 from scripts.eval_relations import GOLD, PDF, TERMS, evaluate
 
 NOW = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
@@ -180,3 +181,8 @@ def test_changing_article_13_reaches_articles_15_17_18_through_terms():
     edges = extract_edges(reg, terms=terms, now=NOW)
     users = {e.src for e in edges if e.type == "uses_term" and e.dst == "a13p1"}
     assert users == {"a15p1", "a17p1", "a18p1", "fn1"}
+
+
+def test_the_app_dictionary_is_the_same_as_the_eval_dictionary():
+    # アプリのイメージには evals/ が入らないので、辞書の写しを app/relations/terms.py に持つ。ずれたら評価と API の結果が食い違う
+    assert yaml.safe_load(Path(TERMS).read_text(encoding="utf-8")) == TSUBASA_DORM_TERMS

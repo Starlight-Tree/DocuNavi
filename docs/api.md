@@ -130,3 +130,21 @@ data: [DONE]
 - **エラー:** DB を読めないときは固定メッセージの 503（例外の内容・接続先は含まない）。`/chunks` で DB が未設定のときも 503。
 - 応答には `Cache-Control: no-store` が付きます。書き込みの API はありません（POST などは 405）。
 
+## `GET /documents/{id}/graph`、`GET /documents/{id}/impact`
+
+入寮規程（`tsubasa_dorm_rules.pdf`）の条文の関係（実験）。**対象はこの 1 資料だけ**で、他の資料は 404（`この資料は、関係図の対象ではありません。`）。
+DB には何も保存せず、元の PDF（`/file` と同じく、名前とハッシュが DB と合うもの）を、リクエストのたびに読んで計算する。
+規則だけで作る（LLM は使わない）。抽出の仕組みと精度は `app/relations/` と `evals/relations/`。
+
+- **`/graph`:** `nodes`（`id`・`type`＝`chapter` / `article` / `paragraph` / `footnote`・`label`・`text`・`parent`・`page`）と、
+  `edges`（`type`・`src`・`dst`・`evidence`・`page`・`extracted_by`・`updated_at`）。ノード id は章 `ch3`、条 `a13`、項 `a13p2`、脚注 `fn1`。
+  辺の向きは「`src` が `dst` に依存する」。`type` は `references`（参照）・`exception_of`（「前項の定めにかかわらず」）・
+  `uses_term`（辞書の定義語を使う）・`same_chapter`（条 → 章の所属）。`evidence` は根拠にした本文。
+- **`/impact?node=a13p1&hops=2`:** `node`（項・条・脚注。条を指定すると、その条の全ての項が起点）を変えたとき、依存をたどって
+  影響が及ぶ先。`impacted`（`id` と起点からの `hops`）、`articles`（影響が及ぶ条。起点の条は除く）、たどった `edges`、`start`。
+  たどる辺は `references` / `exception_of` / `uses_term` だけ（`same_chapter` は依存ではない）。
+  `hops` は 1〜10（既定 2）。形の違う `node` と範囲外の `hops` は 422、規程に無い `node` は 404、章（`ch…`）は起点にできず 422。
+- **エラー:** 存在しない `id` は 404、元の PDF が無いとき 404、内容が DB と違うとき 409、DB を読めない・未設定は固定メッセージの 503、
+  PDF の読み取り・条文の分割に失敗したときは固定メッセージの 500（例外の内容は含まない）。応答は `Cache-Control: no-store`。
+- **認証:** `/documents` と同じ（`AUTH_MODE=required` で `Authorization: Bearer`）。
+- **限界:** 辞書（寮費・共益費・入寮期間・保証金の 4 語）に無い語の依存は出ない。語は文字列の一致で見る。測定は `evals/relations/`（同じ人が作った正解に対する値）。
