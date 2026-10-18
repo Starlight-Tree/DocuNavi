@@ -7,5 +7,11 @@ __pycache__/
 # gcloud の短期トークン（scripts/issue-agent-token.sh が書き出す。コミットしない）
 .gcloud-token*
 
+# Claude Code の個人の許可設定（承認の操作で自動生成される。コミットしない。共有の設定は .claude/settings.json）
+.claude/settings.local.json
+
 # ベクトル検索の評価が作る、質問の埋め込みのキャッシュ（scripts/eval_vector.py。コミットしない）
 /evals/cache/
+
+# Playwright MCP が作る画面確認の成果物（スクリーンショット・スナップショット・コンソールログ。コミットしない）
+.playwright-mcp/

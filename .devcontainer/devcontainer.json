@@ -17,7 +17,8 @@
 	// （README の「開発環境の GitHub CLI（gh）」）。gcloud のログインは残さない。
 	"mounts": [
 		"source=claude-code-config-${devcontainerId},target=/home/vscode/.claude,type=volume",
-		"source=gh-config-${devcontainerId},target=/home/vscode/.gh-config,type=volume"
+		"source=gh-config-${devcontainerId},target=/home/vscode/.gh-config,type=volume",
+		"source=playwright-browsers-${devcontainerId},target=/home/vscode/.cache/ms-playwright,type=volume"
 	],
 
 	// GH_CONFIG_DIR: ~/.config/gh ではなく専用の場所にする。~/.config がイメージに無いと、マウントの親ディレクトリが
@@ -34,12 +35,14 @@
 	},
 
 	// claude-volume / gh-volume: 新規作成直後のボリュームは root 所有になるため、vscode ユーザーが書き込めるようにする。
-	// cli-tools: gcloud と gh の導入だけを行う（ログインは含まない）。失敗してもコンテナの作成は止まらない。
-	// 並列に動く別エントリにすると apt のロックを取り合うので、順番に実行する
+	// cli-tools: gcloud・gh・Playwright の導入だけを行う（ログインは含まない）。失敗してもコンテナの作成は止まらない。
+	// 並列に動く別エントリにすると apt のロックを取り合うので、順番に実行する。
+	// install-playwright.sh: Playwright MCP（.mcp.json）用の Chromium（~/.cache/ms-playwright のボリュームに入る。
+	// 所有者の修正もこのスクリプトが行う）と、Chromium に要るライブラリーの導入。README の「開発環境のブラウザー確認」
 	"postCreateCommand": {
 		"claude-volume": "sudo chown -R vscode:vscode /home/vscode/.claude",
 		"gh-volume": "sudo chown -R vscode:vscode /home/vscode/.gh-config",
-		"cli-tools": "bash .devcontainer/install-gcloud.sh; bash .devcontainer/install-gh.sh"
+		"cli-tools": "bash .devcontainer/install-gcloud.sh; bash .devcontainer/install-gh.sh; bash .devcontainer/install-playwright.sh"
 	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
