@@ -157,6 +157,25 @@ def test_invalid_pages_become_none_so_the_screen_shows_nothing(vector_env, page,
     ]
 
 
+def test_a_tool_message_with_an_artifact_survives_the_checkpoint_serializer():
+    # Postgres の履歴（AsyncPostgresSaver）が使う既定のシリアライザで、artifact つきの ToolMessage と sources が往復できる
+    from langchain_core.messages import ToolMessage
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+
+    sources = [{"name": "a.pdf", "page": 2, "page_end": 3}, {"name": "b.pdf", "page": None, "page_end": None}]
+    state = {
+        "messages": [ToolMessage(content="[a.pdf]\n本文", tool_call_id="c1", id="t1", artifact=sources)],
+        "sources": sources,
+    }
+    serde = JsonPlusSerializer()
+
+    restored = serde.loads_typed(serde.dumps_typed(state))
+
+    assert restored["messages"][0].artifact == sources
+    assert restored["messages"][0].content == "[a.pdf]\n本文"
+    assert restored["sources"] == sources
+
+
 def test_no_hit_gives_an_empty_artifact(vector_env):
     pool, _ = vector_env
     pool.rows = []
