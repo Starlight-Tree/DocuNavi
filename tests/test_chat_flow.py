@@ -14,7 +14,7 @@ from langchain_core.messages import HumanMessage
 from app.agents import tools
 from app.agents.graph import MOCK_REPLY
 from app.api import routes
-from tests.zahard_corpus import zahard_texts
+from tests.fakes import FakeSearch
 
 # ツール出力は "[ファイル名.pdf]\n本文" の繰り返し
 _SOURCE_HEAD = re.compile(r"(?m)^\[([^\]\n]+\.pdf)\]$")
@@ -94,15 +94,15 @@ def test_chat_assigns_uuid_thread_id_when_omitted(client):
     ],
 )
 def test_rag_returns_sources_from_chunks(client, searching_llm, question, expected_chunk):
-    # 前提: 期待するチャンクが実在する（資料を差し替えたらここで気づける）
-    assert expected_chunk in zahard_texts()
+    # 前提: 期待するファイルが偽の資料にある（偽の資料を差し替えたらここで気づける）
+    assert expected_chunk in FakeSearch.FILE_NAMES
 
     body = _chat(client, question, str(uuid.uuid4())).json()
 
     assert body["context"].startswith("[ザーハード")
     names = _sources(body["context"])
     assert expected_chunk in names
-    assert all(name in zahard_texts() for name in names)
+    assert all(name in FakeSearch.FILE_NAMES for name in names)
 
     # 回答には根拠にした資料名が出典として載る
     assert "出典" in body["reply"]

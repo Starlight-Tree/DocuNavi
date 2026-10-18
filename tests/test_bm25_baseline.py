@@ -1,12 +1,13 @@
 """BM25 の基準線（scripts/bm25_baseline.py）の回帰テスト。アプリの検索ではない（アプリは DB のベクトル検索）。
 
-評価の BM25 の経路と、conftest の偽の検索が使う実装なので、挙動と精度の下限を固定しておく。
+評価の BM25 の経路が使う実装なので、挙動と精度の下限を固定しておく。
 """
 
 import pytest
 
 from scripts import bm25_baseline as tools
 from scripts.bm25_baseline import TOP_K, load_chunks, search_chunks
+from tests.bm25_fixtures import no_pdfs, txt_dir  # noqa: F401  (フィクスチャ)
 from tests.rag_eval_cases import ALL_CASES, RELATED_CASES, UNRELATED_CASES
 from tests.zahard_corpus import ZAHARD_FILES, zahard_texts
 
