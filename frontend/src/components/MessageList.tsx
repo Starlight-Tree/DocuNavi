@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChatMessage } from '../hooks/useChat';
+import { followUpQuestions } from '../lib/followUps';
 import { renderMarkdown } from '../lib/markdown';
+import { parseSources } from '../lib/sources';
 import { SourcesPanel } from './SourcesPanel';
 
 interface MessageListProps {
@@ -70,6 +72,15 @@ export function MessageList({
   };
 
   const lastId = messages[messages.length - 1]?.id;
+  // 回答のあとに、その回答の根拠になった資料に答えがある質問を出す（生成中・送信中は出さない）
+  const lastMessage = messages[messages.length - 1];
+  const followUps =
+    onExample && !busy && lastMessage?.role === 'assistant' && lastMessage.context
+      ? followUpQuestions(
+          [...new Set(parseSources(lastMessage.context).map((source) => source.name))],
+          messages.filter((m) => m.role === 'user').map((m) => m.text),
+        )
+      : [];
 
   return (
     <div
@@ -138,6 +149,17 @@ export function MessageList({
           </article>
         );
       })}
+
+      {followUps.length > 0 && onExample && (
+        <div className="follow-ups" role="group" aria-label="続けて聞く">
+          <span className="follow-ups-label">続けて聞く</span>
+          {followUps.map((question) => (
+            <button key={question} type="button" className="example-chip" onClick={() => onExample(question)}>
+              {question}
+            </button>
+          ))}
+        </div>
+      )}
 
       {waiting && (
         <div className="message message-assistant message-pending">

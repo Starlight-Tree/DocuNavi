@@ -33,21 +33,24 @@ export function SourcesPanel({ context }: SourcesPanelProps) {
 
   return (
     <div className="sources">
-      <div className="source-chips" role="group" aria-label="出典（押すと元のPDFを開きます）">
-        <span className="source-chips-label">出典</span>
+      <p className="source-cards-label">出典</p>
+      <div className="source-cards" role="group" aria-label="出典（押すと元のPDFを開きます）">
         {sources.map((source, index) => (
           <button
             key={`${index}-${source.name}`}
             type="button"
-            className="source-chip"
+            className="source-card"
             disabled={opening !== null}
             onClick={() => void open(index)}
           >
-            <span className="source-chip-number" aria-hidden="true">
-              {index + 1}
+            <span className="source-card-head">
+              <span className="source-chip-number" aria-hidden="true">
+                {index + 1}
+              </span>
+              <span className="source-card-name">{source.name}</span>
             </span>
-            {source.name}
-            {opening === index && <span className="visually-hidden">（開いています）</span>}
+            <span className="source-card-text">{source.text}</span>
+            <span className="source-card-open">{opening === index ? '開いています…' : 'PDF を開く →'}</span>
           </button>
         ))}
       </div>
