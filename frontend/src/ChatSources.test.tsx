@@ -106,6 +106,70 @@ describe('出典チップ', () => {
   });
 });
 
+describe('出典カードのページ（サーバーが検索で返した値）', () => {
+  const SOURCES = [
+    { name: 'tsubasa_dorm_rules.pdf', page: 2, page_end: 3 },
+    { name: 'tsubasa_dorm_rules.pdf', page: 1, page_end: null },
+  ];
+
+  function installSourcesFetch(sources: unknown) {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'gemini' });
+      if (url.includes('/chat/stream')) return replyResponse({ reply: '2 月 28 日までです。', context: CONTEXT, sources });
+      if (url === '/documents') return jsonResponse(LIST);
+      if (url === '/documents/7/chunks') return jsonResponse(DETAIL);
+      return new Response('not found', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('カードに「p.1」と、ページをまたぐなら「p.2–3」を出す', async () => {
+    installSourcesFetch(SOURCES);
+    render(<App />);
+    await ask(userEvent.setup());
+
+    const cards = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+    expect(within(cards[0]!).getByText('p.2–3')).toBeInTheDocument();
+    expect(within(cards[1]!).getByText('p.1')).toBeInTheDocument();
+  });
+
+  it('押すと、サーバーが返したページで開く（抜粋の突き合わせなら 3 ページになる出典でも）', async () => {
+    installSourcesFetch(SOURCES);
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    await user.click((await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ }))[1]!);
+
+    // 抜粋の突き合わせなら 3 ページ（chunks 側の値）になる。サーバーの値（1）が使われる
+    await waitFor(() => expect(window.location.search).toBe('?tab=documents&doc=7&view=pdf&page=1'));
+  });
+
+  it('sources が無い（古い応答）ときは、ページを出さず、押すと今までどおり突き合わせで開く', async () => {
+    installSourcesFetch(undefined);
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    const cards = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+    expect(within(cards[0]!).queryByText(/^p\./)).not.toBeInTheDocument();
+    await user.click(cards[1]!);
+
+    await waitFor(() => expect(window.location.search).toBe('?tab=documents&doc=7&view=pdf&page=3'));
+  });
+
+  it('sources と出典が合わない（件数が違う）ときは、ずれたページを出さない', async () => {
+    installSourcesFetch([{ name: 'tsubasa_dorm_rules.pdf', page: 2, page_end: null }]);
+    render(<App />);
+    await ask(userEvent.setup());
+
+    const cards = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+    cards.forEach((card) => expect(within(card).queryByText(/^p\./)).not.toBeInTheDocument());
+  });
+});
+
 describe('続けて聞く', () => {
   it('回答の根拠になった資料に答えがある質問を出し、聞いたばかりの質問は出さない', () => {
     const questions = followUpQuestions(['tsubasa_dorm_rules.pdf'], ['入寮できるのは誰ですか？']);

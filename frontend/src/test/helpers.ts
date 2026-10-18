@@ -31,6 +31,8 @@ export interface ReplySpec {
   mode?: string;
   /** 設定資料。未検索なら空文字。 */
   context?: string;
+  /** 出典ごとのページ（サーバーの messageMetadata.sources）。渡さなければ送らない（古いサーバー）。 */
+  sources?: unknown;
 }
 
 /** サーバーが返す正常系のチャンクの並び（start → text → message-metadata → finish）。 */
@@ -45,7 +47,7 @@ export function replyChunks(spec: ReplySpec = {}): Chunk[] {
     { type: 'text-start', id: 'text-0' },
     ...deltas.map((delta) => ({ type: 'text-delta', id: 'text-0', delta })),
     { type: 'text-end', id: 'text-0' },
-    { type: 'message-metadata', messageMetadata: { context: spec.context ?? '' } },
+    { type: 'message-metadata', messageMetadata: { context: spec.context ?? '', ...(spec.sources !== undefined ? { sources: spec.sources } : {}) } },
     { type: 'finish' },
   ];
 }

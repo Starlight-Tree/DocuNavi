@@ -281,7 +281,7 @@ async def chat(
         # context は直近のターンの検索結果だけを返したいので、毎ターン空に戻す
         work = asyncio.ensure_future(
             get_graph(mode == "mock").ainvoke(
-                {"messages": [HumanMessage(content=req.message)], "context": ""},
+                {"messages": [HumanMessage(content=req.message)], "context": "", "sources": []},
                 config,
             )
         )
@@ -447,7 +447,7 @@ async def chat_stream(
     thread_id = req.thread_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": conversation_key(user_id, thread_id), STREAM_TOKENS_KEY: True}}
     # context は直近のターンの検索結果だけを返したいので、毎ターン空に戻す
-    inputs = {"messages": [HumanMessage(content=req.message)], "context": ""}
+    inputs = {"messages": [HumanMessage(content=req.message)], "context": "", "sources": []}
     started = time.monotonic()
     run: _GraphRun | None = None
     handed_off = False
