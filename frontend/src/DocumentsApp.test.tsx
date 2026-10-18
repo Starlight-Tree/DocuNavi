@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
-import { MSG_NOT_CONFIGURED, MSG_NO_DOCUMENTS } from './components/DocumentsView';
+import { MSG_NOT_CONFIGURED, MSG_NO_DOCUMENTS, MSG_NO_GRAPH } from './components/DocumentsView';
 import { fakeAuth } from './test/auth';
 import type { FakeAuth } from './test/auth';
 import { errorResponse, jsonResponse } from './test/helpers';
@@ -198,6 +198,12 @@ describe('資料一覧: チャンク', () => {
 
     const items = await screen.findAllByRole('listitem');
     expect(items).toHaveLength(3);
+    // チャンク番号・埋め込みの状態は、開発者向けなので、既定では隠す
+    expect(items[0]).not.toHaveTextContent('#0');
+    expect(items[0]).not.toHaveTextContent('埋め込み');
+    expect(screen.queryByText(/チャンク（埋め込み済み/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '開発者向けの情報' }));
+    expect(screen.getByRole('button', { name: '開発者向けの情報' })).toHaveAttribute('aria-pressed', 'true');
     expect(items[0]).toHaveTextContent('#0');
     expect(items[0]).toHaveTextContent('p.1');
     expect(items[0]).toHaveTextContent('第1章 総則');
@@ -580,6 +586,31 @@ describe('資料一覧: 元PDF', () => {
     await screen.findByTitle('つばさ大学学生寮 入寮規程 の元PDF');
     const file = calls.find((c) => c.url.endsWith('/file'))!;
     expect(new Headers(file.init.headers).get('Authorization')).toBeNull();
+  });
+});
+
+describe('資料の詳細: 見出しと関係図の案内', () => {
+  const DETAIL = { document: summary(2, 'cafe_store_guide.pdf', 30, 28), chunks: [chunk(0, '本文')], original_pdf: true };
+  const routes = (url: string) => jsonResponse(url === '/documents' ? LIST : DETAIL);
+
+  it('資料名の下に、ページ数と更新日を出す', async () => {
+    installDocsFetch(routes);
+    const { user } = setup();
+    await openDocuments(user);
+    await user.click(await screen.findByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
+
+    expect(await screen.findByText('3 ページ')).toBeInTheDocument();
+    expect(screen.getByText(/^更新 2026\/10\/18/)).toBeInTheDocument();
+  });
+
+  it('関係図が出ない資料には、入寮規程だけの対応であることを書く', async () => {
+    installDocsFetch(routes);
+    const { user } = setup();
+    await openDocuments(user);
+    await user.click(await screen.findByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
+
+    expect(await screen.findByText(MSG_NO_GRAPH)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '関係図' })).not.toBeInTheDocument();
   });
 });
 
