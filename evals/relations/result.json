@@ -1,0 +1,113 @@
+{
+  "structure": {
+    "ok": true,
+    "articles": 29,
+    "paragraphs": 50,
+    "chapters": 5,
+    "got_chapters": {
+      "ch1": [
+        1,
+        3
+      ],
+      "ch2": [
+        4,
+        12
+      ],
+      "ch3": [
+        13,
+        18
+      ],
+      "ch4": [
+        19,
+        25
+      ],
+      "ch5": [
+        26,
+        29
+      ]
+    },
+    "diff_paragraphs": {}
+  },
+  "counts": {
+    "explicit": 10,
+    "implicit": 11,
+    "predicted_non_structural": 10,
+    "predicted_same_chapter": 29
+  },
+  "precision": 1.0,
+  "recall_explicit": 1.0,
+  "recall_implicit": 0.0,
+  "recall_all": 0.47619047619047616,
+  "f1_all": 0.6451612903225806,
+  "missed_explicit": [],
+  "missed_implicit": [
+    [
+      "references",
+      "a11p1",
+      "a10p1"
+    ],
+    [
+      "references",
+      "a11p2",
+      "a10p1"
+    ],
+    [
+      "references",
+      "a14p2",
+      "a14p1"
+    ],
+    [
+      "references",
+      "a15p1",
+      "a13p1"
+    ],
+    [
+      "references",
+      "a15p1",
+      "a14p1"
+    ],
+    [
+      "references",
+      "a16p2",
+      "a16p1"
+    ],
+    [
+      "references",
+      "a17p1",
+      "a13p1"
+    ],
+    [
+      "references",
+      "a18p1",
+      "a13p1"
+    ],
+    [
+      "references",
+      "a27p1",
+      "a26p1"
+    ],
+    [
+      "references",
+      "a29p2",
+      "a15p2"
+    ],
+    [
+      "references",
+      "fn1",
+      "a13p1"
+    ]
+  ],
+  "false_positives": [],
+  "wrong_type": [],
+  "same_chapter_missing": [],
+  "same_chapter_extra": [],
+  "bad_evidence": [],
+  "verdict": {
+    "split": true,
+    "explicit_recall >= 0.9": true,
+    "precision >= 0.9": true,
+    "same_chapter exact": true,
+    "evidence 100%": true
+  },
+  "passed": true
+}
