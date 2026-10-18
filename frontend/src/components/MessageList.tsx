@@ -11,7 +11,17 @@ interface MessageListProps {
   busy?: boolean;
   /** 再読み込み後など、thread_id は引き継いでいるが、画面に履歴が無い状態。 */
   resumed?: boolean;
+  /** 空の画面の質問例を押したときに、その質問を送る。渡さなければ、質問例は出さない。 */
+  onExample?: (text: string) => void;
 }
+
+/** 最初の画面に出す質問例。登録した資料（ザーハード・入寮規程・洗濯乾燥機の取扱説明書・店舗案内）ごとに 1 つ。 */
+export const EXAMPLE_QUESTIONS = [
+  'ザーハードの大気の酸素濃度はどれくらい？',
+  '入寮の申込みはいつまでにすればよいですか？',
+  '洗濯機の排水ホースの先端は、床からどのくらいの高さにすればよいですか。',
+  '犬を連れて店に入りたいのですが、店内の席に座れますか。',
+] as const;
 
 // 末尾からこの距離（px）以内にいるときだけ、新しい本文に合わせて自動でスクロールする
 const STICK_TO_BOTTOM_PX = 80;
@@ -24,6 +34,7 @@ export function MessageList({
   waiting,
   busy = false,
   resumed = false,
+  onExample,
 }: MessageListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
@@ -80,11 +91,18 @@ export function MessageList({
       )}
 
       {messages.length === 0 && !waiting && !resumed && (
-        <p className="empty-state">
-          登録された資料（設定資料や店舗案内など）について質問してみましょう。
-          <br />
-          例: ザーハードの大気はどんな成分ですか？ / みなとコーヒーの定休日はいつですか？
-        </p>
+        <div className="empty-state">
+          <p>登録された資料（設定資料・規程・取扱説明書・店舗案内など）について質問してみましょう。</p>
+          {onExample && (
+            <div className="example-chips" role="group" aria-label="質問の例">
+              {EXAMPLE_QUESTIONS.map((question) => (
+                <button key={question} type="button" className="example-chip" onClick={() => onExample(question)}>
+                  {question}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {messages.map((message) => {
