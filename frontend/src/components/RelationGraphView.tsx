@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo } from 'react';
 import type { DocumentSummary } from '../api/documents';
 import type { GraphEdge, GraphNode, Impact, RelationGraph } from '../api/graph';
 import { IMPACT_HOPS } from '../api/graph';
@@ -13,6 +13,7 @@ import {
   layoutGraph,
   selectableNodes,
 } from '../lib/relationGraph';
+import { useUrlState } from '../lib/urlState';
 import { Status } from './Status';
 
 // 図の部品（React Flow と dagre）は大きいので、関係図を開いたときに読む
@@ -40,11 +41,18 @@ export function RelationGraphView({ document }: { document: DocumentSummary }) {
 }
 
 function RelationGraphReady({ document, graph }: { document: DocumentSummary; graph: RelationGraph }) {
-  const [selected, setSelected] = useState<string | null>(null);
+  // 選んだ項は URL が持つ（?item=…）。図に無い ID（古い URL・手で書き換えた値）は、選んでいないことにする
+  const { item, navigate } = useUrlState();
   const layout = useMemo(() => layoutGraph(graph), [graph]);
   const nodes = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph]);
   const options = useMemo(() => selectableNodes(graph), [graph]);
   const connected = useMemo(() => connectedIds(graph), [graph]);
+  const selected = item !== null && nodes.has(item) ? item : null;
+  const unknownItem = item !== null && selected === null;
+  const setSelected = useCallback((id: string | null) => navigate({ item: id }), [navigate]);
+  useEffect(() => {
+    if (unknownItem) navigate({ item: null }, 'replace');
+  }, [unknownItem, navigate]);
   const [impactState, reloadImpact] = useImpact(document.id, selected);
   const impact = selected !== null && impactState.status === 'ready' ? impactState.data : null;
   const kinds = useMemo(() => classifyImpact(impact), [impact]);
