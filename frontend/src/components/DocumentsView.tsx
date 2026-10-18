@@ -6,10 +6,8 @@ import { useDocumentChunks, useDocumentList, useDocumentPdf } from '../hooks/use
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
 
-export const MSG_DOCUMENTS_NOTE =
-  'この画面は DB に保存された資料を表示しています。チャットは、ここにある「取り込み済み」の資料を検索して答えます。';
 export const MSG_NOT_CONFIGURED = '資料のデータベースが設定されていません。';
-export const MSG_NO_DOCUMENTS = '登録された資料はありません。';
+export const MSG_NO_DOCUMENTS = '登録された資料はありません。資料を取り込むと、ここに表示され、チャットで検索できます。';
 
 const STATUS_LABELS: Record<string, string> = { ready: '取り込み済み', failed: '取り込み失敗' };
 
@@ -70,34 +68,30 @@ function DocumentTable({ onOpen }: { onOpen: (document: DocumentSummary) => void
             <th scope="col">状態</th>
             <th scope="col">ページ数</th>
             <th scope="col">チャンク数</th>
-            <th scope="col">埋め込み済み</th>
             <th scope="col">更新</th>
-            <th scope="col">
-              <span className="visually-hidden">操作</span>
-            </th>
           </tr>
         </thead>
         <tbody>
           {state.data.documents.map((document) => (
-            <tr key={document.id}>
+            // 行のどこを押しても開く（マウス用）。キーボードと読み上げには、文書名のボタンを使う
+            <tr key={document.id} className="documents-row" onClick={() => onOpen(document)}>
               <th scope="row">
-                <DocumentName document={document} />
-              </th>
-              <td>{statusLabel(document)}</td>
-              <td>{document.pages ?? '-'}</td>
-              <td>{document.chunkCount}</td>
-              <td>{`${document.embeddedCount} / ${document.chunkCount}`}</td>
-              <td>{formatDate(document.updatedAt)}</td>
-              <td>
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="document-open"
                   aria-label={`${displayName(document)} を開く`}
-                  onClick={() => onOpen(document)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpen(document);
+                  }}
                 >
-                  開く
+                  <DocumentName document={document} />
                 </button>
-              </td>
+              </th>
+              <td data-label="状態">{statusLabel(document)}</td>
+              <td data-label="ページ数">{document.pages ?? '-'}</td>
+              <td data-label="チャンク数">{document.chunkCount}</td>
+              <td data-label="更新">{formatDate(document.updatedAt)}</td>
             </tr>
           ))}
         </tbody>
@@ -211,9 +205,6 @@ export function DocumentsView() {
 
   return (
     <main className="documents" aria-label="資料一覧">
-      <p className="documents-note" role="note">
-        {MSG_DOCUMENTS_NOTE}
-      </p>
       {selected ? (
         <DocumentChunks document={selected} onBack={() => setSelected(null)} />
       ) : (

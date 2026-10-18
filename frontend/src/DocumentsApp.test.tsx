@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
-import { MSG_DOCUMENTS_NOTE, MSG_NOT_CONFIGURED, MSG_NO_DOCUMENTS } from './components/DocumentsView';
+import { MSG_NOT_CONFIGURED, MSG_NO_DOCUMENTS } from './components/DocumentsView';
 import { fakeAuth } from './test/auth';
 import type { FakeAuth } from './test/auth';
 import { errorResponse, jsonResponse } from './test/helpers';
@@ -73,7 +73,7 @@ async function openDocuments(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('資料一覧: 画面', () => {
-  it('開くまでは資料を取らない。開くと注意書きと、文書ごとの件数が出る', async () => {
+  it('開くまでは資料を取らない。開くと、文書ごとの状態が出る（説明文は出さない）', async () => {
     const { calls } = installDocsFetch(() => jsonResponse(LIST));
     const { user } = setup();
     await screen.findByRole('textbox', { name: 'メッセージ' });
@@ -81,12 +81,10 @@ describe('資料一覧: 画面', () => {
 
     await openDocuments(user);
 
-    expect(await screen.findByText(MSG_DOCUMENTS_NOTE)).toBeInTheDocument();
     const row = (await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ })) as HTMLElement;
-    expect(within(row).getByText('3 / 3')).toBeInTheDocument();
     expect(within(row).getByText('取り込み済み')).toBeInTheDocument();
-    const cafe = screen.getByRole('row', { name: /cafe_store_guide\.pdf/ });
-    expect(within(cafe).getByText('28 / 30')).toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(screen.queryByText('埋め込み済み')).not.toBeInTheDocument();
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toBe('/documents');
     expect(calls[0]!.init.method ?? 'GET').toBe('GET');
@@ -103,7 +101,6 @@ describe('資料一覧: 画面', () => {
 
     await user.click(screen.getByRole('button', { name: 'チャット' }));
     expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveValue('書きかけの質問');
-    expect(screen.queryByText(MSG_DOCUMENTS_NOTE)).not.toBeInTheDocument();
   });
 
   it('いま開いている画面を、タブに示す', async () => {
@@ -213,8 +210,18 @@ describe('資料一覧: チャンク', () => {
     expect(items[2]).toHaveTextContent('（見出しなし）');
     expect(items[2]).toHaveTextContent('埋め込みなし');
     expect(screen.getByText('3 チャンク（埋め込み済み 2 / 3）')).toBeInTheDocument();
-    expect(screen.getByText(MSG_DOCUMENTS_NOTE)).toBeInTheDocument();
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
+  });
+
+  it('行のどこを押しても開く', async () => {
+    installDocsFetch(routes);
+    const { user } = setup();
+    await openDocuments(user);
+
+    const row = await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
+    await user.click(within(row).getByText('取り込み済み'));
+
+    expect(await screen.findAllByRole('listitem')).toHaveLength(3);
   });
 
   it('本文は HTML として解釈せず、そのままの文字で出す', async () => {

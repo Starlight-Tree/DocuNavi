@@ -50,10 +50,15 @@ export function Header({ mode, view = 'chat', onViewChange, onNewConversation, u
           </span>
         )}
         {userLabel && <span className="user-label">{userLabel}</span>}
-        {view === 'chat' && (
+        {view === 'chat' ? (
           <button type="button" className="btn btn-secondary" onClick={onNewConversation}>
             新しい会話
           </button>
+        ) : (
+          // 資料一覧では押せないが、場所は空けておく（画面を切り替えても、ヘッダーの高さとタブの位置が動かない）
+          <span className="btn btn-secondary header-placeholder" aria-hidden="true">
+            新しい会話
+          </span>
         )}
         {onSignOut && (
           <button type="button" className="btn btn-secondary" onClick={onSignOut}>
