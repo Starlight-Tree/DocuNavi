@@ -1,15 +1,16 @@
 :root {
   color-scheme: light dark;
 
-  --bg: #f4f5fb;
+  /* 無彩色に近い灰色の地に、青を 1 色だけ。紫の塗りはやめ、枠線は薄くする */
+  --bg: #f6f7f5;
   --surface: #ffffff;
-  --surface-muted: #eceefa;
-  --text: #1c1e2e;
-  --text-muted: #5c6079;
-  --border: #d5d8ea;
-  --accent: #5a4bf0;
+  --surface-muted: #eef0ed;
+  --text: #1f2421;
+  --text-muted: #5d6762;
+  --border: #e0e4df;
+  --accent: #2c4fcf;
   --accent-text: #ffffff;
-  --user-bg: #5a4bf0;
+  --user-bg: #2c4fcf;
   --user-text: #ffffff;
   --danger-bg: #fdecec;
   --danger-border: #f0a8a8;
@@ -24,15 +25,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #12131c;
-    --surface: #1c1e2c;
-    --surface-muted: #262942;
-    --text: #e8e9f4;
-    --text-muted: #a3a7c4;
-    --border: #353852;
-    --accent: #8f84ff;
-    --accent-text: #12131c;
-    --user-bg: #4a3fcf;
+    --bg: #141715;
+    --surface: #1a1e1c;
+    --surface-muted: #232825;
+    --text: #e6eae7;
+    --text-muted: #9aa59f;
+    --border: #2e3532;
+    --accent: #8aa2ff;
+    --accent-text: #101319;
+    --user-bg: #3b55c9;
     --user-text: #ffffff;
     --danger-bg: #3a1c20;
     --danger-border: #8f3a44;
@@ -92,7 +93,7 @@ textarea {
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  max-width: 48rem;
+  max-width: 60rem;
   margin: 0 auto;
   background: var(--bg);
 }
@@ -106,13 +107,13 @@ textarea {
   padding: 0.75rem 1rem;
   padding-top: max(0.75rem, env(safe-area-inset-top));
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: transparent;
 }
 
 .app-title {
   grid-area: title;
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
 }
 
@@ -205,14 +206,14 @@ textarea {
   flex-direction: column;
   gap: 0.75rem;
   min-height: 0;
-  padding: 1rem;
+  padding: 1.25rem 1rem 1.5rem;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
 .empty-state {
   margin: auto;
-  max-width: 28rem;
+  max-width: 34rem;
   color: var(--text-muted);
   text-align: center;
 }
@@ -243,26 +244,32 @@ textarea {
   background: var(--surface-muted);
 }
 
+/* 会話は吹き出しにせず、「質問 = 見出し、回答 = 本文」の調べ物の画面にする。読みやすい行の長さに収める */
+.message,
+.message-pending {
+  width: 100%;
+  max-width: 46rem;
+  align-self: center;
+}
+
 .message {
-  max-width: min(85%, 36rem);
-  padding: 0.6rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 1rem;
   overflow-wrap: anywhere;
 }
 
 .message-user {
-  align-self: flex-end;
-  border-color: var(--user-bg);
-  border-bottom-right-radius: 0.25rem;
-  background: var(--user-bg);
-  color: var(--user-text);
+  padding-top: 1.1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.message-user:not(:first-child) {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
 }
 
 .message-assistant {
-  align-self: flex-start;
-  border-bottom-left-radius: 0.25rem;
-  background: var(--surface);
+  line-height: 1.9;
 }
 
 .message-text {
@@ -398,41 +405,83 @@ textarea {
   font-size: 0.9rem;
 }
 
-.source-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.5rem;
-}
-
-.source-chips-label {
+.source-cards-label {
+  margin: 0 0 0.4rem;
   color: var(--text-muted);
   font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
-.source-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  max-width: 100%;
-  padding: 0.25rem 0.7rem 0.25rem 0.3rem;
+.source-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.5rem;
+}
+
+.source-card {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  padding: 0.6rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-muted);
+  border-radius: 0.6rem;
+  background: var(--surface);
   color: var(--text);
   font: inherit;
   font-size: 0.85rem;
-  overflow-wrap: anywhere;
+  line-height: 1.55;
+  text-align: left;
   cursor: pointer;
 }
 
-.source-chip:hover:not(:disabled) {
+.source-card:hover:not(:disabled) {
   border-color: var(--accent);
+  background: var(--surface-muted);
 }
 
-.source-chip:disabled {
-  opacity: 0.6;
+.source-card:disabled {
+  opacity: 0.65;
   cursor: progress;
+}
+
+.source-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.source-card-text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-muted);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: pre-line;
+}
+
+.source-card-open {
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.follow-ups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  width: 100%;
+  max-width: 46rem;
+  align-self: center;
+}
+
+.follow-ups-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .source-chip-number {
@@ -564,10 +613,6 @@ textarea {
     padding: 0.75rem;
   }
 
-  .message {
-    max-width: 92%;
-  }
-
   .error-banner {
     margin-inline: 0.75rem;
   }
@@ -605,15 +650,18 @@ textarea {
 .view-tabs {
   display: flex;
   grid-area: nav;
-  gap: 0.25rem;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  border-radius: 0.65rem;
+  background: var(--surface-muted);
 }
 
 .view-tab {
   padding: 0.3rem 0.75rem;
-  /* 選択中は太字にしない（字幅が変わって、隣のタブが動く）。下線と色で示す */
+  border-radius: 0.5rem;
+  /* 選択中は太字にしない（字幅が変わって、隣のタブが動く）。面と色で示す */
   min-width: 5.5rem;
   border: 0;
-  border-bottom: 2px solid transparent;
   background: none;
   color: var(--text-muted);
   font: inherit;
@@ -625,7 +673,8 @@ textarea {
 }
 
 .view-tab[aria-current='page'] {
-  border-bottom-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
   color: var(--text);
 }
 
@@ -652,7 +701,8 @@ textarea {
 
 .documents-title {
   margin: 1rem 0 0.25rem;
-  font-size: 1.05rem;
+  font-size: 1.3rem;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
@@ -779,17 +829,28 @@ textarea {
   min-width: 12rem;
 }
 
+/* 表示の切り替え（元PDF / AI用テキスト / 関係図）。上のタブと同じ、分割ボタンの形にする */
 .view-switch {
-  display: flex;
-  gap: 0.5rem;
+  display: inline-flex;
+  gap: 0.15rem;
   margin: 0 0 1rem;
+  padding: 0.15rem;
+  border-radius: 0.65rem;
+  background: var(--surface-muted);
 }
 
-/* 選択中も字幅は変えない（太字にすると、隣のボタンが動く）。枠線と背景で示す */
+.view-switch .btn {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+/* 選択中も字幅は変えない（太字にすると、隣のボタンが動く）。面と枠で示す */
 .view-switch .btn[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--surface-muted);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  color: var(--text);
 }
 
 .pdf-frame {
@@ -1144,68 +1205,103 @@ textarea {
   }
 }
 
-/* 資料一覧は、狭い画面ではカードにする（表のままだと、文書名の列が細くなり、全部の列が縦に折り返す）。
+/* 資料一覧はカードにする（文書名の列が細くならず、状態・ページ数・更新が 1 行に収まる）。
    文書名のボタン（aria-label 付き）が操作の入口なので、読み上げでも開ける */
-@media (max-width: 720px) {
-  .documents-table,
-  .documents-table tbody {
-    display: block;
-  }
+.documents-table {
+  display: block;
+}
 
-  .documents-table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
+.documents-table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 
-  .documents-table tr {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 1rem;
-    margin-bottom: 0.6rem;
-    padding: 0.6rem 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    background: var(--surface);
-  }
+.documents-table tr {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin-bottom: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+}
 
-  .documents-table th,
-  .documents-table td {
-    padding: 0;
-    border-bottom: 0;
-  }
+.documents-table th,
+.documents-table td {
+  padding: 0;
+  border-bottom: 0;
+}
 
-  .documents-table th[scope='row'] {
-    flex-basis: 100%;
-    min-width: 0;
-  }
+.documents-table th[scope='row'] {
+  flex-basis: 100%;
+  min-width: 0;
+}
 
-  .documents-table td {
-    color: var(--text-muted);
-    font-size: 0.85rem;
-  }
+.documents-table td {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
 
-  .documents-table td::before {
-    content: attr(data-label) ' ';
-    font-size: 0.75rem;
-  }
+.documents-table td::before {
+  content: attr(data-label) ' ';
+  font-size: 0.75rem;
+}
 
-  .documents-row {
-    position: relative;
-    padding-right: 1.75rem;
-  }
+.documents-row {
+  position: relative;
+  padding-right: 1.75rem;
+}
 
-  /* 押せることが分かるように、カードの右端に矢印を置く（スマホには、ホバーの手がかりが無い） */
-  .documents-row::after {
-    content: '›';
-    position: absolute;
-    top: 50%;
-    right: 0.7rem;
-    color: var(--text-muted);
-    font-size: 1.4rem;
-    line-height: 1;
-    transform: translateY(-50%);
-  }
+/* 押せることが分かるように、カードの右端に矢印を置く */
+.documents-row::after {
+  content: '›';
+  position: absolute;
+  top: 50%;
+  right: 0.7rem;
+  color: var(--text-muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.documents-table tbody {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+}
+
+.documents-table tr {
+  align-content: start;
+  transition: border-color 0.12s;
+}
+
+.documents-row:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+/* 状態は、色つきの小さなラベルにする（取り込み失敗は赤）。ラベルの色が見出しの代わりなので、「状態」の文字は付けない */
+.documents-table td[data-status]::before {
+  content: none;
+}
+
+.documents-table td[data-status] {
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  font-size: 0.8rem;
+}
+
+.documents-table td[data-status='ready'] {
+  background: color-mix(in srgb, #2f9e63 18%, var(--surface));
+  color: var(--text);
+}
+
+.documents-table td[data-status='failed'] {
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
