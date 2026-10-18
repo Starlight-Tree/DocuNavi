@@ -33,7 +33,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from app.agents import tools
+from scripts import bm25_baseline as tools
 from app.ingestion import embedding
 from app.ingestion.chunker import chunk_pages
 from app.ingestion.pdf_parser import extract_pages

@@ -82,7 +82,7 @@ MAX_NEW_TEXTS = 80  # 追加で送る質問の埋め込みの件数の上限（�
 MAX_NEW_CALLS = 10
 
 # pgroonga の質問の作り方。ひらがなを区切りにして、漢字・カタカナ・英数字の連なり（語の核）を取り出し、2 文字以上のものを OR でつなぐ。
-# 現行 BM25 の _terms（app/agents/tools.py）が語の核を取る規則と同じ。連なりは Groonga が自分の分かち書き（TokenBigram）で照合する。
+# BM25 基準線の _terms（scripts/bm25_baseline.py）が語の核を取る規則と同じ。連なりは Groonga が自分の分かち書き（TokenBigram）で照合する。
 # 連なりは「文字・数字だけ」なので、問い合わせの構文（括弧・引用符・コロン・先頭の - など）は入らない。小文字にしてあるので、
 # 構文の OR（大文字）と取り違えることもない。
 _WORD_RUN = re.compile(r"[^\W_ぁ-ゟ]+")

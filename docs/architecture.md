@@ -29,11 +29,12 @@ app/
   agents/graph.py    LangGraph のグラフ、SYSTEM_PROMPT、モック LLM
   agents/guardrails.py  入出力ガードレール（出力は、完成した回答の検査と、ストリーミング中の逐次検査）
   agents/resilience.py  LLM 呼び出しのヘッジ付き再試行（完了を待つ hedged_call と、最初のチャンクを待つ hedged_stream）
-  agents/tools.py    資料の検索（search_documents）。資料群ごとに BM25 で採点して合わせる
-  ingestion/         PDF の取り込み（python -m app.ingestion）と、検索の単位への変換（corpus.py。アプリの検索と評価が共有）
+  agents/tools.py    資料の検索ツール（search_documents）。実体は search_vector.py（DB のベクトル検索。失敗しても別の経路に戻らない）
+  search_vector.py   質問の埋め込みと pgvector のコサイン類似度検索、起動時の DB の検査（設計: docs/search-design.md）
+  ingestion/         PDF の取り込み（python -m app.ingestion）と埋め込み（python -m app.ingestion.embed）。corpus.py は評価の BM25 基準線用
 frontend/            チャット画面（Vite + React + TypeScript）。dist/ がビルド成果物
-storage/pdf/<名前>/  PDF の資料（RAG の検索対象。ディレクトリ名が資料群の名前。いまは zahard・cafe・guides）
-storage/chunk/       .txt の資料の置き場（いまは空。ザーハードは PDF に移した。コードの経路は残している）
+storage/pdf/<名前>/  PDF の資料（取り込みの元。検索は DB を読む。ディレクトリ名は整理用。いまは zahard・cafe・guides）
+scripts/             評価の道具。bm25_baseline.py は、以前アプリが使った BM25（評価の基準線。アプリは使わない）
 tests/               pytest（モックモード固定）
 ```
 

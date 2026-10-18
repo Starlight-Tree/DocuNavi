@@ -12,8 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
 from app import search_vector  # noqa: E402
-from app.agents.graph import is_mock_mode, use_vertex_ai  # noqa: E402
-from app.agents.tools import search_scope, verify_search_backend  # noqa: E402
+from app.agents.graph import is_mock_mode  # noqa: E402
 from app.api.documents import router as documents_router  # noqa: E402
 from app.api.routes import router  # noqa: E402
 from app.auth import verify_auth_config  # noqa: E402
@@ -46,16 +45,15 @@ _configure_app_logging()  # mount_frontend の起動ログより前に有効に�
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    # 検索する資料群を決めて読み込む。SEARCH_SCOPE が知らない名前なら、検索が黙って空になる前に起動を失敗させる
-    logging.getLogger(__name__).info("検索する資料群: %s", ", ".join(search_scope()))
     # AUTH_MODE=required のとき、JWKS の公開鍵を取得できるかを確かめる。使えなければ、検証なしで動き出さないよう、起動を失敗させる
     await verify_auth_config()
     # DATABASE_URL があれば、会話履歴の接続プールを起動時に開いて終了時に閉じる（無ければ何もしない）。
     # 開けなければ、履歴がメモリに切り替わらないよう、起動を失敗させる
     async with history_store():
-        # SEARCH_BACKEND=vector のとき、DB の資料と埋め込みが使える状態かを確かめる。使えなければ、BM25 に黙って切り替えず、起動を失敗させる
-        # （接続プールは history_store が開く。ベクトル検索はそれを借りる）
-        await verify_search_backend(mock=is_mock_mode(), vertex=use_vertex_ai())
+        # 本物の LLM のときは、DB の資料と埋め込みが使える状態かを確かめる。使えなければ、検索のない状態で動き出さず、起動を失敗させる
+        # （接続プールは history_store が開く。検索はそれを借りる）。モックモードは資料を検索しないので、DB も API も要らない
+        if not is_mock_mode():
+            await search_vector.verify()
         try:
             yield
         finally:
