@@ -35,11 +35,11 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   履歴のキーを `<sub>:<thread_id>` にする（`sub` 以外から利用者 ID を取らない）。公開鍵が無ければ共有秘密には切り替えず、起動を失敗させる。
   実際の Supabase・Google での動作は未確認（`docs/configuration.md` の「ログイン（認証）」）。画面側は `frontend/src/auth/`
 - `app/api/documents.py`: 資料一覧（`GET /documents`、`/documents/{id}/chunks`。読み取り専用）。DB の `documents` / `chunks` の内容を返す（埋め込みのベクトルは返さない）。
-  チャットの検索が読むのと同じ DB。`AUTH_MODE=required` で認証。画面は「資料一覧」タブ（`DocumentsView`）
+  チャットの検索が読むのと同じ DB。`AUTH_MODE=required` で認証。画面は「資料一覧」タブ（`DocumentsView`。入寮規程だけ「関係図」の切り替えがある）
 - `app/history_admin.py`: 履歴の削除コマンド（`python -m app.history_admin`。既定は件数の表示だけ、`--apply` で削除）。アプリからは使わない
 - `app/frontend.py`: `frontend/dist` を配信し、ファイル名らしくない未知の GET/HEAD は `index.html` にフォールバックする
   （拡張子付きのパスや `/assets/` 配下は 404）
-- `app/relations/`: 入寮規程の条文分割と、規則ベースの関係抽出（references / exception_of / same_chapter / 用語依存 uses_term）。DB・画面からは使わない（実験）。API は `app/api/graph.py` の 2 本（`/documents/{id}/graph` と `/impact`）だけで、入寮規程のみ。リクエストのたびに PDF から計算する。測定は `scripts/eval_relations.py`、正解・辞書・結果は `evals/relations/`
+- `app/relations/`: 入寮規程の条文分割と、規則ベースの関係抽出（references / exception_of / same_chapter / 用語依存 uses_term）。DB には保存しない（実験）。API は `app/api/graph.py` の 2 本（`/documents/{id}/graph` と `/impact`）だけで、入寮規程のみ。リクエストのたびに PDF から計算する。画面は資料一覧の「関係図」（`frontend/src/components/RelationGraphView.tsx`。React Flow + dagre）。測定は `scripts/eval_relations.py`、正解・辞書・結果は `evals/relations/`
 - `storage/chunk/`: .txt の資料の置き場。**いまは空**（Git にも無い）。アプリは読まない（評価用の BM25 基準線 `scripts/bm25_baseline.py` だけが読む）。
   元の .txt は `evals/fixtures/zahard_txt/`（原本）
 - `storage/pdf/<名前>/`: PDF の資料（取り込みの元。`python -m app.ingestion` で DB に取り込み、`python -m app.ingestion.embed` で埋め込む）。ディレクトリ名は整理用の資料群の名前（いまは `cafe` `guides` `zahard`）。

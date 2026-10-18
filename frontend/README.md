@@ -86,13 +86,15 @@ frontend/
 ├── src/
 │   ├── api/chat.ts           # トランスポート用の fetch（HTTP エラー → ChatApiError）と /health
 │   ├── api/documents.ts      # 資料一覧の取得と、応答の形の検査
+│   ├── api/graph.ts          # 入寮規程の関係図（/graph と /impact）の取得と、応答の形の検査
 │   ├── auth/                 # Google ログイン（Supabase Auth）。types.ts = 窓口の型、supabase.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
 │   ├── hooks/useChat.ts      # AI SDK の useChat を包み、会話の状態（messages / pending / error / thread_id）を作る
 │   ├── hooks/useBackendMode.ts
-│   ├── hooks/useDocuments.ts # 資料一覧・チャンクの取得（認証つき fetch。取り直しと中断）
+│   ├── hooks/useDocuments.ts # 資料一覧・チャンク・関係図・影響の取得（認証つき fetch。取り直しと中断）
+│   ├── lib/relationGraph.ts  # 関係図の、描く項の選び方・並べ方（dagre）・影響の分類（画面に依らない）
 │   ├── lib/sources.ts        # context から出典（ファイル名と本文）を取り出す
 │   ├── lib/storage.ts        # thread_id の sessionStorage 保存（失敗しても動く）
-│   ├── components/           # Header / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen / DocumentsView
+│   ├── components/           # Header / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen / DocumentsView / RelationGraphView（関係図。図の部品 RelationCanvas は React Flow を使い、開いたときに読む）
 │   ├── App.tsx, main.tsx, styles.css
 │   └── test/                 # テストの共通設定とヘルパー
 ```
