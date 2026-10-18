@@ -187,6 +187,14 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   （含めるときは、上のとおり運用を見直す）。アクションはコミット SHA で固定していて、Dependabot
   （`.github/dependabot.yml`、週次・7 日待ち）が更新の PR を出す。手動実行は `workflow_dispatch`。
 
+## UI/UX（画面の変更）
+
+- 基準はデスクトップブラウザ（幅 1280px 前後）。スマホ実機での利用は想定しない。390px は「レイアウトが壊れないか」の確認だけで、モバイル向けの最適化はしない
+- 画面を変えたら、Before / After の Playwright スクリーンショットを撮る（Playwright の保存先は `.playwright-mcp/`）
+- 「見た目を変える」依頼は、色・余白・書体・密度の変更を含める。機能だけの変更では、見た目の差が出ない
+- 競合など他社の比較は、証拠等級（A: 実機で確認 / B: 公式の文書 / C: 第三者の記事 / 不明）を付ける。実機で確認していないことを「確認済み」と書かない
+- 手順と制約は `.claude/skills/ux-review/SKILL.md` と `.claude/rules/ui-review.md`
+
 ## 作業の進め方
 
 - タスクで指定された範囲だけを編集する。範囲外のファイル（`tests/`・README・`.dockerignore`・
