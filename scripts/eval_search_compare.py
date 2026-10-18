@@ -191,6 +191,21 @@ def by_category(entries: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     }
 
 
+def final_groups(entries: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """最終確認の内訳。全体・質問ファイル（作成者）別・正解チャンクが選定用と重なるか別。
+
+    entries の "file" は質問ファイル名、"new_chunk" は答えありの質問だけが持つ
+    （True = 正解チャンクが選定用の正解チャンクと 1 つも重ならない）。資料外の質問は new_chunk 別には入れない
+    （検索の指標ではなく、補助の「空」だけで見るため、全体と作成者別にだけ入る）。
+    """
+    groups: dict[str, list[dict[str, Any]]] = {"overall": list(entries)}
+    for label in sorted({e["file"] for e in entries}):
+        groups[f"file:{label}"] = [e for e in entries if e["file"] == label]
+    groups["new_chunk"] = [e for e in entries if e.get("new_chunk") is True]
+    groups["overlap_chunk"] = [e for e in entries if e.get("new_chunk") is False]
+    return {name: summarize(members) for name, members in groups.items()}
+
+
 # ---------------------------------------------------------------- 質問の埋め込み（API。上限つき・キャッシュつき）
 
 def cmd_embed_queries(questions: list[Question], apply: bool) -> int:
@@ -347,6 +362,13 @@ def print_report(report: dict[str, Any]) -> None:
     print("中央値の検索時間(ms):", report["latency_ms_median"])
 
 
+def print_groups(groups: dict[str, dict[str, Any]]) -> None:
+    print("内訳（答えありの質問の MRR / hit@3。資料外は「空」を補助の指標として別に数える）:")
+    for name, g in groups.items():
+        cells = " ".join(f"{arm}={g[arm]['mrr']}/{g[arm]['hit_at']['3']}" if g["n_answerable"] else f"{arm}=-" for arm in ARMS)
+        print(f"  {name:36} 答えあり {g['n_answerable']:>2} 資料外 {g['n_out_of_scope']:>2} | {cells}")
+
+
 def cmd_run() -> int:
     if not PLAN_PATH.exists():
         print("先に plan を実行してください。", file=sys.stderr)
@@ -360,7 +382,7 @@ def cmd_run() -> int:
     return 0
 
 
-def cmd_final(path: Path, force: bool) -> int:
+def cmd_final(paths: Sequence[Path], force: bool) -> int:
     if not PLAN_PATH.exists():
         print("先に plan を実行してください。", file=sys.stderr)
         return 2
@@ -368,21 +390,38 @@ def cmd_final(path: Path, force: bool) -> int:
         print(f"{FINAL_PATH.relative_to(ROOT)} が既にあります。最終確認は 1 回だけ測るので、上書きしません。", file=sys.stderr)
         return 2
     plan = json.loads(PLAN_PATH.read_text(encoding="utf-8"))
-    questions = load_with_check(load_questions(path))
+    questions: list[Question] = []
+    file_of: dict[str, str] = {}
+    for path in paths:
+        loaded = load_questions(path)
+        file_of.update({q.id: path.stem for q in loaded})
+        questions += loaded
+    questions = load_with_check(questions)
     selection_ids = set(plan["selection_questions"])
     if overlap := sorted(selection_ids & {q.id for q in questions}):
         raise EvalError(f"最終確認の質問が選定用の質問と重なっています: {overlap}")
     # 最終確認の質問の正解チャンクも、検索の前に DB の本文と根拠だけから決める
     with connect() as conn:
         chunks = load_chunks(conn)
+    own_gold: dict[str, set[int]] = {}
     for q in questions:
-        if q.answerable and any(not ids for ids in gold_chunks(q, chunks).values()):
-            raise EvalError(f"{q.id}: 根拠のうち、どのチャンクにも無いものがあります")
+        if q.answerable:
+            per_evidence = gold_chunks(q, chunks)
+            if any(not ids for ids in per_evidence.values()):
+                raise EvalError(f"{q.id}: 根拠のうち、どのチャンクにも無いものがあります")
+            own_gold[q.id] = {i for ids in per_evidence.values() for i in ids}
+    selection_gold = {i for g in plan["gold"].values() for ids in g["gold_by_evidence"].values() for i in ids}
     report = measure(questions, plan)
     report["set"] = "final"
-    report["questions_file"] = {"path": path.as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    report["questions_files"] = [{"path": path.as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in paths]
+    for entry in report["results"]:
+        entry["file"] = file_of[entry["id"]]
+        if entry["id"] in own_gold:
+            entry["new_chunk"] = not (own_gold[entry["id"]] & selection_gold)
+    report["by_group"] = final_groups(report["results"])
     FINAL_PATH.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print_report(report)
+    print_groups(report["by_group"])
     print(f"-> {FINAL_PATH.relative_to(ROOT)}")
     return 0
 
@@ -395,9 +434,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub.add_parser("run")
     emb = sub.add_parser("embed-queries")
     emb.add_argument("--apply", action="store_true")
-    emb.add_argument("--questions", type=Path, help="最終確認用の質問の YAML（省略すると選定用の質問）")
+    emb.add_argument("--questions", type=Path, nargs="+", help="最終確認用の質問の YAML（複数可。省略すると選定用の質問だけ）")
     fin = sub.add_parser("final")
-    fin.add_argument("--questions", type=Path, required=True)
+    fin.add_argument("--questions", type=Path, nargs="+", required=True, help="最終確認用の質問の YAML（複数可。ファイル名が作成者別の内訳の名前になる）")
     fin.add_argument("--force", action="store_true", help="既にある final.json を上書きする（通常は使わない）")
     args = parser.parse_args(argv)
     try:
@@ -409,8 +448,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return cmd_run()
         if args.command == "embed-queries":
             questions = load_selection_questions()
-            if args.questions:
-                questions = questions + load_with_check(load_questions(args.questions))
+            for path in args.questions or []:
+                questions = questions + load_questions(path)
             return cmd_embed_queries(load_with_check(questions), args.apply)
         return cmd_final(args.questions, args.force)
     except EvalError as exc:
