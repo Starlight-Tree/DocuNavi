@@ -1,0 +1,5269 @@
+{
+  "generated_at": "2026-10-18T17:04:17+09:00",
+  "git_head": "159f60e",
+  "plan_sha256": "75a79c3346c8135ff6b3edec5d563602b70633a434028b0be336a6035e569dc9",
+  "corpus_fingerprint": "1041f4e00053fe0e355772b90a2dd6d882fed0477a4ed81c1d9874a11cd1ca3d",
+  "arms": [
+    "bm25",
+    "vector",
+    "pgroonga",
+    "bm25_vector",
+    "pgroonga_vector"
+  ],
+  "ks": [
+    1,
+    3,
+    5
+  ],
+  "list_depth": 20,
+  "rrf_k": 60,
+  "bm25_params": {
+    "TOP_K": 2,
+    "MAX_PASSAGES_PER_FILE": 3,
+    "CONTEXT_WINDOW": 1,
+    "RELATIVE_SCORE_CUTOFF": 0.4,
+    "GENERIC_TERM_RATIO": 0.25,
+    "MIN_SHARED_TERMS": 2
+  },
+  "summary": {
+    "n_answerable": 46,
+    "n_out_of_scope": 22,
+    "bm25": {
+      "mrr": 0.7663,
+      "hit_at": {
+        "1": 30,
+        "3": 37,
+        "5": 38
+      },
+      "hit_depth": 38,
+      "answerable_empty": 5,
+      "out_of_scope_empty": 14
+    },
+    "vector": {
+      "mrr": 0.9293,
+      "hit_at": {
+        "1": 38,
+        "3": 45,
+        "5": 46
+      },
+      "hit_depth": 46,
+      "answerable_empty": 0,
+      "out_of_scope_empty": 0
+    },
+    "pgroonga": {
+      "mrr": 0.8496,
+      "hit_at": {
+        "1": 34,
+        "3": 40,
+        "5": 41
+      },
+      "hit_depth": 43,
+      "answerable_empty": 2,
+      "out_of_scope_empty": 9
+    },
+    "bm25_vector": {
+      "mrr": 0.9312,
+      "hit_at": {
+        "1": 37,
+        "3": 45,
+        "5": 45
+      },
+      "hit_depth": 46,
+      "answerable_empty": 0,
+      "out_of_scope_empty": 0
+    },
+    "pgroonga_vector": {
+      "mrr": 0.9384,
+      "hit_at": {
+        "1": 38,
+        "3": 46,
+        "5": 46
+      },
+      "hit_depth": 46,
+      "answerable_empty": 0,
+      "out_of_scope_empty": 0
+    }
+  },
+  "by_category_hit_at_3": {
+    "factual": {
+      "n": 30,
+      "bm25": 28,
+      "vector": 29,
+      "pgroonga": 28,
+      "bm25_vector": 30,
+      "pgroonga_vector": 30
+    },
+    "multi_hop": {
+      "n": 4,
+      "bm25": 3,
+      "vector": 4,
+      "pgroonga": 4,
+      "bm25_vector": 3,
+      "pgroonga_vector": 4
+    },
+    "paraphrase": {
+      "n": 12,
+      "bm25": 6,
+      "vector": 12,
+      "pgroonga": 8,
+      "bm25_vector": 12,
+      "pgroonga_vector": 12
+    }
+  },
+  "latency_ms_median": {
+    "bm25": 7.66,
+    "vector": 26.67,
+    "pgroonga": 73.42
+  },
+  "results": [
+    {
+      "id": "c001",
+      "question": "みなとコーヒーはいつ創業しましたか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            6,
+            1,
+            3
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            1,
+            3,
+            6,
+            2,
+            8
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            1,
+            3,
+            6
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            1,
+            6,
+            3,
+            2,
+            8
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            1,
+            3,
+            6,
+            2,
+            8
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "c002",
+      "question": "湖畔ボート小屋店では、閉店の何分前に注文の受け付けが終わりますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            14,
+            29,
+            10
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            14,
+            10,
+            29,
+            16,
+            15
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            14,
+            15,
+            10,
+            27,
+            29
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            14,
+            10,
+            29,
+            16,
+            15
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            14,
+            10,
+            15,
+            29,
+            27
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "c003",
+      "question": "みなとクラブでは、いくら買い物をするごとに1ポイントもらえますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            8,
+            18,
+            19,
+            1
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            18,
+            8,
+            1,
+            29,
+            4
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            18,
+            8
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            8,
+            18,
+            1,
+            19,
+            29
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            18,
+            8,
+            1,
+            29,
+            4
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "c004",
+      "question": "来店する前にスマートフォンで注文を済ませられる機能が使えないのは、どの店舗ですか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            10
+          ],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            15,
+            29,
+            17,
+            28,
+            30
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            5,
+            10,
+            3,
+            15,
+            28
+          ],
+          "first_gold_rank": 4,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            10,
+            15,
+            29,
+            17,
+            28
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            15,
+            28,
+            29,
+            10,
+            5
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "c005",
+      "question": "ためたポイントを長いあいだ使わずにいると、どのくらいで失効してしまいますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            19,
+            18,
+            1,
+            8
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            19,
+            18,
+            20,
+            61,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            18,
+            19,
+            1,
+            8
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            19,
+            18,
+            8,
+            1,
+            20
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            18,
+            19,
+            8,
+            1,
+            20
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "c006",
+      "question": "座席がいちばん多いのは、どの店舗ですか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            29
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            26,
+            29,
+            30,
+            10,
+            28
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            5,
+            10,
+            3,
+            26,
+            28
+          ],
+          "first_gold_rank": 6,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            26,
+            30,
+            10,
+            28
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            26,
+            10,
+            29,
+            5,
+            28
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "c007",
+      "question": "日曜日が定休日になっている店舗を教えてください。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            28,
+            62,
+            2,
+            29
+          ],
+          "first_gold_rank": 4,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            28,
+            29,
+            30,
+            14,
+            2
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            5,
+            10,
+            28,
+            2,
+            3
+          ],
+          "first_gold_rank": 6,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            28,
+            29,
+            2,
+            62,
+            30
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            28,
+            29,
+            5,
+            2,
+            14
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "c008",
+      "question": "駅前中央店と湖畔テラス店では、どちらのほうが営業時間が長いですか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            29,
+            16,
+            9,
+            7,
+            27
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            14,
+            16,
+            9,
+            7
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            29,
+            2,
+            7,
+            9,
+            14
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            16,
+            9,
+            14,
+            7
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            14,
+            7,
+            9,
+            16
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "c009",
+      "question": "地球から月までの距離は、どのくらいですか。",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            69,
+            70,
+            59,
+            38,
+            71
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            69,
+            70,
+            59,
+            38,
+            71
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76,
+            69,
+            59,
+            38
+          ]
+        }
+      }
+    },
+    {
+      "id": "c010",
+      "question": "みなとブレンドは1杯いくらですか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            13,
+            4,
+            22,
+            12
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            12,
+            4,
+            13,
+            18,
+            29
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            13,
+            4,
+            12,
+            19,
+            22
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            13,
+            4,
+            12,
+            22,
+            18
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            12,
+            13,
+            4,
+            22,
+            19
+          ]
+        }
+      }
+    },
+    {
+      "id": "a001",
+      "question": "糸くずフィルターの掃除は、洗濯何回ごとにすればよいですか？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            53,
+            45,
+            56
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            53,
+            54,
+            45,
+            50,
+            48
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            53,
+            45,
+            56
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            53,
+            45,
+            56,
+            54,
+            50
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            53,
+            45,
+            56,
+            54,
+            50
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "a002",
+      "question": "槽洗浄をするとき、洗濯槽クリーナーは何 mL 入れますか？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            54,
+            44,
+            50,
+            36,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            54,
+            44,
+            50
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            54,
+            44,
+            50,
+            36,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            54,
+            44,
+            50,
+            36,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "a003",
+      "question": "保証期間が過ぎたあとに出張修理を頼むと、出張料はいくらかかりますか？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            63,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            63,
+            62,
+            61,
+            60,
+            65
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            63,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            63,
+            60,
+            62,
+            61,
+            65
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            63,
+            60,
+            62,
+            61,
+            65
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "a004",
+      "question": "洗っている途中で、ふたを開けたくなりました。どうすれば開きますか？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            57
+          ],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            34,
+            36,
+            51,
+            54,
+            43
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            57
+          ],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            57,
+            34,
+            36,
+            51,
+            54
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            57,
+            34,
+            36,
+            51,
+            54
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "a005",
+      "question": "毛布を洗うとき、一度にどのくらいの重さまで入れてよいですか？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": [],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            33,
+            45,
+            50,
+            48,
+            36
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            33,
+            48,
+            57
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            33,
+            45,
+            50,
+            48,
+            36
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            33,
+            48,
+            45,
+            50,
+            57
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "a006",
+      "question": "この機種が作られなくなったあと、修理用の部品は何年間とっておいてもらえますか？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            61,
+            56
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            61,
+            60,
+            64,
+            62,
+            63
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            56,
+            61
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            61,
+            56,
+            60,
+            64,
+            62
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            61,
+            56,
+            60,
+            64,
+            62
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "a007",
+      "question": "エラーコードのうち、対処の目安時間が約20分以上のものはどれですか？ 修理が必要なものは除きます。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            56,
+            55
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            56,
+            55,
+            57,
+            51,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            56,
+            55,
+            32,
+            57,
+            62
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            56,
+            55,
+            57,
+            51,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            56,
+            55,
+            57,
+            63,
+            62
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "a008",
+      "question": "この洗濯乾燥機の電源コードは、何メートルありますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            31,
+            58,
+            56,
+            55,
+            43
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            58,
+            59,
+            39,
+            38,
+            33
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            31
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            58,
+            31,
+            56,
+            45,
+            41
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            58,
+            59,
+            39,
+            38
+          ]
+        }
+      }
+    },
+    {
+      "id": "a009",
+      "question": "延長保証に加入するには、いくらかかりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            63,
+            60,
+            61,
+            62,
+            65
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            63,
+            60,
+            61,
+            62,
+            65
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            63,
+            60,
+            61,
+            62,
+            65
+          ]
+        }
+      }
+    },
+    {
+      "id": "a010",
+      "question": "乾燥運転をしているとき、庫内の温度は何度になりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            45,
+            34,
+            58,
+            56,
+            59
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            56,
+            70
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            45,
+            34,
+            58,
+            56,
+            59
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            56,
+            45,
+            34,
+            70,
+            58
+          ]
+        }
+      }
+    },
+    {
+      "id": "a011",
+      "question": "富士山の標高は何メートルですか？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            39,
+            70,
+            29,
+            14
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            39,
+            70,
+            29,
+            14
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            39,
+            70,
+            29,
+            14
+          ]
+        }
+      }
+    },
+    {
+      "id": "t001",
+      "question": "入寮の申込みは、いつまでにすればよいですか？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            66
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            66,
+            68,
+            67,
+            14,
+            62
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67,
+            68
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            66,
+            68,
+            67,
+            14,
+            62
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67,
+            68,
+            14,
+            62
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "t002",
+      "question": "入寮するときに納める保証金は、いくらですか？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            67
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            63,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67,
+            68
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            63,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            63,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "t003",
+      "question": "寮の門限は、何時ですか？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": [],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            14,
+            27
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            67
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            14,
+            27
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            14,
+            27
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "t004",
+      "question": "寮の入寮期間と、更新できる回数は？",
+      "category": "multi_hop",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            66
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67,
+            68,
+            24,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            66
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67,
+            68,
+            24,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67,
+            68,
+            24,
+            60
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "t005",
+      "question": "友達が遊びに来たとき、自分の部屋に入れてもよいですか？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": [],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            17,
+            38
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            67
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            17,
+            38
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            17,
+            38
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "t006",
+      "question": "病気などの特別な事情がないとき、寮を出るには、いつまでに届けを出す必要がありますか？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            68
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            52,
+            64
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            68,
+            56,
+            66,
+            67,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            52,
+            64
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            56,
+            52
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "t007",
+      "question": "3 つの棟のうち、1 人あたりの月額の寮費が最も安いのは、どの棟ですか？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            67
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            30,
+            5
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            30,
+            5
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            30,
+            5
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "t008",
+      "question": "寮の共用洗濯室を使うには、1 回いくらかかりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            68
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            33,
+            58
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            33,
+            58
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            33,
+            58
+          ]
+        }
+      }
+    },
+    {
+      "id": "t009",
+      "question": "寮で朝食や夕食を食べる場合の料金は、いくらですか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            14,
+            18
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            65,
+            16,
+            43,
+            57,
+            63
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            14,
+            18
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            63,
+            16
+          ]
+        }
+      }
+    },
+    {
+      "id": "t010",
+      "question": "寮で小型のペットを飼うことはできますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            17
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            17,
+            38
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            17
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            17,
+            67,
+            68,
+            66,
+            38
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            17,
+            67,
+            68,
+            66,
+            38
+          ]
+        }
+      }
+    },
+    {
+      "id": "t011",
+      "question": "17 に 13 を掛けると、いくつになりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            26,
+            69,
+            10,
+            29,
+            27
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            67,
+            29
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            26,
+            69,
+            10,
+            29,
+            27
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            26,
+            67,
+            69,
+            10
+          ]
+        }
+      }
+    },
+    {
+      "id": "q001",
+      "question": "ザーハードの大気の酸素濃度はどれくらい？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            70
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            80,
+            77,
+            69,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70,
+            80,
+            69,
+            71,
+            72
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            80,
+            77,
+            69,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            80,
+            69,
+            77,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q002",
+      "question": "遺跡の防衛システムについて教えて",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            75,
+            80,
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            80,
+            72,
+            74,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            75,
+            72,
+            73,
+            74,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            80,
+            78,
+            72,
+            74
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            72,
+            73,
+            74,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q003",
+      "question": "遺跡の構造はどうなっていますか",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            75
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            73,
+            74,
+            72,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            75,
+            72,
+            73,
+            74,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            73,
+            74,
+            72,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            73,
+            72,
+            74,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q004",
+      "question": "エネルギー源が暴走するとどうなる？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            79,
+            78,
+            77,
+            80,
+            69
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            79,
+            73,
+            77,
+            78,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            79,
+            78,
+            77,
+            80,
+            69
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            79,
+            78,
+            77,
+            73,
+            80
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q005",
+      "question": "ザーハードの最大の魅力は何ですか",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            77
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            77,
+            80,
+            79,
+            76,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            77,
+            70,
+            80,
+            11,
+            69
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            77,
+            80,
+            79,
+            76,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            77,
+            80,
+            70,
+            69,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q006",
+      "question": "守護機構は侵入者に対してどう働く？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            80,
+            75
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            80,
+            75,
+            78,
+            71,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            80,
+            75
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            80,
+            75,
+            78,
+            71,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            80,
+            75,
+            78,
+            71,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q007",
+      "question": "ザーハリアン文明が崩壊した原因は？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            73,
+            74,
+            76,
+            75
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            74,
+            75,
+            73,
+            76,
+            72
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            74,
+            37,
+            52,
+            56,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            74,
+            73,
+            75,
+            76,
+            72
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            74,
+            73,
+            56,
+            37,
+            75
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q008",
+      "question": "硫化水素",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            70
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            37,
+            79,
+            52,
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            37,
+            79,
+            52,
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            37,
+            79,
+            52,
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q009",
+      "question": "放射線",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            78,
+            69,
+            79,
+            77,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            78,
+            69,
+            79,
+            77,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            78,
+            69,
+            79,
+            77,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q010",
+      "question": "象形文字",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            72
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            72,
+            75,
+            74,
+            73,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            72
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            72,
+            75,
+            74,
+            73,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            72,
+            75,
+            74,
+            73,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q011",
+      "question": "磁場",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            78,
+            69,
+            77,
+            71,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            78,
+            69,
+            77,
+            71,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            78,
+            69,
+            77,
+            71,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q012",
+      "question": "昼と夜の気温差について教えて",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": [],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            71,
+            45,
+            38,
+            69
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": [],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            71,
+            45,
+            38,
+            69
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            71,
+            45,
+            38,
+            69
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q013",
+      "question": "毒ガスは含まれていますか",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": [],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            37,
+            59,
+            26,
+            80
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": [],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            37,
+            59,
+            26,
+            80
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            37,
+            59,
+            26,
+            80
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q014",
+      "question": "砂漠を移動するには何が必要？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            71,
+            72,
+            70,
+            75,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            71,
+            56,
+            66,
+            72,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            71,
+            72,
+            70,
+            75,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            71,
+            72,
+            73,
+            56,
+            66
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q015",
+      "question": "エネルギー源は自然にできたものなの？",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            77
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            78,
+            77,
+            79,
+            72,
+            73
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            77,
+            73,
+            78,
+            79,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            77,
+            78,
+            79,
+            72,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            77,
+            78,
+            73,
+            79,
+            72
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q016",
+      "question": "エネルギーを制御できたらどうなる",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            72,
+            79
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            79,
+            78,
+            72,
+            77,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            79,
+            78,
+            73,
+            77,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            79,
+            72,
+            78,
+            77,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            79,
+            78,
+            73,
+            77,
+            72
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q017",
+      "question": "ザーハリアンって何者？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            74,
+            73,
+            76,
+            75
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            74,
+            76,
+            73,
+            69
+          ],
+          "first_gold_rank": 4,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            73,
+            74,
+            75,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            74,
+            75,
+            73,
+            76,
+            69
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            74,
+            73,
+            76,
+            69
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q018",
+      "question": "探査団は何を装備して挑むの",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            70,
+            79,
+            76,
+            69,
+            77
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            80,
+            76,
+            71,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70,
+            69,
+            76,
+            77,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76,
+            79,
+            69,
+            77
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76,
+            69,
+            79,
+            77
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q019",
+      "question": "メタンガスって入ってる？",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            70
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            59,
+            12,
+            78,
+            37
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            59,
+            12,
+            78,
+            37
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            59,
+            12,
+            78,
+            37
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q020",
+      "question": "冒険者が集まるのはなぜですか",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            76,
+            77,
+            79,
+            71,
+            80
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            76,
+            77,
+            79,
+            71,
+            80
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            76,
+            77,
+            79,
+            71,
+            80
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q021",
+      "question": "古い文明の遺跡はどこに埋もれているの",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            72,
+            74,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            72,
+            74,
+            73,
+            75,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            72,
+            73,
+            74,
+            75,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            72,
+            74,
+            73,
+            75,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            72,
+            73,
+            74,
+            75,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q022",
+      "question": "今日の東京の天気を教えてください",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            29,
+            70,
+            27,
+            56
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            29,
+            70,
+            27,
+            56
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            29,
+            70,
+            27,
+            56
+          ]
+        }
+      }
+    },
+    {
+      "id": "q023",
+      "question": "おすすめのカレーのレシピは？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            35,
+            4,
+            41,
+            12
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            35,
+            4,
+            41,
+            12
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            35,
+            4,
+            41,
+            12
+          ]
+        }
+      }
+    },
+    {
+      "id": "q024",
+      "question": "Pythonでリストをソートする方法",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            42,
+            56,
+            43,
+            30,
+            68
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            42,
+            56,
+            43,
+            30,
+            68
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            42,
+            56,
+            43,
+            30,
+            68
+          ]
+        }
+      }
+    },
+    {
+      "id": "q025",
+      "question": "サッカーのワールドカップで優勝したのはどこ？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            69,
+            77,
+            3,
+            76,
+            71
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            69,
+            77,
+            3,
+            76,
+            71
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            69,
+            77,
+            3,
+            76,
+            71
+          ]
+        }
+      }
+    },
+    {
+      "id": "q026",
+      "question": "こんにちは、元気ですか？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            25,
+            32,
+            62,
+            31,
+            69
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            25,
+            32,
+            62,
+            31,
+            69
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            25,
+            32,
+            62,
+            31,
+            69
+          ]
+        }
+      }
+    },
+    {
+      "id": "q027",
+      "question": "木星の大きさはどのくらいですか",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            69,
+            38,
+            70,
+            78
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            69,
+            38,
+            70,
+            78
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            69,
+            38,
+            70,
+            78
+          ]
+        }
+      }
+    },
+    {
+      "id": "q028",
+      "question": "火星には生命がいますか",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            72,
+            69,
+            77,
+            79
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            72,
+            69,
+            77,
+            79
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            72,
+            69,
+            77,
+            79
+          ]
+        }
+      }
+    },
+    {
+      "id": "q029",
+      "question": "地球の人口は何人ですか",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            76,
+            70,
+            77,
+            69,
+            79
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            76,
+            70,
+            77,
+            69,
+            79
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76,
+            77,
+            69,
+            79
+          ]
+        }
+      }
+    },
+    {
+      "id": "q030",
+      "question": "ザーハリアンはエネルギー源を作った存在なのですか",
+      "category": "multi_hop",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            74,
+            73,
+            76,
+            75
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            79,
+            77,
+            73,
+            76,
+            74
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            73,
+            78,
+            77,
+            79,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            73,
+            74,
+            76,
+            75,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            73,
+            79,
+            77,
+            78,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q031",
+      "question": "遺跡の防衛システムとエネルギー源の守護機構は、どちらも侵入者を攻撃しますか",
+      "category": "multi_hop",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            75,
+            80
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            80,
+            72,
+            79,
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            75,
+            73,
+            80,
+            72,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            80,
+            72,
+            79,
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            75,
+            80,
+            72,
+            73,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q032",
+      "question": "遺跡を解明すると、エネルギー源の制御にどう役立ちますか",
+      "category": "multi_hop",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            72,
+            76,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            72,
+            73,
+            79,
+            75,
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            72,
+            73,
+            79,
+            76,
+            75
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            72,
+            79,
+            76,
+            73,
+            75
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            72,
+            73,
+            79,
+            75,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      }
+    },
+    {
+      "id": "q033",
+      "question": "ザーハードの人口は何人ですか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            74,
+            73,
+            80,
+            79,
+            77
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            77,
+            80,
+            76,
+            74,
+            70
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70,
+            80,
+            69,
+            71,
+            72
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            74,
+            80,
+            77,
+            73,
+            76
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            80,
+            70,
+            77,
+            69,
+            76
+          ]
+        }
+      }
+    },
+    {
+      "id": "q034",
+      "question": "ザーハードの首都はどこにありますか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            74,
+            73,
+            80,
+            79,
+            77
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            77,
+            80,
+            74,
+            76,
+            73
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70,
+            80,
+            69,
+            71,
+            72
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            74,
+            80,
+            77,
+            73,
+            76
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            80,
+            70,
+            69,
+            77,
+            74
+          ]
+        }
+      }
+    },
+    {
+      "id": "q035",
+      "question": "ザーハードの公転周期は何日ですか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            74,
+            73,
+            80,
+            79,
+            77
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            69,
+            77,
+            70,
+            76,
+            80
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70,
+            80,
+            69,
+            71,
+            72
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            77,
+            80,
+            74,
+            73,
+            69
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            69,
+            70,
+            80,
+            77,
+            76
+          ]
+        }
+      }
+    },
+    {
+      "id": "q036",
+      "question": "ザーハードの重力は地球の何倍ですか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            70
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            77,
+            70,
+            69,
+            80,
+            79
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76,
+            80,
+            69,
+            71
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            77,
+            69,
+            80,
+            79
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            69,
+            80,
+            76,
+            77
+          ]
+        }
+      }
+    }
+  ],
+  "set": "selection"
+}
