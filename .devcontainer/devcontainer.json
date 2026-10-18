@@ -59,7 +59,6 @@
 				"anthropic.claude-code",
 				"ms-python.python",
 				"ms-python.vscode-pylance",
-				"ms-azuretools.vscode-containers",
 				"mhutchie.git-graph",
 				"github.vscode-github-actions"
 			]
