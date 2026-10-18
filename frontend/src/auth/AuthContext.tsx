@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { saveThreadId } from '../lib/storage';
+import { saveReturnTo, saveThreadId, takeReturnTo } from '../lib/storage';
+import { currentStateSearch, replaceUrlState } from '../lib/urlState';
 import type { AuthClient, AuthUser } from './types';
 
 export const MSG_SESSION_EXPIRED = 'ログインの有効期限が切れました。もう一度ログインしてください。';
@@ -32,6 +33,16 @@ const DISABLED: AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue>(DISABLED);
 
+/**
+ * ログイン前に預けた画面の状態を、ログイン後の URL に戻す。
+ * いまの URL に画面の指定（tab）がすでにあるときは、そちらを優先して、預けた分は捨てる。
+ */
+function restoreReturnTo(): void {
+  const saved = takeReturnTo();
+  if (!saved || new URLSearchParams(window.location.search).has('tab')) return;
+  replaceUrlState(saved);
+}
+
 export function useAuth(): AuthContextValue {
   return useContext(AuthContext);
 }
@@ -53,6 +64,7 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
     let active = true;
     const apply = (user: AuthUser | null) => {
       if (!active) return;
+      if (user) restoreReturnTo();
       // 期限切れの通知（expire）で出した案内は、ログインし直すまで残す
       setState((current) =>
         user
@@ -76,6 +88,8 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
 
   const signIn = useCallback(async () => {
     if (!client) return;
+    // Google から戻る先は origin だけでクエリが落ちるので、いまの画面の状態を預けておく
+    saveReturnTo(currentStateSearch());
     try {
       await client.signInWithGoogle();
     } catch {

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import App from './App';
 import { AuthProvider, MSG_SESSION_EXPIRED } from './auth/AuthContext';
-import { THREAD_ID_STORAGE_KEY } from './lib/storage';
+import { RETURN_TO_STORAGE_KEY, THREAD_ID_STORAGE_KEY, saveReturnTo } from './lib/storage';
 import { fakeAuth } from './test/auth';
 import type { FakeAuth } from './test/auth';
 import { DEFAULT_REPLY, errorResponse, installFetch, replyResponse } from './test/helpers';
@@ -170,5 +170,68 @@ describe('ログイン: トークンの更新', () => {
 
     await screen.findByText(MSG_SESSION_EXPIRED);
     expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('thread-7');
+  });
+});
+
+describe('ログイン: 共有リンクの画面を保つ', () => {
+  it('ログインを始めるとき、いまの画面の状態を預ける（ログインの code などは預けない）', async () => {
+    installFetch(() => replyResponse());
+    window.history.replaceState(null, '', '/?tab=documents&doc=3&view=graph&item=a11p1&code=secret');
+    const { user } = setup(fakeAuth({ user: null }));
+
+    await user.click(await screen.findByRole('button', { name: 'Google でログイン' }));
+
+    expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe('?tab=documents&doc=3&view=graph&item=a11p1');
+  });
+
+  it('チャットが既定のときは、何も預けない（前に預けた分も捨てる）', async () => {
+    installFetch(() => replyResponse());
+    saveReturnTo('?tab=documents&doc=9');
+    const { user } = setup(fakeAuth({ user: null }));
+
+    await user.click(await screen.findByRole('button', { name: 'Google でログイン' }));
+
+    expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBeNull();
+  });
+
+  it('ログインして戻ったら、預けた画面の状態を URL に戻し、預け場所を空にする', async () => {
+    installFetch(() => replyResponse());
+    saveReturnTo('?tab=documents&doc=3&view=pdf&page=2');
+    const auth = fakeAuth({ user: null });
+    setup(auth);
+    await screen.findByRole('button', { name: 'Google でログイン' });
+    expect(window.location.search).toBe('');
+
+    auth.emit({ email: 'a@example.com' });
+
+    await waitFor(() => expect(window.location.search).toBe('?tab=documents&doc=3&view=pdf&page=2'));
+    expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBeNull();
+  });
+
+  it('戻った URL に画面の指定がすでにあれば、そちらを優先する', async () => {
+    installFetch(() => replyResponse());
+    saveReturnTo('?tab=documents&doc=3');
+    window.history.replaceState(null, '', '/?tab=documents&doc=5');
+    const auth = fakeAuth({ user: null });
+    setup(auth);
+    await screen.findByRole('button', { name: 'Google でログイン' });
+
+    auth.emit({ email: 'a@example.com' });
+
+    await screen.findByText('a@example.com');
+    expect(window.location.search).toBe('?tab=documents&doc=5');
+    expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBeNull();
+  });
+
+  it('預けた値が壊れていても、安全な形に整えてから使う', async () => {
+    installFetch(() => replyResponse());
+    saveReturnTo('?tab=documents&doc=abc&evil=1');
+    const auth = fakeAuth({ user: null });
+    setup(auth);
+    await screen.findByRole('button', { name: 'Google でログイン' });
+
+    auth.emit({ email: 'a@example.com' });
+
+    await waitFor(() => expect(window.location.search).toBe('?tab=documents'));
   });
 });

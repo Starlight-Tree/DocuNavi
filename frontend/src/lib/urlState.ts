@@ -82,6 +82,26 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
+/**
+ * いまの URL の画面の状態を、整えたクエリ（`?tab=…`）にして返す。チャットが既定のときと、不正な値だけのときは null。
+ * この画面が扱わないパラメータ（ログインの `code` など）は含めない。
+ */
+export function currentStateSearch(): string | null {
+  const state = parseUrlState(window.location.search);
+  return state.tab === 'chat' ? null : buildSearch('', state);
+}
+
+/**
+ * クエリを、履歴を増やさずに URL へ書く（ログイン後に、ログイン前の画面へ戻すときに使う）。
+ * `search` は、整えた状態を作る `currentStateSearch` の戻り値を想定する。ここでも読み直して整える。
+ */
+export function replaceUrlState(search: string): void {
+  const target = buildSearch('', parseUrlState(search));
+  const url = `${window.location.pathname}${target}${window.location.hash}`;
+  window.history.replaceState(window.history.state, '', url);
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
 const getSearch = () => window.location.search;
 const getServerSearch = () => '';
 
