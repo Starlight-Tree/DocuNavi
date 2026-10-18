@@ -34,6 +34,7 @@ function ChatScreen() {
           waiting={chat.waiting}
           busy={chat.pending}
           resumed={chat.threadId !== null && chat.messages.length === 0}
+          onExample={chat.pending ? undefined : chat.send}
         />
         {chat.error && (
           <ErrorBanner error={chat.error} disabled={chat.pending} onRetry={chat.retry} />
