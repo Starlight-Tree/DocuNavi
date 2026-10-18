@@ -11,11 +11,11 @@ import uuid
 import pytest
 from langchain_core.messages import HumanMessage
 
-from app.agents.tools import load_chunks
 from app.api import routes
+from tests.zahard_corpus import zahard_texts
 
-# ツール出力は "[ファイル名.txt]\n本文" の繰り返し
-_SOURCE_HEAD = re.compile(r"(?m)^\[([^\]\n]+\.txt)\]$")
+# ツール出力は "[ファイル名.pdf]\n本文" の繰り返し
+_SOURCE_HEAD = re.compile(r"(?m)^\[([^\]\n]+\.pdf)\]$")
 _NOT_FOUND_QUESTION = "xyzqwerty"
 
 
@@ -73,21 +73,21 @@ def test_chat_assigns_uuid_thread_id_when_omitted(client):
 @pytest.mark.parametrize(
     ("question", "expected_chunk"),
     [
-        ("ザーハードの大気について教えて", "ザーハード1.txt"),  # 大気・環境
-        ("ザーハリアン文明とは何ですか", "ザーハード2.txt"),  # 遺跡・異星人
-        ("エネルギー源の正体は", "ザーハード3.txt"),  # 未知のエネルギー源
+        ("ザーハードの大気について教えて", "ザーハード1.pdf"),  # 大気・環境
+        ("ザーハリアン文明とは何ですか", "ザーハード2.pdf"),  # 遺跡・異星人
+        ("エネルギー源の正体は", "ザーハード3.pdf"),  # 未知のエネルギー源
     ],
 )
 def test_rag_returns_sources_from_chunks(client, question, expected_chunk):
     # 前提: 期待するチャンクが実在する（資料を差し替えたらここで気づける）
-    assert expected_chunk in load_chunks()
+    assert expected_chunk in zahard_texts()
 
     body = _chat(client, question, str(uuid.uuid4())).json()
 
     assert body["context"].startswith("[ザーハード")
     names = _sources(body["context"])
     assert expected_chunk in names
-    assert all(name in load_chunks() for name in names)
+    assert all(name in zahard_texts() for name in names)
 
     # 回答には根拠にした資料名が出典として載る
     assert "出典" in body["reply"]
@@ -155,7 +155,7 @@ def test_context_is_replaced_every_turn(client):
 
     # 3 ターン目で再び検索すると、その回の検索結果に置き換わる
     third = _chat(client, "エネルギー源の正体は", thread_id).json()
-    assert "ザーハード3.txt" in _sources(third["context"])
+    assert "ザーハード3.pdf" in _sources(third["context"])
     assert third["context"] != first["context"]
     assert _state_values(thread_id)["context"] == third["context"]
 

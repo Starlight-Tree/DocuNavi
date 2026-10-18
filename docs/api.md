@@ -32,9 +32,9 @@
 
 ```json
 {
-  "reply": "…（出典: ザーハード1.txt）",
+  "reply": "…（出典: ザーハード1.pdf）",
   "thread_id": "…",
-  "context": "[ザーハード1.txt]\n…",
+  "context": "[ザーハード1.pdf]\n…",
   "mode": "mock"
 }
 ```
@@ -73,7 +73,7 @@ data: {"type":"start","messageId":"…","messageMetadata":{"thread_id":"…","mo
 data: {"type":"text-start","id":"text-0"}
 data: {"type":"text-delta","id":"text-0","delta":"ザーハードの大気は…"}
 data: {"type":"text-end","id":"text-0"}
-data: {"type":"message-metadata","messageMetadata":{"context":"[ザーハード1.txt]\n…"}}
+data: {"type":"message-metadata","messageMetadata":{"context":"[ザーハード1.pdf]\n…"}}
 data: {"type":"finish"}
 data: [DONE]
 ```

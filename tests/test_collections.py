@@ -1,4 +1,4 @@
-"""資料群（ザーハードの .txt と、PDF のディレクトリ）をまたぐ検索のテスト。
+"""資料群（storage/pdf/ の PDF のディレクトリ。ザーハードも PDF）をまたぐ検索のテスト。
 
 検索そのものの精度は tests/test_rag.py と評価（scripts/eval_retrieval.py）が見る。ここは、資料群を足しても
 他の資料群の結果が動かないこと、範囲の指定、PDF を取り込めないときの扱いを確かめる。
@@ -17,6 +17,7 @@ from app.agents.tools import search_chunks, search_collections, search_documents
 from app.main import app
 from scripts import eval_retrieval as ev
 from tests.pdf_fixtures import build_pdf, paragraphs
+from tests.zahard_corpus import ZAHARD_FILES, ZAHARD_PDF_DIR
 
 ROOT = Path(__file__).resolve().parents[1]
 EVAL_CAFE = ROOT / "evals" / "corpora" / "cafe"
@@ -59,10 +60,11 @@ def test_app_guides_collection_holds_only_the_evaluated_pdfs():
     assert sorted(p.name for p in APP_GUIDES.glob("*.pdf")) == sorted(GUIDES_PDFS)
 
 
-def test_app_searches_text_and_pdf_collections():
+def test_app_searches_the_pdf_collections():
+    # ザーハードも PDF の資料群（storage/pdf/zahard/）。資料群は名前順で、結果の交互採用もこの順
     collections = tools.load_collections()
-    assert list(collections) == [tools.TEXT_COLLECTION, "cafe", "guides"]
-    assert set(collections["zahard"]) == {"ザーハード1.txt", "ザーハード2.txt", "ザーハード3.txt"}
+    assert list(collections) == ["cafe", "guides", "zahard"]
+    assert set(collections["zahard"]) == set(ZAHARD_FILES)
     assert set(collections["cafe"]) == {"cafe_store_guide.pdf"}
     assert set(collections["guides"]) == set(GUIDES_PDFS)
 
@@ -84,7 +86,7 @@ def test_a_collection_is_not_disturbed_by_the_others(k):
     # 1 つに混ぜると崩れる: 「ザーハード」の出現率が下がって主題語として除外されず、返るファイルが増える。
     # 例外は KNOWN_SPILL の 2 件だけ。そこでは、単独の結果が順序もそのままで残り、足されたのは他の資料群のファイルだけ
     own_corpora = {
-        ROOT / "evals" / "questions.yaml": tools.load_chunks(),
+        ROOT / "evals" / "questions.yaml": ev.load_pdf_corpus(ZAHARD_PDF_DIR)[0],
         EVAL_CAFE / "questions.yaml": ev.load_pdf_corpus(EVAL_CAFE)[0],
         EVAL_GUIDES / "questions.yaml": ev.load_pdf_corpus(EVAL_GUIDES)[0],
     }
@@ -171,20 +173,20 @@ def _files(query):
 
 def test_scope_defaults_to_every_collection(monkeypatch):
     monkeypatch.delenv(tools.SEARCH_SCOPE_ENV, raising=False)
-    assert tools.search_scope() == ["zahard", "cafe", "guides"]
-    assert _files(ZAHARD_QUERY) == {"ザーハード1.txt"}
+    assert tools.search_scope() == ["cafe", "guides", "zahard"]
+    assert _files(ZAHARD_QUERY) == {"ザーハード1.pdf"}
     assert _files(CAFE_QUERY) == {"cafe_store_guide.pdf"}
 
 
 @pytest.mark.parametrize("value", ["", "  ", "all", "ALL"])
 def test_scope_all_and_blank_mean_every_collection(monkeypatch, value):
     monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, value)
-    assert tools.search_scope() == ["zahard", "cafe", "guides"]
+    assert tools.search_scope() == ["cafe", "guides", "zahard"]
 
 
 def test_scope_can_narrow_to_one_collection(monkeypatch):
     monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, "zahard")
-    assert _files(ZAHARD_QUERY) == {"ザーハード1.txt"}
+    assert _files(ZAHARD_QUERY) == {"ザーハード1.pdf"}
     assert _files(CAFE_QUERY) == set()
 
     monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, " cafe ")
@@ -255,7 +257,8 @@ def test_pdfs_in_a_directory_named_like_the_text_collection_join_it(pdf_dir, mon
     assert list(collections[tools.TEXT_COLLECTION]) == ["a.txt", "b.pdf"]
 
 
-def test_without_a_pdf_directory_only_the_text_collection_is_searched(pdf_dir, monkeypatch):
+def test_without_a_pdf_directory_only_the_text_collection_is_searched(txt_dir, pdf_dir, monkeypatch):
+    # .txt の資料群の経路（ザーハードは PDF に移ったが、コードには残っている）。元の .txt（txt_dir）だけを検索する
     monkeypatch.setattr(tools, "PDF_DIR", pdf_dir / "none")
     tools._load_pdf_collections.cache_clear()
     assert list(tools.load_collections()) == [tools.TEXT_COLLECTION]

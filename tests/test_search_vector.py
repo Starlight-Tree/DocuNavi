@@ -21,8 +21,10 @@ from app.agents import tools
 from app.agents.tools import TOP_K, search_documents
 from app.ingestion import embedding
 from app.main import app
+from tests.zahard_corpus import ZAHARD_FILES
 
-PDF_FILES = ["aoba_aw820_manual.pdf", "cafe_store_guide.pdf", "tsubasa_dorm_rules.pdf"]
+# ベクトルで検索する PDF（検索する資料群の PDF 全部）。ザーハードも PDF なので入る（DB への取り込みと埋め込みが要る）
+PDF_FILES = sorted(["aoba_aw820_manual.pdf", "cafe_store_guide.pdf", "tsubasa_dorm_rules.pdf", *ZAHARD_FILES])
 VECTOR = [0.001 * i for i in range(1, embedding.DIMENSIONS + 1)]
 SECRET = "AIzaSECRETKEY postgresql://user:pw@db.example.com/x https://example.com/leak"
 
@@ -137,7 +139,7 @@ def test_ainvoke_returns_the_chunk_in_the_same_format_and_queries_the_scoped_sou
     assert embedder.queries == ["糸くずフィルターの掃除"]
     (sql, params), = pool.calls
     assert "OPERATOR(extensions.<=>)" in sql and "d.status = 'ready'" in sql
-    assert sorted(params["sources"]) == PDF_FILES  # 検索する資料群の PDF 全部。.txt は含まない
+    assert sorted(params["sources"]) == PDF_FILES  # 検索する資料群の PDF 全部。ザーハードの PDF も含む
     assert params["k"] == TOP_K and params["model"] == embedding.MODEL and params["dims"] == embedding.DIMENSIONS
     assert params["q"] == embedding.vector_literal(VECTOR) and params["q"].count(",") == embedding.DIMENSIONS - 1
 
@@ -157,13 +159,15 @@ def test_results_below_the_threshold_are_not_returned(vector_env):
     assert "[aoba_aw820_manual.pdf]" in ainvoke("糸くずフィルターの掃除")  # しきい値ちょうどは返す
 
 
-def test_txt_collection_stays_on_bm25_and_is_interleaved_first(vector_env):
+def test_txt_collection_stays_on_bm25_and_is_interleaved_first(vector_env, txt_dir):
+    # ザーハードは PDF に移ったが、.txt の資料群の経路（BM25 のまま、交互採用で先頭）はコードに残っている。元の .txt（txt_dir）で確かめる
     hits = asyncio.run(tools.search_chunks_async("大気"))
     assert [name for name, _ in hits] == ["ザーハード1.txt", "aoba_aw820_manual.pdf"]
     assert hits[0] == tools.search_chunks("大気", corpus=tools.load_chunks())[0]  # .txt 側は従来の BM25 と同じ文
 
 
-def test_scope_without_pdf_collections_never_touches_the_vector_path(vector_env, monkeypatch):
+def test_scope_without_pdf_collections_never_touches_the_vector_path(vector_env, txt_collection_only, monkeypatch):
+    # PDF の資料群が無い状態（元の .txt の資料群 zahard だけ）では、ベクトルの経路に入らない
     pool, embedder = vector_env
     monkeypatch.setenv("SEARCH_SCOPE", "zahard")
     assert ainvoke("大気") == search_documents.invoke({"query": "大気"})
@@ -174,8 +178,18 @@ def test_scope_with_only_one_pdf_collection_searches_only_its_files(vector_env, 
     pool, _ = vector_env
     monkeypatch.setenv("SEARCH_SCOPE", "cafe")
     pool.rows = []
-    assert ainvoke("大気") == tools._NOT_FOUND_TEXT  # zahard は範囲外。.txt の文は返らない
+    assert ainvoke("大気") == tools._NOT_FOUND_TEXT  # zahard は範囲外。ザーハードの文は返らない
     assert pool.calls[0][1]["sources"] == ["cafe_store_guide.pdf"]
+
+
+def test_zahard_pdfs_are_searched_by_the_vector_path_too(vector_env):
+    # ザーハードも PDF の資料群なので、SEARCH_BACKEND=vector では DB の埋め込みで検索する（BM25 のままの .txt は無い）
+    pool, embedder = vector_env
+    pool.rows = [{"source": "ザーハード1.pdf", "heading": None, "content": "酸素濃度は地球の1/10以下です。", "sim": 0.8}]
+    assert ainvoke("ザーハードの大気") == "[ザーハード1.pdf]\n酸素濃度は地球の1/10以下です。"
+    assert embedder.queries == ["ザーハードの大気"]
+    (_, params), = pool.calls
+    assert set(ZAHARD_FILES) <= set(params["sources"])
 
 
 def test_sync_invoke_is_always_bm25(vector_env):
@@ -213,6 +227,63 @@ def test_cancellation_is_not_swallowed_by_the_fallback(vector_env):
     embedder.error = asyncio.CancelledError()
     with pytest.raises(asyncio.CancelledError):
         ainvoke("糸くずフィルターの掃除")  # クライアントの切断で取り消されたら、BM25 に戻さずそのまま止まる
+
+
+# ---- 既定は bm25。vector には、DB への取り込みと埋め込みが要る ----
+
+
+def _every_vector_file_in_the_database(**override: Any) -> list[dict[str, Any]]:
+    """検索する PDF（ザーハードを含む）の全部が、いまのファイルの内容で取り込まれ、埋め込み済みの DB の行。"""
+    rows = []
+    for name, path in tools._vector_files(tools.search_scope()).items():
+        row = {
+            "source": name, "status": "ready", "document_hash": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "heading": "見出し", "content": "本文", "has_vector": True, "model": embedding.MODEL,
+            "dims": embedding.DIMENSIONS, "input_hash": embedding.input_hash("見出し", "本文"),
+        }
+        rows.append({**row, **(override if name in ZAHARD_FILES else {})})
+    return rows
+
+
+def _verify_search_backend(rows: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SEARCH_BACKEND", "vector")
+    monkeypatch.delenv("SEARCH_SCOPE", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(search_vector, "get_pool", lambda: FakePool(rows))
+    asyncio.run(tools.verify_search_backend(mock=False, vertex=False))
+
+
+def test_the_default_backend_is_bm25_and_needs_neither_the_database_nor_embeddings(monkeypatch):
+    # 既定（SEARCH_BACKEND 未設定）は bm25。ザーハードの質問も、埋め込みの API も DB も使わずに、資料の PDF を読み込んだ BM25 で答える
+    monkeypatch.delenv("SEARCH_BACKEND", raising=False)
+    assert search_vector.DEFAULT_BACKEND == "bm25" and search_vector.search_backend() == "bm25"
+
+    def must_not_run(*args: Any, **kwargs: Any):
+        raise AssertionError("bm25 のときは、埋め込みも DB も使わない")
+
+    monkeypatch.setattr(search_vector, "embed_query", must_not_run)
+    monkeypatch.setattr(search_vector, "get_pool", must_not_run)
+    question = "ザーハードの大気の酸素濃度はどれくらい？"
+    output = ainvoke(question)
+    assert output == search_documents.invoke({"query": question})
+    assert output.startswith("[ザーハード1.pdf]\n")
+    asyncio.run(tools.verify_search_backend(mock=True, vertex=False))  # 起動の検査も何もしない（モックでも通る）
+
+
+def test_vector_needs_the_zahard_pdfs_ingested_and_embedded(monkeypatch):
+    # SEARCH_BACKEND=vector で起動するには、ザーハードの PDF も DB に取り込み、埋め込みを作っておく
+    # （python -m app.ingestion --apply と python -m app.ingestion.embed --apply）。足りなければ、BM25 に黙って切り替えず、起動を失敗させる
+    _verify_search_backend(_every_vector_file_in_the_database(), monkeypatch)  # 全部そろっていれば通る
+
+    without_zahard = [row for row in _every_vector_file_in_the_database() if row["source"] not in ZAHARD_FILES]
+    with pytest.raises(search_vector.VectorSearchError, match="DB に取り込まれていません") as info:
+        _verify_search_backend(without_zahard, monkeypatch)
+    assert all(f"{name}: DB に取り込まれていません" in str(info.value) for name in ZAHARD_FILES)
+
+    not_embedded = _every_vector_file_in_the_database(has_vector=False)
+    with pytest.raises(search_vector.VectorSearchError, match="埋め込みが無い、または古い") as info:
+        _verify_search_backend(not_embedded, monkeypatch)
+    assert all(f"{name}: 埋め込みが無い、または古い" in str(info.value) for name in ZAHARD_FILES)
 
 
 # ---- 起動の検査（verify / lifespan） ----
