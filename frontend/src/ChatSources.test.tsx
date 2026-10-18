@@ -1,8 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { EXAMPLE_QUESTIONS } from './components/MessageList';
+import { followUpQuestions } from './lib/followUps';
 import { findSourcePage } from './lib/sources';
 import { installFetch, jsonResponse, replyResponse, sseResponse, replyChunks } from './test/helpers';
 
@@ -102,6 +103,40 @@ describe('出典チップ', () => {
     await ask(userEvent.setup());
 
     expect(await screen.findByText(/参照した設定資料の抜粋（2 件）/)).toBeInTheDocument();
+  });
+});
+
+describe('続けて聞く', () => {
+  it('回答の根拠になった資料に答えがある質問を出し、聞いたばかりの質問は出さない', () => {
+    const questions = followUpQuestions(['tsubasa_dorm_rules.pdf'], ['入寮できるのは誰ですか？']);
+    expect(questions).toEqual(['寮費はいくらですか？', '門限は何時ですか？', '入寮の申込みはいつまでにすればよいですか？']);
+    expect(followUpQuestions(['unknown.pdf'], [])).toEqual([]);
+    expect(followUpQuestions(['ザーハード2.pdf'], [])).toHaveLength(3);
+  });
+
+  it('回答の下に出し、押すとその質問を送る', async () => {
+    const { chatBodies } = installFetch((_body, call) =>
+      call === 1 ? replyResponse({ reply: '2 月 28 日までです。', context: CONTEXT }) : replyResponse({ reply: '月額です。' }),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    const group = await screen.findByRole('group', { name: '続けて聞く' });
+    await user.click(within(group).getByRole('button', { name: '寮費はいくらですか？' }));
+
+    await screen.findByText('月額です。');
+    expect(chatBodies()[1]).toMatchObject({ message: '寮費はいくらですか？' });
+  });
+
+  it('出典が無い回答（資料を検索していない）には、出さない', async () => {
+    installFetch(() => replyResponse({ reply: 'こんにちは', context: '' }));
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    await screen.findByText('こんにちは');
+    expect(screen.queryByRole('group', { name: '続けて聞く' })).not.toBeInTheDocument();
   });
 });
 
