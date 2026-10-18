@@ -96,7 +96,9 @@ function DocumentTable({ state, onRetry, onOpen }: DocumentTableProps) {
                   <DocumentName document={document} />
                 </button>
               </th>
-              <td data-label="状態">{statusLabel(document)}</td>
+              <td data-label="状態" data-status={document.status}>
+                {statusLabel(document)}
+              </td>
               <td data-label="ページ数">{document.pages ?? '-'}</td>
               <td data-label="チャンク数">{document.chunkCount}</td>
               <td data-label="更新">{formatDate(document.updatedAt)}</td>
@@ -146,7 +148,7 @@ function DocumentChunks({ document, view, page, onViewChange, onBack }: Document
 
   return (
     <section aria-label={`${displayName(document)} のチャンク`}>
-      <button type="button" className="btn btn-secondary" onClick={onBack}>
+      <button type="button" className="btn btn-secondary btn-small" onClick={onBack}>
         資料一覧に戻る
       </button>
       <h2 className="documents-title">
