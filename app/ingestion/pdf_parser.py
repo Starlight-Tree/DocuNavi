@@ -21,6 +21,9 @@ REASONS = {
 # 抽出した文字のうち、これ以上が「読めない文字」なら文字化けとみなす割合
 GARBLED_RATIO = 0.1
 
+# 題名として保存する長さの上限（超えたら題名なし。メタデータに本文が入っている PDF を弾く）
+MAX_TITLE_CHARS = 200
+
 
 class IngestionError(Exception):
     """取り込めない PDF。`reason` は REASONS のキー。"""
@@ -220,6 +223,35 @@ def _layout_lines(page) -> tuple[Line, ...]:
     if not runs:
         return ()
     return tuple(line for group in _split_columns(runs) for line in _lines_of(group))
+
+
+def clean_title(raw: object) -> str | None:
+    """PDF のメタデータの題名を、保存・表示できる形にする。使えなければ None。
+
+    文字列でなければ None。空白の並び（改行を含む）は 1 つの空白にして、前後を落とす。空・文字化け・長すぎる
+    （`MAX_TITLE_CHARS` 超）ものは None（切り詰めない。途中で切れた題名を、正しいものとして保存しない）。
+    本文から題名を推測はしない。
+    """
+    if not isinstance(raw, str):
+        return None
+    title = " ".join(raw.split())
+    if not title or len(title) > MAX_TITLE_CHARS or _looks_garbled([title]):
+        return None
+    return title
+
+
+def extract_title(path: Path) -> str | None:
+    """PDF のメタデータ `/Title` を返す。無い・読めない・使えないときは None（例外は出さない）。"""
+    from pypdf import PdfReader
+
+    try:
+        reader = PdfReader(path)
+        if reader.is_encrypted and not reader.decrypt(""):
+            return None
+        metadata = reader.metadata
+        return clean_title(metadata.title if metadata is not None else None)
+    except Exception:  # noqa: BLE001 - 題名は付随情報。読めなくても取り込み全体は止めない
+        return None
 
 
 def extract_pages(path: Path) -> list[Page]:
