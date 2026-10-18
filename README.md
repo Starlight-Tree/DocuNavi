@@ -84,7 +84,8 @@ cd frontend && npm test         # フロントエンド（Vitest）
 
 | 文書 | 内容 |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | グラフの流れ、ディレクトリ構成、配信の仕組み、ガードレール |
+| [docs/architecture.md](docs/architecture.md) | 処理の流れ、ディレクトリ構成、環境構成（図）、配信の仕組み |
+| [docs/guardrails.md](docs/guardrails.md) | 入出力ガードレール（拒否の条件、ストリーミング中の逐次検査） |
 | [docs/configuration.md](docs/configuration.md) | 環境変数、LLM の遅延・失敗・切断への対処 |
 | [docs/api.md](docs/api.md) | `/health`・`/chat`・`/chat/stream` の仕様、エラー |
 | [docs/development.md](docs/development.md) | テスト、CI、依存の更新 |
