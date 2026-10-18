@@ -1292,6 +1292,27 @@ textarea {
   background: var(--surface);
 }
 
+/* 種別（資料群）は、状態と同じ形の、色を付けない小さなラベルにする。未設定の資料には出さない（空のラベルを残さない） */
+.documents-table td[data-label='種別']::before {
+  content: none;
+}
+
+.documents-table td[data-label='種別'] {
+  padding: 0 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.documents-table td[data-label='種別']:empty {
+  display: none;
+}
+
+/* 一覧の上の絞り込み（表示の切り替えと同じ部品）。カード一覧との間に余白を置く */
+.collection-filter {
+  margin-bottom: 0.75rem;
+}
+
 /* 状態は、色つきの小さなラベルにする（取り込み失敗は赤）。ラベルの色が見出しの代わりなので、「状態」の文字は付けない */
 .documents-table td[data-status]::before {
   content: none;

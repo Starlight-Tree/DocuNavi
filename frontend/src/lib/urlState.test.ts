@@ -4,7 +4,7 @@ import { buildSearch, currentStateSearch, parseUrlState, replaceUrlState } from 
 
 describe('parseUrlState', () => {
   it('何も無ければチャット', () => {
-    expect(parseUrlState('')).toEqual({ tab: 'chat', doc: null, view: null, item: null, page: null });
+    expect(parseUrlState('')).toEqual({ tab: 'chat', doc: null, view: null, item: null, page: null, collection: null });
   });
 
   it('資料・表示・項まで読む', () => {
@@ -14,6 +14,7 @@ describe('parseUrlState', () => {
       view: 'graph',
       item: 'a11p1',
       page: null,
+      collection: null,
     });
   });
 
@@ -41,6 +42,7 @@ describe('parseUrlState', () => {
       view: null,
       item: null,
       page: null,
+      collection: null,
     });
     expect(parseUrlState('?tab=documents&view=graph&item=a1p1')).toMatchObject({ view: null, item: null });
     expect(parseUrlState('?tab=documents&doc=3&view=pdf&item=a1p1').item).toBeNull();
@@ -71,6 +73,26 @@ describe('buildSearch', () => {
 
   it('チャットに切り替えると、資料の状態は外れる', () => {
     expect(buildSearch('?tab=documents&doc=3&view=text', { tab: 'chat' })).toBe('?tab=chat');
+  });
+});
+
+describe('一覧の絞り込み（collection）', () => {
+  it('資料の一覧を見ているときだけ読む（チャットでも、資料を開いていても無い）', () => {
+    expect(parseUrlState('?tab=documents&collection=cafe').collection).toBe('cafe');
+    expect(parseUrlState('?tab=chat&collection=cafe').collection).toBeNull();
+    expect(parseUrlState('?tab=documents&doc=3&collection=cafe').collection).toBeNull();
+  });
+
+  it('名前の形が合わない値は捨てる', () => {
+    expect(parseUrlState('?tab=documents&collection=a%20b').collection).toBeNull();
+    expect(parseUrlState('?tab=documents&collection=').collection).toBeNull();
+    expect(parseUrlState(`?tab=documents&collection=${'x'.repeat(41)}`).collection).toBeNull();
+  });
+
+  it('絞り込みを URL に書き、資料を開くと外し、戻す（null）と消える', () => {
+    expect(buildSearch('?tab=documents', { collection: 'guides' })).toBe('?tab=documents&collection=guides');
+    expect(buildSearch('?tab=documents&collection=guides', { doc: 3 })).toBe('?tab=documents&doc=3');
+    expect(buildSearch('?tab=documents&collection=guides', { collection: null })).toBe('?tab=documents');
   });
 });
 

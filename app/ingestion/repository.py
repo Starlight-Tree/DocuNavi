@@ -28,11 +28,19 @@ class Repository(Protocol):
         """保存済みのチャンクのハッシュ（chunk_index の順）。文書が無ければ None。"""
 
     def save(
-        self, source: str, document_hash: str, pages: int, chunks: Sequence[Chunk], *, title: Title = KEEP_TITLE
+        self,
+        source: str,
+        document_hash: str,
+        pages: int,
+        chunks: Sequence[Chunk],
+        *,
+        title: Title = KEEP_TITLE,
+        collection: str | None = None,
     ) -> None:
         """文書を ready にし、チャンクを入れ替える（ハッシュが同じチャンクの行は残す）。
 
         題名: 渡さない（KEEP_TITLE）なら保存済みのまま、文字列ならそれに、None なら題名なしにする。
+        資料群（collection）: 文字列ならそれに上書きし、None（渡さない）なら保存済みのまま（消さない）。
         """
 
     def mark_failed(self, source: str, document_hash: str, reason: str) -> None:
@@ -48,15 +56,24 @@ class MemoryRepository:
         return None if doc is None else [c.content_hash for c in doc["chunks"]]
 
     def save(
-        self, source: str, document_hash: str, pages: int, chunks: Sequence[Chunk], *, title: Title = KEEP_TITLE
+        self,
+        source: str,
+        document_hash: str,
+        pages: int,
+        chunks: Sequence[Chunk],
+        *,
+        title: Title = KEEP_TITLE,
+        collection: str | None = None,
     ) -> None:
         previous = self.documents.get(source, {}).get("title")
+        previous_collection = self.documents.get(source, {}).get("collection")
         self.documents[source] = {
             "content_hash": document_hash,
             "status": "ready",
             "failure_reason": None,
             "pages": pages,
             "title": previous if isinstance(title, _KeepTitle) else title,
+            "collection": collection if collection is not None else previous_collection,
             "chunks": list(chunks),
         }
 
@@ -74,10 +91,13 @@ CREATE TABLE IF NOT EXISTS documents (
     failure_reason text,
     pages          integer NOT NULL DEFAULT 0,
     title          text,
+    collection     text CONSTRAINT documents_collection_format CHECK (collection IS NULL OR collection ~ '^[A-Za-z0-9_-]{1,40}$'),
     created_at     timestamptz NOT NULL DEFAULT now(),
     updated_at     timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS title text;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS collection text
+    CONSTRAINT documents_collection_format CHECK (collection IS NULL OR collection ~ '^[A-Za-z0-9_-]{1,40}$');
 CREATE TABLE IF NOT EXISTS chunks (
     id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     document_id  bigint NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
@@ -127,10 +147,17 @@ class PostgresRepository:
         return [row[0] for row in rows]
 
     def save(
-        self, source: str, document_hash: str, pages: int, chunks: Sequence[Chunk], *, title: Title = KEEP_TITLE
+        self,
+        source: str,
+        document_hash: str,
+        pages: int,
+        chunks: Sequence[Chunk],
+        *,
+        title: Title = KEEP_TITLE,
+        collection: str | None = None,
     ) -> None:
         with self._conn.transaction():
-            doc_id = self._upsert_document(source, document_hash, "ready", None, pages, title)
+            doc_id = self._upsert_document(source, document_hash, "ready", None, pages, title, collection)
             existing = self._conn.execute(
                 "SELECT id, content_hash FROM chunks WHERE document_id = %s ORDER BY chunk_index", (doc_id,)
             ).fetchall()
@@ -185,24 +212,26 @@ class PostgresRepository:
         reason: str | None,
         pages: int | None,
         title: Title,
+        collection: str | None = None,
     ) -> int:
         # 題名は、渡されたとき（文字列・None）だけ上書きする。渡されない（KEEP_TITLE）なら、保存済みのまま
         keep = isinstance(title, _KeepTitle)
         new_title = None if keep else title
         row = self._conn.execute(
             """
-            INSERT INTO documents (source, content_hash, status, failure_reason, pages, title)
-            VALUES (%s, %s, %s, %s, COALESCE(%s, 0), %s)
+            INSERT INTO documents (source, content_hash, status, failure_reason, pages, title, collection)
+            VALUES (%s, %s, %s, %s, COALESCE(%s, 0), %s, %s)
             ON CONFLICT (source) DO UPDATE SET
                 content_hash = EXCLUDED.content_hash,
                 status = EXCLUDED.status,
                 failure_reason = EXCLUDED.failure_reason,
                 pages = COALESCE(%s, documents.pages),
                 title = CASE WHEN %s THEN documents.title ELSE EXCLUDED.title END,
+                collection = COALESCE(EXCLUDED.collection, documents.collection),
                 updated_at = now()
             RETURNING id
             """,
-            (source, document_hash, status, reason, pages, new_title, pages, keep),
+            (source, document_hash, status, reason, pages, new_title, collection, pages, keep),
         ).fetchone()
         return row[0]
 
