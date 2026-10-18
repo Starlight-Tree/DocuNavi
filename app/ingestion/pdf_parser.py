@@ -9,6 +9,7 @@ import statistics
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO
 
 # 理由コード -> 利用者に見せる固定の説明
 REASONS = {
@@ -252,8 +253,8 @@ def extract_title(path: Path) -> str | None:
         return None
 
 
-def extract_pages(path: Path) -> list[Page]:
-    """全ページのテキストを返す（文字の無いページは空文字のまま残す）。
+def extract_pages(path: Path | BinaryIO) -> list[Page]:
+    """全ページのテキストを返す（文字の無いページは空文字のまま残す）。`path` はファイルか、読み込み済みのバイト列（`io.BytesIO`）。
 
     全ページに文字が無ければ `empty`、文字化けなら `garbled`、読めなければ `unreadable` / `encrypted`。
     """
