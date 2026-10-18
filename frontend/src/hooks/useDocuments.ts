@@ -6,6 +6,8 @@ import { fetchImpact, fetchRelationGraph } from '../api/graph';
 import type { Impact, RelationGraph } from '../api/graph';
 import { useAuth } from '../auth/AuthContext';
 import { createAuthedFetch } from '../auth/authFetch';
+import { findSourcePage } from '../lib/sources';
+import { useUrlState } from '../lib/urlState';
 
 const MSG_FAILED = '資料を取得できませんでした。しばらく待ってから再試行してください。';
 
@@ -119,4 +121,35 @@ export function useImpact(id: number, node: string | null): [Loaded<Impact>, () 
     [fetcher, id, node],
   );
   return useLoaded(node === null ? null : load);
+}
+
+export type OpenSourceResult = 'opened' | 'notfound' | 'error';
+
+/**
+ * チャットの出典（ファイル名と抜粋）から、資料の元PDF を、その箇所のページで開く。
+ * 資料の一覧からファイル名で資料を探し、チャンクと突き合わせてページを決める。ページが決まらなくても、資料は開く。
+ */
+export function useOpenSource(): (source: string, excerpt: string) => Promise<OpenSourceResult> {
+  const fetcher = useAuthedJsonFetch();
+  const { navigate } = useUrlState();
+  return useCallback(
+    async (source: string, excerpt: string) => {
+      try {
+        const list = await fetchDocuments(fetcher);
+        const document = list.documents.find((d) => d.source === source);
+        if (!document) return 'notfound';
+        let page: number | null = null;
+        try {
+          page = findSourcePage((await fetchDocumentChunks(fetcher, document.id)).chunks, excerpt);
+        } catch {
+          // ページが分からなくても、資料は開く
+        }
+        navigate({ tab: 'documents', doc: document.id, view: 'pdf', page });
+        return 'opened';
+      } catch {
+        return 'error';
+      }
+    },
+    [fetcher, navigate],
+  );
 }

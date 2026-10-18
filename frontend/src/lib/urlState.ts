@@ -4,7 +4,7 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react';
  * 画面の状態（タブ・資料・表示の切り替え・関係図で選んだ項）を、URL のクエリに持たせる。
  * 戻る・進む・再読み込み・URL の共有で、同じ画面に戻れる。
  *
- * 例: /?tab=documents&doc=3&view=graph&item=a11p1
+ * 例: /?tab=documents&doc=3&view=graph&item=a11p1 、/?tab=documents&doc=3&view=pdf&page=2
  * 入力途中の文・開閉・スクロール位置など、一時的な状態は URL に置かない（トークンなどの秘密も置かない）。
  */
 
@@ -19,19 +19,23 @@ export interface UrlState {
   view: DetailView | null;
   /** 関係図で選んだ項の ID。 */
   item: string | null;
+  /** 元の PDF で開くページ（1 始まり）。表示が PDF のときだけ意味がある。 */
+  page: number | null;
 }
 
 const VIEWS: readonly DetailView[] = ['pdf', 'text', 'graph'];
 // 項の ID（例: a11p1、fn1）の形。長さと文字を絞り、変な値を状態に持ち込まない
 const ITEM_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
 const DOC_PATTERN = /^[1-9]\d{0,9}$/;
+const PAGE_PATTERN = /^[1-9]\d{0,3}$/;
 
 /** 状態として意味が通るように整える。資料が無ければ表示も項も無く、関係図でなければ項は無い。 */
 function normalize(state: UrlState): UrlState {
   const doc = state.tab === 'documents' ? state.doc : null;
   const view = doc === null ? null : state.view;
   const item = view === 'graph' ? state.item : null;
-  return { tab: state.tab, doc, view, item };
+  const page = view === 'pdf' ? state.page : null;
+  return { tab: state.tab, doc, view, item, page };
 }
 
 /** URL のクエリ（`?tab=…` 形式の文字列）から状態を読む。不正な値は、安全な既定値（チャット・一覧）にする。 */
@@ -41,11 +45,13 @@ export function parseUrlState(search: string): UrlState {
   const docParam = params.get('doc');
   const viewParam = params.get('view');
   const itemParam = params.get('item');
+  const pageParam = params.get('page');
   return normalize({
     tab,
     doc: docParam !== null && DOC_PATTERN.test(docParam) ? Number(docParam) : null,
     view: VIEWS.find((v) => v === viewParam) ?? null,
     item: itemParam !== null && ITEM_PATTERN.test(itemParam) ? itemParam : null,
+    page: pageParam !== null && PAGE_PATTERN.test(pageParam) ? Number(pageParam) : null,
   });
 }
 
@@ -61,6 +67,7 @@ export function buildSearch(current: string, next: Partial<UrlState>): string {
   set('doc', state.doc);
   set('view', state.view);
   set('item', state.item);
+  set('page', state.page);
   return `?${params.toString()}`;
 }
 

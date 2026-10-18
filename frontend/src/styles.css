@@ -398,6 +398,66 @@ textarea {
   font-size: 0.9rem;
 }
 
+.source-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.source-chips-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  padding: 0.25rem 0.7rem 0.25rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.source-chip:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.source-chip:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.source-chip-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.source-failure {
+  margin: 0.4rem 0 0;
+  color: var(--danger-text);
+  font-size: 0.85rem;
+}
+
+.source-excerpts {
+  margin-top: 0.5rem;
+}
+
 .sources summary {
   color: var(--text-muted);
   cursor: pointer;

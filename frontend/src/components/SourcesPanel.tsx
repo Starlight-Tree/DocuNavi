@@ -1,25 +1,72 @@
+import { useState } from 'react';
+import { useOpenSource } from '../hooks/useDocuments';
+import type { OpenSourceResult } from '../hooks/useDocuments';
 import { parseSources } from '../lib/sources';
 
 interface SourcesPanelProps {
   context: string;
 }
 
-/** 回答の根拠にした設定資料。出典の見出しが無い context（未検索・該当なしの定型文）では何も出さない。 */
+const MSG_NOT_FOUND = '資料一覧に見つかりませんでした。';
+const MSG_ERROR = '資料を開けませんでした。しばらく待ってから、もう一度お試しください。';
+
+/**
+ * 回答の根拠にした資料。出典のチップを押すと、資料の元PDF を、その箇所のページで開く。
+ * 抜粋の全文は、折りたたみの中で見られる。出典の見出しが無い context（未検索・該当なしの定型文）では何も出さない。
+ */
 export function SourcesPanel({ context }: SourcesPanelProps) {
   const sources = parseSources(context);
+  const openSource = useOpenSource();
+  const [opening, setOpening] = useState<number | null>(null);
+  const [failure, setFailure] = useState<Exclude<OpenSourceResult, 'opened'> | null>(null);
   if (sources.length === 0) return null;
 
+  const open = async (index: number) => {
+    const source = sources[index];
+    if (!source || opening !== null) return;
+    setOpening(index);
+    setFailure(null);
+    const result = await openSource(source.name, source.text);
+    setOpening(null);
+    if (result !== 'opened') setFailure(result);
+  };
+
   return (
-    <details className="sources">
-      <summary>参照した設定資料（{sources.length} 件）</summary>
-      <div className="sources-body">
+    <div className="sources">
+      <div className="source-chips" role="group" aria-label="出典（押すと元のPDFを開きます）">
+        <span className="source-chips-label">出典</span>
         {sources.map((source, index) => (
-          <section key={`${index}-${source.name}`} className="source">
-            <h3 className="source-name">{source.name}</h3>
-            {source.text && <p className="source-text">{source.text}</p>}
-          </section>
+          <button
+            key={`${index}-${source.name}`}
+            type="button"
+            className="source-chip"
+            disabled={opening !== null}
+            onClick={() => void open(index)}
+          >
+            <span className="source-chip-number" aria-hidden="true">
+              {index + 1}
+            </span>
+            {source.name}
+            {opening === index && <span className="visually-hidden">（開いています）</span>}
+          </button>
         ))}
       </div>
-    </details>
+      {failure && (
+        <p className="source-failure" role="alert">
+          {failure === 'notfound' ? MSG_NOT_FOUND : MSG_ERROR}
+        </p>
+      )}
+      <details className="source-excerpts">
+        <summary>参照した設定資料の抜粋（{sources.length} 件）</summary>
+        <div className="sources-body">
+          {sources.map((source, index) => (
+            <section key={`${index}-${source.name}`} className="source">
+              <h3 className="source-name">{source.name}</h3>
+              {source.text && <p className="source-text">{source.text}</p>}
+            </section>
+          ))}
+        </div>
+      </details>
+    </div>
   );
 }

@@ -108,21 +108,31 @@ function DocumentTable({ state, onRetry, onOpen }: DocumentTableProps) {
 }
 
 /** 元の PDF。ブラウザー内蔵の PDF 表示（iframe）に、認証付きで取った PDF の Blob URL を渡す。 */
-function OriginalPdf({ document, id }: { document: DocumentSummary; id: number }) {
+function OriginalPdf({ document, id, page }: { document: DocumentSummary; id: number; page: number | null }) {
   const [state, reload] = useDocumentPdf(id);
   if (state.status !== 'ready') return <Status state={state} onRetry={reload} />;
-  return <iframe className="pdf-frame" src={state.data.url} title={`${displayName(document)} の元PDF`} />;
+  // ページの指定（#page=N）は、ブラウザー内蔵のビューアが読む。ページが変わったときは、作り直して確実に飛ばす
+  return (
+    <iframe
+      key={page ?? 'top'}
+      className="pdf-frame"
+      src={page === null ? state.data.url : `${state.data.url}#page=${page}`}
+      title={`${displayName(document)} の元PDF`}
+    />
+  );
 }
 
 interface DocumentChunksProps {
   document: DocumentSummary;
   /** URL で指定された表示。無ければ null（元の PDF があれば PDF、無ければ AI 用テキスト）。 */
   view: DetailView | null;
+  /** URL で指定された、元PDF で開くページ。 */
+  page: number | null;
   onViewChange: (view: DetailView) => void;
   onBack: () => void;
 }
 
-function DocumentChunks({ document, view, onViewChange, onBack }: DocumentChunksProps) {
+function DocumentChunks({ document, view, page, onViewChange, onBack }: DocumentChunksProps) {
   const [state, reload] = useDocumentChunks(document.id);
   const originalPdf = state.status === 'ready' && state.data.originalPdf;
   // 関係図は入寮規程だけ。サーバーが元の PDF から計算するので、元の PDF が使えるときだけ出す
@@ -178,7 +188,7 @@ function DocumentChunks({ document, view, onViewChange, onBack }: DocumentChunks
           {/* 切り替えても閉じない（隠すだけ）。PDF を取り直さず、表示しているページも保つ。画面を離れると Blob URL を解放する */}
           {originalPdf && (
             <div hidden={mode !== 'pdf'}>
-              <OriginalPdf document={document} id={document.id} />
+              <OriginalPdf document={document} id={document.id} page={page} />
             </div>
           )}
           {hasGraph && mode === 'graph' && <RelationGraphView document={document} />}
@@ -217,7 +227,7 @@ function DocumentChunks({ document, view, onViewChange, onBack }: DocumentChunks
  * 開いている資料・表示・関係図の項は、URL が決める（戻る・再読み込み・共有で戻れる）。
  */
 export function DocumentsView() {
-  const { doc, view, navigate } = useUrlState();
+  const { doc, view, page, navigate } = useUrlState();
   const [state, reload] = useDocumentList();
   const selected =
     doc !== null && state.status === 'ready' ? (state.data.documents.find((d) => d.id === doc) ?? null) : null;
@@ -234,6 +244,7 @@ export function DocumentsView() {
         <DocumentChunks
           document={selected}
           view={view}
+          page={page}
           onViewChange={(next) => navigate({ view: next })}
           onBack={() => navigate({ doc: null })}
         />
