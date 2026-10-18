@@ -26,7 +26,7 @@ export function Header({ mode, view = 'chat', onViewChange, onNewConversation, u
 
   return (
     <header className="app-header">
-      <h1 className="app-title">資料チャット</h1>
+      <h1 className="app-title">ドキュナビ</h1>
       {onViewChange && (
         <nav className="view-tabs" aria-label="表示する画面">
           {VIEWS.map(({ id, label }) => (
