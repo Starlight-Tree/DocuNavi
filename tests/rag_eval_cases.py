@@ -1,6 +1,7 @@
 """RAG 検索の評価セット。
 
-storage/chunk/ の 3 ファイルを精読して手で作った小さな評価セット（実装を見て合わせ込んでいない）。
+ザーハードの 3 ファイル（元は storage/chunk/ の .txt。いまは storage/pdf/zahard/ の PDF。元の .txt は evals/fixtures/zahard_txt/）を
+精読して手で作った小さな評価セット（実装を見て合わせ込んでいない）。質問・期待する答え・根拠は変えず、ファイル名の拡張子だけを移した。
 件数が少ないため、指標は「大きな退行の検知」には使えるが、統計的な精度保証にはならない。
 
 各ケースの意味:
@@ -13,9 +14,9 @@ storage/chunk/ の 3 ファイルを精読して手で作った小さな評価�
 
 from typing import NamedTuple
 
-F1 = "ザーハード1.txt"
-F2 = "ザーハード2.txt"
-F3 = "ザーハード3.txt"
+F1 = "ザーハード1.pdf"
+F2 = "ザーハード2.pdf"
+F3 = "ザーハード3.pdf"
 
 
 class RagCase(NamedTuple):

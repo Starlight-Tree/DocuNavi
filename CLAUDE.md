@@ -27,7 +27,9 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   開けなければ起動を失敗させ、メモリへは切り替えない
 - `app/search_vector.py`: PDF の資料のベクトル検索（Supabase / pgvector。質問を `gemini-embedding-2` で埋め込み、コサイン類似度で取る）。
   `SEARCH_BACKEND=vector` のときだけ、`search_documents` の非同期経路（`tools.search_chunks_async`）が使う。既定は `bm25`。
-  zahard の .txt は BM25 のまま、失敗した呼び出しだけ BM25 に戻る。起動時に DB の状態を検査し、合わなければ起動を失敗させる。
+  ザーハードも PDF の資料群（`storage/pdf/zahard/`）なので、`vector` のときは、その PDF も DB に取り込み・埋め込み済みであることが要る
+  （足りなければ起動を失敗させる。既定の `bm25` は DB も埋め込みも使わない）。`storage/chunk/` に .txt を置いた資料群だけは BM25 のまま。
+  失敗した呼び出しだけ BM25 に戻る。起動時に DB の状態を検査し、合わなければ起動を失敗させる。
   回答の質・遅延・費用は未測定（`docs/configuration.md` の「ベクトル検索（実験的）」、評価は `evals/README.md`）
 - `app/auth.py`: ログイン。`AUTH_MODE=off`（既定）は匿名、`required` は `/chat` と `/chat/stream` に Supabase の JWT（JWKS の ES256/RS256 だけ。`exp` `iss` `aud` `sub` 必須、`sub` は UUID）を要求し、
   履歴のキーを `<sub>:<thread_id>` にする（`sub` 以外から利用者 ID を取らない）。公開鍵が無ければ共有秘密には切り替えず、起動を失敗させる。
@@ -37,9 +39,12 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - `app/history_admin.py`: 履歴の削除コマンド（`python -m app.history_admin`。既定は件数の表示だけ、`--apply` で削除）。アプリからは使わない
 - `app/frontend.py`: `frontend/dist` を配信し、ファイル名らしくない未知の GET/HEAD は `index.html` にフォールバックする
   （拡張子付きのパスや `/assets/` 配下は 404）
-- `storage/chunk/`: ザーハードの設定資料の .txt（資料群 `zahard`）
-- `storage/pdf/<名前>/`: PDF の資料。ディレクトリ名が資料群の名前（いまは `cafe` と `guides`）。チャットの検索ツール `search_documents` は、
-  資料群ごとに別々に BM25 で採点して結果を合わせる（混ぜて採点しない。理由は `docs/configuration.md`）。
+- `storage/chunk/`: .txt の資料の置き場（資料群 `zahard`）。**いまは空**（Git にも無い）。ザーハードの資料は PDF（`storage/pdf/zahard/`）に移した。
+  元の .txt は `evals/fixtures/zahard_txt/`（原本。アプリは読まない）。.txt の読み込みはコードに残してあり、BM25 を外すときに一緒に整理する
+- `storage/pdf/<名前>/`: PDF の資料。ディレクトリ名が資料群の名前（いまは `cafe` `guides` `zahard`）。チャットの検索ツール `search_documents` は、
+  資料群ごとに別々に BM25 で採点して結果を合わせる（混ぜて採点しない。理由は `docs/configuration.md`）。資料群の並びは名前順で、交互採用もこの順。
+  `storage/pdf/zahard/` の PDF は、`evals/fixtures/zahard_txt/` の .txt を `evals/fixtures/zahard_pdf/make_pdf.py` で PDF にしたもの（話題のまとまりごとの段落 = 12 チャンク。
+  題名は /Title の「ザーハード設定資料 1〜3」）。`tests/test_zahard_pdf.py` が、文面・段落の分け方・題名・バイト列を確かめる。PDF の見た目は、資料一覧で開いて目視する（未確認）。
   `storage/pdf/cafe/` と `storage/pdf/guides/` の PDF は `evals/corpora/<同じ名前>/` の PDF の写し（作り直したら両方を更新する。
   テストが一致を確かめる）。2 段組みの PDF は、段を検出して読み順を組み直す（`pdf_parser._split_columns`）が、試したのは reportlab 製の 1 冊だけ。実物の書き出しで確かめるまで、アプリには置かない（`evals/fixtures/two_column/`）
 - `frontend/`: UI。`dist/` と `node_modules/` は Git 管理外

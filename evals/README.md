@@ -7,14 +7,19 @@
 ## 実行
 
 ```bash
-.venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 5            # evals/results/baseline_bm25.json
-.venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 2 --out evals/results/baseline_bm25_k2.json
+.venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 5 --corpus storage/pdf/zahard --questions evals/questions.yaml   # ザーハード（PDF）。evals/results/baseline_bm25_zahard.json
+.venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 2 --corpus storage/pdf/zahard --questions evals/questions.yaml --out evals/results/baseline_bm25_zahard_k2.json
 .venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 5 --corpus evals/corpora/cafe   # PDF の資料
 .venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 5 --corpus evals/corpora/guides # PDF の資料（取扱説明書・入寮規程）
 .venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 5 --corpus evals/fixtures/menu # PDF の資料（メニュー・キャンペーン。アプリの外）
-.venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 5 --app                       # アプリが検索する全資料（全部の質問）
-.venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 2 --app --out evals/results/baseline_bm25_app_k2.json
+.venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 5 --app --out evals/results/baseline_bm25_app_pdf.json   # アプリが検索する全資料（全部の質問）
+.venv/bin/python -m scripts.eval_retrieval --mode bm25 --k 2 --app --out evals/results/baseline_bm25_app_pdf_k2.json
 ```
+
+**ザーハードが .txt だった時代の実測**（`results/baseline_bm25.json`・`_k2`・`_app`・`_app_k2`）は、比較の記録として残してあります（コードは読みません。
+上書きしないよう、`--app` には `--out` を付けます）。ザーハードを PDF にした後の実測（`baseline_bm25_zahard*.json`・`baseline_bm25_app_pdf*.json`）は、
+質問ごとに返るファイルと本文、指標とも、ファイル名の拡張子を除いて同じです（`tests/test_eval_retrieval.py` が確かめる）。
+今の `--corpus` なしの実行（`storage/chunk/` の .txt を読む）は、.txt が無いので何も採点できません。
 
 | 引数 | 意味 |
 |---|---|
@@ -22,7 +27,7 @@
 | `--k` | 上位何ファイルまでを評価するか（既定 5） |
 | `--corpus` | PDF の資料のディレクトリ。配下の PDF を、取り込みと同じ経路（`app/ingestion` の抽出とチャンク化）で読む。評価セットの既定は `<dir>/questions.yaml` |
 | `--passages` | `--corpus` のときの表の返し方。`parent`（既定）は、表の行を 1 行ずつ採点し、採用されたら**表全体**を返す。`sentence` は、表も 1 行ずつの文として返す（比較用） |
-| `--app` | アプリが検索する全資料（`storage/chunk/` の .txt と `storage/pdf/` の PDF）を、アプリと同じ検索（資料群ごとに採点して合わせる）で採点する。評価セットは `evals/questions.yaml` と `evals/corpora/*/questions.yaml` の全部（id は重ならないこと）。`SEARCH_SCOPE` には影響されず、全部を使う。`--corpus` とは同時に指定できない |
+| `--app` | アプリが検索する全資料（`storage/pdf/` の PDF。`storage/chunk/` に .txt があればそれも）を、アプリと同じ検索（資料群ごとに採点して合わせる）で採点する。評価セットは `evals/questions.yaml` と `evals/corpora/*/questions.yaml` の全部（id は重ならないこと）。`SEARCH_SCOPE` には影響されず、全部を使う。`--corpus` とは同時に指定できない |
 | `--allow-missing-evidence` | 根拠が抽出結果に無い質問があっても止まらず、`extraction_miss` として数えて測る（下の「失敗の種類」）。既定は、評価が黙って無効になるのを防ぐために、終了コード 2 で止まる。期待ファイルが資料に無いなどの誤りは、この指定があっても止まる |
 | `--questions` | 評価セット（既定 `evals/questions.yaml`。`--corpus` なら `<dir>/questions.yaml`。`--app` なら全部の評価セット） |
 | `--out` | 出力先（既定 `evals/results/baseline_<mode>.json`。`--corpus` 付きは `baseline_<mode>_<ディレクトリ名>.json`、`--app` は `baseline_<mode>_app.json`） |
@@ -36,9 +41,11 @@
 | パス | 内容 |
 |---|---|
 | `questions.yaml` | 質問と正解。項目の意味はファイル先頭のコメント |
-| `results/baseline_bm25.json` | 現行 BM25 の実測（k=5）。質問ごとの返した本文と失敗の種類を含む |
-| `results/baseline_bm25_k2.json` | 同じ評価を k=2 で。**アプリが LLM に渡す件数（`TOP_K`）はこちら** |
-| `results/baseline_bm25_app.json` / `_app_k2.json` | アプリが検索する全資料（ザーハード + カフェ）を、全部の質問（46 件）で採点した実測。k=5 / k=2 |
+| `results/baseline_bm25_zahard.json` / `_zahard_k2.json` | ザーハード（`storage/pdf/zahard/` の PDF）を、`questions.yaml` の 36 問で採点した BM25 の実測。k=5 / k=2。質問ごとの返した本文と失敗の種類を含む。**アプリが LLM に渡す件数（`TOP_K`）は k=2** |
+| `results/baseline_bm25_app_pdf.json` / `_app_pdf_k2.json` | アプリが検索する全資料（ザーハード + カフェ + guides の PDF）を、全部の質問（68 件）で採点した実測。k=5 / k=2 |
+| `results/baseline_bm25.json` / `_k2.json` / `_app.json` / `_app_k2.json` | **ザーハードが .txt だった時代の実測（記録）。** 上の PDF 版と同じ結果（ファイル名の拡張子を除く）。`_app` 系は 68 件 |
+| `fixtures/zahard_txt/` | ザーハードの元の .txt（3 本）。原本として残す。アプリは読まない |
+| `fixtures/zahard_pdf/` | ザーハードの PDF（`storage/pdf/zahard/`）の作り方（`make_pdf.py`、段落の分け方 `layout.json`、`README.md`） |
 | `corpora/cafe/` | 別の評価用の資料（架空のカフェチェーンの店舗案内。表・脚注・例外つき）。`source/` は PDF 化する前の Markdown と事実リスト、`questions.yaml` は承認済みの質問（作成者・承認者・基準は先頭に記録）、`cafe_store_guide.pdf` は `source/make_pdf.py`（reportlab + IPAex ゴシック。依存は一時的な環境にだけ入れる）で Markdown から作った 4 ページの PDF（表は 3〜4 ページにまたがる。同じ入力から同じバイト列）。同じファイルを `storage/pdf/cafe/` にも置いていて、アプリはそちらを検索する（一致はテストが確かめる） |
 | `corpora/guides/` | 段階 2 の評価用の資料（架空の洗濯乾燥機の取扱説明書と、学生寮の入寮規程。どちらも 1 段組み）。`source/` は Markdown・事実リスト・PDF を作る `make_pdfs.py`。質問は 22 件（承認の経緯は `questions.yaml` の先頭） |
 | `fixtures/two_column/` | **2 段組みの PDF（架空の市のごみの出し方ガイド）と、その質問 11 件。評価セットにも、アプリの検索対象にも入れていない**。2026-10-18 より前は、抽出の段階で根拠が欠けて `--corpus` が止まった。今は段を検出して読み順を組み直す（下の「2 段組みの PDF」と「段の検出と読み順」） |

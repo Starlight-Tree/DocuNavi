@@ -3,7 +3,7 @@
 LLM も DB も呼ばない。検索の実体は app/agents/tools.py の search_chunks（BM25）。
 指標と結果の見方は evals/README.md。
 
-    python -m scripts.eval_retrieval --mode bm25 --k 5                          # storage/chunk/（ザーハード）
+    python -m scripts.eval_retrieval --mode bm25 --k 5 --corpus storage/pdf/zahard --questions evals/questions.yaml   # ザーハード（PDF）
     python -m scripts.eval_retrieval --mode bm25 --k 5 --corpus evals/corpora/cafe   # PDF の資料
     python -m scripts.eval_retrieval --mode bm25 --k 5 --app                    # アプリが検索する全資料（全部の質問）
     python -m scripts.eval_retrieval --corpus <dir> --allow-missing-evidence    # 根拠が抽出に無い質問を、止まらずに数える
@@ -512,7 +512,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--app",
         action="store_true",
-        help="アプリが検索する全資料（storage/chunk/ の .txt と storage/pdf/ の PDF）を、アプリと同じ検索で採点する。"
+        help="アプリが検索する全資料（storage/pdf/ の PDF。storage/chunk/ に .txt があればそれも）を、アプリと同じ検索で採点する。"
         "質問は evals/questions.yaml と evals/corpora/*/questions.yaml の全部",
     )
     parser.add_argument(

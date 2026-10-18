@@ -6,6 +6,7 @@ LLM・DB・ネットワークに触れないことを確かめる。
 
 import json
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -16,9 +17,14 @@ import pytest
 from app.agents import tools
 from scripts import eval_retrieval as ev
 from tests.rag_eval_cases import ALL_CASES
+from tests.zahard_corpus import ZAHARD_PDF_DIR
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = ROOT / "evals" / "results" / "baseline_bm25.json"
+RESULTS = ROOT / "evals" / "results"
+QUESTIONS = ROOT / "evals" / "questions.yaml"
+# ザーハードの PDF 版の baseline（storage/pdf/zahard/ の PDF を、取り込みと同じ経路で読んだ BM25 の実測）。
+# baseline_bm25.json / _k2.json は、ザーハードが .txt だった時代の実測（比較の記録として残す。コードは読まない）
+ZAHARD_BASELINES = ["baseline_bm25_zahard.json", "baseline_bm25_zahard_k2.json"]
 
 # 実資料に依存しない小さな資料。「林檎」は 3 ファイルすべてに出る
 CORPUS = {
@@ -76,7 +82,7 @@ def test_questions_file_is_valid_and_matches_corpus():
     assert sum(1 for q in questions if not q.answerable) >= 5
     assert {q.category for q in questions} == set(ev.CATEGORIES)
     assert {q.scope_kind for q in questions if not q.answerable} == set(ev.SCOPE_KINDS)
-    assert ev.check_against_corpus(questions, tools.load_chunks()) == []
+    assert ev.check_against_corpus(questions, ev.load_pdf_corpus(ZAHARD_PDF_DIR)[0]) == []
 
 
 def test_questions_include_the_cases_of_test_rag():
@@ -323,7 +329,9 @@ def test_runs_without_llm_or_network(tmp_path):
 
         from scripts import eval_retrieval
 
-        assert eval_retrieval.main(["--k", "3", "--out", {str(out)!r}]) == 0
+        assert eval_retrieval.main(
+            ["--k", "3", "--corpus", {str(ZAHARD_PDF_DIR)!r}, "--questions", {str(QUESTIONS)!r}, "--out", {str(out)!r}]
+        ) == 0
         loaded = [
             name
             for name in ("langchain_google_genai", "google.genai", "app.agents.graph", "app.main", "psycopg")
@@ -347,14 +355,19 @@ def test_runs_without_llm_or_network(tmp_path):
 # ---- baseline からの劣化 ----
 
 
-def test_current_search_does_not_regress_from_the_committed_baseline(tmp_path):
-    # evals/results/baseline_bm25.json は「現行 BM25 の実測」。同じ資料・同じ質問で、
+@pytest.mark.parametrize("name", ZAHARD_BASELINES)
+def test_current_search_does_not_regress_from_the_committed_baseline(name, tmp_path):
+    # evals/results/baseline_bm25_zahard*.json は「現行 BM25 の実測」。同じ PDF・同じ質問で、
     # 該当数が baseline を下回ったら退行。上回ったら改善なので baseline を取り直す
-    # （python -m scripts.eval_retrieval --mode bm25 --k 5）。件数が少ないので、割合ではなく件数で比べる
-    baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
-    current = ev.run(ev.load_questions(), baseline["mode"], baseline["k"])
-    if current["corpus"]["sha256"] != baseline["corpus"]["sha256"]:
-        pytest.skip("資料が変わった。baseline を取り直す（python -m scripts.eval_retrieval --mode bm25 --k 5）")
+    # （python -m scripts.eval_retrieval --mode bm25 --k 5 --corpus storage/pdf/zahard --questions evals/questions.yaml）。
+    # 件数が少ないので、割合ではなく件数で比べる
+    baseline = json.loads((RESULTS / name).read_text(encoding="utf-8"))
+    out = tmp_path / "r.json"
+    argv = ["--corpus", str(ZAHARD_PDF_DIR), "--questions", str(QUESTIONS), "--k", str(baseline["k"]), "--out", str(out)]
+    assert ev.main(argv) == 0
+    current = json.loads(out.read_text(encoding="utf-8"))
+    if current["corpus"]["pdf_sha256"] != baseline["corpus"]["pdf_sha256"]:
+        pytest.skip("PDF が変わった。baseline を取り直す（--corpus storage/pdf/zahard --questions evals/questions.yaml）")
 
     now, then = current["summary"]["counts"], baseline["summary"]["counts"]
     regressed = {name: (then[name], now[name]) for name in then if now[name] < then[name]}
@@ -364,12 +377,33 @@ def test_current_search_does_not_regress_from_the_committed_baseline(tmp_path):
     )
 
 
-@pytest.mark.parametrize("name", ["baseline_bm25_app.json", "baseline_bm25_app_k2.json"])
+@pytest.mark.parametrize(
+    ("pdf_baseline", "text_baseline"),
+    [
+        ("baseline_bm25_zahard.json", "baseline_bm25.json"),
+        ("baseline_bm25_zahard_k2.json", "baseline_bm25_k2.json"),
+        ("baseline_bm25_app_pdf.json", "baseline_bm25_app.json"),
+        ("baseline_bm25_app_pdf_k2.json", "baseline_bm25_app_k2.json"),
+    ],
+)
+def test_pdf_baselines_match_the_text_era_baselines_apart_from_the_zahard_file_names(pdf_baseline, text_baseline):
+    # ザーハードを .txt から PDF にしても、BM25 の結果（質問ごとに返るファイルと本文、指標）は変わっていない、という記録。
+    # 違いはファイル名の拡張子だけ（ザーハード1〜3.txt → .pdf）。.txt の時代の baseline は、この比較のために残してある
+    def as_text(report: dict) -> dict:
+        return json.loads(re.sub(r"(ザーハード[123])\.pdf", r"\1.txt", json.dumps(report, ensure_ascii=False)))
+
+    now = json.loads((RESULTS / pdf_baseline).read_text(encoding="utf-8"))
+    then = json.loads((RESULTS / text_baseline).read_text(encoding="utf-8"))
+    assert as_text(now)["summary"] == then["summary"]
+    assert as_text(now)["results"] == then["results"]
+
+
+@pytest.mark.parametrize("name", ["baseline_bm25_app_pdf.json", "baseline_bm25_app_pdf_k2.json"])
 def test_app_search_matches_the_committed_baseline(name):
-    # アプリが検索する全資料（ザーハードの .txt と storage/pdf/ の PDF）を、全部の質問で。
+    # アプリが検索する全資料（storage/pdf/ の PDF。ザーハードも PDF）を、全部の質問で。
     # 件数ではなく、質問ごとに返るファイルの並びまで一致を求める。資料群を足したときに、既存の質問の結果が
     # 良くも悪くも動いたら（混ざって採点された、など）知らせる。意図した変更なら baseline を取り直す
-    baseline = json.loads((ROOT / "evals" / "results" / name).read_text(encoding="utf-8"))
+    baseline = json.loads((RESULTS / name).read_text(encoding="utf-8"))
     assert baseline["corpus"]["source"] == "app"
     questions = [q for path in baseline["question_sets"] for q in ev.load_questions(ROOT / path)]
     current = ev.run(questions, baseline["mode"], baseline["k"], collections=tools.load_collections())
@@ -384,10 +418,12 @@ def test_app_search_matches_the_committed_baseline(name):
 
 def test_app_baseline_is_the_sum_of_the_single_collection_baselines():
     # アプリ全体の結果は、各資料群を単独で評価した結果と同じ（互いに邪魔をしていない）
-    results = ROOT / "evals" / "results"
     for suffix in ("", "_k2"):
-        app = json.loads((results / f"baseline_bm25_app{suffix}.json").read_text(encoding="utf-8"))
-        parts = [json.loads((results / f"baseline_bm25{kind}{suffix}.json").read_text(encoding="utf-8")) for kind in ("", "_cafe", "_guides")]
+        app = json.loads((RESULTS / f"baseline_bm25_app_pdf{suffix}.json").read_text(encoding="utf-8"))
+        parts = [
+            json.loads((RESULTS / f"baseline_bm25{kind}{suffix}.json").read_text(encoding="utf-8"))
+            for kind in ("_zahard", "_cafe", "_guides")
+        ]
         summed = {key: sum(part["summary"]["counts"][key] for part in parts) for key in app["summary"]["counts"]}
         # 答えのある質問は、各資料群を単独で評価した結果と同じ
         assert app["summary"]["counts"]["doc_hit"] == summed["doc_hit"]
@@ -405,6 +441,9 @@ def test_app_mode_reports_the_sets_and_pdfs(tmp_path):
     assert report["corpus"]["source"] == "app"
     assert set(report["corpus"]["collections"]) == {"zahard", "cafe", "guides"}
     assert set(report["corpus"]["pdf_sha256"]) == {
+        "zahard/ザーハード1.pdf",
+        "zahard/ザーハード2.pdf",
+        "zahard/ザーハード3.pdf",
         "cafe/cafe_store_guide.pdf",
         "guides/aoba_aw820_manual.pdf",
         "guides/tsubasa_dorm_rules.pdf",
