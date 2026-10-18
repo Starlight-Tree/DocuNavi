@@ -9,6 +9,10 @@
         "--browser",
         "chromium"
       ]
+    },
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=${SUPABASE_PROJECT_REF}&features=database,docs&read_only=true"
     }
   }
 }
