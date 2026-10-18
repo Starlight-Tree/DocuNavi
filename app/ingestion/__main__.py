@@ -8,7 +8,7 @@
     python -m app.ingestion --input evals/corpora/cafe --apply        # DATABASE_URL の Postgres に保存する
 
 `DATABASE_URL` があれば、確認のときも保存済みの内容と比べる（読むだけで、テーブルも作らない）。無ければ、保存済みは無いものとして数える。
-`--apply` は `DATABASE_URL` が要る。表示するのは、ファイル名・ページ数・チャンク数と、新しい・変わらない・消えるチャンクの数だけ。
+`--apply` は `DATABASE_URL` が要る。表示するのは、ファイル名・題名（PDF の /Title）・ページ数・チャンク数と、新しい・変わらない・消えるチャンクの数だけ。
 
 終了コード: 0 = 完了、1 = DB の操作に失敗、2 = 使い方の誤り・入力に PDF が無い・`--apply` なのに DATABASE_URL が未設定、
 3 = 一部の PDF が取り込めなかった（他の PDF は処理した。理由は表示と、`--apply` なら documents.failure_reason）。
@@ -45,6 +45,7 @@ def _print_report(report: DocumentReport) -> None:
         print(f"  status=failed reason={report.reason}")
         print(f"  {REASONS.get(report.reason or '', '')}")
         return
+    print(f"  title={report.title or '(none)'}")
     print(f"  pages={report.pages}")
     print(f"  chunks={report.chunks}")
     print(f"  new_chunks={report.new_chunks}")

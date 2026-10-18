@@ -96,3 +96,37 @@ data: [DONE]
 | 本文を送り始めた後 | ステータスは 200 のまま、`{"type":"error","errorText":"…"}` を送って `[DONE]` で終わる。`errorText` は `/chat` の `detail` と同じ固定の日本語メッセージ（例外の内容は含まれない） |
 
 クライアントが切断した場合は、LLM 呼び出しを取り消して何も返しません（`/chat` と同じ。[configuration.md](configuration.md) の「クライアントの切断」）。
+
+## `GET /documents`、`GET /documents/{id}/chunks`、`GET /documents/{id}/file`
+
+資料の一覧（読み取り専用）。**DB（`documents` / `chunks`）に保存された内容**を返します。BM25 検索はこの DB を読まず、起動時に
+`storage/pdf/` の PDF を読み直すので、ここで見える本文は、BM25 が採点する本文と同じとは限りません（ベクトル検索
+`SEARCH_BACKEND=vector` だけがこの DB を読みます）。
+
+```json
+{"configured": true, "documents": [{"id": 1, "source": "tsubasa_dorm_rules.pdf",
+  "title": "つばさ大学学生寮 入寮規程", "status": "ready", "failure_reason": null,
+  "pages": 3, "updated_at": "2026-10-18T09:00:00Z", "chunk_count": 3, "embedded_count": 3}]}
+```
+
+- **`title`:** PDF のメタデータ `/Title`（取り込み時に保存）。無い・空白だけなら `null` で、画面はファイル名（`source`）で代えます。
+  `source` はファイル名のままで、題名とは別に返します。
+- **`GET /documents`:** 文書ごとの情報とチャンク数、埋め込み済みの数。`configured` が `false` のときは、`DATABASE_URL` が空で資料の DB を
+  使っていません（エラーではなく 200。`documents` は空）。`configured: true` で `documents` が空なら、DB はあるが文書が 0 件です。
+- **`GET /documents/{id}/chunks`:** その文書のチャンクを `chunk_index` 順に、`page`・`page_end`・`kind`・`heading`・`content`（全文）・
+  `embedded`（埋め込みがあるか）・`embedding_model` で返します。**埋め込みのベクトルそのものは返しません。**
+  存在しない `id` は 404、`id` が 1 以上の整数でなければ 422。応答の `original_pdf`（真偽値）は、元の PDF を `/file` で返せるか。
+- **`GET /documents/{id}/file`:** 取り込んだ元の PDF（`application/pdf`、`Content-Disposition: inline`。日本語のファイル名は `filename*=UTF-8''…`）。
+  DB の `source`（ファイル名）と `content_hash`（取り込んだ PDF の sha256）に合うものだけを、`storage/pdf/<資料群>/` の直下から探して返す。
+  **名前だけでは選ばない**（同じ名前で中身が違う PDF は返さない）。返すのは、ハッシュを確かめたバイト列そのもの。
+  `source` はファイル名としてだけ扱い（`/` `\` `..` を含むものは探さない）、シンボリックリンクは、行き先が置き場の中でも使わない。
+  20 MiB を超えるファイルは返さない。
+  - 存在しない `id` は 404。ファイルが無い・探せないときは 404（`元の PDF は利用できません。`）。
+    名前の合うファイルはあるが内容が DB と違う（または DB にハッシュが無い）ときは 409（`元の PDF が、DB に保存された資料と一致しません。`）。
+  - 画面は、認証付きの fetch で取った PDF を Blob URL にして、ブラウザー内蔵の PDF 表示（iframe）で見せる。
+    PC のブラウザーだけを確かめている（スマホ・iOS は未確認）。
+- **認証:** `AUTH_MODE=required` のときは `/chat` と同じ（`Authorization: Bearer`、失敗は固定メッセージの 401）。資料ごとの閲覧権限はまだ無く、
+  ログインした人は全員が全文を読めます。**`AUTH_MODE=off` は自分だけが使うローカル開発に限り、他の人が届く環境では `required` にしてください。**
+- **エラー:** DB を読めないときは固定メッセージの 503（例外の内容・接続先は含まない）。`/chunks` で DB が未設定のときも 503。
+- 応答には `Cache-Control: no-store` が付きます。書き込みの API はありません（POST などは 405）。
+

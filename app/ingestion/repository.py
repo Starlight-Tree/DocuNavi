@@ -12,12 +12,28 @@ from typing import Any, Protocol
 from app.ingestion.chunker import Chunk
 
 
+class _KeepTitle:
+    """`save()` に題名を渡さなかった印。保存済みの題名をそのまま残す（None を渡すと「題名なし」として消す）。"""
+
+    def __repr__(self) -> str:
+        return "KEEP_TITLE"
+
+
+KEEP_TITLE = _KeepTitle()
+Title = str | None | _KeepTitle
+
+
 class Repository(Protocol):
     def stored_hashes(self, source: str) -> list[str] | None:
         """保存済みのチャンクのハッシュ（chunk_index の順）。文書が無ければ None。"""
 
-    def save(self, source: str, document_hash: str, pages: int, chunks: Sequence[Chunk]) -> None:
-        """文書を ready にし、チャンクを入れ替える（ハッシュが同じチャンクの行は残す）。"""
+    def save(
+        self, source: str, document_hash: str, pages: int, chunks: Sequence[Chunk], *, title: Title = KEEP_TITLE
+    ) -> None:
+        """文書を ready にし、チャンクを入れ替える（ハッシュが同じチャンクの行は残す）。
+
+        題名: 渡さない（KEEP_TITLE）なら保存済みのまま、文字列ならそれに、None なら題名なしにする。
+        """
 
     def mark_failed(self, source: str, document_hash: str, reason: str) -> None:
         """取り込みの失敗を記録する。以前のチャンクは消さない（黙って検索対象から外さない）。"""
@@ -31,12 +47,16 @@ class MemoryRepository:
         doc = self.documents.get(source)
         return None if doc is None else [c.content_hash for c in doc["chunks"]]
 
-    def save(self, source: str, document_hash: str, pages: int, chunks: Sequence[Chunk]) -> None:
+    def save(
+        self, source: str, document_hash: str, pages: int, chunks: Sequence[Chunk], *, title: Title = KEEP_TITLE
+    ) -> None:
+        previous = self.documents.get(source, {}).get("title")
         self.documents[source] = {
             "content_hash": document_hash,
             "status": "ready",
             "failure_reason": None,
             "pages": pages,
+            "title": previous if isinstance(title, _KeepTitle) else title,
             "chunks": list(chunks),
         }
 
@@ -53,9 +73,11 @@ CREATE TABLE IF NOT EXISTS documents (
     status         text NOT NULL CHECK (status IN ('ready', 'failed')),
     failure_reason text,
     pages          integer NOT NULL DEFAULT 0,
+    title          text,
     created_at     timestamptz NOT NULL DEFAULT now(),
     updated_at     timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS title text;
 CREATE TABLE IF NOT EXISTS chunks (
     id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     document_id  bigint NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
@@ -104,9 +126,11 @@ class PostgresRepository:
             return None  # まだ取り込んだことが無い（確認だけのときは、テーブルを作らない）
         return [row[0] for row in rows]
 
-    def save(self, source: str, document_hash: str, pages: int, chunks: Sequence[Chunk]) -> None:
+    def save(
+        self, source: str, document_hash: str, pages: int, chunks: Sequence[Chunk], *, title: Title = KEEP_TITLE
+    ) -> None:
         with self._conn.transaction():
-            doc_id = self._upsert_document(source, document_hash, "ready", None, pages)
+            doc_id = self._upsert_document(source, document_hash, "ready", None, pages, title)
             existing = self._conn.execute(
                 "SELECT id, content_hash FROM chunks WHERE document_id = %s ORDER BY chunk_index", (doc_id,)
             ).fetchall()
@@ -151,24 +175,34 @@ class PostgresRepository:
 
     def mark_failed(self, source: str, document_hash: str, reason: str) -> None:
         with self._conn.transaction():
-            self._upsert_document(source, document_hash, "failed", reason, None)
+            self._upsert_document(source, document_hash, "failed", reason, None, KEEP_TITLE)
 
     def _upsert_document(
-        self, source: str, document_hash: str, status: str, reason: str | None, pages: int | None
+        self,
+        source: str,
+        document_hash: str,
+        status: str,
+        reason: str | None,
+        pages: int | None,
+        title: Title,
     ) -> int:
+        # 題名は、渡されたとき（文字列・None）だけ上書きする。渡されない（KEEP_TITLE）なら、保存済みのまま
+        keep = isinstance(title, _KeepTitle)
+        new_title = None if keep else title
         row = self._conn.execute(
             """
-            INSERT INTO documents (source, content_hash, status, failure_reason, pages)
-            VALUES (%s, %s, %s, %s, COALESCE(%s, 0))
+            INSERT INTO documents (source, content_hash, status, failure_reason, pages, title)
+            VALUES (%s, %s, %s, %s, COALESCE(%s, 0), %s)
             ON CONFLICT (source) DO UPDATE SET
                 content_hash = EXCLUDED.content_hash,
                 status = EXCLUDED.status,
                 failure_reason = EXCLUDED.failure_reason,
                 pages = COALESCE(%s, documents.pages),
+                title = CASE WHEN %s THEN documents.title ELSE EXCLUDED.title END,
                 updated_at = now()
             RETURNING id
             """,
-            (source, document_hash, status, reason, pages, pages),
+            (source, document_hash, status, reason, pages, new_title, pages, keep),
         ).fetchone()
         return row[0]
 

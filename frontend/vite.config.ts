@@ -24,12 +24,14 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/chat': proxy,
         '/health': proxy,
+        '/documents': proxy,
       },
     },
     preview: {
       proxy: {
         '/chat': proxy,
         '/health': proxy,
+        '/documents': proxy,
       },
     },
     test: {

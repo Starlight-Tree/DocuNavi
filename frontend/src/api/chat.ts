@@ -33,7 +33,7 @@ const MSG_EMPTY = 'メッセージを入力してください。';
 const MSG_BAD_THREAD =
   '会話 ID が正しくありません。「新しい会話」を押して、最初からやり直してください。';
 const MSG_INVALID_INPUT = '入力内容に問題があります。内容を確認して、もう一度お試しください。';
-const MSG_BAD_BODY = 'サーバーから想定外の応答が返りました。しばらく待ってから再試行してください。';
+export const MSG_BAD_BODY = 'サーバーから想定外の応答が返りました。しばらく待ってから再試行してください。';
 
 /** API が返したエラー。message は利用者にそのまま見せられる日本語。 */
 export class ChatApiError extends Error {
@@ -57,7 +57,7 @@ export function endpoint(path: string): string {
   return `${base}${path}`;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
@@ -170,6 +170,16 @@ export async function chatFetch(input: RequestInfo | URL, init?: RequestInit): P
   if (!type.includes('text/event-stream')) {
     throw new ChatApiError(response.status, MSG_BAD_BODY);
   }
+  return response;
+}
+
+/**
+ * JSON を返す API 用の fetch（資料一覧など）。chatFetch と同じ形なので、createAuthedFetch の baseFetch に渡せる。
+ * ネットワーク失敗と HTTP エラーは chatFetch と同じ ChatApiError にする。本文の形は呼び出し側が確かめる。
+ */
+export async function jsonFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await request(String(input), init);
+  if (!response.ok) throw await toApiError(response);
   return response;
 }
 

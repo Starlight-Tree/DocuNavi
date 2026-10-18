@@ -250,3 +250,66 @@ def test_an_unchanged_table_that_moves_to_another_page_keeps_its_row_and_gets_ne
     after = _rows(conninfo, "SELECT id, page, page_end FROM chunks WHERE kind = 'table'")
     assert (report.new_chunks, report.removed_chunks) == (1, 0)  # 増えたのは前書きだけ
     assert after == [(before[0][0], 2, None)]  # 同じ行で、ページだけが変わる
+
+
+# --- 題名（documents.title）。実 SQL での「渡さない = 残す／None = 消す／文字列 = 置き換える」 ---------------------
+
+
+def _titled(path, title, pages=None):
+    path.write_bytes(build_pdf([paragraphs(*(pages or BODY[:4]))], title=title))
+    return path
+
+
+def _title_of(conninfo):
+    return _rows(conninfo, "SELECT title FROM documents")[0][0]
+
+
+def test_apply_stores_the_pdf_title_and_a_plain_save_without_title_keeps_it(db, tmp_path):
+    conninfo, _ = db
+    pdf = _titled(tmp_path / "guide.pdf", "つばさ大学学生寮 入寮規程")
+    _run(conninfo, [pdf], tmp_path, apply=True)
+    assert _title_of(conninfo) == "つばさ大学学生寮 入寮規程"
+
+    with psycopg.connect(conninfo, prepare_threshold=None) as conn:
+        PostgresRepository(conn, create_tables=False).save("guide.pdf", "other-hash", 1, [])  # title を渡さない
+    assert _title_of(conninfo) == "つばさ大学学生寮 入寮規程"
+
+
+def test_reingesting_a_pdf_without_a_title_clears_it_and_a_changed_title_replaces_it(db, tmp_path):
+    conninfo, _ = db
+    pdf = tmp_path / "guide.pdf"
+    _titled(pdf, "旧題名")
+    _run(conninfo, [pdf], tmp_path, apply=True)
+    _titled(pdf, "新題名")
+    _run(conninfo, [pdf], tmp_path, apply=True)
+    assert _title_of(conninfo) == "新題名"
+    _titled(pdf, None)
+    _run(conninfo, [pdf], tmp_path, apply=True)
+    assert _title_of(conninfo) is None
+
+
+def test_a_failed_pdf_keeps_the_stored_title(db, tmp_path):
+    conninfo, _ = db
+    pdf = _titled(tmp_path / "guide.pdf", "題名")
+    _run(conninfo, [pdf], tmp_path, apply=True)
+    pdf.write_bytes(b"broken")
+    _run(conninfo, [pdf], tmp_path, apply=True)
+    assert _rows(conninfo, "SELECT status, title FROM documents") == [("failed", "題名")]
+
+
+def test_apply_adds_the_title_column_to_a_table_made_before_it_existed(db, tmp_path):
+    conninfo, _ = db
+    with psycopg.connect(conninfo, autocommit=True) as conn:
+        conn.execute(
+            "CREATE TABLE documents (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, source text NOT NULL UNIQUE, "
+            "content_hash text NOT NULL, status text NOT NULL CHECK (status IN ('ready', 'failed')), "
+            "failure_reason text, pages integer NOT NULL DEFAULT 0, "
+            "created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())"
+        )
+        conn.execute("INSERT INTO documents (source, content_hash, status) VALUES ('old.pdf', 'h', 'ready')")
+    pdf = _titled(tmp_path / "guide.pdf", "題名")
+    _run(conninfo, [pdf], tmp_path, apply=True)
+    assert _rows(conninfo, "SELECT source, title FROM documents ORDER BY source") == [
+        ("guide.pdf", "題名"),
+        ("old.pdf", None),
+    ]

@@ -8,6 +8,8 @@ Vite + React + TypeScript で作られた、依存の少ない最小構成のチ
 - 回答の根拠になった設定資料の表示（「参照した設定資料」）
 - エラー（422 / 429 / 500 / 502 / 503 / 504 / 通信失敗 / 本文の途中の失敗）の表示と「再試行」
 - 動作モード（`mock` / `gemini`）のバッジ表示（`GET /health`）
+- 「資料一覧」タブ: DB に保存された資料を、文書ごと・チャンクの全文まで読み取り専用で表示（`GET /documents`、`GET /documents/{id}/chunks`）。
+  DB 未設定・文書 0 件・取得失敗を分けて表示する。BM25 検索が読む本文とは別（画面に注意書きがある）
 
 回答の読み取り（SSE のパースと、メッセージの組み立て）は、AI SDK の `useChat`（`@ai-sdk/react`）に任せています。
 バックエンドの `/chat/stream` が AI SDK の UI message stream を返すので、トランスポートに URL と `fetch` を渡すだけです。
@@ -31,7 +33,7 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-開発サーバーは `/chat`（`/chat/stream` を含む）と `/health` をバックエンドへ転送（プロキシ）します。
+開発サーバーは `/chat`（`/chat/stream` を含む）・`/health`・`/documents` をバックエンドへ転送（プロキシ）します。
 ブラウザから見ると同一オリジンなので、バックエンド側の CORS 設定は不要です。
 転送先を変えるときは `VITE_DEV_PROXY_TARGET` を使います。
 
@@ -55,7 +57,7 @@ VITE_DEV_PROXY_TARGET=http://localhost:9000 npm run dev
 
 | 変数 | 既定値 | 用途 |
 |---|---|---|
-| `VITE_DEV_PROXY_TARGET` | `http://localhost:8000` | 開発サーバーが `/chat`・`/chat/stream`・`/health` を転送する先（ビルド成果物には影響しない） |
+| `VITE_DEV_PROXY_TARGET` | `http://localhost:8000` | 開発サーバーが `/chat`・`/chat/stream`・`/health`・`/documents` を転送する先（ビルド成果物には影響しない） |
 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` | 空 | 両方そろっていると Google ログイン（Supabase Auth）を使う。**ビルド時に埋め込まれる**。publishable（anon）キーは公開してよい鍵で、`service_role` は絶対に入れない。`.env.local`（Git 管理外）に書く。どちらかが空なら、ログイン画面は出ず認証なしで動く。バックエンドの `AUTH_MODE` と Supabase・Google 側の設定は [docs/configuration.md](../docs/configuration.md) の「ログイン（認証）」 |
 | `VITE_API_BASE_URL` | 空（相対 URL） | API のベース URL。**ビルド時に埋め込まれる**。別オリジンの API を直接呼ぶときだけ設定する（バックエンドの `CORS_ORIGINS` も必要） |
 
@@ -83,12 +85,14 @@ frontend/
 ├── vite.config.ts            # プロキシ・ビルド・テストの設定
 ├── src/
 │   ├── api/chat.ts           # トランスポート用の fetch（HTTP エラー → ChatApiError）と /health
+│   ├── api/documents.ts      # 資料一覧の取得と、応答の形の検査
 │   ├── auth/                 # Google ログイン（Supabase Auth）。types.ts = 窓口の型、supabase.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
 │   ├── hooks/useChat.ts      # AI SDK の useChat を包み、会話の状態（messages / pending / error / thread_id）を作る
 │   ├── hooks/useBackendMode.ts
+│   ├── hooks/useDocuments.ts # 資料一覧・チャンクの取得（認証つき fetch。取り直しと中断）
 │   ├── lib/sources.ts        # context から出典（ファイル名と本文）を取り出す
 │   ├── lib/storage.ts        # thread_id の sessionStorage 保存（失敗しても動く）
-│   ├── components/           # Header / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen
+│   ├── components/           # Header / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen / DocumentsView
 │   ├── App.tsx, main.tsx, styles.css
 │   └── test/                 # テストの共通設定とヘルパー
 ```
