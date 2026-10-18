@@ -18,6 +18,32 @@ export function loadThreadId(): string | null {
   return null;
 }
 
+export const RETURN_TO_STORAGE_KEY = 'docunavi:return_to';
+
+/** ログインで別のページへ移る前に、いまの画面の状態（整えたクエリ）を預ける。null なら預けた分を捨てる。 */
+export function saveReturnTo(search: string | null): void {
+  try {
+    if (search) {
+      window.sessionStorage.setItem(RETURN_TO_STORAGE_KEY, search);
+    } else {
+      window.sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
+    }
+  } catch {
+    // 預けられなくても、ログインはできる（戻ったときに画面の位置が既定になるだけ）
+  }
+}
+
+/** 預けた画面の状態を取り出して、預け場所を空にする。無い・読めないときは null。 */
+export function takeReturnTo(): string | null {
+  try {
+    const value = window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY);
+    window.sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
+    return value;
+  } catch {
+    return null;
+  }
+}
+
 export function saveThreadId(threadId: string | null): void {
   try {
     if (threadId) {

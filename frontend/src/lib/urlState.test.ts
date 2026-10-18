@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildSearch, parseUrlState } from './urlState';
+import { afterEach } from 'vitest';
+import { buildSearch, currentStateSearch, parseUrlState, replaceUrlState } from './urlState';
 
 describe('parseUrlState', () => {
   it('何も無ければチャット', () => {
@@ -70,5 +71,39 @@ describe('buildSearch', () => {
 
   it('チャットに切り替えると、資料の状態は外れる', () => {
     expect(buildSearch('?tab=documents&doc=3&view=text', { tab: 'chat' })).toBe('?tab=chat');
+  });
+});
+
+describe('currentStateSearch / replaceUrlState', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('チャットが既定のとき（と、画面の指定が無いとき）は null', () => {
+    window.history.replaceState(null, '', '/?code=abc');
+    expect(currentStateSearch()).toBeNull();
+  });
+
+  it('資料の画面は、整えたクエリで返す。この画面が扱わないパラメータは含めない', () => {
+    window.history.replaceState(null, '', '/?tab=documents&doc=3&view=graph&item=a11p1&code=secret&x=1');
+    expect(currentStateSearch()).toBe('?tab=documents&doc=3&view=graph&item=a11p1');
+  });
+
+  it('replaceUrlState は、履歴を増やさずに URL を書き換え、変更を通知する', () => {
+    const length = window.history.length;
+    let notified = 0;
+    const onChange = () => (notified += 1);
+    window.addEventListener('docunavi:urlchange', onChange);
+    replaceUrlState('?tab=documents&doc=3&view=pdf&page=2');
+    window.removeEventListener('docunavi:urlchange', onChange);
+
+    expect(window.location.search).toBe('?tab=documents&doc=3&view=pdf&page=2');
+    expect(window.history.length).toBe(length);
+    expect(notified).toBe(1);
+  });
+
+  it('replaceUrlState は、預けられた文字列も整えてから書く（不正な値・未知のパラメータは落ちる）', () => {
+    replaceUrlState('?tab=documents&doc=abc&evil=1');
+    expect(window.location.search).toBe('?tab=documents');
   });
 });
