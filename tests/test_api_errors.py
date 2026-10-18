@@ -105,9 +105,7 @@ ERROR_CASES = [
 ]
 
 
-@pytest.mark.parametrize(
-    "make_exc,expected", [pytest.param(m, s, id=i) for i, m, s in ERROR_CASES]
-)
+@pytest.mark.parametrize("make_exc,expected", [pytest.param(m, s, id=i) for i, m, s in ERROR_CASES])
 def test_llm_errors_map_to_status_without_leaking(client, use_graph, make_exc, expected):
     use_graph(FakeGraph(exc=make_exc()))
 
@@ -169,8 +167,17 @@ def test_slow_llm_times_out_with_env_setting(client, use_graph, monkeypatch):
 
 @pytest.mark.parametrize(
     "value,expected",
-    [(None, 60.0), ("", 60.0), ("abc", 60.0), ("0", 60.0), ("-3", 60.0), ("nan", 60.0),
-     ("inf", 60.0), ("5", 5.0), ("0.5", 0.5)],
+    [
+        (None, 60.0),
+        ("", 60.0),
+        ("abc", 60.0),
+        ("0", 60.0),
+        ("-3", 60.0),
+        ("nan", 60.0),
+        ("inf", 60.0),
+        ("5", 5.0),
+        ("0.5", 0.5),
+    ],
 )
 def test_llm_timeout_seconds_parsing(monkeypatch, value, expected):
     if value is None:
@@ -254,8 +261,9 @@ def test_invalid_thread_id_is_422(client, use_graph, thread_id):
     assert graph.calls == []
 
 
-@pytest.mark.parametrize("body", [{"message": "x"}, {"message": "x", "thread_id": None},
-                                  {"message": "x", "thread_id": ""}])
+@pytest.mark.parametrize(
+    "body", [{"message": "x"}, {"message": "x", "thread_id": None}, {"message": "x", "thread_id": ""}]
+)
 def test_missing_or_empty_thread_id_starts_new_thread(client, use_graph, body):
     use_graph(FakeGraph())
     res = client.post("/chat", json=body)

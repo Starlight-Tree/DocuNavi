@@ -60,9 +60,7 @@ def seed(graph, thread_id: str, messages: list[BaseMessage]) -> None:
 
 def chat(graph, message: str, thread_id: str) -> dict:
     config = {"configurable": {"thread_id": thread_id}}
-    return asyncio.run(
-        graph.ainvoke({"messages": [HumanMessage(content=message)], "context": ""}, config)
-    )
+    return asyncio.run(graph.ainvoke({"messages": [HumanMessage(content=message)], "context": ""}, config))
 
 
 def history_of(graph, thread_id: str) -> list[BaseMessage]:

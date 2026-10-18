@@ -45,7 +45,9 @@ DEFAULT_MAX_CALLS = 30
 DEFAULT_PER_QUESTION = 3
 
 # 「資料に無い」と言っている文の目印。機械的な目印にすぎず、採点は回答の文を読んで付ける
-_NO_INFO = re.compile(r"記載がありません|記載されていません|見つかりませんでした|書かれていません|情報がありません|資料にはありません")
+_NO_INFO = re.compile(
+    r"記載がありません|記載されていません|見つかりませんでした|書かれていません|情報がありません|資料にはありません"
+)
 _SOURCE_NAME = re.compile(r"(?m)^\[([^\]\n]+\.(?:txt|pdf))\]$")
 
 
@@ -187,7 +189,9 @@ async def vector_search_session(min_similarity: float | None) -> AsyncIterator[N
         await pool.close()
 
 
-async def run_with_search(plan: list[tuple[Question, str]], budget: CallBudget, min_similarity: float | None) -> tuple[list[dict[str, Any]], str]:
+async def run_with_search(
+    plan: list[tuple[Question, str]], budget: CallBudget, min_similarity: float | None
+) -> tuple[list[dict[str, Any]], str]:
     async with vector_search_session(min_similarity):
         return await run_all(plan, budget)
 
@@ -231,10 +235,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--run", action="store_true", help="実 API を呼ぶ（付けなければ質問の一覧を表示するだけ）")
     parser.add_argument("--max-calls", type=int, default=DEFAULT_MAX_CALLS, help="LLM 呼び出しの全体の上限")
     parser.add_argument("--per-question", type=int, default=DEFAULT_PER_QUESTION, help="1 問あたりの上限")
-    parser.add_argument("--only", help="測る質問の id（カンマ区切り）。API の一時的な失敗で取れなかった質問をやり直すとき")
-    parser.add_argument("--out", type=Path, help="出力先（既定 evals/results/answers_<日付>.json。あるファイルは上書きしない）")
-    parser.add_argument("--questions", type=Path, default=ANSWERS_QUESTIONS_PATH, help="質問の一覧（既定 evals/answers/questions.yaml）")
-    parser.add_argument("--min-similarity", type=float, help="検索の類似度のしきい値（この実行の中だけ差し替える。省略はアプリの MIN_SIMILARITY）")
+    parser.add_argument(
+        "--only", help="測る質問の id（カンマ区切り）。API の一時的な失敗で取れなかった質問をやり直すとき"
+    )
+    parser.add_argument(
+        "--out", type=Path, help="出力先（既定 evals/results/answers_<日付>.json。あるファイルは上書きしない）"
+    )
+    parser.add_argument(
+        "--questions", type=Path, default=ANSWERS_QUESTIONS_PATH, help="質問の一覧（既定 evals/answers/questions.yaml）"
+    )
+    parser.add_argument(
+        "--min-similarity",
+        type=float,
+        help="検索の類似度のしきい値（この実行の中だけ差し替える。省略はアプリの MIN_SIMILARITY）",
+    )
     args = parser.parse_args(argv)
 
     plan = load_plan(args.questions)
@@ -245,7 +259,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"質問にありません: {', '.join(unknown)}", file=sys.stderr)
             return 2
         plan = [(q, role) for q, role in plan if q.id in wanted]
-    print(f"質問 {len(plan)} 問、上限: 全体 {args.max_calls} 回、1 問 {args.per_question} 回、検索: ベクトル（しきい値 {args.min_similarity if args.min_similarity is not None else 'アプリの値'}）")
+    print(
+        f"質問 {len(plan)} 問、上限: 全体 {args.max_calls} 回、1 問 {args.per_question} 回、検索: ベクトル（しきい値 {args.min_similarity if args.min_similarity is not None else 'アプリの値'}）"
+    )
     for question, role in plan:
         print(f"  {question.id} [{role}] {question.question}")
     if not args.run:
@@ -278,12 +294,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         "max_calls_per_question": args.per_question,
         "calls_used": budget.total,
         "hedge": "off",
-        "search": {"backend": "vector", "min_similarity": args.min_similarity if args.min_similarity is not None else search_floor()},
+        "search": {
+            "backend": "vector",
+            "min_similarity": args.min_similarity if args.min_similarity is not None else search_floor(),
+        },
         "path": "ainvoke（/chat と同じ。画面が使う /chat/stream ではない）",
         "results": records,
     }
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"呼び出し {budget.total}/{args.max_calls} 回。結果: {out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}")
+    print(
+        f"呼び出し {budget.total}/{args.max_calls} 回。結果: {out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}"
+    )
     return 0
 
 

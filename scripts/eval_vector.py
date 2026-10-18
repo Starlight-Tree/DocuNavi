@@ -33,10 +33,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from scripts import bm25_baseline as tools
 from app.ingestion import embedding
 from app.ingestion.chunker import chunk_pages
 from app.ingestion.pdf_parser import extract_pages
+from scripts import bm25_baseline as tools
 from scripts.eval_retrieval import (
     CORPORA_DIR,
     OUT_OF_SCOPE,
@@ -72,6 +72,7 @@ class EvalError(RuntimeError):
 
 
 # ---------------------------------------------------------------- 質問・分割・正解
+
 
 @dataclass(frozen=True)
 class Chunk:
@@ -122,10 +123,7 @@ def split_questions(questions: Sequence[Question]) -> dict[str, str]:
 
 def gold_chunks(q: Question, chunks: Sequence[Chunk]) -> dict[str, list[int]]:
     """根拠の文ごとに、それを含む（期待ファイルの）チャンク id。検索の結果は使わない。"""
-    return {
-        ev: [c.id for c in chunks if c.source in q.expected_doc_ids and _contains(c.text, ev)]
-        for ev in q.evidence
-    }
+    return {ev: [c.id for c in chunks if c.source in q.expected_doc_ids and _contains(c.text, ev)] for ev in q.evidence}
 
 
 def satisfied(q: Question, retrieved: Sequence[Chunk]) -> bool:
@@ -139,7 +137,8 @@ def satisfied(q: Question, retrieved: Sequence[Chunk]) -> bool:
     if q.evidence_mode == "all":
         return all(any(_contains(c.text, ev) for c in mine) for ev in q.evidence)
     return all(
-        any(c.source == name and _contains(c.text, ev) for c in mine for ev in q.evidence) for name in q.expected_doc_ids
+        any(c.source == name and _contains(c.text, ev) for c in mine for ev in q.evidence)
+        for name in q.expected_doc_ids
     )
 
 
@@ -152,6 +151,7 @@ def first_gold_rank(q: Question, ranked: Sequence[Chunk]) -> int | None:
 
 
 # ---------------------------------------------------------------- DB（読み取りだけ）
+
 
 def connect() -> Any:
     from dotenv import find_dotenv, load_dotenv
@@ -223,7 +223,9 @@ def bm25_collections(chunks: Sequence[Chunk]) -> dict[str, dict[str, list[Any]]]
             for chunk in chunk_pages(extract_pages(path)):
                 stored = by_key.get((filename, chunk.index))
                 if stored is None or stored.content_hash != chunk.content_hash:
-                    raise EvalError(f"{filename} のチャンク {chunk.index} が DB と一致しません（取り込み直しが要ります）")
+                    raise EvalError(
+                        f"{filename} のチャンク {chunk.index} が DB と一致しません（取り込み直しが要ります）"
+                    )
                 used.add((filename, chunk.index))
                 units: list[Any] = []
                 if chunk.heading and chunk.heading != last_heading:
@@ -243,6 +245,7 @@ def bm25_collections(chunks: Sequence[Chunk]) -> dict[str, dict[str, list[Any]]]
 
 # ---------------------------------------------------------------- 検索 3 方式
 
+
 def query_text_of(q: Question) -> str:
     return embedding.query_text(q.question)
 
@@ -257,7 +260,9 @@ def search_bm25(
     return [(by_key[key], text) for key, text in hits], elapsed
 
 
-def search_vector(conn: Any, vector: Sequence[float], depth: int, by_id: dict[int, Chunk]) -> tuple[list[tuple[Chunk, float]], float]:
+def search_vector(
+    conn: Any, vector: Sequence[float], depth: int, by_id: dict[int, Chunk]
+) -> tuple[list[tuple[Chunk, float]], float]:
     """コサイン類似度の高い順。pgvector の `<=>`（コサイン距離）を、スキーマ付きで使う（アプリの検索と同じ書き方）。"""
     literal = embedding.vector_literal(vector)
     started = time.perf_counter()
@@ -297,12 +302,21 @@ def choose_tau(items: Sequence[tuple[bool, bool, float]]) -> tuple[float, list[d
         refused = sum(1 for _, nonempty, s in absent if not nonempty and s < tau)
         tpr = kept / len(answerable) if answerable else 0.0
         tnr = refused / len(absent) if absent else 0.0
-        curve.append({"tau": None if math.isinf(tau) else round(tau, 6), "inf": "-inf" if tau == -math.inf else ("+inf" if tau == math.inf else None), "answerable_kept": kept, "absent_refused": refused, "balanced_accuracy": round((tpr + tnr) / 2, 4)})
+        curve.append(
+            {
+                "tau": None if math.isinf(tau) else round(tau, 6),
+                "inf": "-inf" if tau == -math.inf else ("+inf" if tau == math.inf else None),
+                "answerable_kept": kept,
+                "absent_refused": refused,
+                "balanced_accuracy": round((tpr + tnr) / 2, 4),
+            }
+        )
     best = max(range(len(candidates)), key=lambda i: (curve[i]["balanced_accuracy"], -i))
     return candidates[best], curve
 
 
 # ---------------------------------------------------------------- 質問の埋め込み（API。上限つき・キャッシュつき）
+
 
 def _load_cache() -> dict[str, Any]:
     if CACHE_PATH.exists():
@@ -310,7 +324,14 @@ def _load_cache() -> dict[str, Any]:
         if data.get("model") != embedding.MODEL or data.get("dimensions") != embedding.DIMENSIONS:
             raise EvalError("キャッシュのモデル・次元が現在と違います（別の場所に退避してください）")
         return data
-    return {"model": embedding.MODEL, "dimensions": embedding.DIMENSIONS, "texts_sent": 0, "calls": 0, "log": [], "entries": {}}
+    return {
+        "model": embedding.MODEL,
+        "dimensions": embedding.DIMENSIONS,
+        "texts_sent": 0,
+        "calls": 0,
+        "log": [],
+        "entries": {},
+    }
 
 
 def _save_cache(data: dict[str, Any]) -> None:
@@ -337,8 +358,12 @@ def cmd_embed_queries(apply: bool) -> int:
     todo = [q for q in questions if _entry_key(query_text_of(q)) not in cache["entries"]]
     chars = sum(len(query_text_of(q)) for q in todo)
     calls_needed = math.ceil(len(todo) / BATCH)
-    print(f"質問 {len(questions)} 件、キャッシュ済み {len(questions) - len(todo)} 件、今回送る {len(todo)} 件（{chars} 文字、前置きを含む）")
-    print(f"必要な呼び出し {calls_needed} 回（1 回 {BATCH} 件）。概算費用 約 ${chars * embedding.PRICE_PER_MILLION_TOKENS / 1_000_000:.5f}（1 文字 1 トークンの推計）")
+    print(
+        f"質問 {len(questions)} 件、キャッシュ済み {len(questions) - len(todo)} 件、今回送る {len(todo)} 件（{chars} 文字、前置きを含む）"
+    )
+    print(
+        f"必要な呼び出し {calls_needed} 回（1 回 {BATCH} 件）。概算費用 約 ${chars * embedding.PRICE_PER_MILLION_TOKENS / 1_000_000:.5f}（1 文字 1 トークンの推計）"
+    )
     print(f"累計の送信 {cache['texts_sent']} 件・{cache['calls']} 回（上限 {MAX_TEXTS} 件・{MAX_CALLS} 回）")
     if not todo:
         print("送るものはありません。")
@@ -378,7 +403,12 @@ def cmd_embed_queries(apply: bool) -> int:
         elapsed = time.perf_counter() - began
         record.update(status="ok", elapsed_s=round(elapsed, 3))
         for q, text, vector in zip(batch, texts, vectors, strict=True):
-            cache["entries"][_entry_key(text)] = {"id": q.id, "vector": vector, "batch_elapsed_s": round(elapsed, 3), "batch_size": len(texts)}
+            cache["entries"][_entry_key(text)] = {
+                "id": q.id,
+                "vector": vector,
+                "batch_elapsed_s": round(elapsed, 3),
+                "batch_size": len(texts),
+            }
         _save_cache(cache)
         print(f"  送信 {len(texts)} 件、{elapsed:.2f} 秒")
     print(f"完了。累計の送信 {cache['texts_sent']} 件・{cache['calls']} 回")
@@ -386,6 +416,7 @@ def cmd_embed_queries(apply: bool) -> int:
 
 
 # ---------------------------------------------------------------- plan
+
 
 def cmd_plan() -> int:
     questions = load_all_questions()
@@ -399,8 +430,14 @@ def cmd_plan() -> int:
             continue
         per_evidence = gold_chunks(q, chunks)
         if any(not ids for ids in per_evidence.values()):
-            problems.append(f"{q.id}: 根拠のうち、どのチャンクにも無いものがあります {[e for e, ids in per_evidence.items() if not ids]}")
-        gold[q.id] = {"evidence_mode": q.evidence_mode, "expected_doc_ids": list(q.expected_doc_ids), "gold_by_evidence": per_evidence}
+            problems.append(
+                f"{q.id}: 根拠のうち、どのチャンクにも無いものがあります {[e for e, ids in per_evidence.items() if not ids]}"
+            )
+        gold[q.id] = {
+            "evidence_mode": q.evidence_mode,
+            "expected_doc_ids": list(q.expected_doc_ids),
+            "gold_by_evidence": per_evidence,
+        }
     if problems:
         print("正解チャンクを決められない質問があります（止めます。評価セットと資料のずれ）:", file=sys.stderr)
         for line in problems:
@@ -410,14 +447,28 @@ def cmd_plan() -> int:
         "created_at": datetime.now(JST).isoformat(timespec="seconds"),
         "note": "検索の結果を見る前に作った。正解チャンクは DB のチャンク本文と質問の根拠だけから決めた。",
         "fixed": {
-            "split_salt": SPLIT_SALT, "held_out_ratio": HELD_OUT_RATIO, "ks": list(KS), "list_depth": LIST_DEPTH,
-            "rrf_k": RRF_K, "methods": list(METHODS), "model": embedding.MODEL, "dimensions": embedding.DIMENSIONS,
+            "split_salt": SPLIT_SALT,
+            "held_out_ratio": HELD_OUT_RATIO,
+            "ks": list(KS),
+            "list_depth": LIST_DEPTH,
+            "rrf_k": RRF_K,
+            "methods": list(METHODS),
+            "model": embedding.MODEL,
+            "dimensions": embedding.DIMENSIONS,
             "tau_rule": "しきい値は dev だけで、balanced accuracy 最大（同点は小さい方）。held-out では変えない",
             "hybrid_abstain_rule": "BM25 が空、かつ ベクトルの 1 位の類似度がしきい値未満のとき答えなし",
         },
         "corpus_fingerprint": corpus_fingerprint(chunks),
         "chunk_count": len(chunks),
-        "questions": {q.id: {"split": assignment[q.id], "stratum": stratum_of(q), "category": q.category, "scope_kind": q.scope_kind} for q in questions},
+        "questions": {
+            q.id: {
+                "split": assignment[q.id],
+                "stratum": stratum_of(q),
+                "category": q.category,
+                "scope_kind": q.scope_kind,
+            }
+            for q in questions
+        },
         "gold": gold,
     }
     PLAN_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -425,20 +476,30 @@ def cmd_plan() -> int:
     counts: dict[str, dict[str, int]] = {}
     for q in questions:
         counts.setdefault(stratum_of(q), {"dev": 0, "held_out": 0})[assignment[q.id]] += 1
-    print(f"チャンク {len(chunks)} 件、質問 {len(questions)} 問（答えあり {len(gold)}、資料外 {len(questions) - len(gold)}）")
+    print(
+        f"チャンク {len(chunks)} 件、質問 {len(questions)} 問（答えあり {len(gold)}、資料外 {len(questions) - len(gold)}）"
+    )
     for stratum, c in sorted(counts.items()):
         print(f"  {stratum}: dev {c['dev']} / held_out {c['held_out']}")
-    print(f"  合計: dev {sum(1 for v in assignment.values() if v == 'dev')} / held_out {sum(1 for v in assignment.values() if v == 'held_out')}")
-    print("正解チャンクの数（質問ごと）:", {qid: {e[:12]: len(ids) for e, ids in g['gold_by_evidence'].items()} for qid, g in gold.items()})
+    print(
+        f"  合計: dev {sum(1 for v in assignment.values() if v == 'dev')} / held_out {sum(1 for v in assignment.values() if v == 'held_out')}"
+    )
+    print(
+        "正解チャンクの数（質問ごと）:",
+        {qid: {e[:12]: len(ids) for e, ids in g["gold_by_evidence"].items()} for qid, g in gold.items()},
+    )
     print(f"-> {PLAN_PATH.relative_to(ROOT)}")
     return 0
 
 
 # ---------------------------------------------------------------- dev / final
 
+
 def _git_head() -> str:
     try:
-        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
+        return subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
+        ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
 
@@ -467,11 +528,18 @@ def run_split(split: str, taus: dict[str, float] | None) -> dict[str, Any]:
             vec_ids = [c.id for c, _ in vec_hits]
             hy_ids = rrf([bm_ids, vec_ids])
             ranked = {"bm25": bm_ids, "vector": vec_ids, "hybrid": hy_ids}
-            rows.append({
-                "q": q, "ranked": ranked, "bm25_text": {c.id: text for c, text in bm_hits},
-                "top1_sim": vec_hits[0][1] if vec_hits else 0.0, "sims": {c.id: s for c, s in vec_hits},
-                "bm25_nonempty": bool(bm_ids), "t_bm25": t_bm, "t_vector": t_vec,
-            })
+            rows.append(
+                {
+                    "q": q,
+                    "ranked": ranked,
+                    "bm25_text": {c.id: text for c, text in bm_hits},
+                    "top1_sim": vec_hits[0][1] if vec_hits else 0.0,
+                    "sims": {c.id: s for c, s in vec_hits},
+                    "bm25_nonempty": bool(bm_ids),
+                    "t_bm25": t_bm,
+                    "t_vector": t_vec,
+                }
+            )
 
     if taus is None:
         vec_tau, vec_curve = choose_tau([(r["q"].answerable, False, r["top1_sim"]) for r in rows])
@@ -492,22 +560,34 @@ def run_split(split: str, taus: dict[str, float] | None) -> dict[str, Any]:
     per_question: list[dict[str, Any]] = []
     for r in rows:
         q: Question = r["q"]
-        entry: dict[str, Any] = {"id": q.id, "question": q.question, "category": q.category, "scope_kind": q.scope_kind,
-                                 "top1_sim": round(r["top1_sim"], 4), "bm25_nonempty": r["bm25_nonempty"], "methods": {}}
+        entry: dict[str, Any] = {
+            "id": q.id,
+            "question": q.question,
+            "category": q.category,
+            "scope_kind": q.scope_kind,
+            "top1_sim": round(r["top1_sim"], 4),
+            "bm25_nonempty": r["bm25_nonempty"],
+            "methods": {},
+        }
         for method in METHODS:
             ids = r["ranked"][method]
             ranked_chunks = [by_id[i] for i in ids]
-            m: dict[str, Any] = {"abstained": abstains(method, r), "top_ids": ids[:max(KS)]}
+            m: dict[str, Any] = {"abstained": abstains(method, r), "top_ids": ids[: max(KS)]}
             if q.answerable:
                 m["first_gold_rank"] = first_gold_rank(q, ranked_chunks)
                 m["hit"] = {str(k): satisfied(q, ranked_chunks[:k]) for k in KS}
                 m["hit_depth"] = satisfied(q, ranked_chunks)
             if method == "bm25" and q.answerable:
                 # BM25 が実際に返す本文（採点した文とその前後）に根拠があるか。チャンクの一致より厳しい
-                texts = [Chunk(c.id, c.source, c.chunk_index, None, r["bm25_text"][c.id], c.kind, c.content_hash, c.input_hash) for c in ranked_chunks]
+                texts = [
+                    Chunk(
+                        c.id, c.source, c.chunk_index, None, r["bm25_text"][c.id], c.kind, c.content_hash, c.input_hash
+                    )
+                    for c in ranked_chunks
+                ]
                 m["text_hit"] = {str(k): satisfied(q, texts[:k]) for k in KS}
             if method != "bm25":
-                m["sims_top"] = [round(r["sims"].get(i, 0.0), 4) for i in ids[:max(KS)] if i in r["sims"]]
+                m["sims_top"] = [round(r["sims"].get(i, 0.0), 4) for i in ids[: max(KS)] if i in r["sims"]]
             entry["methods"][method] = m
         per_question.append(entry)
 
@@ -517,7 +597,9 @@ def run_split(split: str, taus: dict[str, float] | None) -> dict[str, Any]:
     for method in METHODS:
         ms = [e["methods"][method] for e in answerable]
         stats: dict[str, Any] = {
-            "mrr": round(sum(1 / m["first_gold_rank"] if m["first_gold_rank"] else 0.0 for m in ms) / len(ms), 4) if ms else None,
+            "mrr": round(sum(1 / m["first_gold_rank"] if m["first_gold_rank"] else 0.0 for m in ms) / len(ms), 4)
+            if ms
+            else None,
             "hit_at": {str(k): sum(m["hit"][str(k)] for m in ms) for k in KS},
             "hit_depth": sum(m["hit_depth"] for m in ms),
             "not_abstained_and_hit_at": {str(k): sum(m["hit"][str(k)] and not m["abstained"] for m in ms) for k in KS},
@@ -530,15 +612,27 @@ def run_split(split: str, taus: dict[str, float] | None) -> dict[str, Any]:
     top1_answerable = [e["top1_sim"] for e in answerable]
     top1_absent = [e["top1_sim"] for e in absent]
     summary["top1_similarity"] = {
-        "answerable": {"min": min(top1_answerable, default=None), "median": statistics.median(top1_answerable) if top1_answerable else None, "max": max(top1_answerable, default=None)},
-        "out_of_scope": {"min": min(top1_absent, default=None), "median": statistics.median(top1_absent) if top1_absent else None, "max": max(top1_absent, default=None)},
+        "answerable": {
+            "min": min(top1_answerable, default=None),
+            "median": statistics.median(top1_answerable) if top1_answerable else None,
+            "max": max(top1_answerable, default=None),
+        },
+        "out_of_scope": {
+            "min": min(top1_absent, default=None),
+            "median": statistics.median(top1_absent) if top1_absent else None,
+            "max": max(top1_absent, default=None),
+        },
     }
     summary["latency_ms_median"] = {
         "bm25_search": _median_ms([r["t_bm25"] for r in rows]),
         "vector_db_query": _median_ms([r["t_vector"] for r in rows]),
-        "query_embedding_batch_per_text": _median_ms([
-            e["batch_elapsed_s"] / e["batch_size"] for q in questions if (e := cache["entries"].get(_entry_key(query_text_of(q))))
-        ]),
+        "query_embedding_batch_per_text": _median_ms(
+            [
+                e["batch_elapsed_s"] / e["batch_size"]
+                for q in questions
+                if (e := cache["entries"].get(_entry_key(query_text_of(q))))
+            ]
+        ),
     }
     log = cache["log"]
     cost_chars = sum(len(query_text_of(q)) for q in load_all_questions())
@@ -548,14 +642,23 @@ def run_split(split: str, taus: dict[str, float] | None) -> dict[str, Any]:
         "git_head": _git_head(),
         "plan_sha256": hashlib.sha256(PLAN_PATH.read_bytes()).hexdigest(),
         "corpus_fingerprint": plan["corpus_fingerprint"],
-        "model": embedding.MODEL, "dimensions": embedding.DIMENSIONS,
-        "ks": list(KS), "list_depth": LIST_DEPTH, "rrf_k": RRF_K,
+        "model": embedding.MODEL,
+        "dimensions": embedding.DIMENSIONS,
+        "ks": list(KS),
+        "list_depth": LIST_DEPTH,
+        "rrf_k": RRF_K,
         "bm25_params": search_params(),
         "tau": {k: (None if math.isinf(v) else round(v, 6)) for k, v in taus.items()},
         "tau_inf": {k: ("-inf" if v == -math.inf else "+inf" if v == math.inf else None) for k, v in taus.items()},
-        "api_usage": {"texts_sent": cache["texts_sent"], "calls": cache["calls"], "limit_texts": MAX_TEXTS, "limit_calls": MAX_CALLS,
-                      "failed_calls": sum(1 for e in log if e.get("status") != "ok"), "query_chars_total": cost_chars,
-                      "estimated_cost_usd": round(cost_chars * embedding.PRICE_PER_MILLION_TOKENS / 1_000_000, 6)},
+        "api_usage": {
+            "texts_sent": cache["texts_sent"],
+            "calls": cache["calls"],
+            "limit_texts": MAX_TEXTS,
+            "limit_calls": MAX_CALLS,
+            "failed_calls": sum(1 for e in log if e.get("status") != "ok"),
+            "query_chars_total": cost_chars,
+            "estimated_cost_usd": round(cost_chars * embedding.PRICE_PER_MILLION_TOKENS / 1_000_000, 6),
+        },
         "summary": summary,
         "results": per_question,
     }
@@ -574,11 +677,17 @@ def _tau_from_report(report: dict[str, Any]) -> dict[str, float]:
 
 def print_report(report: dict[str, Any]) -> None:
     s = report["summary"]
-    print(f"[{report['split']}] 答えあり {s['n_answerable']} 問 / 資料外 {s['n_out_of_scope']} 問、しきい値 {report['tau']} {report['tau_inf']}")
+    print(
+        f"[{report['split']}] 答えあり {s['n_answerable']} 問 / 資料外 {s['n_out_of_scope']} 問、しきい値 {report['tau']} {report['tau_inf']}"
+    )
     print(f"{'方式':8} {'MRR':>6} " + " ".join(f"hit@{k}" for k in KS) + " | 答えあり→答えなし | 資料外→答えなし")
     for method in METHODS:
         m = s[method]
-        print(f"{method:8} {m['mrr']:>6} " + " ".join(f"{m['hit_at'][str(k)]:>5}" for k in KS) + f" | {m['answerable_abstained']:>16} | {m['out_of_scope_abstained']:>14}")
+        print(
+            f"{method:8} {m['mrr']:>6} "
+            + " ".join(f"{m['hit_at'][str(k)]:>5}" for k in KS)
+            + f" | {m['answerable_abstained']:>16} | {m['out_of_scope_abstained']:>14}"
+        )
     print("BM25 の返す本文での hit:", s["bm25"]["text_hit_at"])
     print("1 位の類似度:", s["top1_similarity"])
     print("中央値の遅延(ms):", s["latency_ms_median"])
@@ -599,11 +708,17 @@ def cmd_final(force: bool) -> int:
         print("先に dev を実行してください（しきい値は dev で決めます）。", file=sys.stderr)
         return 2
     if FINAL_PATH.exists() and not force:
-        print(f"{FINAL_PATH.relative_to(ROOT)} が既にあります。held-out は 1 回だけ測るので、上書きしません。", file=sys.stderr)
+        print(
+            f"{FINAL_PATH.relative_to(ROOT)} が既にあります。held-out は 1 回だけ測るので、上書きしません。",
+            file=sys.stderr,
+        )
         return 2
     dev = json.loads(DEV_PATH.read_text(encoding="utf-8"))
     report = run_split("held_out", _tau_from_report(dev))
-    report["tau_from"] = {"file": DEV_PATH.relative_to(ROOT).as_posix(), "sha256": hashlib.sha256(DEV_PATH.read_bytes()).hexdigest()}
+    report["tau_from"] = {
+        "file": DEV_PATH.relative_to(ROOT).as_posix(),
+        "sha256": hashlib.sha256(DEV_PATH.read_bytes()).hexdigest(),
+    }
     FINAL_PATH.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print_report(report)
     print(f"-> {FINAL_PATH.relative_to(ROOT)}")
@@ -611,7 +726,9 @@ def cmd_final(force: bool) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="ベクトル検索の評価（DB は読み取りだけ。API は embed-queries --apply だけ）")
+    parser = argparse.ArgumentParser(
+        description="ベクトル検索の評価（DB は読み取りだけ。API は embed-queries --apply だけ）"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("plan")
     emb = sub.add_parser("embed-queries")

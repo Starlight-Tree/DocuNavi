@@ -123,7 +123,9 @@ def pgroonga_installed(conn: Any) -> bool:
     return conn.execute("SELECT 1 FROM pg_extension WHERE extname = 'pgroonga'").fetchone() is not None
 
 
-def search_pgroonga(conn: Any, question: str, depth: int, by_id: dict[int, Chunk]) -> tuple[list[tuple[Chunk, float]], float]:
+def search_pgroonga(
+    conn: Any, question: str, depth: int, by_id: dict[int, Chunk]
+) -> tuple[list[tuple[Chunk, float]], float]:
     """Groonga のスコアの高い順。小さい表では計画が順次走査になり、スコアが取れないことがあるので、この呼び出しの間だけ順次走査を避ける。"""
     query = pgroonga_query(question)
     if query is None:
@@ -150,7 +152,13 @@ def fuse(rankings: dict[str, list[int]]) -> dict[str, list[int]]:
 
 def score_question(q: Question, ranked: dict[str, list[int]], by_id: dict[int, Chunk]) -> dict[str, Any]:
     """1 問ぶんの採点（経路ごと）。空の結果かどうかは補助の指標。"""
-    entry: dict[str, Any] = {"id": q.id, "question": q.question, "category": q.category, "scope_kind": q.scope_kind, "arms": {}}
+    entry: dict[str, Any] = {
+        "id": q.id,
+        "question": q.question,
+        "category": q.category,
+        "scope_kind": q.scope_kind,
+        "arms": {},
+    }
     for arm in ARMS:
         ids = ranked[arm]
         chunks = [by_id[i] for i in ids]
@@ -170,7 +178,9 @@ def summarize(entries: Sequence[dict[str, Any]]) -> dict[str, Any]:
     for arm in ARMS:
         ms = [e["arms"][arm] for e in answerable]
         summary[arm] = {
-            "mrr": round(sum(1 / m["first_gold_rank"] if m["first_gold_rank"] else 0.0 for m in ms) / len(ms), 4) if ms else None,
+            "mrr": round(sum(1 / m["first_gold_rank"] if m["first_gold_rank"] else 0.0 for m in ms) / len(ms), 4)
+            if ms
+            else None,
             "hit_at": {str(k): sum(m["hit"][str(k)] for m in ms) for k in KS},
             "hit_depth": sum(m["hit_depth"] for m in ms),
             "answerable_empty": sum(m["empty"] for m in ms),
@@ -208,14 +218,21 @@ def final_groups(entries: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any]]
 
 # ---------------------------------------------------------------- 質問の埋め込み（API。上限つき・キャッシュつき）
 
+
 def cmd_embed_queries(questions: list[Question], apply: bool) -> int:
     cache = _load_cache()
     todo = [q for q in questions if _entry_key(query_text_of(q)) not in cache["entries"]]
     chars = sum(len(query_text_of(q)) for q in todo)
     calls_needed = math.ceil(len(todo) / BATCH)
-    print(f"質問 {len(questions)} 件、キャッシュ済み {len(questions) - len(todo)} 件、今回送る {len(todo)} 件（{chars} 文字、前置きを含む）")
-    print(f"必要な呼び出し {calls_needed} 回（1 回 {BATCH} 件）。概算費用 約 ${chars * embedding.PRICE_PER_MILLION_TOKENS / 1_000_000:.5f}（1 文字 1 トークンの推計）")
-    print(f"今回の上限 {MAX_NEW_TEXTS} 件・{MAX_NEW_CALLS} 回（累計の送信は {cache['texts_sent']} 件・{cache['calls']} 回）")
+    print(
+        f"質問 {len(questions)} 件、キャッシュ済み {len(questions) - len(todo)} 件、今回送る {len(todo)} 件（{chars} 文字、前置きを含む）"
+    )
+    print(
+        f"必要な呼び出し {calls_needed} 回（1 回 {BATCH} 件）。概算費用 約 ${chars * embedding.PRICE_PER_MILLION_TOKENS / 1_000_000:.5f}（1 文字 1 トークンの推計）"
+    )
+    print(
+        f"今回の上限 {MAX_NEW_TEXTS} 件・{MAX_NEW_CALLS} 回（累計の送信は {cache['texts_sent']} 件・{cache['calls']} 回）"
+    )
     if not todo:
         print("送るものはありません。")
         return 0
@@ -240,7 +257,11 @@ def cmd_embed_queries(questions: list[Question], apply: bool) -> int:
         # 送る前に数えて保存する（途中で落ちても、送った分は上限に数える）
         cache["texts_sent"] += len(texts)
         cache["calls"] += 1
-        record: dict[str, Any] = {"n_texts": len(texts), "at": datetime.now(JST).isoformat(timespec="seconds"), "by": "eval_search_compare"}
+        record: dict[str, Any] = {
+            "n_texts": len(texts),
+            "at": datetime.now(JST).isoformat(timespec="seconds"),
+            "by": "eval_search_compare",
+        }
         cache["log"].append(record)
         _save_cache(cache)
         began = time.perf_counter()
@@ -254,7 +275,12 @@ def cmd_embed_queries(questions: list[Question], apply: bool) -> int:
         elapsed = time.perf_counter() - began
         record.update(status="ok", elapsed_s=round(elapsed, 3))
         for q, text, vector in zip(batch, texts, vectors, strict=True):
-            cache["entries"][_entry_key(text)] = {"id": q.id, "vector": vector, "batch_elapsed_s": round(elapsed, 3), "batch_size": len(texts)}
+            cache["entries"][_entry_key(text)] = {
+                "id": q.id,
+                "vector": vector,
+                "batch_elapsed_s": round(elapsed, 3),
+                "batch_size": len(texts),
+            }
         _save_cache(cache)
         print(f"  送信 {len(texts)} 件、{elapsed:.2f} 秒")
     print(f"完了。累計の送信 {cache['texts_sent']} 件・{cache['calls']} 回")
@@ -263,16 +289,24 @@ def cmd_embed_queries(questions: list[Question], apply: bool) -> int:
 
 # ---------------------------------------------------------------- check / plan / run / final
 
+
 def cmd_check(questions: list[Question]) -> int:
     cache = _load_cache()
     missing = [q.id for q in questions if _entry_key(query_text_of(q)) not in cache["entries"]]
     with connect() as conn:
         chunks = load_chunks(conn)
         installed = pgroonga_installed(conn)
-    print(f"質問 {len(questions)} 問（答えあり {sum(q.answerable for q in questions)}、資料外 {sum(not q.answerable for q in questions)}）")
-    print(f"DB のチャンク {len(chunks)} 件、資料 {len({c.source for c in chunks})} 冊、埋め込み済み（すべて現在のモデル・本文と一致）")
+    print(
+        f"質問 {len(questions)} 問（答えあり {sum(q.answerable for q in questions)}、資料外 {sum(not q.answerable for q in questions)}）"
+    )
+    print(
+        f"DB のチャンク {len(chunks)} 件、資料 {len({c.source for c in chunks})} 冊、埋め込み済み（すべて現在のモデル・本文と一致）"
+    )
     print(f"pgroonga: {'有効' if installed else '未有効（db/migrations/0004_pgroonga_chunks.sql が要る）'}")
-    print(f"質問の埋め込み: キャッシュ済み {len(questions) - len(missing)} 件、足りない {len(missing)} 件" + (f" {missing}" if missing else ""))
+    print(
+        f"質問の埋め込み: キャッシュ済み {len(questions) - len(missing)} 件、足りない {len(missing)} 件"
+        + (f" {missing}" if missing else "")
+    )
     no_query = [q.id for q in questions if pgroonga_query(q.question) is None]
     print(f"pgroonga の問い合わせを作れない質問: {no_query or 'なし'}")
     return 0
@@ -288,8 +322,14 @@ def cmd_plan(questions: list[Question]) -> int:
             continue
         per_evidence = gold_chunks(q, chunks)
         if any(not ids for ids in per_evidence.values()):
-            problems.append(f"{q.id}: 根拠のうち、どのチャンクにも無いものがあります {[e for e, ids in per_evidence.items() if not ids]}")
-        gold[q.id] = {"evidence_mode": q.evidence_mode, "expected_doc_ids": list(q.expected_doc_ids), "gold_by_evidence": per_evidence}
+            problems.append(
+                f"{q.id}: 根拠のうち、どのチャンクにも無いものがあります {[e for e, ids in per_evidence.items() if not ids]}"
+            )
+        gold[q.id] = {
+            "evidence_mode": q.evidence_mode,
+            "expected_doc_ids": list(q.expected_doc_ids),
+            "gold_by_evidence": per_evidence,
+        }
     if problems:
         print("正解チャンクを決められない質問があります（止めます。評価セットと資料のずれ）:", file=sys.stderr)
         for line in problems:
@@ -299,8 +339,13 @@ def cmd_plan(questions: list[Question]) -> int:
         "created_at": datetime.now(JST).isoformat(timespec="seconds"),
         "note": "検索の結果を見る前に作った。正解チャンクは DB のチャンク本文と質問の根拠だけから決めた。",
         "fixed": {
-            "arms": list(ARMS), "ks": list(KS), "list_depth": LIST_DEPTH, "rrf_k": RRF_K, "model": embedding.MODEL,
-            "dimensions": embedding.DIMENSIONS, "pgroonga_query_rule": "語の核（ひらがな以外の連なり）のうち 2 文字以上を OR でつなぐ",
+            "arms": list(ARMS),
+            "ks": list(KS),
+            "list_depth": LIST_DEPTH,
+            "rrf_k": RRF_K,
+            "model": embedding.MODEL,
+            "dimensions": embedding.DIMENSIONS,
+            "pgroonga_query_rule": "語の核（ひらがな以外の連なり）のうち 2 文字以上を OR でつなぐ",
             "empty_is_supporting_metric": "空の結果は答えなしの判定ではない（しきい値はこの比較に含めない）",
         },
         "corpus_fingerprint": corpus_fingerprint(chunks),
@@ -310,7 +355,9 @@ def cmd_plan(questions: list[Question]) -> int:
     }
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     PLAN_PATH.write_text(json.dumps(plan, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"チャンク {len(chunks)} 件、質問 {len(questions)} 問（答えあり {len(gold)}、資料外 {len(questions) - len(gold)}）")
+    print(
+        f"チャンク {len(chunks)} 件、質問 {len(questions)} 問（答えあり {len(gold)}、資料外 {len(questions) - len(gold)}）"
+    )
     print(f"-> {PLAN_PATH.relative_to(ROOT)}")
     return 0
 
@@ -319,7 +366,9 @@ def measure(questions: list[Question], plan: dict[str, Any]) -> dict[str, Any]:
     cache = _load_cache()
     with connect() as conn:
         if not pgroonga_installed(conn):
-            raise EvalError("pgroonga が有効ではありません（db/migrations/0004_pgroonga_chunks.sql を適用してください）")
+            raise EvalError(
+                "pgroonga が有効ではありません（db/migrations/0004_pgroonga_chunks.sql を適用してください）"
+            )
         chunks = load_chunks(conn)
         if corpus_fingerprint(chunks) != plan["corpus_fingerprint"]:
             raise EvalError("DB のチャンクが plan を作ったときと違います（plan から作り直してください）")
@@ -335,14 +384,23 @@ def measure(questions: list[Question], plan: dict[str, Any]) -> dict[str, Any]:
             timing["bm25"].append(t_bm)
             timing["vector"].append(t_vec)
             timing["pgroonga"].append(t_pg)
-            ranked = fuse({"bm25": [c.id for c, _ in bm_hits], "vector": [c.id for c, _ in vec_hits], "pgroonga": [c.id for c, _ in pg_hits]})
+            ranked = fuse(
+                {
+                    "bm25": [c.id for c, _ in bm_hits],
+                    "vector": [c.id for c, _ in vec_hits],
+                    "pgroonga": [c.id for c, _ in pg_hits],
+                }
+            )
             entries.append(score_question(q, ranked, by_id))
     return {
         "generated_at": datetime.now(JST).isoformat(timespec="seconds"),
         "git_head": _git_head(),
         "plan_sha256": hashlib.sha256(PLAN_PATH.read_bytes()).hexdigest(),
         "corpus_fingerprint": plan["corpus_fingerprint"],
-        "arms": list(ARMS), "ks": list(KS), "list_depth": LIST_DEPTH, "rrf_k": RRF_K,
+        "arms": list(ARMS),
+        "ks": list(KS),
+        "list_depth": LIST_DEPTH,
+        "rrf_k": RRF_K,
         "bm25_params": search_params(),
         "summary": summarize(entries),
         "by_category_hit_at_3": by_category(entries),
@@ -357,7 +415,11 @@ def print_report(report: dict[str, Any]) -> None:
     print(f"{'経路':16} {'MRR':>6} " + " ".join(f"hit@{k}" for k in KS) + " | 答えありで空 | 資料外で空")
     for arm in ARMS:
         m = s[arm]
-        print(f"{arm:16} {m['mrr']:>6} " + " ".join(f"{m['hit_at'][str(k)]:>5}" for k in KS) + f" | {m['answerable_empty']:>10} | {m['out_of_scope_empty']:>9}")
+        print(
+            f"{arm:16} {m['mrr']:>6} "
+            + " ".join(f"{m['hit_at'][str(k)]:>5}" for k in KS)
+            + f" | {m['answerable_empty']:>10} | {m['out_of_scope_empty']:>9}"
+        )
     print("質問の種類ごとの hit@3:", report["by_category_hit_at_3"])
     print("中央値の検索時間(ms):", report["latency_ms_median"])
 
@@ -365,7 +427,9 @@ def print_report(report: dict[str, Any]) -> None:
 def print_groups(groups: dict[str, dict[str, Any]]) -> None:
     print("内訳（答えありの質問の MRR / hit@3。資料外は「空」を補助の指標として別に数える）:")
     for name, g in groups.items():
-        cells = " ".join(f"{arm}={g[arm]['mrr']}/{g[arm]['hit_at']['3']}" if g["n_answerable"] else f"{arm}=-" for arm in ARMS)
+        cells = " ".join(
+            f"{arm}={g[arm]['mrr']}/{g[arm]['hit_at']['3']}" if g["n_answerable"] else f"{arm}=-" for arm in ARMS
+        )
         print(f"  {name:36} 答えあり {g['n_answerable']:>2} 資料外 {g['n_out_of_scope']:>2} | {cells}")
 
 
@@ -387,7 +451,10 @@ def cmd_final(paths: Sequence[Path], force: bool) -> int:
         print("先に plan を実行してください。", file=sys.stderr)
         return 2
     if FINAL_PATH.exists() and not force:
-        print(f"{FINAL_PATH.relative_to(ROOT)} が既にあります。最終確認は 1 回だけ測るので、上書きしません。", file=sys.stderr)
+        print(
+            f"{FINAL_PATH.relative_to(ROOT)} が既にあります。最終確認は 1 回だけ測るので、上書きしません。",
+            file=sys.stderr,
+        )
         return 2
     plan = json.loads(PLAN_PATH.read_text(encoding="utf-8"))
     questions: list[Question] = []
@@ -413,7 +480,9 @@ def cmd_final(paths: Sequence[Path], force: bool) -> int:
     selection_gold = {i for g in plan["gold"].values() for ids in g["gold_by_evidence"].values() for i in ids}
     report = measure(questions, plan)
     report["set"] = "final"
-    report["questions_files"] = [{"path": path.as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in paths]
+    report["questions_files"] = [
+        {"path": path.as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in paths
+    ]
     for entry in report["results"]:
         entry["file"] = file_of[entry["id"]]
         if entry["id"] in own_gold:
@@ -427,16 +496,26 @@ def cmd_final(paths: Sequence[Path], force: bool) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="検索の一本化のための比較（DB は読み取りだけ。API は embed-queries --apply だけ）")
+    parser = argparse.ArgumentParser(
+        description="検索の一本化のための比較（DB は読み取りだけ。API は embed-queries --apply だけ）"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("check")
     sub.add_parser("plan")
     sub.add_parser("run")
     emb = sub.add_parser("embed-queries")
     emb.add_argument("--apply", action="store_true")
-    emb.add_argument("--questions", type=Path, nargs="+", help="最終確認用の質問の YAML（複数可。省略すると選定用の質問だけ）")
+    emb.add_argument(
+        "--questions", type=Path, nargs="+", help="最終確認用の質問の YAML（複数可。省略すると選定用の質問だけ）"
+    )
     fin = sub.add_parser("final")
-    fin.add_argument("--questions", type=Path, nargs="+", required=True, help="最終確認用の質問の YAML（複数可。ファイル名が作成者別の内訳の名前になる）")
+    fin.add_argument(
+        "--questions",
+        type=Path,
+        nargs="+",
+        required=True,
+        help="最終確認用の質問の YAML（複数可。ファイル名が作成者別の内訳の名前になる）",
+    )
     fin.add_argument("--force", action="store_true", help="既にある final.json を上書きする（通常は使わない）")
     args = parser.parse_args(argv)
     try:

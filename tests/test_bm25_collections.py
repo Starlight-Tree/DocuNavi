@@ -50,9 +50,10 @@ def test_app_pdf_is_the_one_the_cafe_baseline_measured():
 @pytest.mark.parametrize("name", GUIDES_PDFS)
 def test_app_guides_pdfs_are_the_ones_the_guides_baseline_measured(name):
     # cafe と同じ。storage/pdf/guides/ は evals/corpora/guides/ の PDF の写し（2 段組みの 1 冊は、アプリに置かない）
-    assert hashlib.sha256((APP_GUIDES / name).read_bytes()).hexdigest() == hashlib.sha256(
-        (EVAL_GUIDES / name).read_bytes()
-    ).hexdigest()
+    assert (
+        hashlib.sha256((APP_GUIDES / name).read_bytes()).hexdigest()
+        == hashlib.sha256((EVAL_GUIDES / name).read_bytes()).hexdigest()
+    )
 
 
 def test_app_guides_collection_holds_only_the_evaluated_pdfs():
@@ -109,9 +110,10 @@ def test_a_collection_is_not_disturbed_by_the_others(k):
 
 # 「ザーハード」は 1 つの資料群の中では全ての文に出る主題語（除外される）。別の資料群の文が 20 文増えると、
 # 混ぜた全体では出現率が 25% を下回り、除外されなくなる
-THEME = {f"t{i}.txt": f"ザーハードの{topic}は{state}。" for i, (topic, state) in enumerate(
-    [("酸素", "薄い"), ("重力", "強い"), ("大気", "重い"), ("水", "少ない")]
-)}
+THEME = {
+    f"t{i}.txt": f"ザーハードの{topic}は{state}。"
+    for i, (topic, state) in enumerate([("酸素", "薄い"), ("重力", "強い"), ("大気", "重い"), ("水", "少ない")])
+}
 OTHER = {f"o{i}.txt": f"珈琲の{i}番の豆は、香りが深い。" for i in range(20)}
 
 

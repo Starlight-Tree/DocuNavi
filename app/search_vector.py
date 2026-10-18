@@ -60,7 +60,9 @@ _client: Any | None = None
 def _api_key() -> str:
     key = os.environ.get("GEMINI_API_KEY", "").strip()
     if key in _PLACEHOLDER_KEYS:
-        raise VectorSearchError("質問の埋め込みには GEMINI_API_KEY が要ります（LLM を Vertex AI で使う場合も、埋め込みは API キーで呼びます）")
+        raise VectorSearchError(
+            "質問の埋め込みには GEMINI_API_KEY が要ります（LLM を Vertex AI で使う場合も、埋め込みは API キーで呼びます）"
+        )
     return key
 
 
@@ -152,7 +154,8 @@ async def verify() -> None:
             problems.append(f"{name}: 埋め込みが無い、または古いチャンクがあります")
     if problems:
         raise VectorSearchError(
-            "資料の埋め込みが DB と合っていません（python -m app.ingestion.embed --apply で更新）: " + "; ".join(sorted(problems))
+            "資料の埋め込みが DB と合っていません（python -m app.ingestion.embed --apply で更新）: "
+            + "; ".join(sorted(problems))
         )
 
 

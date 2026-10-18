@@ -114,7 +114,10 @@ def test_the_tool_has_no_synchronous_path():
 
 def test_ainvoke_returns_the_chunk_in_the_tool_format_and_reads_only_ready_documents(vector_env):
     pool, embedder = vector_env
-    assert ainvoke("糸くずフィルターの掃除") == "[aoba_aw820_manual.pdf]\nお手入れ\n糸くずフィルターは、洗濯のたびに掃除する。"
+    assert (
+        ainvoke("糸くずフィルターの掃除")
+        == "[aoba_aw820_manual.pdf]\nお手入れ\n糸くずフィルターは、洗濯のたびに掃除する。"
+    )
     assert embedder.queries == ["糸くずフィルターの掃除"]
     ((sql, params),) = pool.calls
     assert "OPERATOR(extensions.<=>)" in sql and "d.status = 'ready'" in sql
@@ -233,9 +236,15 @@ def test_the_embedding_needs_an_api_key(monkeypatch):
 
 def doc_rows(**override: Any) -> list[dict[str, Any]]:
     row = {
-        "id": 1, "source": "a.pdf", "status": "ready",
-        "heading": "見出し", "content": "本文", "has_vector": True, "model": embedding.MODEL,
-        "dims": embedding.DIMENSIONS, "input_hash": embedding.input_hash("見出し", "本文"),
+        "id": 1,
+        "source": "a.pdf",
+        "status": "ready",
+        "heading": "見出し",
+        "content": "本文",
+        "has_vector": True,
+        "model": embedding.MODEL,
+        "dims": embedding.DIMENSIONS,
+        "input_hash": embedding.input_hash("見出し", "本文"),
     }
     row.update(override)
     return [row]

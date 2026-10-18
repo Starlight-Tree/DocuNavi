@@ -288,9 +288,7 @@ async def chat(
         # 本文は読み終えているので、ここから切断を監視できる。切断が先に来たら、待っても受け取る相手が
         # いない LLM 呼び出し（ヘッジの追加試行を含む）を取り消す
         gone = asyncio.ensure_future(_until_disconnect(request))
-        done, _ = await asyncio.wait(
-            {work, gone}, timeout=llm_timeout_seconds(), return_when=asyncio.FIRST_COMPLETED
-        )
+        done, _ = await asyncio.wait({work, gone}, timeout=llm_timeout_seconds(), return_when=asyncio.FIRST_COMPLETED)
         if work in done:  # 同時に終わったときは結果を優先する
             result = work.result()
         elif gone in done:
@@ -306,9 +304,7 @@ async def chat(
     except Exception as exc:  # Gemini 側のエラー・タイムアウト等
         failure = classify_llm_error(exc)
         # 詳細（例外本体・スタックトレース）はログにだけ残す。thread_id はパターン検証済み
-        logger.exception(
-            "LLM 呼び出しに失敗しました (status=%s, thread_id=%s)", failure.status_code, thread_id
-        )
+        logger.exception("LLM 呼び出しに失敗しました (status=%s, thread_id=%s)", failure.status_code, thread_id)
         raise failure from exc
     finally:
         await _cancel_and_wait(work, gone)

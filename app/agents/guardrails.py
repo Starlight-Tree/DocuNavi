@@ -16,13 +16,9 @@ REASON_ROLE_HIJACK = "role_hijack"
 REASON_TEMPLATE = "template_injection"
 
 # 拒否理由を細かく伝えると回避の手がかりになるため、返答は常に同じ定型文にする
-INPUT_REFUSAL_REPLY = (
-    "申し訳ありませんが、そのご依頼にはお応えできません。"
-    "登録された資料の内容についてご質問ください。"
-)
+INPUT_REFUSAL_REPLY = "申し訳ありませんが、そのご依頼にはお応えできません。登録された資料の内容についてご質問ください。"
 OUTPUT_FALLBACK_REPLY = (
-    "申し訳ありませんが、この回答は内容を確認できないためお出しできません。"
-    "別の聞き方でご質問ください。"
+    "申し訳ありませんが、この回答は内容を確認できないためお出しできません。別の聞き方でご質問ください。"
 )
 # 拒否したターンの発言の代わりに履歴へ残す文言（攻撃文を後続の LLM 入力に残さない）
 REDACTED_USER_TEXT = "（この発言は安全上の理由により履歴から除外されました）"
@@ -112,50 +108,54 @@ _EN_DISCLOSE_VERB = (
 )
 
 # 空白・記号を除いた文字列（_squash 後）に対して照合するルール
-_SQUASHED_RULES: list[tuple[str, re.Pattern[str]]] = [
-    (REASON_OVERRIDE, _compile(p))
-    for p in [
-        # 「以前の指示を無視して」「これまでの会話を忘れて」
-        rf"{_JA_OVERRIDE_PREFIX}{_JA_OVERRIDE_TARGET}(?:を|は|も)?(?:すべて|全て|全部|一切|いったん|一旦)?{_JA_DISCARD}",
-        # 「指示をすべて無視して」（接頭辞なし。「命令を無視して」だけの地の文は誤検知しないよう、全量指定を要求）
-        rf"(?:指示|命令|ルール|制約|制限|プロンプト|設定)(?:を|は|も)(?:すべて|全て|全部|一切){_JA_DISCARD}",
-        r"新しい(?:指示|命令|プロンプト)",
-        # 「制限を解除して」
-        r"(?:制限|規制|フィルター|ガードレール|検閲)(?:を|は)?(?:すべて|全て|全部)?"
-        r"(?:解除|外し|無視|無効|取り払|撤廃)(?:して|しろ|せよ|してください|してくれ|なさい)",
-        # ignore all previous instructions
-        rf"{_EN_OVERRIDE_VERB}{_EN_OVERRIDE_MOD}{{1,6}}{_EN_OVERRIDE_NOUN}",
-        rf"(?:ignore|disregard|forget)(?:everything|anything|all)(?:above|before|previously|prior|youweretold|youknow)",
-        r"(?:overwrite|override|replace|update|change|modify)(?:your|the|all)"
-        r"(?:system|original|initial|previous)?(?:instructions?|prompt|rules|programming|directives?)",
-        r"new(?:system)?(?:instructions?|directives?|prompt)",
+_SQUASHED_RULES: list[tuple[str, re.Pattern[str]]] = (
+    [
+        (REASON_OVERRIDE, _compile(p))
+        for p in [
+            # 「以前の指示を無視して」「これまでの会話を忘れて」
+            rf"{_JA_OVERRIDE_PREFIX}{_JA_OVERRIDE_TARGET}(?:を|は|も)?(?:すべて|全て|全部|一切|いったん|一旦)?{_JA_DISCARD}",
+            # 「指示をすべて無視して」（接頭辞なし。「命令を無視して」だけの地の文は誤検知しないよう、全量指定を要求）
+            rf"(?:指示|命令|ルール|制約|制限|プロンプト|設定)(?:を|は|も)(?:すべて|全て|全部|一切){_JA_DISCARD}",
+            r"新しい(?:指示|命令|プロンプト)",
+            # 「制限を解除して」
+            r"(?:制限|規制|フィルター|ガードレール|検閲)(?:を|は)?(?:すべて|全て|全部)?"
+            r"(?:解除|外し|無視|無効|取り払|撤廃)(?:して|しろ|せよ|してください|してくれ|なさい)",
+            # ignore all previous instructions
+            rf"{_EN_OVERRIDE_VERB}{_EN_OVERRIDE_MOD}{{1,6}}{_EN_OVERRIDE_NOUN}",
+            r"(?:ignore|disregard|forget)(?:everything|anything|all)(?:above|before|previously|prior|youweretold|youknow)",
+            r"(?:overwrite|override|replace|update|change|modify)(?:your|the|all)"
+            r"(?:system|original|initial|previous)?(?:instructions?|prompt|rules|programming|directives?)",
+            r"new(?:system)?(?:instructions?|directives?|prompt)",
+        ]
     ]
-] + [
-    (REASON_DISCLOSURE, _compile(p))
-    for p in [
-        _near(_JA_PROMPT_NOUN, _JA_DISCLOSE_VERB, 20),
-        _near(_EN_PROMPT_NOUN, _EN_DISCLOSE_VERB, 20),
-        # "repeat everything above" 型（直前の文脈＝システムプロンプトの復唱要求）
-        r"(?:repeat|print|output|recite|echo|copy|write|say|show)(?:out|back)?"
-        r"(?:everything|all|the(?:words|text|content|message|conversation|sentences?))(?:above|before|prior|sofar)",
-        r"startingwith(?:the)?(?:words?)?youare",
+    + [
+        (REASON_DISCLOSURE, _compile(p))
+        for p in [
+            _near(_JA_PROMPT_NOUN, _JA_DISCLOSE_VERB, 20),
+            _near(_EN_PROMPT_NOUN, _EN_DISCLOSE_VERB, 20),
+            # "repeat everything above" 型（直前の文脈＝システムプロンプトの復唱要求）
+            r"(?:repeat|print|output|recite|echo|copy|write|say|show)(?:out|back)?"
+            r"(?:everything|all|the(?:words|text|content|message|conversation|sentences?))(?:above|before|prior|sofar)",
+            r"startingwith(?:the)?(?:words?)?youare",
+        ]
     ]
-] + [
-    (REASON_ROLE_HIJACK, _compile(p))
-    for p in [
-        # 「あなたは今から○○です」「今からあなたは○○として振る舞って」
-        rf"あなた(?:は|が|には){_JA_NOW}(?:から|より|は).{{0,40}}?{_JA_ROLE_END}",
-        rf"{_JA_NOW}(?:から|より)(?:は)?{_JA_YOU}(?:は|が|には).{{0,40}}?{_JA_ROLE_END}",
-        r"脱獄|ジェイルブレイク|開発者モード|デベロッパーモード|管理者モード",
-        r"youarenow(?:a|an|the|my|in|free|unrestricted|no|called|named|dan|going|acting|playing|operating)",
-        r"youarenolonger",
-        r"(?:fromnow(?:on(?:wards?)?)?|fromthis(?:point|moment)on(?:wards?)?|startingnow)"
-        r"(?:you(?:are|re|will|shall|must|should|can|may)|act|behave|respond|answer|pretend|ignore|play|roleplay)",
-        r"pretend(?:to|that|you|youre)",
-        r"(?:actas|behaveas)(?:if|though|a|an|my)|playtheroleof|roleplayas",
-        r"doanythingnow|jailbreak|(?:dan|dev|developer|god|sudo|admin|unrestricted|unfiltered)mode",
+    + [
+        (REASON_ROLE_HIJACK, _compile(p))
+        for p in [
+            # 「あなたは今から○○です」「今からあなたは○○として振る舞って」
+            rf"あなた(?:は|が|には){_JA_NOW}(?:から|より|は).{{0,40}}?{_JA_ROLE_END}",
+            rf"{_JA_NOW}(?:から|より)(?:は)?{_JA_YOU}(?:は|が|には).{{0,40}}?{_JA_ROLE_END}",
+            r"脱獄|ジェイルブレイク|開発者モード|デベロッパーモード|管理者モード",
+            r"youarenow(?:a|an|the|my|in|free|unrestricted|no|called|named|dan|going|acting|playing|operating)",
+            r"youarenolonger",
+            r"(?:fromnow(?:on(?:wards?)?)?|fromthis(?:point|moment)on(?:wards?)?|startingnow)"
+            r"(?:you(?:are|re|will|shall|must|should|can|may)|act|behave|respond|answer|pretend|ignore|play|roleplay)",
+            r"pretend(?:to|that|you|youre)",
+            r"(?:actas|behaveas)(?:if|though|a|an|my)|playtheroleof|roleplayas",
+            r"doanythingnow|jailbreak|(?:dan|dev|developer|god|sudo|admin|unrestricted|unfiltered)mode",
+        ]
     ]
-]
+)
 
 # 句読点などを保ったまま（_normalize 後）照合するルール。チャットテンプレートの偽装など
 _TEMPLATE_RULES: list[tuple[str, re.Pattern[str]]] = [

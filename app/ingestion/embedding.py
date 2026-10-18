@@ -27,7 +27,9 @@ DIMENSIONS = 768
 BATCH_SIZE = 32  # 1 回に送る本文の数。上限は公式に書かれていないので、控えめにする（272 件で 9 回）
 DEFAULT_MAX_CHUNKS = 300
 DEFAULT_MAX_CALLS = 10
-MAX_INPUT_CHARS = 4000  # 1 件の入力の文字数の上限。超えるチャンクがあれば、1 回も送らずに止める（モデルの上限は 8,192 トークン）
+MAX_INPUT_CHARS = (
+    4000  # 1 件の入力の文字数の上限。超えるチャンクがあれば、1 回も送らずに止める（モデルの上限は 8,192 トークン）
+)
 # 標準料金（1M トークンあたりの米ドル、2026-10-18 に公式の料金ページで確認。無料枠の対象でもある）。**概算用**で、強制はしない
 PRICE_PER_MILLION_TOKENS = 0.20
 
@@ -166,10 +168,14 @@ def embed_pending(
         return report
     too_long = [c.id for c, t in zip(pending, texts, strict=True) if len(t) > MAX_INPUT_CHARS]
     if too_long:
-        report.error = f"入力が {MAX_INPUT_CHARS} 文字を超えるチャンクがあります（id: {too_long[:5]}）。送らずに止めました"
+        report.error = (
+            f"入力が {MAX_INPUT_CHARS} 文字を超えるチャンクがあります（id: {too_long[:5]}）。送らずに止めました"
+        )
         return report
     if report.calls_needed > budget.max_calls:
-        report.error = f"必要な呼び出し {report.calls_needed} 回が上限 {budget.max_calls} 回を超えます（送らずに止めました）"
+        report.error = (
+            f"必要な呼び出し {report.calls_needed} 回が上限 {budget.max_calls} 回を超えます（送らずに止めました）"
+        )
         return report
     for start in range(0, len(pending), BATCH_SIZE):
         batch = pending[start : start + BATCH_SIZE]
@@ -228,7 +234,15 @@ class PostgresEmbeddingStore:
                     "UPDATE chunks SET embedding = %s::extensions.vector(768), embedding_model = %s, "
                     "embedding_dimensions = %s, embedding_input_hash = %s "
                     "WHERE id = %s AND content_hash = %s AND heading IS NOT DISTINCT FROM %s",
-                    (vector_literal(vector), MODEL, DIMENSIONS, chunk.input_hash, chunk.id, chunk.content_hash, chunk.heading),
+                    (
+                        vector_literal(vector),
+                        MODEL,
+                        DIMENSIONS,
+                        chunk.input_hash,
+                        chunk.id,
+                        chunk.content_hash,
+                        chunk.heading,
+                    ),
                 )
                 saved += cur.rowcount
         return saved

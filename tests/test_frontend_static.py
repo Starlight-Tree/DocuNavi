@@ -273,9 +273,7 @@ def test_dist_without_assets_dir_is_fine(tmp_path):
 # --- 実際のアプリ（app.main.app）-----------------------------------------------
 
 
-@pytest.mark.skipif(
-    not (DEFAULT_DIST_DIR / "index.html").is_file(), reason="frontend がビルドされていない"
-)
+@pytest.mark.skipif(not (DEFAULT_DIST_DIR / "index.html").is_file(), reason="frontend がビルドされていない")
 def test_real_app_serves_built_frontend_and_keeps_api():
     from app.main import app
 
