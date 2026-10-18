@@ -1,0 +1,53 @@
+# 入寮規程（storage/pdf/guides/tsubasa_dorm_rules.pdf）の条文の関係の正解。
+# 抽出器を書く前に、PDF の本文（evals/corpora/guides/source/tsubasa_dorm_rules.md と同じ内容）だけを読んで作った。
+# 抽出器の出力は見ていない。測定後に正解を直すときは、直した理由と日付をこの欄に足す（合格に合わせて直さない）。
+#
+# ノードの id: 章 ch<N> / 条 a<N> / 項 a<N>p<M>（条の本文が第 1 項）/ 脚注 fn<N>
+# 辺の同一性: (type, src, dst)。向きは「src が dst に依存する（dst を前提・参照する）」。
+
+# ---- 合格ライン（測定前に固定。2026-10-18） ----
+pass_line:
+  split: "条 29・項 50・章 5 が、expected_structure と完全に一致する"
+  explicit_recall: ">= 0.9  （explicit の 10 件のうち 9 件以上を、種類まで合わせて拾う）"
+  precision: ">= 0.9  （same_chapter 以外の予測のうち、正解（explicit + implicit）に入るものの割合）"
+  same_chapter: "章への所属 29 件が完全一致（過不足なし）"
+  evidence: "全ての辺に根拠本文があり、その本文が出典の項の本文に含まれる（100%）"
+  report_only: "implicit の再現率（承認された 3 種類では拾えない前提。合否に使わない）、F1、種類違い（端点は合うが type が違う）の件数"
+
+expected_structure:
+  chapters:
+    ch1: [1, 3]
+    ch2: [4, 12]
+    ch3: [13, 18]
+    ch4: [19, 25]
+    ch5: [26, 29]
+  # 条番号: 項の数。合計 50
+  paragraphs: {1: 1, 2: 2, 3: 2, 4: 2, 5: 2, 6: 1, 7: 1, 8: 2, 9: 2, 10: 1, 11: 2, 12: 2, 13: 3, 14: 2, 15: 2, 16: 2, 17: 1, 18: 2, 19: 2, 20: 2, 21: 2, 22: 2, 23: 2, 24: 1, 25: 1, 26: 2, 27: 1, 28: 1, 29: 2}
+
+# same_chapter は、条 → 章への所属（expected_structure.chapters の 29 件）。条同士の全組み合わせは持たない（所属から導ける）。
+
+edges:
+  # ---- explicit: 本文の言い回しで分かる関係（10 件） ----
+  - {type: exception_of, src: a4p2,  dst: a4p1,  kind: explicit, evidence: "前項の定めにかかわらず"}
+  - {type: exception_of, src: a8p2,  dst: a8p1,  kind: explicit, evidence: "前項の定めにかかわらず"}
+  - {type: exception_of, src: a9p2,  dst: a9p1,  kind: explicit, evidence: "前項の定めにかかわらず"}
+  - {type: exception_of, src: a12p2, dst: a12p1, kind: explicit, evidence: "前項の定めにかかわらず"}
+  - {type: exception_of, src: a19p2, dst: a19p1, kind: explicit, evidence: "前項の定めにかかわらず"}
+  - {type: exception_of, src: a26p2, dst: a26p1, kind: explicit, evidence: "前項の定めにかかわらず"}
+  - {type: references,   src: a5p2,  dst: a5p1,  kind: explicit, evidence: "前項の期限"}
+  - {type: references,   src: a13p1, dst: a13p2,  kind: explicit, evidence: "次のとおりとする"}
+  - {type: references,   src: a13p1, dst: a13p3,  kind: explicit, evidence: "次のとおりとする"}
+  - {type: references,   src: a12p2, dst: fn1,    kind: explicit, evidence: "脚注の番号 1"}
+
+  # ---- implicit: 他の条で定義された語を使う関係（11 件）。承認された 3 種類の規則では拾えない見込み ----
+  - {type: references, src: a15p1, dst: a13p1, kind: implicit, evidence: "寮費（第13条で定める）"}
+  - {type: references, src: a15p1, dst: a14p1, kind: implicit, evidence: "共益費（第14条で定める）"}
+  - {type: references, src: a17p1, dst: a13p1, kind: implicit, evidence: "寮費"}
+  - {type: references, src: a18p1, dst: a13p1, kind: implicit, evidence: "寮費の 3 割"}
+  - {type: references, src: a11p1, dst: a10p1, kind: implicit, evidence: "入寮期間"}
+  - {type: references, src: a11p2, dst: a10p1, kind: implicit, evidence: "入寮期間が満了する年"}
+  - {type: references, src: a27p1, dst: a26p1, kind: implicit, evidence: "退寮日（退寮予定日）"}
+  - {type: references, src: fn1,   dst: a13p1, kind: implicit, evidence: "休学中の寮費"}
+  - {type: references, src: a14p2, dst: a14p1, kind: implicit, evidence: "共益費"}
+  - {type: references, src: a16p2, dst: a16p1, kind: implicit, evidence: "保証金"}
+  - {type: references, src: a29p2, dst: a15p2, kind: implicit, evidence: "退寮を命じる（同じ処分）"}
