@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChatMessage } from '../hooks/useChat';
+import { renderMarkdown } from '../lib/markdown';
 import { SourcesPanel } from './SourcesPanel';
 
 interface MessageListProps {
@@ -95,8 +96,12 @@ export function MessageList({
             <span className="visually-hidden">
               {message.role === 'user' ? 'あなた' : 'アシスタント'}:{' '}
             </span>
-            {/* 本文は必ずテキストとして描画する（HTML として解釈しない） */}
-            <p className="message-text">{message.text}</p>
+            {/* 本文は必ずテキストとして描画する（HTML として解釈しない）。回答だけ Markdown を整形し、利用者の発言はそのまま見せる */}
+            {message.role === 'assistant' ? (
+              <div className="message-text markdown">{renderMarkdown(message.text)}</div>
+            ) : (
+              <p className="message-text">{message.text}</p>
+            )}
             {message.role === 'assistant' && message.context && !generating && (
               <SourcesPanel context={message.context} />
             )}
