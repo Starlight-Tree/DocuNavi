@@ -1,0 +1,253 @@
+# 最終確認用の質問（26 問）。Claude（メインのセッション）の案。**固定済み（2026-10-18）。測定後も変更・差し替えをしない。**
+# 承認: 2026-10-18 に user が、独立した作成者の案（final_questions_independent.yaml）と合わせて両方を固定し、52 問で 1 回測る方針（C）を承認した。
+#   質問の一つ一つを user が精読して承認したわけではない。
+#   ただし、既存の評価の結果と、BM25 の調整の経緯は知っている（検索の実装を知らない分離した文脈ではない）。
+#   独立性を上げたいときは、分離した文脈の subagent に書かせ直す（既存の評価セットはそうして作った）。
+# 作成日: 2026-10-18
+# 用途: 独立した作成者の案と合わせて、`final --questions` に 2 つのファイルを渡して 1 回だけ測る（final.json は上書きしない。コマンドは final_questions_independent.yaml の先頭に書いた）。
+#   id は f001〜（既存の評価セットの id と重ならない）。質問と期待値は、承認後は変更しない。
+#   evidence は、DB の本文にそのまま存在する文（全角半角と空白の違いは無視）。表の行は、セルの値を半角スペースで区切った文字列。
+# 構成: 答えあり 19 問（factual 11 / paraphrase 6 / multi_hop 2。資料別: 取扱説明書 8・店舗案内 6・入寮規程 3・ザーハード 2）、
+#   資料外 7 問（on_topic_absent 5 / off_topic 2）。
+# 事前検査（検索なし）: 書式 OK、既存の評価セットと id・質問文が重ならない、答えあり 19 問すべてに DB の正解チャンクがある（1 問 1 チャンク）。
+
+# --- 取扱説明書（aoba_aw820_manual.pdf） ---
+- id: f001
+  question: "洗濯機の排水ホースの先端は、床からどのくらいの高さにすればよいですか。"
+  answer: "床から 10cm 以上 100cm 以下の高さにする。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "排水ホースの先端は、床から 10cm 以上 100cm 以下の高さにします。"
+  page: ""
+- id: f002
+  question: "この洗濯乾燥機の本体の質量は、どのくらいですか。"
+  answer: "約72kg。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "質量は約72kgです。"
+  page: ""
+- id: f003
+  question: "洗剤を自動で入れるタンクには、洗剤をどのくらい入れられますか。"
+  answer: "洗剤が約600mL（柔軟剤は約400mL）。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "洗剤の自動投入タンクの容量は、洗剤が約600mL、柔軟剤が約400mLです。"
+  page: ""
+- id: f004
+  question: "小さな子どもがいたずらでボタンを押さないようにするには、どうすればよいですか。"
+  answer: "チャイルドロックを使う。一時停止ボタンを 3 秒間長押しすると入る（解除も同じ操作）。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "チャイルドロックは、一時停止ボタンを 3 秒間長押しすると入ります。"
+  page: ""
+- id: f005
+  question: "ふんわり乾燥コースでは、何kgまで乾燥できますか。"
+  answer: "2.0kg まで。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "ただし、ふんわり乾燥コースでは 2.0kg までです。"
+  page: ""
+- id: f006
+  question: "脱水が終わったのに洗濯物を取り出さずに放っておくと、どうなりますか。"
+  answer: "しわやにおいの原因になる。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "入れたままにすると、しわやにおいの原因になります。"
+  page: ""
+- id: f007
+  question: "標準コースで洗濯をして、続けて乾燥までしたとき、所要時間は合わせて何分ですか。"
+  answer: "約98分 + 約165分 = 約263分。"
+  category: multi_hop
+  kind: multi_hop
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "標準コースの所要時間 約98分 約165分"
+  page: ""
+- id: f008
+  question: "エラーコード E05 は、何が原因で出ますか。"
+  answer: "乾燥フィルターのつまり（対処の目安は約20分）。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "E05 乾燥エラー 乾燥フィルターのつまり 約20分"
+  page: ""
+
+# --- 店舗案内（cafe_store_guide.pdf） ---
+- id: f009
+  question: "ポイントがたまると、100ポイントでどんな特典と交換できますか。"
+  answer: "ドリンク1杯の無料券。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "たまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。"
+  page: ""
+- id: f010
+  question: "犬を連れて店に入りたいのですが、店内の席に座れますか。"
+  answer: "ペットの同伴は原則としてテラス席に限る。ただし、身体障害者補助犬は店内の席にも同伴できる。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: all
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "ペットの同伴は、原則としてテラス席に限ります。"
+    - "ただし、身体障害者補助犬は店内の席にも同伴できます。"
+  page: ""
+- id: f011
+  question: "湖畔テラス店の専用駐車場は、何台分ありますか。"
+  answer: "10台分。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "ただし、湖畔テラス店には10台分の専用駐車場があります。"
+  page: ""
+- id: f012
+  question: "火曜日が定休日になっている店舗を教えてください。"
+  answer: "港町灯台店と湖畔ボート小屋店（一覧表の 2 行）。"
+  category: factual
+  kind: factual
+  evidence_mode: all
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席"
+    - "湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席"
+  page: ""
+- id: f013
+  question: "バリスタが店頭でドリンクを出せるようになるまでには、何をしますか。"
+  answer: "入社後の3か月間に、工房での研修を受ける。修了すると店頭でドリンクを提供できる。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "バリスタは、入社後の3か月間に、工房での研修を受けます。"
+  page: ""
+- id: f014
+  question: "自社工房の焙煎機は、何台ありますか。"
+  answer: "2台。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "工房の焙煎機は2台あり、1日あたりの焙煎量は最大で400キログラムです。"
+  page: ""
+
+# --- 入寮規程（tsubasa_dorm_rules.pdf） ---
+- id: f015
+  question: "寮の共用部分の掃除は、どのくらいの頻度で、誰がしますか。"
+  answer: "階ごとの当番制で、週 1 回。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  evidence:
+    - "共用部分の清掃は、階ごとの当番制とし、週 1 回行う。"
+  page: ""
+- id: f016
+  question: "自分の部屋でたくさん家電を使いたいのですが、使える量に上限はありますか。"
+  answer: "居室で使える電気器具の消費電力は、合計 1,200W 以内。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  evidence:
+    - "居室で使える電気器具の消費電力は、合計 1,200W 以内とする。"
+  page: ""
+- id: f017
+  question: "ひばり棟の個室とかもめ棟の個室では、共益費を含めた月額の合計は、それぞれいくらですか。"
+  answer: "ひばり棟の個室は 38,000 + 6,500 = 44,500 円、かもめ棟の個室は 45,000 + 6,500 = 51,500 円。"
+  category: multi_hop
+  kind: multi_hop
+  evidence_mode: all
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  evidence:
+    - "ひばり棟の個室は 38,000 円とする。"
+    - "かもめ棟の個室は、45,000 円とする。"
+    - "共益費は、月額 6,500 円とし、棟にかかわらず同額とする。"
+  page: ""
+
+# --- ザーハード（ザーハード1〜3.pdf） ---
+- id: f018
+  question: "ザーハリアンは、エネルギー源を使って、何を開発しましたか。"
+  answer: "異星間を移動するための宇宙船。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["ザーハード2.pdf"]
+  evidence:
+    - "異星間を移動するための宇宙船を開発し、他の惑星にも移住している可能性があります。"
+  page: ""
+- id: f019
+  question: "ザーハードの岩山の内部には、何が眠っている可能性がありますか。"
+  answer: "未知の鉱物やエネルギー源。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["ザーハード1.pdf"]
+  evidence:
+    - "これらの岩山の内部には、未知の鉱物やエネルギー源が埋蔵されている可能性があります。"
+  page: ""
+
+# --- 資料外（話題は近いが資料に無い） ---
+- id: f020
+  question: "モバイルオーダーは、何時から注文を受け付けますか。"
+  answer: "資料に無い（モバイルオーダーの受付時間の記載は無い）。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+- id: f021
+  question: "この洗濯乾燥機には、どんな色がありますか。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+- id: f022
+  question: "寮の居室の広さは、何平方メートルですか。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+- id: f023
+  question: "ザーハードの1日の長さは、何時間ですか。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+- id: f024
+  question: "みなとコーヒーの公式アプリは、何という名前ですか。"
+  answer: "資料に無い（公式アプリがあることだけ書かれている）。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+
+# --- 資料外（話題が無関係） ---
+- id: f025
+  question: "ビットコインの現在の価格は、いくらですか。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: off_topic
+- id: f026
+  question: "東京タワーの高さは、何メートルですか。"
+  answer: "資料に無い（LLM の知識で答えられる事実）。"
+  category: out_of_scope
+  scope_kind: off_topic

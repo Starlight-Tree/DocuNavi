@@ -1,0 +1,255 @@
+{
+  "generated_at": "2026-10-18T17:10:50+09:00",
+  "model": "gemini-3.1-flash-lite",
+  "max_calls": 40,
+  "max_calls_per_question": 3,
+  "calls_used": 22,
+  "hedge": "off",
+  "search": {
+    "backend": "vector",
+    "min_similarity": 0.65
+  },
+  "path": "ainvoke（/chat と同じ。画面が使う /chat/stream ではない）",
+  "results": [
+    {
+      "id": "q033",
+      "role": "on_topic_absent",
+      "question": "ザーハードの人口は何人ですか",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 5.7,
+      "error": null,
+      "says_no_info": false,
+      "searches": [
+        {
+          "query": "ザーハード 人口",
+          "files": [
+            "ザーハード2.pdf",
+            "ザーハード3.pdf"
+          ],
+          "result": "[ザーハード2.pdf]\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\n\n[ザーハード3.pdf]\nザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源は、非常に強力であり、惑星全体にエネルギーを供給するだけでなく、周囲の星系にも影響を与えていると言われています。\n探査団による調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置である可能性が高いとされています。"
+        }
+      ],
+      "answer": "資料には、ザーハードの人口に関する記載はありません。"
+    },
+    {
+      "id": "q034",
+      "role": "on_topic_absent",
+      "question": "ザーハードの首都はどこにありますか",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 22.8,
+      "error": "GoogleAPIError (status=504)",
+      "says_no_info": null,
+      "searches": [
+        {
+          "query": "ザーハード 首都",
+          "files": [
+            "ザーハード3.pdf",
+            "ザーハード3.pdf"
+          ],
+          "result": "[ザーハード3.pdf]\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。\n\n[ザーハード3.pdf]\nザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源は、非常に強力であり、惑星全体にエネルギーを供給するだけでなく、周囲の星系にも影響を与えていると言われています。\n探査団による調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置である可能性が高いとされています。"
+        }
+      ],
+      "answer": null
+    },
+    {
+      "id": "q035",
+      "role": "on_topic_absent",
+      "question": "ザーハードの公転周期は何日ですか",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 3.5,
+      "error": null,
+      "says_no_info": true,
+      "searches": [
+        {
+          "query": "ザーハード 公転周期",
+          "files": [
+            "ザーハード1.pdf",
+            "ザーハード3.pdf"
+          ],
+          "result": "[ザーハード1.pdf]\n未知の惑星ザーハードは、遥か彼方の銀河の端に位置しており、その存在自体が数世代にわたる探査団によっても解明されていません。\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\n\n[ザーハード3.pdf]\nザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源は、非常に強力であり、惑星全体にエネルギーを供給するだけでなく、周囲の星系にも影響を与えていると言われています。\n探査団による調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置である可能性が高いとされています。"
+        }
+      ],
+      "answer": "資料には記載がありません。"
+    },
+    {
+      "id": "q036",
+      "role": "on_topic_absent",
+      "question": "ザーハードの重力は地球の何倍ですか",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 8.8,
+      "error": null,
+      "says_no_info": false,
+      "searches": [
+        {
+          "query": "ザーハード 重力",
+          "files": [
+            "ザーハード3.pdf",
+            "ザーハード3.pdf"
+          ],
+          "result": "[ザーハード3.pdf]\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。\n\n[ザーハード3.pdf]\nザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源は、非常に強力であり、惑星全体にエネルギーを供給するだけでなく、周囲の星系にも影響を与えていると言われています。\n探査団による調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置である可能性が高いとされています。"
+        }
+      ],
+      "answer": "資料には、ザーハードの重力が地球の何倍であるかについての記載はありません。"
+    },
+    {
+      "id": "c010",
+      "role": "on_topic_absent",
+      "question": "みなとブレンドは1杯いくらですか。",
+      "expected_answer": "資料には、みなとブレンドの価格が書かれていないため、答えられない。",
+      "calls": 2,
+      "elapsed_seconds": 3.5,
+      "error": null,
+      "says_no_info": false,
+      "searches": [
+        {
+          "query": "みなとブレンド 価格",
+          "files": [
+            "cafe_store_guide.pdf",
+            "cafe_store_guide.pdf"
+          ],
+          "result": "[cafe_store_guide.pdf]\n豆と品質への取り組み\nみなとブレンドの豆は、ブラジル・コロンビア・エチオピアの3か国から仕入れています。\n工房では毎日、味と香りの確認を行い、その記録を1年間保管しています。\n\n[cafe_store_guide.pdf]\n会社の概要\n看板商品は、深煎りの豆を3種類ブレンドした「みなとブレンド」（略称 MB）です。\n豆は港町の自社工房で焙煎し、週に2回、各店へ届けています1。\n焙煎してから日が浅い豆を使うため、店ごとの味の差が出にくくなっています。"
+        }
+      ],
+      "answer": "資料を確認しましたが、「みなとブレンド」の価格についての記載はありませんでした。"
+    },
+    {
+      "id": "a008",
+      "role": "on_topic_absent",
+      "question": "この洗濯乾燥機の電源コードは、何メートルありますか？",
+      "expected_answer": "",
+      "calls": 2,
+      "elapsed_seconds": 4.3,
+      "error": null,
+      "says_no_info": false,
+      "searches": [
+        {
+          "query": "洗濯乾燥機 電源コード 長さ",
+          "files": [
+            "aoba_aw820_manual.pdf",
+            "aoba_aw820_manual.pdf"
+          ],
+          "result": "[aoba_aw820_manual.pdf]\n仕様\n項目 洗濯 乾燥\n容量 8kg 4.5kg\n標準コースの所要時間 約98分 約165分\n消費電力 約280W 約1350W\n使用水量 約95L 約20L\n運転音 約38dB 約52dB\n\n[aoba_aw820_manual.pdf]\n設置のしかた\n排水ホースの先端は、床から 10cm 以上 100cm 以下の高さにします。\nホースの延長は 1 本まででき、延長後の全体の長さは 3m までです。"
+        }
+      ],
+      "answer": "資料には、洗濯乾燥機の電源コードの長さについての記載はありません。"
+    },
+    {
+      "id": "a009",
+      "role": "on_topic_absent",
+      "question": "延長保証に加入するには、いくらかかりますか？",
+      "expected_answer": "",
+      "calls": 2,
+      "elapsed_seconds": 2.5,
+      "error": null,
+      "says_no_info": false,
+      "searches": [
+        {
+          "query": "延長保証 料金",
+          "files": [
+            "aoba_aw820_manual.pdf",
+            "aoba_aw820_manual.pdf"
+          ],
+          "result": "[aoba_aw820_manual.pdf]\n保証とアフターサービス\n出張修理の費用は、保証期間内は無料です。\n保証期間を過ぎた場合は、出張料が 3,300 円かかります。\n\n[aoba_aw820_manual.pdf]\n保証とアフターサービス\n保証期間は、お買い上げの日から 1 年間です。\nただし、モーターは、お買い上げの日から 5年間保証します。\n1"
+        }
+      ],
+      "answer": "資料を確認しましたが、延長保証の加入やその費用に関する記載はありませんでした。"
+    },
+    {
+      "id": "a010",
+      "role": "on_topic_absent",
+      "question": "乾燥運転をしているとき、庫内の温度は何度になりますか？",
+      "expected_answer": "",
+      "calls": 2,
+      "elapsed_seconds": 4.0,
+      "error": null,
+      "says_no_info": true,
+      "searches": [
+        {
+          "query": "乾燥運転 庫内温度",
+          "files": [
+            "aoba_aw820_manual.pdf",
+            "aoba_aw820_manual.pdf"
+          ],
+          "result": "[aoba_aw820_manual.pdf]\n基本の運転手順\n乾燥できる量は、原則として 4.5kg までです。\nただし、ふんわり乾燥コースでは 2.0kg までです。\n乾燥のたびに、乾燥フィルターのごみを捨ててください。\n\n[aoba_aw820_manual.pdf]\n安全上のご注意\n運転中は、原則としてふたを開けられません。\nただし、一時停止ボタンを押すと、約90秒後にロックが外れてふたを開けられます。\n槽内の水温が 50℃以上のときや水位が高いときは、ロックが外れません。"
+        }
+      ],
+      "answer": "資料を確認しましたが、乾燥運転中の具体的な庫内温度については記載がありませんでした。\n\nなお、安全上のご注意として「槽内の水温が50℃以上のときは、ロックが外れない」という記載はございますが、これは乾燥運転中の庫内温度を指したものではありません。"
+    },
+    {
+      "id": "t008",
+      "role": "on_topic_absent",
+      "question": "寮の共用洗濯室を使うには、1 回いくらかかりますか？",
+      "expected_answer": "",
+      "calls": 1,
+      "elapsed_seconds": 0.2,
+      "error": "GoogleRateLimitError",
+      "says_no_info": null,
+      "searches": [],
+      "answer": null
+    },
+    {
+      "id": "t009",
+      "role": "on_topic_absent",
+      "question": "寮で朝食や夕食を食べる場合の料金は、いくらですか？",
+      "expected_answer": "",
+      "calls": 1,
+      "elapsed_seconds": 0.2,
+      "error": "GoogleRateLimitError",
+      "says_no_info": null,
+      "searches": [],
+      "answer": null
+    },
+    {
+      "id": "t010",
+      "role": "on_topic_absent",
+      "question": "寮で小型のペットを飼うことはできますか？",
+      "expected_answer": "",
+      "calls": 1,
+      "elapsed_seconds": 0.3,
+      "error": "GoogleRateLimitError",
+      "says_no_info": null,
+      "searches": [],
+      "answer": null
+    },
+    {
+      "id": "q001",
+      "role": "answerable",
+      "question": "ザーハードの大気の酸素濃度はどれくらい？",
+      "expected_answer": null,
+      "calls": 1,
+      "elapsed_seconds": 0.3,
+      "error": "GoogleRateLimitError",
+      "says_no_info": null,
+      "searches": [],
+      "answer": null
+    },
+    {
+      "id": "a001",
+      "role": "answerable",
+      "question": "糸くずフィルターの掃除は、洗濯何回ごとにすればよいですか？",
+      "expected_answer": "洗濯 10 回ごとに取り出して水洗いします。",
+      "calls": 1,
+      "elapsed_seconds": 0.3,
+      "error": "GoogleRateLimitError",
+      "says_no_info": null,
+      "searches": [],
+      "answer": null
+    },
+    {
+      "id": "t001",
+      "role": "answerable",
+      "question": "入寮の申込みは、いつまでにすればよいですか？",
+      "expected_answer": "入寮を希望する年度の 2 月 28 日までです。",
+      "calls": 1,
+      "elapsed_seconds": 0.2,
+      "error": "GoogleRateLimitError",
+      "says_no_info": null,
+      "searches": [],
+      "answer": null
+    }
+  ]
+}

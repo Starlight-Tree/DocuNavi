@@ -1,0 +1,25 @@
+# 回答の評価の質問（14 問）。ベクトル検索（しきい値 0.65）で、「話題は近いが資料に無い」質問を断れるかを見る（2026-10-18）。
+# 読み方と採点基準は evals/README.md の「回答の評価（実 API）」。質問の本文と正解は、承認済みの評価セットから引く（新しく作らない）。
+# 選び方は、実 API を呼ぶ前に決めた。結果を見て入れ替えない。
+#
+#   on_topic_absent  話題は資料と近いが、答えが資料に無い質問 11 問（評価セットの scope_kind=on_topic_absent の全部）。
+#                    6 問（q033・q036・c010・a008・t008・t010）は BM25 で測定済み（questions.yaml。6/6 が「記載がありません」）。
+#                    残り 5 問（q034・q035・a009・a010・t009）は未測定
+#   answerable       資料に答えがある質問 3 問（断りすぎないかの対照。BM25 のときと同じ）
+#
+# 実行: python -m scripts.eval_answers --run --backend vector --min-similarity 0.65 --questions evals/answers/questions_vector.yaml \
+#         --max-calls 40 --out evals/results/answers_vector_<日付>.json
+- {id: q033, role: on_topic_absent}
+- {id: q034, role: on_topic_absent}
+- {id: q035, role: on_topic_absent}
+- {id: q036, role: on_topic_absent}
+- {id: c010, role: on_topic_absent}
+- {id: a008, role: on_topic_absent}
+- {id: a009, role: on_topic_absent}
+- {id: a010, role: on_topic_absent}
+- {id: t008, role: on_topic_absent}
+- {id: t009, role: on_topic_absent}
+- {id: t010, role: on_topic_absent}
+- {id: q001, role: answerable}
+- {id: a001, role: answerable}
+- {id: t001, role: answerable}

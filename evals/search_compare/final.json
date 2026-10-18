@@ -1,0 +1,4674 @@
+{
+  "generated_at": "2026-10-18T17:21:53+09:00",
+  "git_head": "8bfc6e0",
+  "plan_sha256": "75a79c3346c8135ff6b3edec5d563602b70633a434028b0be336a6035e569dc9",
+  "corpus_fingerprint": "1041f4e00053fe0e355772b90a2dd6d882fed0477a4ed81c1d9874a11cd1ca3d",
+  "arms": [
+    "bm25",
+    "vector",
+    "pgroonga",
+    "bm25_vector",
+    "pgroonga_vector"
+  ],
+  "ks": [
+    1,
+    3,
+    5
+  ],
+  "list_depth": 20,
+  "rrf_k": 60,
+  "bm25_params": {
+    "TOP_K": 2,
+    "MAX_PASSAGES_PER_FILE": 3,
+    "CONTEXT_WINDOW": 1,
+    "RELATIVE_SCORE_CUTOFF": 0.4,
+    "GENERIC_TERM_RATIO": 0.25,
+    "MIN_SHARED_TERMS": 2
+  },
+  "summary": {
+    "n_answerable": 38,
+    "n_out_of_scope": 14,
+    "bm25": {
+      "mrr": 0.6991,
+      "hit_at": {
+        "1": 22,
+        "3": 32,
+        "5": 34
+      },
+      "hit_depth": 34,
+      "answerable_empty": 1,
+      "out_of_scope_empty": 4
+    },
+    "vector": {
+      "mrr": 0.9254,
+      "hit_at": {
+        "1": 32,
+        "3": 38,
+        "5": 38
+      },
+      "hit_depth": 38,
+      "answerable_empty": 0,
+      "out_of_scope_empty": 0
+    },
+    "pgroonga": {
+      "mrr": 0.6704,
+      "hit_at": {
+        "1": 17,
+        "3": 33,
+        "5": 33
+      },
+      "hit_depth": 37,
+      "answerable_empty": 0,
+      "out_of_scope_empty": 2
+    },
+    "bm25_vector": {
+      "mrr": 0.8583,
+      "hit_at": {
+        "1": 28,
+        "3": 36,
+        "5": 38
+      },
+      "hit_depth": 38,
+      "answerable_empty": 0,
+      "out_of_scope_empty": 0
+    },
+    "pgroonga_vector": {
+      "mrr": 0.862,
+      "hit_at": {
+        "1": 28,
+        "3": 37,
+        "5": 37
+      },
+      "hit_depth": 38,
+      "answerable_empty": 0,
+      "out_of_scope_empty": 0
+    }
+  },
+  "by_category_hit_at_3": {
+    "factual": {
+      "n": 22,
+      "bm25": 20,
+      "vector": 22,
+      "pgroonga": 19,
+      "bm25_vector": 20,
+      "pgroonga_vector": 21
+    },
+    "multi_hop": {
+      "n": 4,
+      "bm25": 4,
+      "vector": 4,
+      "pgroonga": 2,
+      "bm25_vector": 4,
+      "pgroonga_vector": 4
+    },
+    "paraphrase": {
+      "n": 12,
+      "bm25": 8,
+      "vector": 12,
+      "pgroonga": 12,
+      "bm25_vector": 12,
+      "pgroonga_vector": 12
+    }
+  },
+  "latency_ms_median": {
+    "bm25": 5.9,
+    "vector": 27.05,
+    "pgroonga": 74.21
+  },
+  "results": [
+    {
+      "id": "g001",
+      "question": "あおば電機の洗濯乾燥機 AW-820 の糸くずフィルターは、洗濯何回ごとに取り出して洗うのですか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            31,
+            45,
+            53,
+            56
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            53,
+            54,
+            45,
+            33
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            31,
+            53,
+            45,
+            56
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            53,
+            45,
+            56,
+            54
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            53,
+            45,
+            56,
+            54
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g002",
+      "question": "AW-820 の槽洗浄コースは、運転が終わるまでどれくらい時間がかかりますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            54,
+            31
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            54,
+            31,
+            58,
+            51,
+            48
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            46,
+            54,
+            27,
+            31,
+            58
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            54,
+            31,
+            58,
+            51,
+            48
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            54,
+            31,
+            58,
+            46,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g003",
+      "question": "AW-820 で E04 のエラーコードが出たとき、対処にかかる時間の目安はどれくらいですか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            55,
+            56,
+            31,
+            57
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            56,
+            57,
+            31,
+            51,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            56,
+            46,
+            27,
+            31,
+            55
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            56,
+            57,
+            31,
+            55,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            56,
+            31,
+            57,
+            55,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g004",
+      "question": "AW-820 のモーターの保証は、一般の家庭で使う場合、お買い上げの日から何年間ですか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            65,
+            60,
+            31
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            60,
+            65,
+            31,
+            61,
+            62
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            65,
+            60,
+            63,
+            31,
+            67
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            60,
+            65,
+            31,
+            61,
+            62
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            60,
+            65,
+            31,
+            63,
+            56
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": true
+    },
+    {
+      "id": "g005",
+      "question": "洗濯機の運転の途中で、どうしてもふたを開けたいときは、どうすればいいですか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            57
+          ],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            34,
+            51,
+            36,
+            43,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            57,
+            32,
+            34,
+            42,
+            46
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            57,
+            34,
+            51,
+            36,
+            43
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            34,
+            51,
+            57,
+            54,
+            46
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g006",
+      "question": "小さい子どもがボタンをいじって止めてしまわないようにする機能は、どうやって入れますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            43,
+            51,
+            57,
+            34,
+            47
+          ],
+          "first_gold_rank": 5,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            47,
+            34,
+            36,
+            51,
+            46
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            43,
+            34,
+            47,
+            51,
+            57
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            47,
+            34,
+            51,
+            43,
+            57
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            47,
+            34,
+            43,
+            51,
+            57
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": true
+    },
+    {
+      "id": "g007",
+      "question": "洗い終わった洗濯物を洗濯機の中に入れっぱなしにしておくと、どうなりますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            52,
+            48,
+            50
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            52,
+            54,
+            36,
+            34,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            50,
+            48,
+            52
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            52,
+            48,
+            54,
+            36,
+            50
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            52,
+            48,
+            50,
+            54,
+            36
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": true
+    },
+    {
+      "id": "g008",
+      "question": "AW-820 で洗える衣類の重さの上限と、乾燥できる量の上限とでは、何kg違いますか。",
+      "category": "multi_hop",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            31,
+            33,
+            45,
+            48,
+            37
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            33,
+            45,
+            31,
+            58,
+            44
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            45,
+            48,
+            31,
+            56,
+            37
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            33,
+            31,
+            45,
+            48,
+            37
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            45,
+            31,
+            33,
+            48,
+            58
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g009",
+      "question": "みなとコーヒーのポイント会員制度では、いくら使うと1ポイントたまりますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            18,
+            1,
+            8,
+            6,
+            3
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            18,
+            1,
+            19,
+            8,
+            29
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            1,
+            18,
+            3,
+            6,
+            8
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            18,
+            1,
+            8,
+            3,
+            6
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            1,
+            18,
+            3,
+            8,
+            6
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g010",
+      "question": "みなとコーヒーの湖畔テラス店には、専用の駐車場は何台分ありますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            16,
+            29,
+            9,
+            6,
+            1
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            16,
+            29,
+            3,
+            1,
+            2
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            16,
+            1,
+            3,
+            6,
+            9
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            16,
+            29,
+            1,
+            9,
+            6
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            16,
+            1,
+            3,
+            29,
+            6
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": true
+    },
+    {
+      "id": "g011",
+      "question": "みなとコーヒーの店舗のうち、朝いちばん早く開くのはどこで、何時に開きますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            1,
+            3,
+            6
+          ],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            3,
+            27,
+            2,
+            1
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            3,
+            5,
+            10,
+            1,
+            28
+          ],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            3,
+            1,
+            6,
+            29,
+            27
+          ],
+          "first_gold_rank": 5,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            3,
+            1,
+            2,
+            29,
+            5
+          ],
+          "first_gold_rank": 11,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": true
+    },
+    {
+      "id": "g012",
+      "question": "みなとクラブでためたポイントは、使わないでいると、いつなくなってしまいますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            8,
+            18,
+            19,
+            1
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            18,
+            19,
+            8,
+            2,
+            1
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            18,
+            19,
+            8,
+            1
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            18,
+            8,
+            19,
+            1,
+            2
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            18,
+            19,
+            8,
+            1,
+            2
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g013",
+      "question": "スマホのアプリで先に注文と支払いをしておくことができない店舗はどこですか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            15,
+            20,
+            8
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            15,
+            8,
+            29,
+            20,
+            28
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            15,
+            5,
+            10,
+            3,
+            28
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            15,
+            8,
+            20,
+            29,
+            28
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            15,
+            8,
+            28,
+            5,
+            10
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g014",
+      "question": "みなとコーヒーの港町エリアにある店舗の座席数を全部足すと、何席になりますか。",
+      "category": "multi_hop",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            5,
+            1,
+            29,
+            3,
+            6
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            3,
+            1,
+            2,
+            6
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            5,
+            3,
+            10,
+            1,
+            26
+          ],
+          "first_gold_rank": 7,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            1,
+            3,
+            5,
+            6
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            3,
+            1,
+            29,
+            5,
+            2
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g015",
+      "question": "つばさ大学の学生寮に入るとき、保証金はいくら納めますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            63,
+            38
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            63,
+            38
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67,
+            68,
+            63,
+            38
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g016",
+      "question": "つばさ大学の学生寮では、避難訓練は毎年いつ行われますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            23,
+            30
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            66,
+            68,
+            21,
+            67
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            23,
+            30
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            66,
+            67,
+            21,
+            23
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g017",
+      "question": "つばさ大学の寮で、アルバイトのせいで帰りが遅くなりそうなときは、何時まで帰寮が認められますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            67
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            27,
+            14
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66,
+            27,
+            14
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            27,
+            14
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g018",
+      "question": "ザーハードの大気の酸素濃度は、地球と比べてどれくらいですか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            70
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76,
+            69,
+            77,
+            80
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76,
+            80,
+            69,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76,
+            69,
+            77,
+            80
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            76,
+            69,
+            80,
+            77
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g019",
+      "question": "ザーハードの遺跡の中で、最も注目されているのはどの異星人種族の遺跡ですか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            73,
+            74,
+            76,
+            77,
+            72
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            73,
+            72,
+            74,
+            75,
+            76
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            73,
+            74,
+            76,
+            77,
+            72
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            73,
+            74,
+            72,
+            76,
+            75
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_independent",
+      "new_chunk": false
+    },
+    {
+      "id": "g020",
+      "question": "あおば電機の洗濯乾燥機 AW-820 の販売価格はいくらですか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            31
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            58,
+            33,
+            59,
+            45
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            31
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            58,
+            33,
+            59,
+            45
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            58,
+            33,
+            59,
+            45
+          ]
+        }
+      },
+      "file": "final_questions_independent"
+    },
+    {
+      "id": "g021",
+      "question": "AW-820 の脱水は、1分間に何回転しますか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            31
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            58,
+            59,
+            54,
+            33
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            31,
+            48,
+            52
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            58,
+            59,
+            54,
+            33
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            52,
+            48,
+            58,
+            59
+          ]
+        }
+      },
+      "file": "final_questions_independent"
+    },
+    {
+      "id": "g022",
+      "question": "みなとコーヒーの「みなとブレンド」は、1杯いくらですか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            13,
+            6,
+            1,
+            4,
+            3
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            12,
+            4,
+            13,
+            1,
+            29
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            13,
+            4,
+            1,
+            3,
+            6
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            13,
+            4,
+            1,
+            12,
+            6
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            13,
+            4,
+            12,
+            1,
+            3
+          ]
+        }
+      },
+      "file": "final_questions_independent"
+    },
+    {
+      "id": "g023",
+      "question": "つばさ大学の学生寮では、居室でインターネットのWi-Fiを使えますか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            15,
+            67,
+            49,
+            66,
+            62
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            38,
+            59
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67,
+            68
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            49,
+            15,
+            62
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            66,
+            67,
+            68,
+            38,
+            59
+          ]
+        }
+      },
+      "file": "final_questions_independent"
+    },
+    {
+      "id": "g024",
+      "question": "惑星ザーハードの1日の長さは、何時間ですか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            56,
+            69
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            69,
+            77,
+            70,
+            76,
+            79
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            2,
+            11,
+            21,
+            28,
+            30
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            69,
+            56,
+            77,
+            70,
+            76
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            69,
+            11,
+            2,
+            77,
+            21
+          ]
+        }
+      },
+      "file": "final_questions_independent"
+    },
+    {
+      "id": "g025",
+      "question": "明日の東京の天気はどうなりそうですか。",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            70,
+            29,
+            27,
+            28
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            70,
+            29,
+            27,
+            28
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            70,
+            29,
+            27,
+            28
+          ]
+        }
+      },
+      "file": "final_questions_independent"
+    },
+    {
+      "id": "g026",
+      "question": "家庭で作れる、おいしいカレーの作り方を教えてください。",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            43,
+            25,
+            35,
+            4,
+            41
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            65
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            43,
+            25,
+            35,
+            4,
+            41
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            65,
+            43,
+            25,
+            35,
+            4
+          ]
+        }
+      },
+      "file": "final_questions_independent"
+    },
+    {
+      "id": "f001",
+      "question": "洗濯機の排水ホースの先端は、床からどのくらいの高さにすればよいですか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            39,
+            56,
+            57
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            39,
+            38,
+            36,
+            56,
+            40
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            39,
+            56
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            39,
+            56,
+            57,
+            38,
+            36
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            39,
+            56,
+            38,
+            36,
+            40
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f002",
+      "question": "この洗濯乾燥機の本体の質量は、どのくらいですか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            31,
+            58,
+            43
+          ],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            33,
+            58,
+            45,
+            50
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            31,
+            42,
+            50,
+            54,
+            57
+          ],
+          "first_gold_rank": 6,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            58,
+            31,
+            43,
+            59,
+            33
+          ],
+          "first_gold_rank": 4,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            50,
+            31,
+            42,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f003",
+      "question": "洗剤を自動で入れるタンクには、洗剤をどのくらい入れられますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            44,
+            43,
+            50,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            44,
+            50,
+            54,
+            45,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            44,
+            50,
+            43,
+            31,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            44,
+            50,
+            43,
+            51,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            44,
+            50,
+            54,
+            43,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f004",
+      "question": "小さな子どもがいたずらでボタンを押さないようにするには、どうすればよいですか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            43,
+            51,
+            57,
+            34,
+            47
+          ],
+          "first_gold_rank": 5,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            47,
+            36,
+            34,
+            46,
+            51
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            43,
+            34,
+            47,
+            51,
+            57
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            47,
+            43,
+            51,
+            34,
+            57
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            47,
+            34,
+            43,
+            51,
+            57
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f005",
+      "question": "ふんわり乾燥コースでは、何kgまで乾燥できますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            45,
+            48
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            45,
+            48,
+            33,
+            58,
+            50
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            45,
+            48,
+            53,
+            56,
+            31
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            45,
+            48,
+            33,
+            58,
+            50
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            45,
+            48,
+            53,
+            58,
+            43
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f006",
+      "question": "脱水が終わったのに洗濯物を取り出さずに放っておくと、どうなりますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            52,
+            48,
+            50
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            52,
+            48,
+            54,
+            53,
+            56
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            48,
+            50,
+            52
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            52,
+            48,
+            50,
+            54,
+            53
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            48,
+            52,
+            50,
+            54,
+            53
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f007",
+      "question": "標準コースで洗濯をして、続けて乾燥までしたとき、所要時間は合わせて何分ですか。",
+      "category": "multi_hop",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            58,
+            48,
+            45,
+            43,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            58,
+            43,
+            48,
+            45,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            48,
+            45,
+            58,
+            53,
+            54
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            58,
+            48,
+            43,
+            45,
+            54
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            48,
+            58,
+            45,
+            43,
+            54
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f008",
+      "question": "エラーコード E05 は、何が原因で出ますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            55,
+            74,
+            56
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            56,
+            57,
+            55,
+            40,
+            32
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            56,
+            37,
+            52,
+            55,
+            74
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            55,
+            56,
+            57,
+            74,
+            40
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            56,
+            55,
+            37,
+            57,
+            52
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": false
+    },
+    {
+      "id": "f009",
+      "question": "ポイントがたまると、100ポイントでどんな特典と交換できますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            19,
+            59,
+            18,
+            66,
+            39
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            19,
+            18,
+            20,
+            8,
+            22
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            19,
+            18,
+            1,
+            8
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            19,
+            18,
+            59,
+            20,
+            8
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            19,
+            18,
+            8,
+            1,
+            20
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": false
+    },
+    {
+      "id": "f010",
+      "question": "犬を連れて店に入りたいのですが、店内の席に座れますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            26,
+            17,
+            15
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            17,
+            26,
+            29,
+            16,
+            30
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            15,
+            17,
+            26
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            17,
+            26,
+            15,
+            29,
+            16
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            17,
+            26,
+            15,
+            29,
+            16
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f011",
+      "question": "湖畔テラス店の専用駐車場は、何台分ありますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            16,
+            29
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            16,
+            9,
+            10,
+            29,
+            14
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            16,
+            9,
+            29
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            16,
+            29,
+            9,
+            10,
+            14
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            16,
+            9,
+            29,
+            10,
+            14
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f012",
+      "question": "火曜日が定休日になっている店舗を教えてください。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            28,
+            2,
+            29
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            29,
+            28,
+            30,
+            14,
+            5
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            5,
+            10,
+            28,
+            2,
+            3
+          ],
+          "first_gold_rank": 6,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            28,
+            29,
+            2,
+            30,
+            14
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            28,
+            5,
+            29,
+            10,
+            14
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": false
+    },
+    {
+      "id": "f013",
+      "question": "バリスタが店頭でドリンクを出せるようになるまでには、何をしますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            24,
+            23,
+            21,
+            19
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            24,
+            23,
+            21,
+            22,
+            4
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            24,
+            21,
+            19,
+            20,
+            23
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            24,
+            23,
+            21,
+            19,
+            22
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            24,
+            21,
+            23,
+            19,
+            20
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f014",
+      "question": "自社工房の焙煎機は、何台ありますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            4,
+            11
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            11,
+            4,
+            12,
+            23,
+            10
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            11,
+            4
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            4,
+            11,
+            12,
+            23,
+            10
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            11,
+            4,
+            12,
+            23,
+            10
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": true
+    },
+    {
+      "id": "f015",
+      "question": "寮の共用部分の掃除は、どのくらいの頻度で、誰がしますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            68
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            54,
+            53
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            68
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            54,
+            53
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            68,
+            67,
+            66,
+            54,
+            53
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": false
+    },
+    {
+      "id": "f016",
+      "question": "自分の部屋でたくさん家電を使いたいのですが、使える量に上限はありますか。",
+      "category": "paraphrase",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": [],
+          "first_gold_rank": null,
+          "hit": {
+            "1": false,
+            "3": false,
+            "5": false
+          },
+          "hit_depth": false
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            41,
+            33,
+            67,
+            38,
+            45
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            64,
+            67
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            41,
+            33,
+            67,
+            38,
+            45
+          ],
+          "first_gold_rank": 3,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            64,
+            41,
+            33,
+            38
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": false
+    },
+    {
+      "id": "f017",
+      "question": "ひばり棟の個室とかもめ棟の個室では、共益費を含めた月額の合計は、それぞれいくらですか。",
+      "category": "multi_hop",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            67
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            18,
+            30
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            67
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            18,
+            30
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            18,
+            30
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": false
+    },
+    {
+      "id": "f018",
+      "question": "ザーハリアンは、エネルギー源を使って、何を開発しましたか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            73,
+            74,
+            76,
+            75
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            73,
+            79,
+            76,
+            77,
+            75
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            73,
+            77,
+            78,
+            79,
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            73,
+            76,
+            74,
+            75,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            73,
+            77,
+            79,
+            76,
+            78
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": false
+    },
+    {
+      "id": "f019",
+      "question": "ザーハードの岩山の内部には、何が眠っている可能性がありますか。",
+      "category": "factual",
+      "scope_kind": null,
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            71
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            80,
+            71,
+            77,
+            79,
+            73
+          ],
+          "first_gold_rank": 2,
+          "hit": {
+            "1": false,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            71,
+            80,
+            70,
+            72,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            71,
+            80,
+            77,
+            79,
+            73
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            71,
+            80,
+            77,
+            73,
+            79
+          ],
+          "first_gold_rank": 1,
+          "hit": {
+            "1": true,
+            "3": true,
+            "5": true
+          },
+          "hit_depth": true
+        }
+      },
+      "file": "final_questions_claude",
+      "new_chunk": false
+    },
+    {
+      "id": "f020",
+      "question": "モバイルオーダーは、何時から注文を受け付けますか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            15,
+            18,
+            8
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            15,
+            14,
+            27,
+            8,
+            29
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            15,
+            8,
+            18
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            15,
+            8,
+            18,
+            14,
+            27
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            15,
+            8,
+            18,
+            14,
+            27
+          ]
+        }
+      },
+      "file": "final_questions_claude"
+    },
+    {
+      "id": "f021",
+      "question": "この洗濯乾燥機には、どんな色がありますか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            31,
+            58,
+            43
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            58,
+            53,
+            45,
+            31,
+            59
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            31
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            58,
+            31,
+            43,
+            53,
+            45
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            31,
+            58,
+            53,
+            45,
+            59
+          ]
+        }
+      },
+      "file": "final_questions_claude"
+    },
+    {
+      "id": "f022",
+      "question": "寮の居室の広さは、何平方メートルですか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            67
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            59,
+            38
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            67,
+            68,
+            66
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            59,
+            38
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            67,
+            66,
+            68,
+            59,
+            38
+          ]
+        }
+      },
+      "file": "final_questions_claude"
+    },
+    {
+      "id": "f023",
+      "question": "ザーハードの1日の長さは、何時間ですか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            56,
+            74,
+            73,
+            80,
+            79
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            77,
+            69,
+            80,
+            79
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            70,
+            80,
+            2,
+            11,
+            21
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            77,
+            80,
+            70,
+            74,
+            73
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            70,
+            80,
+            69,
+            77,
+            73
+          ]
+        }
+      },
+      "file": "final_questions_claude"
+    },
+    {
+      "id": "f024",
+      "question": "みなとコーヒーの公式アプリは、何という名前ですか。",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "arms": {
+        "bm25": {
+          "empty": false,
+          "top_ids": [
+            20,
+            6,
+            1,
+            15,
+            8
+          ]
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            8,
+            1,
+            29,
+            6,
+            18
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            1,
+            3,
+            6,
+            8,
+            15
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            1,
+            8,
+            6,
+            3,
+            20
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            1,
+            8,
+            6,
+            3,
+            15
+          ]
+        }
+      },
+      "file": "final_questions_claude"
+    },
+    {
+      "id": "f025",
+      "question": "ビットコインの現在の価格は、いくらですか。",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            10,
+            59,
+            27,
+            69,
+            11
+          ]
+        },
+        "pgroonga": {
+          "empty": false,
+          "top_ids": [
+            3,
+            10
+          ]
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            10,
+            59,
+            27,
+            69,
+            11
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            10,
+            3,
+            59,
+            27,
+            69
+          ]
+        }
+      },
+      "file": "final_questions_claude"
+    },
+    {
+      "id": "f026",
+      "question": "東京タワーの高さは、何メートルですか。",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "arms": {
+        "bm25": {
+          "empty": true,
+          "top_ids": []
+        },
+        "vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            29,
+            4,
+            70,
+            77
+          ]
+        },
+        "pgroonga": {
+          "empty": true,
+          "top_ids": []
+        },
+        "bm25_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            29,
+            4,
+            70,
+            77
+          ]
+        },
+        "pgroonga_vector": {
+          "empty": false,
+          "top_ids": [
+            59,
+            29,
+            4,
+            70,
+            77
+          ]
+        }
+      },
+      "file": "final_questions_claude"
+    }
+  ],
+  "set": "final",
+  "questions_files": [
+    {
+      "path": "evals/search_compare/final_questions_independent.yaml",
+      "sha256": "c421297939e579e0b9667baa6d0be370f951c67ba356a0905455eba6993a991d"
+    },
+    {
+      "path": "evals/search_compare/final_questions_claude.yaml",
+      "sha256": "fd3c4798150c45d1e9a14300a33fe635dff8ac816d3c5bab36fd905641b273a3"
+    }
+  ],
+  "by_group": {
+    "overall": {
+      "n_answerable": 38,
+      "n_out_of_scope": 14,
+      "bm25": {
+        "mrr": 0.6991,
+        "hit_at": {
+          "1": 22,
+          "3": 32,
+          "5": 34
+        },
+        "hit_depth": 34,
+        "answerable_empty": 1,
+        "out_of_scope_empty": 4
+      },
+      "vector": {
+        "mrr": 0.9254,
+        "hit_at": {
+          "1": 32,
+          "3": 38,
+          "5": 38
+        },
+        "hit_depth": 38,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "pgroonga": {
+        "mrr": 0.6704,
+        "hit_at": {
+          "1": 17,
+          "3": 33,
+          "5": 33
+        },
+        "hit_depth": 37,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 2
+      },
+      "bm25_vector": {
+        "mrr": 0.8583,
+        "hit_at": {
+          "1": 28,
+          "3": 36,
+          "5": 38
+        },
+        "hit_depth": 38,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "pgroonga_vector": {
+        "mrr": 0.862,
+        "hit_at": {
+          "1": 28,
+          "3": 37,
+          "5": 37
+        },
+        "hit_depth": 38,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      }
+    },
+    "file:final_questions_claude": {
+      "n_answerable": 19,
+      "n_out_of_scope": 7,
+      "bm25": {
+        "mrr": 0.7298,
+        "hit_at": {
+          "1": 12,
+          "3": 16,
+          "5": 17
+        },
+        "hit_depth": 17,
+        "answerable_empty": 1,
+        "out_of_scope_empty": 2
+      },
+      "vector": {
+        "mrr": 0.9386,
+        "hit_at": {
+          "1": 17,
+          "3": 19,
+          "5": 19
+        },
+        "hit_depth": 19,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "pgroonga": {
+        "mrr": 0.7544,
+        "hit_at": {
+          "1": 12,
+          "3": 17,
+          "5": 17
+        },
+        "hit_depth": 19,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 1
+      },
+      "bm25_vector": {
+        "mrr": 0.8465,
+        "hit_at": {
+          "1": 14,
+          "3": 18,
+          "5": 19
+        },
+        "hit_depth": 19,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "pgroonga_vector": {
+        "mrr": 0.9123,
+        "hit_at": {
+          "1": 16,
+          "3": 19,
+          "5": 19
+        },
+        "hit_depth": 19,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      }
+    },
+    "file:final_questions_independent": {
+      "n_answerable": 19,
+      "n_out_of_scope": 7,
+      "bm25": {
+        "mrr": 0.6684,
+        "hit_at": {
+          "1": 10,
+          "3": 16,
+          "5": 17
+        },
+        "hit_depth": 17,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 2
+      },
+      "vector": {
+        "mrr": 0.9123,
+        "hit_at": {
+          "1": 15,
+          "3": 19,
+          "5": 19
+        },
+        "hit_depth": 19,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "pgroonga": {
+        "mrr": 0.5865,
+        "hit_at": {
+          "1": 5,
+          "3": 16,
+          "5": 16
+        },
+        "hit_depth": 18,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 1
+      },
+      "bm25_vector": {
+        "mrr": 0.8702,
+        "hit_at": {
+          "1": 14,
+          "3": 18,
+          "5": 19
+        },
+        "hit_depth": 19,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "pgroonga_vector": {
+        "mrr": 0.8118,
+        "hit_at": {
+          "1": 12,
+          "3": 18,
+          "5": 18
+        },
+        "hit_depth": 19,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      }
+    },
+    "new_chunk": {
+      "n_answerable": 16,
+      "n_out_of_scope": 0,
+      "bm25": {
+        "mrr": 0.6813,
+        "hit_at": {
+          "1": 9,
+          "3": 12,
+          "5": 14
+        },
+        "hit_depth": 14,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "vector": {
+        "mrr": 0.9583,
+        "hit_at": {
+          "1": 15,
+          "3": 16,
+          "5": 16
+        },
+        "hit_depth": 16,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "pgroonga": {
+        "mrr": 0.6146,
+        "hit_at": {
+          "1": 7,
+          "3": 14,
+          "5": 14
+        },
+        "hit_depth": 15,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "bm25_vector": {
+        "mrr": 0.8719,
+        "hit_at": {
+          "1": 13,
+          "3": 14,
+          "5": 16
+        },
+        "hit_depth": 16,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "pgroonga_vector": {
+        "mrr": 0.8807,
+        "hit_at": {
+          "1": 13,
+          "3": 15,
+          "5": 15
+        },
+        "hit_depth": 16,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      }
+    },
+    "overlap_chunk": {
+      "n_answerable": 22,
+      "n_out_of_scope": 0,
+      "bm25": {
+        "mrr": 0.7121,
+        "hit_at": {
+          "1": 13,
+          "3": 20,
+          "5": 20
+        },
+        "hit_depth": 20,
+        "answerable_empty": 1,
+        "out_of_scope_empty": 0
+      },
+      "vector": {
+        "mrr": 0.9015,
+        "hit_at": {
+          "1": 17,
+          "3": 22,
+          "5": 22
+        },
+        "hit_depth": 22,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "pgroonga": {
+        "mrr": 0.711,
+        "hit_at": {
+          "1": 10,
+          "3": 19,
+          "5": 19
+        },
+        "hit_depth": 22,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "bm25_vector": {
+        "mrr": 0.8485,
+        "hit_at": {
+          "1": 15,
+          "3": 22,
+          "5": 22
+        },
+        "hit_depth": 22,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      },
+      "pgroonga_vector": {
+        "mrr": 0.8485,
+        "hit_at": {
+          "1": 15,
+          "3": 22,
+          "5": 22
+        },
+        "hit_depth": 22,
+        "answerable_empty": 0,
+        "out_of_scope_empty": 0
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ from scripts.eval_search_compare import (
     _PGROONGA_SQL,
     ARMS,
     by_category,
+    final_groups,
     fuse,
     load_selection_questions,
     pgroonga_query,
@@ -107,3 +108,19 @@ def test_selection_questions_load_without_duplicate_ids() -> None:
     questions = load_selection_questions()
     assert len(questions) >= 36
     assert len({q.id for q in questions}) == len(questions)
+
+
+def test_final_groups_split_by_file_and_by_whether_the_gold_chunk_overlaps_the_selection() -> None:
+    chunks = {1: _c(1, "a.pdf", "甲の話"), 2: _c(2, "a.pdf", "乙の話")}
+    hit = {arm: [1] for arm in ARMS}
+    miss = {arm: [2] for arm in ARMS}
+    a = {**score_question(_q("g1", "a.pdf"), hit, chunks), "file": "independent", "new_chunk": False}
+    b = {**score_question(_q("f1", "a.pdf"), miss, chunks), "file": "claude", "new_chunk": True}
+    absent = {**score_question(_q("g2", None), {arm: [] for arm in ARMS}, chunks), "file": "independent"}
+    groups = final_groups([a, b, absent])
+    assert set(groups) == {"overall", "file:claude", "file:independent", "new_chunk", "overlap_chunk"}
+    assert groups["overall"]["n_answerable"] == 2 and groups["overall"]["n_out_of_scope"] == 1
+    assert groups["file:independent"]["n_answerable"] == 1 and groups["file:independent"]["n_out_of_scope"] == 1
+    assert groups["new_chunk"]["n_answerable"] == 1 and groups["new_chunk"]["bm25"]["hit_at"]["1"] == 0  # 資料外は入らない
+    assert groups["overlap_chunk"]["n_answerable"] == 1 and groups["overlap_chunk"]["bm25"]["hit_at"]["1"] == 1
+    assert groups["new_chunk"]["n_out_of_scope"] == 0
