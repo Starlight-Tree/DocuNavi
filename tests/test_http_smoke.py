@@ -173,11 +173,12 @@ def test_chat_assigns_unique_uuid_thread_ids(http):
     assert first != second
 
 
-def test_chat_rag_context_in_mock_mode(http, mode):
+def test_chat_mock_mode_answers_with_the_fixed_reply_and_does_not_search(http, mode):
     _require_mock(mode)
     body = _chat(http, ATMOSPHERE_MESSAGE).json()
     assert body["mode"] == "mock"
-    assert "[ザーハード" in body["context"]
+    assert "資料の検索と回答は行いません" in body["reply"]
+    assert body["context"] == ""
 
 
 @pytest.mark.parametrize(

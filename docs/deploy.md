@@ -4,6 +4,10 @@
 Vertex AI でのモデルの利用、Cloud Build での Docker ビルド、`agent-deployer` の権限の過不足は確かめていません
 （Docker イメージのビルドと起動確認は CI が行っています）。
 
+**資料の検索が DB のベクトル検索になったため（[search-design.md](search-design.md)）、本物の LLM のデプロイには `DATABASE_URL` が必須です**
+（下の C。「任意」ではありません）。さらに、質問の埋め込みは API キーで呼ぶので、**A（Vertex AI）でも `GEMINI_API_KEY` の Secret が要ります**
+（B の Secret の作り方）。A + ADC だけでは、起動の検査で失敗します。この組み合わせの実デプロイは未確認です。
+
 ## 誰の権限で実行するか
 
 書き込み系のコマンド（API の有効化、サービスアカウントや権限の作成、デプロイ、公開）は、**あなたが実行します。**
@@ -125,9 +129,9 @@ A のコマンドの `--set-env-vars` を、次の 1 行に置き換えます。
   --set-secrets "GEMINI_API_KEY=gemini-api-key:latest"
 ```
 
-### C. 会話履歴を DB に保存する（任意）
+### C. DB に接続する（本物の LLM では必須）
 
-`DATABASE_URL` を設定しないと、履歴はインスタンスのメモリに置かれ、再起動や増減で消えます（[configuration.md](configuration.md) の「会話履歴の保存先」）。
+`DATABASE_URL` は、資料の検索（DB のベクトル検索）と会話履歴の保存先を兼ねます。無いと、本物の LLM では起動に失敗します（[configuration.md](configuration.md) の「資料の検索」「会話履歴の保存先」）。
 接続 URL はパスワードを含むので、キーと同じく **Secret Manager から渡します。**
 
 ```bash

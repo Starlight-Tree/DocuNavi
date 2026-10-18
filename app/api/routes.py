@@ -22,6 +22,7 @@ from app.agents.graph import STREAM_TOKENS_KEY, build_graph, is_mock_mode
 from app.api.ui_stream import DONE, KEEPALIVE, UI_STREAM_HEADERS, UIMessageStream, encode, is_text_event
 from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, history_backend
+from app.search_vector import VectorSearchError
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ _DETAIL_TIMEOUT = "LLM の応答がタイムアウトしました。しばらく
 _DETAIL_CONFIG = "サーバー側の LLM 設定に問題があります。管理者に連絡してください。"
 _DETAIL_UPSTREAM = "LLM 呼び出しに失敗しました。しばらく待ってから再試行してください。"
 _DETAIL_HISTORY_STORE = "会話履歴の保存先に接続できませんでした。しばらく待ってから再試行してください。"
+_DETAIL_SEARCH = "資料の検索に失敗しました。しばらく待ってから再試行してください。"
 
 
 def _optional_classes(*specs: tuple[str, str]) -> tuple[type[BaseException], ...]:
@@ -188,6 +190,10 @@ def classify_llm_error(exc: BaseException) -> HTTPException:
     if _HISTORY_STORE_ERRORS and any(isinstance(e, _HISTORY_STORE_ERRORS) for e in chain):
         # LLM ではなく履歴の保存先の失敗。LLM の失敗として返すと、原因を取り違える
         return HTTPException(status_code=503, detail=_DETAIL_HISTORY_STORE)
+
+    if any(isinstance(e, VectorSearchError) for e in chain):
+        # 資料の検索（質問の埋め込み・DB）の失敗。LLM の失敗として返すと、原因を取り違える。別の検索経路には戻らない
+        return HTTPException(status_code=503, detail=_DETAIL_SEARCH)
 
     if any(isinstance(e, _TIMEOUT_ERRORS) for e in chain) or any(c in (408, 504) for c in codes):
         return HTTPException(status_code=504, detail=_DETAIL_TIMEOUT)

@@ -1,6 +1,7 @@
-"""資料群（storage/pdf/ の PDF のディレクトリ。ザーハードも PDF）をまたぐ検索のテスト。
+"""BM25 の基準線（scripts/bm25_baseline.py）の、資料群（storage/pdf/ の PDF のディレクトリ。ザーハードも PDF）をまたぐ検索のテスト。
 
-検索そのものの精度は tests/test_rag.py と評価（scripts/eval_retrieval.py）が見る。ここは、資料群を足しても
+アプリの検索ではない（アプリは DB のベクトル検索）。評価の BM25 の経路と、conftest の偽の検索が使う実装なので、挙動を固定しておく。
+検索そのものの精度は tests/test_bm25_baseline.py と評価（scripts/eval_retrieval.py）が見る。ここは、資料群を足しても
 他の資料群の結果が動かないこと、範囲の指定、PDF を取り込めないときの扱いを確かめる。
 """
 
@@ -9,13 +10,10 @@ import logging
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
-from app.agents import tools
-from app.agents.graph import _compose_mock_reply
-from app.agents.tools import search_chunks, search_collections, search_documents
-from app.main import app
+from scripts import bm25_baseline as tools
 from scripts import eval_retrieval as ev
+from scripts.bm25_baseline import search_chunks, search_collections
 from tests.pdf_fixtures import build_pdf, paragraphs
 from tests.zahard_corpus import ZAHARD_FILES, ZAHARD_PDF_DIR
 
@@ -104,13 +102,6 @@ def test_a_collection_is_not_disturbed_by_the_others(k):
             assert [name for name, _ in app_hits if name not in own_names] == KNOWN_SPILL.get(q.id), q.id
     assert spilled == set(KNOWN_SPILL)
     assert checked >= 68
-
-
-def test_tool_returns_pdf_sources_in_the_same_format():
-    output = search_documents.invoke({"query": "みなとコーヒーの定休日"})
-    assert "[cafe_store_guide.pdf]\n" in output
-    reply = _compose_mock_reply("みなとコーヒーの定休日は？", output)
-    assert "出典: cafe_store_guide.pdf" in reply
 
 
 # ---- 資料群ごとの採点と、結果の合わせ方 ----
@@ -206,20 +197,6 @@ def test_scope_with_an_unknown_name_is_an_error(monkeypatch, value):
     assert "zahard" in str(excinfo.value)  # 選べる名前を示す
 
 
-def test_unknown_scope_stops_the_app_at_startup(monkeypatch):
-    # 検索が黙って空になり、「資料には記載がありません」と答え続ける前に、起動で失敗させる
-    monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, "zahrd")
-    with pytest.raises(ValueError, match="SEARCH_SCOPE"):
-        with TestClient(app):
-            pass
-
-
-def test_the_app_starts_with_a_valid_scope(monkeypatch):
-    monkeypatch.setenv(tools.SEARCH_SCOPE_ENV, "cafe")
-    with TestClient(app) as client:
-        assert client.get("/health").status_code == 200
-
-
 # ---- PDF の読み込み ----
 
 
@@ -229,7 +206,7 @@ def test_a_pdf_that_cannot_be_read_is_left_out_and_logged(pdf_dir, caplog):
     (folder / "good.pdf").write_bytes(build_pdf([paragraphs("返品は購入から七日以内に受け付けます。")]))
     (folder / "broken.pdf").write_bytes(b"not a pdf")
 
-    with caplog.at_level(logging.WARNING, logger="app.agents.tools"):
+    with caplog.at_level(logging.WARNING, logger="scripts.bm25_baseline"):
         collections = tools._load_pdf_collections()
 
     assert list(collections) == ["faq"]

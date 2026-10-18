@@ -10,7 +10,8 @@ import uuid
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
-from app.agents.graph import MockChatModel, build_graph
+from app.agents.graph import build_graph
+from tests.fakes import SearchingMockLLM
 
 
 def _config(thread_id: str) -> dict:
@@ -28,14 +29,14 @@ def _history(graph, thread_id: str) -> list:
 
 
 def test_default_checkpointer_is_in_memory():
-    graph = build_graph(MockChatModel())
+    graph = build_graph(SearchingMockLLM())
 
     assert isinstance(graph.checkpointer, MemorySaver)
 
 
 def test_injected_checkpointer_is_used_and_receives_history():
     saver = MemorySaver()
-    graph = build_graph(MockChatModel(), checkpointer=saver)
+    graph = build_graph(SearchingMockLLM(), checkpointer=saver)
     thread_id = str(uuid.uuid4())
 
     _turn(graph, "ザーハードの大気について教えて", thread_id)
@@ -49,18 +50,18 @@ def test_injected_checkpointer_is_used_and_receives_history():
 def test_history_is_shared_between_graphs_with_the_same_checkpointer():
     saver = MemorySaver()
     thread_id = str(uuid.uuid4())
-    _turn(build_graph(MockChatModel(), checkpointer=saver), "ザーハードの大気について教えて", thread_id)
+    _turn(build_graph(SearchingMockLLM(), checkpointer=saver), "ザーハードの大気について教えて", thread_id)
 
     # 別のグラフ（再起動後や別インスタンスに相当）が、同じ保存先から続きを読む
-    other = build_graph(MockChatModel(), checkpointer=saver)
+    other = build_graph(SearchingMockLLM(), checkpointer=saver)
 
     assert len(_history(other, thread_id)) >= 2
 
 
 def test_history_is_not_shared_between_default_checkpointers():
     thread_id = str(uuid.uuid4())
-    _turn(build_graph(MockChatModel()), "ザーハードの大気について教えて", thread_id)
+    _turn(build_graph(SearchingMockLLM()), "ザーハードの大気について教えて", thread_id)
 
-    other = build_graph(MockChatModel())
+    other = build_graph(SearchingMockLLM())
 
     assert _history(other, thread_id) == []

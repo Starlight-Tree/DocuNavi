@@ -1,6 +1,6 @@
 """検索の評価（段階 0）。evals/questions.yaml の質問で現行の検索を採点し、JSON に残す。
 
-LLM も DB も呼ばない。検索の実体は app/agents/tools.py の search_chunks（BM25）。
+LLM も DB も呼ばない。検索の実体は scripts/bm25_baseline.py の search_chunks（BM25。以前アプリが使っていたもの）。
 指標と結果の見方は evals/README.md。
 
     python -m scripts.eval_retrieval --mode bm25 --k 5 --corpus storage/pdf/zahard --questions evals/questions.yaml   # ザーハード（PDF）
@@ -25,7 +25,7 @@ from typing import Any
 
 import yaml
 
-from app.agents import tools
+from scripts import bm25_baseline as tools
 from app.ingestion.corpus import PASSAGES, load_pdf_corpus
 from app.ingestion.service import find_pdfs, source_name
 

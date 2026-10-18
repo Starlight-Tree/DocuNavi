@@ -1,22 +1,14 @@
-import re
+"""BM25 の基準線（scripts/bm25_baseline.py）の回帰テスト。アプリの検索ではない（アプリは DB のベクトル検索）。
+
+評価の BM25 の経路と、conftest の偽の検索が使う実装なので、挙動と精度の下限を固定しておく。
+"""
 
 import pytest
 
-from app.agents import tools
-from app.agents.graph import _NOT_FOUND_MARK, _compose_mock_reply
-from app.agents.tools import (
-    TOP_K,
-    TOOLS,
-    bigrams,
-    load_chunks,
-    search_chunks,
-    search_documents,
-)
+from scripts import bm25_baseline as tools
+from scripts.bm25_baseline import TOP_K, load_chunks, search_chunks
 from tests.rag_eval_cases import ALL_CASES, RELATED_CASES, UNRELATED_CASES
-from tests.zahard_corpus import ZAHARD_FILES, ZAHARD_TXT_DIR, zahard_texts
-
-# graph._compose_mock_reply がツール出力をパースするのと同じ正規表現。これで割れることが契約
-SOURCE_HEADER = re.compile(r"(?m)^\[([^\]\n]+\.(?:txt|pdf))\]\n")
+from tests.zahard_corpus import ZAHARD_FILES, zahard_texts
 
 # 評価セットは 21 件と小さく、1 件の増減で 5% 動く。実測（hit@1 18/21, hit@2 19/21,
 # evidence 19/21）より 1 件分だけ余裕を持たせた下限で、大きな退行だけを検知する。
@@ -87,7 +79,6 @@ def test_related_queries_recall():
 @pytest.mark.parametrize("case", UNRELATED_CASES, ids=lambda case: case.query)
 def test_unrelated_queries_find_nothing(case):
     assert search_chunks(case.query) == []
-    assert _NOT_FOUND_MARK in search_documents.invoke({"query": case.query})
 
 
 def test_returned_text_is_much_smaller_than_whole_files():
@@ -118,49 +109,7 @@ def test_search_chunks_contract(case):
             assert line in chunks[name]
 
 
-@pytest.mark.parametrize("case", HIT_CASES, ids=lambda case: case.query)
-def test_tool_output_is_parsable_by_mock_reply(case):
-    output = search_documents.invoke({"query": case.query})
-    assert _NOT_FOUND_MARK not in output
-    parts = SOURCE_HEADER.split(output)
-    # split の結果は ["", 名前, 本文, 名前, 本文, ...]
-    assert parts[0] == ""
-    names, bodies = parts[1::2], parts[2::2]
-    assert names and len(names) == len(bodies)
-    assert set(names) <= set(zahard_texts())
-    assert all(body.strip() for body in bodies)
-
-
-def test_tool_output_when_not_found():
-    output = search_documents.invoke({"query": "今日の天気"})
-    assert _NOT_FOUND_MARK in output
-    assert SOURCE_HEADER.search(output) is None
-
-
-def test_tool_is_registered():
-    assert TOOLS == [search_documents]
-    assert search_documents.name == "search_documents"
-
-
-def test_mock_reply_uses_search_output():
-    found = _compose_mock_reply("遺跡の構造は？", search_documents.invoke({"query": "遺跡の構造は？"}))
-    assert "出典: ザーハード2.pdf" in found
-    assert "多層的な構造" in found
-
-    missing = _compose_mock_reply("今日の天気は？", search_documents.invoke({"query": "今日の天気は？"}))
-    assert "見つかりませんでした" in missing
-    assert "出典" not in missing
-
-
 # ---- 公開 API と境界値 ----
-
-
-def test_bigrams_contract_is_unchanged():
-    # graph.py（モック返答の文抜粋）が依存している仕様
-    assert bigrams("ab c") == {"ab", "bc"}
-    assert bigrams("あ") == {"あ"}
-    assert bigrams("") == set()
-    assert bigrams("惑 星") == {"惑星"}
 
 
 def test_zahard_collection_is_the_three_pdfs_and_is_cached():
