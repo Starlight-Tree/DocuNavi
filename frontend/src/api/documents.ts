@@ -12,6 +12,8 @@ export interface DocumentSummary {
   source: string;
   /** PDF の題名。無ければ null（画面はファイル名で代える）。 */
   title: string | null;
+  /** 資料群の名前（zahard / cafe / guides など）。未設定、または項目が無い応答（古いサーバー）は null。 */
+  collection: string | null;
   status: string;
   failureReason: string | null;
   pages: number | null;
@@ -64,6 +66,7 @@ function parseSummary(value: unknown): DocumentSummary | null {
   if (!isRecord(value)) return null;
   const pages = nullableNumber(value.pages);
   const title = nullableString(value.title);
+  const collection = nullableString(value.collection);
   const failureReason = nullableString(value.failure_reason);
   const updatedAt = nullableString(value.updated_at);
   if (
@@ -74,6 +77,7 @@ function parseSummary(value: unknown): DocumentSummary | null {
     typeof value.embedded_count !== 'number' ||
     pages === undefined ||
     title === undefined ||
+    collection === undefined ||
     failureReason === undefined ||
     updatedAt === undefined
   ) {
@@ -83,6 +87,7 @@ function parseSummary(value: unknown): DocumentSummary | null {
     id: value.id,
     source: value.source,
     title: title?.trim() || null,
+    collection: collection?.trim() || null,
     status: value.status,
     failureReason,
     pages,

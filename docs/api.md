@@ -109,12 +109,15 @@ data: [DONE]
 
 ```json
 {"configured": true, "documents": [{"id": 1, "source": "tsubasa_dorm_rules.pdf",
-  "title": "つばさ大学学生寮 入寮規程", "status": "ready", "failure_reason": null,
+  "title": "つばさ大学学生寮 入寮規程", "collection": "guides", "status": "ready", "failure_reason": null,
   "pages": 3, "updated_at": "2026-10-18T09:00:00Z", "chunk_count": 3, "embedded_count": 3}]}
 ```
 
 - **`title`:** PDF のメタデータ `/Title`（取り込み時に保存）。無い・空白だけなら `null` で、画面はファイル名（`source`）で代えます。
   `source` はファイル名のままで、題名とは別に返します。
+- **`collection`:** 資料群の名前（`storage/pdf/<名前>/` のディレクトリ名。`cafe` / `guides` / `zahard` など）。未設定、または形（英数字・`_`・`-`、40 文字まで）が
+  合わない値は `null`。取り込み（`python -m app.ingestion`）が、入力のディレクトリ名（`--collection` で上書き）を保存します。
+  日本語の表示名（設定資料・店舗案内・規程・取扱説明書）は画面が持ち、API は名前だけを返します。一覧の絞り込みも画面側で行います。
 - **`GET /documents`:** 文書ごとの情報とチャンク数、埋め込み済みの数。`configured` が `false` のときは、`DATABASE_URL` が空で資料の DB を
   使っていません（エラーではなく 200。`documents` は空）。`configured: true` で `documents` が空なら、DB はあるが文書が 0 件です。
 - **`GET /documents/{id}/chunks`:** その文書のチャンクを `chunk_index` 順に、`page`・`page_end`・`kind`・`heading`・`content`（全文）・

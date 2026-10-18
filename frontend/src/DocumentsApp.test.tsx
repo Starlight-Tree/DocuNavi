@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -666,5 +666,101 @@ describe('画面の状態は URL が持つ', () => {
     expect(await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ })).toBeInTheDocument();
     expect(window.location.search).toBe('?tab=documents');
     expect(window.history.length).toBe(before);
+  });
+});
+
+describe('資料一覧: 種別（資料群）', () => {
+  const GROUPED = {
+    configured: true,
+    documents: [
+      summary(1, 'tsubasa_dorm_rules.pdf', 3, 3, { collection: 'guides' }),
+      summary(2, 'aoba_aw820_manual.pdf', 35, 35, { collection: 'guides' }),
+      summary(3, 'cafe_store_guide.pdf', 30, 30, { collection: 'cafe' }),
+      summary(4, 'ザーハード1.pdf', 4, 4, { collection: 'zahard' }),
+      summary(5, 'loose.pdf', 1, 1, { collection: null }),
+    ],
+  };
+  const filter = () => screen.getByRole('group', { name: '種別で絞り込み' });
+  const names = () => screen.getAllByRole('row').slice(1).map((row) => row.textContent ?? '');
+
+  it('カードに種別の表示名を出し、未設定の資料には出さない', async () => {
+    installDocsFetch(() => jsonResponse(GROUPED));
+    const { user } = setup();
+    await openDocuments(user);
+
+    const dorm = await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
+    expect(within(dorm).getByText('規程・取扱説明書')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /ザーハード1\.pdf/ })).getByText('設定資料')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /cafe_store_guide\.pdf/ })).getByText('店舗案内')).toBeInTheDocument();
+    const loose = screen.getByRole('row', { name: /loose\.pdf/ });
+    expect(loose.querySelector('td[data-label="種別"]')?.textContent).toBe('');
+  });
+
+  it('絞り込みは、一覧にある資料群だけを決めた並びで出し、押すとその資料群だけを残す。URL にも載る', async () => {
+    installDocsFetch(() => jsonResponse(GROUPED));
+    const { user } = setup();
+    await openDocuments(user);
+    await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
+
+    expect(within(filter()).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'すべて',
+      '設定資料',
+      '店舗案内',
+      '規程・取扱説明書',
+    ]);
+    expect(within(filter()).getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true');
+    expect(names()).toHaveLength(5);
+
+    await user.click(within(filter()).getByRole('button', { name: '規程・取扱説明書' }));
+
+    expect(names().join('|')).toMatch(/tsubasa_dorm_rules\.pdf.*\|.*aoba_aw820_manual\.pdf/);
+    expect(names()).toHaveLength(2);
+    expect(window.location.search).toBe('?tab=documents&collection=guides');
+    expect(within(filter()).getByRole('button', { name: '規程・取扱説明書' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(within(filter()).getByRole('button', { name: 'すべて' }));
+    expect(names()).toHaveLength(5);
+    expect(window.location.search).toBe('?tab=documents');
+  });
+
+  it('URL の絞り込みで開いた共有リンクは、その資料群だけを見せる。一覧に無い名前は絞り込みなしと同じ', async () => {
+    installDocsFetch(() => jsonResponse(GROUPED));
+    window.history.replaceState(null, '', '/?tab=documents&collection=cafe');
+    setup();
+    await screen.findByRole('row', { name: /cafe_store_guide\.pdf/ });
+    expect(names()).toHaveLength(1);
+
+    cleanup();
+    window.history.replaceState(null, '', '/?tab=documents&collection=nothing');
+    setup();
+    await screen.findByRole('row', { name: /cafe_store_guide\.pdf/ });
+    expect(names()).toHaveLength(5);
+    expect(within(filter()).getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('資料群が 1 つも無い（古いサーバー・未設定）ときは、絞り込みを出さない', async () => {
+    installDocsFetch(() => jsonResponse(LIST));
+    const { user } = setup();
+    await openDocuments(user);
+    await screen.findAllByRole('row', { name: /pdf/ });
+    expect(screen.queryByRole('group', { name: '種別で絞り込み' })).not.toBeInTheDocument();
+  });
+
+  it('資料を開いて戻ると、絞り込みが残る', async () => {
+    installDocsFetch((url) =>
+      jsonResponse(url === '/documents' ? GROUPED : { document: GROUPED.documents[2], chunks: [chunk(0, '本文')] }),
+    );
+    const { user } = setup();
+    await openDocuments(user);
+    await user.click(await within(await screen.findByRole('group', { name: '種別で絞り込み' })).findByRole('button', { name: '店舗案内' }));
+
+    await user.click(screen.getByRole('button', { name: /cafe_store_guide\.pdf を開く/ }));
+    await screen.findByRole('heading', { level: 2 });
+    expect(window.location.search).toContain('doc=3');
+    expect(window.location.search).not.toContain('collection');
+
+    window.history.back();
+    await waitFor(() => expect(window.location.search).toBe('?tab=documents&collection=cafe'));
+    expect(names()).toHaveLength(1);
   });
 });

@@ -4,7 +4,7 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react';
  * 画面の状態（タブ・資料・表示の切り替え・関係図で選んだ項）を、URL のクエリに持たせる。
  * 戻る・進む・再読み込み・URL の共有で、同じ画面に戻れる。
  *
- * 例: /?tab=documents&doc=3&view=graph&item=a11p1 、/?tab=documents&doc=3&view=pdf&page=2
+ * 例: /?tab=documents&doc=3&view=graph&item=a11p1 、/?tab=documents&doc=3&view=pdf&page=2 、/?tab=documents&collection=cafe
  * 入力途中の文・開閉・スクロール位置など、一時的な状態は URL に置かない（トークンなどの秘密も置かない）。
  */
 
@@ -21,6 +21,8 @@ export interface UrlState {
   item: string | null;
   /** 元の PDF で開くページ（1 始まり）。表示が PDF のときだけ意味がある。 */
   page: number | null;
+  /** 一覧の絞り込み（資料群の名前）。一覧を見ているときだけ意味がある。 */
+  collection: string | null;
 }
 
 const VIEWS: readonly DetailView[] = ['pdf', 'text', 'graph'];
@@ -28,14 +30,17 @@ const VIEWS: readonly DetailView[] = ['pdf', 'text', 'graph'];
 const ITEM_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
 const DOC_PATTERN = /^[1-9]\d{0,9}$/;
 const PAGE_PATTERN = /^[1-9]\d{0,3}$/;
+// 資料群の名前の形（DB の制約と同じ）
+const COLLECTION_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
 
-/** 状態として意味が通るように整える。資料が無ければ表示も項も無く、関係図でなければ項は無い。 */
+/** 状態として意味が通るように整える。資料が無ければ表示も項も無く、関係図でなければ項は無い。絞り込みは一覧だけ。 */
 function normalize(state: UrlState): UrlState {
   const doc = state.tab === 'documents' ? state.doc : null;
   const view = doc === null ? null : state.view;
   const item = view === 'graph' ? state.item : null;
   const page = view === 'pdf' ? state.page : null;
-  return { tab: state.tab, doc, view, item, page };
+  const collection = state.tab === 'documents' && doc === null ? state.collection : null;
+  return { tab: state.tab, doc, view, item, page, collection };
 }
 
 /** URL のクエリ（`?tab=…` 形式の文字列）から状態を読む。不正な値は、安全な既定値（チャット・一覧）にする。 */
@@ -46,12 +51,14 @@ export function parseUrlState(search: string): UrlState {
   const viewParam = params.get('view');
   const itemParam = params.get('item');
   const pageParam = params.get('page');
+  const collectionParam = params.get('collection');
   return normalize({
     tab,
     doc: docParam !== null && DOC_PATTERN.test(docParam) ? Number(docParam) : null,
     view: VIEWS.find((v) => v === viewParam) ?? null,
     item: itemParam !== null && ITEM_PATTERN.test(itemParam) ? itemParam : null,
     page: pageParam !== null && PAGE_PATTERN.test(pageParam) ? Number(pageParam) : null,
+    collection: collectionParam !== null && COLLECTION_PATTERN.test(collectionParam) ? collectionParam : null,
   });
 }
 
@@ -68,6 +75,7 @@ export function buildSearch(current: string, next: Partial<UrlState>): string {
   set('view', state.view);
   set('item', state.item);
   set('page', state.page);
+  set('collection', state.collection);
   return `?${params.toString()}`;
 }
 
