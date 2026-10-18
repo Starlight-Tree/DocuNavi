@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { MSG_PDF_UNAVAILABLE } from '../api/documents';
 import type { ChunkItem, DocumentSummary } from '../api/documents';
+import { GRAPH_SOURCE } from '../api/graph';
 import { useDocumentChunks, useDocumentList, useDocumentPdf } from '../hooks/useDocuments';
-import type { Loaded } from '../hooks/useDocuments';
+import { RelationGraphView } from './RelationGraphView';
+import { Status } from './Status';
 
 export const MSG_DOCUMENTS_NOTE =
   'この画面は DB に保存された資料を表示しています。チャットは、ここにある「取り込み済み」の資料を検索して答えます。';
@@ -50,21 +52,6 @@ function pageLabel(chunk: ChunkItem): string | null {
   return chunk.pageEnd !== null && chunk.pageEnd !== chunk.page
     ? `p.${chunk.page}–${chunk.pageEnd}`
     : `p.${chunk.page}`;
-}
-
-function Status<T>({ state, onRetry }: { state: Loaded<T>; onRetry: () => void }) {
-  if (state.status === 'loading') return <p role="status">読み込み中…</p>;
-  if (state.status === 'error') {
-    return (
-      <div className="documents-error" role="alert">
-        <p>{state.message}</p>
-        <button type="button" className="btn btn-secondary" onClick={onRetry}>
-          再試行
-        </button>
-      </div>
-    );
-  }
-  return null;
 }
 
 function DocumentTable({ onOpen }: { onOpen: (document: DocumentSummary) => void }) {
@@ -119,7 +106,7 @@ function DocumentTable({ onOpen }: { onOpen: (document: DocumentSummary) => void
   );
 }
 
-type ViewMode = 'pdf' | 'text';
+type ViewMode = 'pdf' | 'text' | 'graph';
 
 /** 元の PDF。ブラウザー内蔵の PDF 表示（iframe）に、認証付きで取った PDF の Blob URL を渡す。 */
 function OriginalPdf({ document, id }: { document: DocumentSummary; id: number }) {
@@ -132,6 +119,8 @@ function DocumentChunks({ document, onBack }: { document: DocumentSummary; onBac
   const [state, reload] = useDocumentChunks(document.id);
   const [choice, setChoice] = useState<ViewMode | null>(null);
   const originalPdf = state.status === 'ready' && state.data.originalPdf;
+  // 関係図は入寮規程だけ。サーバーが元の PDF から計算するので、元の PDF が使えるときだけ出す
+  const hasGraph = originalPdf && document.source === GRAPH_SOURCE;
   // 元の PDF があれば、それを先に見せる。無ければ AI 用テキスト（切り替えは出さず、使えない旨を示す）
   const mode: ViewMode = originalPdf ? (choice ?? 'pdf') : 'text';
 
@@ -165,6 +154,16 @@ function DocumentChunks({ document, onBack }: { document: DocumentSummary; onBac
               >
                 AI用テキスト
               </button>
+              {hasGraph && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  aria-pressed={mode === 'graph'}
+                  onClick={() => setChoice('graph')}
+                >
+                  関係図
+                </button>
+              )}
             </div>
           ) : (
             <p className="documents-summary">{MSG_PDF_UNAVAILABLE}</p>
@@ -175,6 +174,7 @@ function DocumentChunks({ document, onBack }: { document: DocumentSummary; onBac
               <OriginalPdf document={document} id={document.id} />
             </div>
           )}
+          {hasGraph && mode === 'graph' && <RelationGraphView document={document} />}
           {mode === 'text' && (
             <>
               <p className="documents-summary">

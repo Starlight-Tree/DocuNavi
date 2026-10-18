@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatApiError, isAbortError, jsonFetch } from '../api/chat';
 import { fetchDocumentChunks, fetchDocumentPdf, fetchDocuments } from '../api/documents';
 import type { DocumentDetail, DocumentList } from '../api/documents';
+import { fetchImpact, fetchRelationGraph } from '../api/graph';
+import type { Impact, RelationGraph } from '../api/graph';
 import { useAuth } from '../auth/AuthContext';
 import { createAuthedFetch } from '../auth/authFetch';
 
@@ -100,4 +102,21 @@ export function useDocumentPdf(id: number | null): [Loaded<{ url: string }>, () 
     return [url ? { status: 'ready', data: { url } } : { status: 'loading' }, reload];
   }
   return [state, reload];
+}
+
+/** 入寮規程の関係図（GET /documents/{id}/graph）。 */
+export function useRelationGraph(id: number): [Loaded<RelationGraph>, () => void] {
+  const fetcher = useAuthedJsonFetch();
+  const load = useCallback((signal: AbortSignal) => fetchRelationGraph(fetcher, id, signal), [fetcher, id]);
+  return useLoaded(load);
+}
+
+/** あるノードを変えたときの影響（GET /documents/{id}/impact）。node が null の間は何も取らない。 */
+export function useImpact(id: number, node: string | null): [Loaded<Impact>, () => void] {
+  const fetcher = useAuthedJsonFetch();
+  const load = useCallback(
+    (signal: AbortSignal) => fetchImpact(fetcher, id, node as string, signal),
+    [fetcher, id, node],
+  );
+  return useLoaded(node === null ? null : load);
 }

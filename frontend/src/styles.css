@@ -15,6 +15,8 @@
   --danger-border: #f0a8a8;
   --danger-text: #7a1717;
   --focus: #f2a65a;
+  --impact-direct: #d9480f;
+  --impact-indirect: #b08900;
 
   --font: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
     'Noto Sans JP', Meiryo, sans-serif;
@@ -36,6 +38,8 @@
     --danger-border: #8f3a44;
     --danger-text: #ffd5d9;
     --focus: #f2a65a;
+    --impact-direct: #ff8a57;
+    --impact-indirect: #e0c04a;
   }
 }
 
@@ -598,4 +602,273 @@ textarea {
   font: inherit;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* ---- 関係図（入寮規程）---- */
+
+.relation-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  margin: 0 0 0.75rem;
+}
+
+.relation-select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.relation-select select {
+  max-width: 100%;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.relation-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  list-style: none;
+}
+
+.relation-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.legend-swatch {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid var(--border);
+  border-radius: 0.2rem;
+}
+
+/* 画面の幅が 48rem までなので、図の下に詳細を置く（横に並べると図が狭くなる） */
+.relation-canvas {
+  height: 26rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.relation-panel {
+  min-width: 0;
+  margin-top: 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .relation-canvas {
+    height: 22rem;
+  }
+}
+
+.relation-heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.relation-hint {
+  margin: 0.25rem 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.relation-facts {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.relation-facts dt {
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.relation-facts dd {
+  margin: 0.1rem 0 0;
+}
+
+.relation-text {
+  white-space: pre-wrap;
+}
+
+.relation-sub {
+  margin: 0.9rem 0 0.3rem;
+  font-size: 0.9rem;
+}
+
+.relation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  font-size: 0.9rem;
+  list-style: none;
+}
+
+.relation-evidence {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.relation-articles {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+.relation-edge-type,
+.impact-badge {
+  display: inline-block;
+  margin-right: 0.4rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  font-size: 0.75rem;
+}
+
+/* 影響の色。起点・直接・間接を、色だけでなく文字（バッジ）でも示す */
+.legend-start,
+.clause-start {
+  --impact: var(--accent);
+}
+
+.legend-direct,
+.clause-direct,
+.impact-direct {
+  --impact: var(--impact-direct);
+}
+
+.legend-indirect,
+.clause-indirect,
+.impact-indirect {
+  --impact: var(--impact-indirect);
+}
+
+.legend-swatch {
+  border-color: var(--impact);
+  background: color-mix(in srgb, var(--impact) 25%, var(--surface));
+}
+
+.impact-badge {
+  border-color: var(--impact);
+  background: color-mix(in srgb, var(--impact) 25%, var(--surface));
+}
+
+.clause {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.35rem 0.5rem;
+  border: 2px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.clause[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px var(--focus);
+}
+
+.clause-start,
+.clause-direct,
+.clause-indirect {
+  border-color: var(--impact);
+  background: color-mix(in srgb, var(--impact) 22%, var(--surface));
+}
+
+.clause-dimmed {
+  opacity: 0.5;
+}
+
+.clause-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.clause-label {
+  font-weight: 700;
+}
+
+.clause-badge {
+  padding: 0 0.3rem;
+  border: 1px solid var(--impact);
+  border-radius: 0.3rem;
+  font-size: 0.65rem;
+}
+
+.clause-text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-muted);
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.relation-flow .react-flow__edge-text {
+  fill: var(--text-muted);
+  font-size: 10px;
+}
+
+.relation-flow .react-flow__edge-textbg {
+  fill: var(--surface);
+}
+
+.relation-flow .react-flow__edge-path {
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+}
+
+.relation-flow .edge-uses_term .react-flow__edge-path {
+  stroke-dasharray: 5 4;
+}
+
+.relation-flow .edge-dimmed .react-flow__edge-path {
+  opacity: 0.35;
+}
+
+.relation-flow .edge-walked .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.relation-flow .react-flow__arrowhead polyline {
+  stroke: var(--text-muted);
+  fill: var(--text-muted);
+}
+
+.relation-flow .react-flow__attribution {
+  font-size: 9px;
+}
+
+/* 辺をつなぐ端の点は、操作できないので見せない */
+.relation-flow .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
 }
