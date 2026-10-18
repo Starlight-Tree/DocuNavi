@@ -27,3 +27,20 @@ export function parseSources(context: string): SourceDoc[] {
     return text ? [{ name, text }] : [];
   });
 }
+
+const squash = (text: string) => text.replace(/\s+/g, '');
+
+/**
+ * 出典の抜粋が、資料のどのチャンクから来たかを探して、そのページを返す。見つからなければ null。
+ * 検索の結果にはページが付かないので、資料のチャンク（本文とページ）と、空白を除いて突き合わせる。
+ * 抜粋は「見出し + 本文」なので、チャンクの本文を含んでいるか、その逆かで判定する。
+ */
+export function findSourcePage(chunks: ReadonlyArray<{ content: string; page: number | null }>, excerpt: string): number | null {
+  const target = squash(excerpt);
+  if (target === '') return null;
+  const hit = chunks.find((chunk) => {
+    const content = squash(chunk.content);
+    return content !== '' && (target.includes(content) || content.includes(target));
+  });
+  return hit?.page ?? null;
+}
