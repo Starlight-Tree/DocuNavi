@@ -1,0 +1,267 @@
+# 最終確認用の質問（26 問）。独立した作成者の案。**固定済み（2026-10-18）。測定後も変更・差し替えをしない。**
+# 作成者: subagent（分離した文脈。資料の本文のダンプ 1 つだけを渡し、既存の評価の質問・結果・Claude の草案は見せていない。
+#   読んだのはそのダンプだけで、検索もシェルも使っていない、という本人の自己申告がある。第三者が確かめたわけではない）。
+#   ダンプは DB の chunks 80 件の本文を、チャンクごとに区切ったもの。
+# 承認: 2026-10-18 に user が、Claude の案（final_questions_claude.yaml）と合わせて両方を固定し、52 問で 1 回測る方針（C）を承認した。
+#   質問の一つ一つを user が精読して承認したわけではない。重複・範囲の確認は Claude が行った（機械的な事前検査: 書式、
+#   既存の評価セットと id・質問文が重ならない、答えあり 19 問すべてに DB の正解チャンクがある）。
+# 重なり: 答えあり 19 問のうち 14 問は、正解チャンクが既存の評価セットの正解と重なる（新しいチャンクを当てるのは 5 問）。
+#   BM25 の調整に使った質問の正解と重なるので、BM25 に有利に出うる。報告は、重なるか否かで分けて出す。
+# 用途: `python -m scripts.eval_search_compare final --questions evals/search_compare/final_questions_independent.yaml evals/search_compare/final_questions_claude.yaml`
+#   で、1 回だけ測る（final.json は上書きしない）。
+# 構成: 答えあり 19 問（factual 11 / paraphrase 6 / multi_hop 2）、資料外 7 問（on_topic_absent 5 / off_topic 2）。
+
+- id: g001
+  question: "あおば電機の洗濯乾燥機 AW-820 の糸くずフィルターは、洗濯何回ごとに取り出して洗うのですか。"
+  answer: "洗濯 10 回ごと。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "糸くずフィルターは、洗濯 10 回ごとに取り出して水洗いしてください。"
+  page: ""
+
+- id: g002
+  question: "AW-820 の槽洗浄コースは、運転が終わるまでどれくらい時間がかかりますか。"
+  answer: "約3時間。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "槽洗浄コースは、約3時間かかります。"
+  page: ""
+
+- id: g003
+  question: "AW-820 で E04 のエラーコードが出たとき、対処にかかる時間の目安はどれくらいですか。"
+  answer: "約30分。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "E04 排水エラー 排水ホースのつまり 約30分"
+  page: ""
+
+- id: g004
+  question: "AW-820 のモーターの保証は、一般の家庭で使う場合、お買い上げの日から何年間ですか。"
+  answer: "5年間。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "ただし、モーターは、お買い上げの日から 5年間保証します。"
+  page: ""
+
+- id: g005
+  question: "洗濯機の運転の途中で、どうしてもふたを開けたいときは、どうすればいいですか。"
+  answer: "一時停止ボタンを押すと、約90秒後にロックが外れてふたを開けられる（水温が 50℃以上のときや水位が高いときは外れない）。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "ただし、一時停止ボタンを押すと、約90秒後にロックが外れてふたを開けられます。"
+  page: ""
+
+- id: g006
+  question: "小さい子どもがボタンをいじって止めてしまわないようにする機能は、どうやって入れますか。"
+  answer: "一時停止ボタンを 3 秒間長押しする。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "チャイルドロックは、一時停止ボタンを 3 秒間長押しすると入ります。"
+  page: ""
+
+- id: g007
+  question: "洗い終わった洗濯物を洗濯機の中に入れっぱなしにしておくと、どうなりますか。"
+  answer: "しわやにおいの原因になる。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "入れたままにすると、しわやにおいの原因になります。"
+  page: ""
+
+- id: g008
+  question: "AW-820 で洗える衣類の重さの上限と、乾燥できる量の上限とでは、何kg違いますか。"
+  answer: "3.5kg（洗濯 8kg、乾燥 4.5kg）。"
+  category: multi_hop
+  kind: multi_hop
+  evidence_mode: all
+  expected_doc_ids: ["aoba_aw820_manual.pdf"]
+  evidence:
+    - "洗濯できる衣類の重さは、原則として 8kg までです。"
+    - "乾燥できる量は、原則として 4.5kg までです。"
+  page: ""
+
+- id: g009
+  question: "みなとコーヒーのポイント会員制度では、いくら使うと1ポイントたまりますか。"
+  answer: "会計100円（税込）ごとに1ポイント。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "会計100円（税込）ごとに1ポイントがたまります。"
+  page: ""
+
+- id: g010
+  question: "みなとコーヒーの湖畔テラス店には、専用の駐車場は何台分ありますか。"
+  answer: "10台分。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "ただし、湖畔テラス店には10台分の専用駐車場があります。"
+  page: ""
+
+- id: g011
+  question: "みなとコーヒーの店舗のうち、朝いちばん早く開くのはどこで、何時に開きますか。"
+  answer: "港町市場前店で、6時30分。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "朝の開店が最も早いのは港町市場前店で、6時30分に開きます。"
+  page: ""
+
+- id: g012
+  question: "みなとクラブでためたポイントは、使わないでいると、いつなくなってしまいますか。"
+  answer: "最後に利用した日から12か月で有効期限が切れる。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "ポイントの有効期限は、最後に利用した日から12か月です。"
+  page: ""
+
+- id: g013
+  question: "スマホのアプリで先に注文と支払いをしておくことができない店舗はどこですか。"
+  answer: "港町灯台店（店内の通信環境の都合による）。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "ただし、港町灯台店では店内の通信環境の都合により、モバイルオーダーを利用できません。"
+  page: ""
+
+- id: g014
+  question: "みなとコーヒーの港町エリアにある店舗の座席数を全部足すと、何席になりますか。"
+  answer: "164席（68 + 42 + 30 + 24）。"
+  category: multi_hop
+  kind: multi_hop
+  evidence_mode: all
+  expected_doc_ids: ["cafe_store_guide.pdf"]
+  evidence:
+    - "港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席"
+    - "港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席"
+    - "港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席"
+    - "港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席"
+  page: ""
+
+- id: g015
+  question: "つばさ大学の学生寮に入るとき、保証金はいくら納めますか。"
+  answer: "50,000 円。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  evidence:
+    - "第16条 入寮する者は、入寮時に保証金 50,000 円を納める。"
+  page: ""
+
+- id: g016
+  question: "つばさ大学の学生寮では、避難訓練は毎年いつ行われますか。"
+  answer: "毎年 4 月と 10 月。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  evidence:
+    - "第25条 避難訓練は、毎年 4 月と 10 月に行い、入寮者は全員参加する。"
+  page: ""
+
+- id: g017
+  question: "つばさ大学の寮で、アルバイトのせいで帰りが遅くなりそうなときは、何時まで帰寮が認められますか。"
+  answer: "前日までに届け出れば、午前 0 時まで認められる。"
+  category: paraphrase
+  kind: paraphrase
+  evidence_mode: any
+  expected_doc_ids: ["tsubasa_dorm_rules.pdf"]
+  evidence:
+    - "2 前項の定めにかかわらず、実習やアルバイトのため帰寮が遅れる者は、前日までに届け出れば、午前 0 時まで認める。"
+  page: ""
+
+- id: g018
+  question: "ザーハードの大気の酸素濃度は、地球と比べてどれくらいですか。"
+  answer: "地球の1/10以下。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["ザーハード1.pdf"]
+  evidence:
+    - "ザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。"
+  page: ""
+
+- id: g019
+  question: "ザーハードの遺跡の中で、最も注目されているのはどの異星人種族の遺跡ですか。"
+  answer: "「ザーハリアン文明」の遺跡。"
+  category: factual
+  kind: factual
+  evidence_mode: any
+  expected_doc_ids: ["ザーハード2.pdf"]
+  evidence:
+    - "その中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。"
+  page: ""
+
+- id: g020
+  question: "あおば電機の洗濯乾燥機 AW-820 の販売価格はいくらですか。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+
+- id: g021
+  question: "AW-820 の脱水は、1分間に何回転しますか。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+
+- id: g022
+  question: "みなとコーヒーの「みなとブレンド」は、1杯いくらですか。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+
+- id: g023
+  question: "つばさ大学の学生寮では、居室でインターネットのWi-Fiを使えますか。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+
+- id: g024
+  question: "惑星ザーハードの1日の長さは、何時間ですか。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+
+- id: g025
+  question: "明日の東京の天気はどうなりそうですか。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: off_topic
+
+- id: g026
+  question: "家庭で作れる、おいしいカレーの作り方を教えてください。"
+  answer: "資料に無い。"
+  category: out_of_scope
+  scope_kind: off_topic
