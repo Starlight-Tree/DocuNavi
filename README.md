@@ -1,6 +1,6 @@
-# RAG チャットボット（FastAPI × LangGraph × Gemini）
+# ドキュナビ（DocuNavi）
 
-資料を根拠に答える RAG チャットボットです。検索する資料は、`storage/pdf/<資料群の名前>/*.pdf` の PDF です。いまは、
+資料を聞く・探す、RAG チャットボット（FastAPI × LangGraph × Gemini）です。資料を根拠に答えます。検索する資料は、`storage/pdf/<資料群の名前>/*.pdf` の PDF です。いまは、
 架空の惑星「ザーハード」の設定資料（`zahard/`）、架空のカフェチェーン「みなとコーヒー」の店舗案内（`cafe/`）、
 架空の洗濯乾燥機の取扱説明書・学生寮の入寮規程（`guides/`）があります。
 
