@@ -170,7 +170,7 @@ def _upsert_params(conn):
     return call
 
 
-# 引数の並び: source, hash, status, reason, pages, title, pages, keep
+# 引数の並び: source, hash, status, reason, pages, title, collection, pages, keep
 @pytest.mark.parametrize(
     ("kwargs", "title_param", "keep_param"),
     [
@@ -184,7 +184,7 @@ def test_postgres_save_passes_the_title_and_the_keep_flag(kwargs, title_param, k
     PostgresRepository(conn, create_tables=False).save("a.pdf", "h", 2, [], **kwargs)
     sql, params = _upsert_params(conn)
     assert params[5] == title_param
-    assert params[7] is keep_param
+    assert params[8] is keep_param
     assert "title = CASE WHEN %s THEN documents.title ELSE EXCLUDED.title END" in sql
 
 
@@ -192,7 +192,7 @@ def test_postgres_mark_failed_keeps_the_stored_title():
     conn = _FakeConn()
     PostgresRepository(conn, create_tables=False).mark_failed("a.pdf", "h", "garbled")
     _, params = _upsert_params(conn)
-    assert params[7] is True
+    assert params[8] is True
 
 
 def test_the_default_is_the_keep_marker():

@@ -3,6 +3,7 @@ import { MSG_PDF_UNAVAILABLE } from '../api/documents';
 import type { ChunkItem, DocumentList, DocumentSummary } from '../api/documents';
 import { GRAPH_SOURCE } from '../api/graph';
 import { useDocumentChunks, useDocumentList, useDocumentPdf } from '../hooks/useDocuments';
+import { collectionLabel, collectionOptions } from '../lib/collections';
 import type { Loaded } from '../hooks/useDocuments';
 import type { DetailView } from '../lib/urlState';
 import { useUrlState } from '../lib/urlState';
@@ -58,21 +59,60 @@ function pageLabel(chunk: ChunkItem): string | null {
 
 interface DocumentTableProps {
   state: Loaded<DocumentList>;
+  /** URL で指定された絞り込み（資料群の名前）。一覧に無い名前は、絞り込みなしと同じに扱う。 */
+  collection: string | null;
+  onCollectionChange: (collection: string | null) => void;
   onRetry: () => void;
   onOpen: (document: DocumentSummary) => void;
 }
 
-function DocumentTable({ state, onRetry, onOpen }: DocumentTableProps) {
+function DocumentTable({ state, collection, onCollectionChange, onRetry, onOpen }: DocumentTableProps) {
   if (state.status !== 'ready') return <Status state={state} onRetry={onRetry} />;
   if (!state.data.configured) return <p>{MSG_NOT_CONFIGURED}</p>;
   if (state.data.documents.length === 0) return <p>{MSG_NO_DOCUMENTS}</p>;
 
+  const options = collectionOptions(state.data.documents.map((d) => d.collection));
+  const active = collection !== null && options.includes(collection) ? collection : null;
+  const documents = active === null ? state.data.documents : state.data.documents.filter((d) => d.collection === active);
+
+  return (
+    <>
+      {options.length > 0 && (
+        <div className="view-switch collection-filter" role="group" aria-label="種別で絞り込み">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            aria-pressed={active === null}
+            onClick={() => onCollectionChange(null)}
+          >
+            すべて
+          </button>
+          {options.map((name) => (
+            <button
+              key={name}
+              type="button"
+              className="btn btn-secondary"
+              aria-pressed={active === name}
+              onClick={() => onCollectionChange(name)}
+            >
+              {collectionLabel(name)}
+            </button>
+          ))}
+        </div>
+      )}
+      <DocumentCards documents={documents} onOpen={onOpen} />
+    </>
+  );
+}
+
+function DocumentCards({ documents, onOpen }: { documents: DocumentSummary[]; onOpen: (document: DocumentSummary) => void }) {
   return (
     <div className="documents-table-wrap">
       <table className="documents-table">
         <thead>
           <tr>
             <th scope="col">文書名</th>
+            <th scope="col">種別</th>
             <th scope="col">状態</th>
             <th scope="col">ページ数</th>
             <th scope="col">チャンク数</th>
@@ -80,7 +120,7 @@ function DocumentTable({ state, onRetry, onOpen }: DocumentTableProps) {
           </tr>
         </thead>
         <tbody>
-          {state.data.documents.map((document) => (
+          {documents.map((document) => (
             // 行のどこを押しても開く（マウス用）。キーボードと読み上げには、文書名のボタンを使う
             <tr key={document.id} className="documents-row" onClick={() => onOpen(document)}>
               <th scope="row">
@@ -96,6 +136,9 @@ function DocumentTable({ state, onRetry, onOpen }: DocumentTableProps) {
                   <DocumentName document={document} />
                 </button>
               </th>
+              <td data-label="種別" data-collection={document.collection ?? undefined}>
+                {document.collection ? collectionLabel(document.collection) : null}
+              </td>
               <td data-label="状態" data-status={document.status}>
                 {statusLabel(document)}
               </td>
@@ -251,7 +294,7 @@ function DocumentChunks({ document, view, page, onViewChange, onBack }: Document
  * 開いている資料・表示・関係図の項は、URL が決める（戻る・再読み込み・共有で戻れる）。
  */
 export function DocumentsView() {
-  const { doc, view, page, navigate } = useUrlState();
+  const { doc, view, page, collection, navigate } = useUrlState();
   const [state, reload] = useDocumentList();
   const selected =
     doc !== null && state.status === 'ready' ? (state.data.documents.find((d) => d.id === doc) ?? null) : null;
@@ -273,7 +316,13 @@ export function DocumentsView() {
           onBack={() => navigate({ doc: null })}
         />
       ) : (
-        <DocumentTable state={state} onRetry={reload} onOpen={(d) => navigate({ doc: d.id })} />
+        <DocumentTable
+          state={state}
+          collection={collection}
+          onCollectionChange={(next) => navigate({ collection: next })}
+          onRetry={reload}
+          onOpen={(d) => navigate({ doc: d.id })}
+        />
       )}
     </main>
   );
