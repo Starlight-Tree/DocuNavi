@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { MSG_PDF_UNAVAILABLE } from '../api/documents';
 import type { ChunkItem, DocumentList, DocumentSummary } from '../api/documents';
 import { GRAPH_SOURCE } from '../api/graph';
@@ -10,6 +10,7 @@ import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
 
 export const MSG_NOT_CONFIGURED = '資料のデータベースが設定されていません。';
+export const MSG_NO_GRAPH = '関係図は、入寮規程だけで見られます（ほかの資料は、まだ対応していません）。';
 export const MSG_NO_DOCUMENTS = '登録された資料はありません。資料を取り込むと、ここに表示され、チャットで検索できます。';
 
 const STATUS_LABELS: Record<string, string> = { ready: '取り込み済み', failed: '取り込み失敗' };
@@ -134,6 +135,8 @@ interface DocumentChunksProps {
 
 function DocumentChunks({ document, view, page, onViewChange, onBack }: DocumentChunksProps) {
   const [state, reload] = useDocumentChunks(document.id);
+  // チャンクの番号・埋め込みの状態は、開発者向けの情報。既定では隠す
+  const [showDev, setShowDev] = useState(false);
   const originalPdf = state.status === 'ready' && state.data.originalPdf;
   // 関係図は入寮規程だけ。サーバーが元の PDF から計算するので、元の PDF が使えるときだけ出す
   const hasGraph = originalPdf && document.source === GRAPH_SOURCE;
@@ -149,6 +152,10 @@ function DocumentChunks({ document, view, page, onViewChange, onBack }: Document
       <h2 className="documents-title">
         <DocumentName document={document} />
       </h2>
+      <p className="document-meta">
+        {document.pages !== null && <span>{`${document.pages} ページ`}</span>}
+        <span>{`更新 ${formatDate(document.updatedAt)}`}</span>
+      </p>
       {state.status !== 'ready' ? (
         <Status state={state} onRetry={reload} />
       ) : (
@@ -185,6 +192,7 @@ function DocumentChunks({ document, view, page, onViewChange, onBack }: Document
           ) : (
             <p className="documents-summary">{MSG_PDF_UNAVAILABLE}</p>
           )}
+          {originalPdf && !hasGraph && <p className="documents-summary">{MSG_NO_GRAPH}</p>}
           {/* 切り替えても閉じない（隠すだけ）。PDF を取り直さず、表示しているページも保つ。画面を離れると Blob URL を解放する */}
           {originalPdf && (
             <div hidden={mode !== 'pdf'}>
@@ -194,21 +202,35 @@ function DocumentChunks({ document, view, page, onViewChange, onBack }: Document
           {hasGraph && mode === 'graph' && <RelationGraphView document={document} />}
           {mode === 'text' && (
             <>
-              <p className="documents-summary">
-                {`${state.data.document.chunkCount} チャンク（埋め込み済み ${state.data.document.embeddedCount} / ${state.data.document.chunkCount}）`}
-              </p>
+              <div className="chunk-toolbar">
+                <p className="documents-summary">
+                  {showDev
+                    ? `${state.data.document.chunkCount} チャンク（埋め込み済み ${state.data.document.embeddedCount} / ${state.data.document.chunkCount}）`
+                    : 'AI が回答に使う、資料の本文です。'}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-small"
+                  aria-pressed={showDev}
+                  onClick={() => setShowDev((v) => !v)}
+                >
+                  開発者向けの情報
+                </button>
+              </div>
               <ol className="chunk-list">
                 {state.data.chunks.map((chunk) => (
                   <li key={chunk.chunkIndex} className="chunk">
                     <div className="chunk-meta">
-                      <span className="chunk-index">{`#${chunk.chunkIndex}`}</span>
+                      {showDev && <span className="chunk-index">{`#${chunk.chunkIndex}`}</span>}
                       {pageLabel(chunk) && <span>{pageLabel(chunk)}</span>}
                       <span className="chunk-heading">{chunk.heading ?? '（見出しなし）'}</span>
-                      <span>
-                        {chunk.embedded
-                          ? `埋め込み済み${chunk.embeddingModel ? `（${chunk.embeddingModel}）` : ''}`
-                          : '埋め込みなし'}
-                      </span>
+                      {showDev && (
+                        <span>
+                          {chunk.embedded
+                            ? `埋め込み済み${chunk.embeddingModel ? `（${chunk.embeddingModel}）` : ''}`
+                            : '埋め込みなし'}
+                        </span>
+                      )}
                     </div>
                     <pre className="chunk-text">{chunk.content}</pre>
                   </li>

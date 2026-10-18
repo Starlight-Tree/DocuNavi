@@ -30,8 +30,19 @@ function articleNumber(label: string | undefined): string | null {
   return label?.match(/^第\d+条/)?.[0] ?? null;
 }
 
-function pageText(node: GraphNode): string {
-  return node.page === null ? '' : `p.${node.page}`;
+/** 「p.3」。押すと、元PDF のそのページを開く（根拠を原文で確かめる）。 */
+function PageLink({ page }: { page: number }) {
+  const { navigate } = useUrlState();
+  return (
+    <button
+      type="button"
+      className="page-link"
+      aria-label={`元PDF の ${page} ページを開く`}
+      onClick={() => navigate({ view: 'pdf', page })}
+    >
+      {`p.${page}`}
+    </button>
+  );
 }
 
 export function RelationGraphView({ document }: { document: DocumentSummary }) {
@@ -157,7 +168,12 @@ function NodeDetail({
         <dt>出典</dt>
         <dd>
           {name}
-          {node.page !== null && `　${pageText(node)}`}
+          {node.page !== null && (
+            <>
+              {'　'}
+              <PageLink page={node.page} />
+            </>
+          )}
           <span className="document-file">{document.source}</span>
         </dd>
       </dl>
@@ -171,7 +187,10 @@ function NodeDetail({
             <li key={edgeKey(e)}>
               <span className="relation-edge-type">{EDGE_LABELS[e.type]}</span>
               {nodes.get(e.dst)?.label ?? e.dst}
-              <span className="relation-evidence">{`根拠「${e.evidence}」 p.${e.page}`}</span>
+              <span className="relation-evidence">
+                {`根拠「${e.evidence}」 `}
+                <PageLink page={e.page} />
+              </span>
             </li>
           ))}
         </ul>
@@ -193,7 +212,11 @@ function NodeDetail({
                   <li key={i.id}>
                     <span className={`impact-badge impact-${kind}`}>{IMPACT_LABELS[kind]}</span>
                     {target?.label ?? i.id}
-                    {target && target.page !== null && <span className="relation-evidence">{pageText(target)}</span>}
+                    {target && target.page !== null && (
+                      <span className="relation-evidence">
+                        <PageLink page={target.page} />
+                      </span>
+                    )}
                   </li>
                 );
               })}

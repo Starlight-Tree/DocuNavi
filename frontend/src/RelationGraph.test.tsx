@@ -267,14 +267,27 @@ describe('関係図: 項を選ぶ', () => {
     await within(panel).findByText('間接');
     expect(within(panel).getByRole('heading', { name: '第13条 第1項' })).toBeInTheDocument();
     expect(within(panel).getByText('寮費は、月額とし、次のとおりとする。')).toBeInTheDocument();
-    expect(within(panel).getByText(/つばさ大学学生寮 入寮規程\s+p\.2/)).toBeInTheDocument();
+    expect(within(panel).getByText(/つばさ大学学生寮 入寮規程/)).toBeInTheDocument();
     expect(within(panel).getByText(DORM)).toBeInTheDocument();
     expect(within(panel).getByText('第13条 第2項')).toBeInTheDocument();
-    expect(within(panel).getByText('根拠「次のとおり」 p.2')).toBeInTheDocument();
+    expect(within(panel).getByText(/根拠「次のとおり」/)).toHaveTextContent('根拠「次のとおり」 p.2');
     expect(within(panel).getByText('この項を変えたときの影響（2 ホップまで）')).toBeInTheDocument();
     const impacted = within(panel).getAllByRole('listitem').filter((li) => /^(直接|間接)/.test(li.textContent ?? ''));
     expect(impacted.map((li) => li.textContent)).toEqual(['直接第15条 第1項p.2', '間接第17条 第1項p.3']);
     expect(within(panel).getByText('影響が及ぶ条: 第15条、第17条')).toBeInTheDocument();
+  });
+
+  it('「p.2」を押すと、元PDF のそのページを開く（URL に page が付く）', async () => {
+    const { user } = await openGraph();
+    await user.click(screen.getByRole('button', { name: '第13条 第1項|-' }));
+    const panel = await screen.findByRole('complementary', { name: '選んだ項の詳細' });
+    await within(panel).findByText('間接');
+
+    await user.click(within(panel).getByText(/根拠「次のとおり」/).querySelector('button')!);
+
+    expect(window.location.search).toContain('view=pdf');
+    expect(window.location.search).toContain('page=2');
+    expect(window.location.search).not.toContain('item=');
   });
 
   it('選択欄からも選べる。図にない項（依存なし）は、「影響を受ける項はありません」', async () => {
