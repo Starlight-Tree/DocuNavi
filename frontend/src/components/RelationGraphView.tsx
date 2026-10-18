@@ -55,7 +55,7 @@ function RelationGraphReady({ document, graph }: { document: DocumentSummary; gr
 
   return (
     <section className="relation" aria-label="関係図">
-      <p className="documents-note" role="note">
+      <p className="relation-note" role="note">
         {MSG_GRAPH_NOTE}
       </p>
       <div className="relation-toolbar">

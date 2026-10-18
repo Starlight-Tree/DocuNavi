@@ -98,10 +98,10 @@ textarea {
 }
 
 .app-header {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-areas: 'title nav actions';
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem 1rem;
   padding: 0.75rem 1rem;
   padding-top: max(0.75rem, env(safe-area-inset-top));
@@ -110,6 +110,7 @@ textarea {
 }
 
 .app-title {
+  grid-area: title;
   margin: 0;
   font-size: 1.1rem;
   font-weight: 700;
@@ -117,8 +118,15 @@ textarea {
 
 .app-header-actions {
   display: flex;
+  grid-area: actions;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
+}
+
+/* 資料一覧では押せないが、場所は空けて、ヘッダーの高さとタブの位置を保つ */
+.header-placeholder {
+  visibility: hidden;
 }
 
 .user-label {
@@ -435,11 +443,14 @@ textarea {
 
 .view-tabs {
   display: flex;
+  grid-area: nav;
   gap: 0.25rem;
 }
 
 .view-tab {
   padding: 0.3rem 0.75rem;
+  /* 選択中は太字にしない（字幅が変わって、隣のタブが動く）。下線と色で示す */
+  min-width: 5.5rem;
   border: 0;
   border-bottom: 2px solid transparent;
   background: none;
@@ -455,7 +466,6 @@ textarea {
 .view-tab[aria-current='page'] {
   border-bottom-color: var(--accent);
   color: var(--text);
-  font-weight: 700;
 }
 
 /* 隠すだけで残す。表示中は、元の縦並び（メッセージ・エラー・入力欄）をそのまま保つ */
@@ -477,16 +487,6 @@ textarea {
   min-height: 0;
   padding: 1rem;
   overflow-y: auto;
-}
-
-.documents-note {
-  margin: 0 0 1rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--surface-muted);
-  color: var(--text-muted);
-  font-size: 0.85rem;
 }
 
 .documents-title {
@@ -519,6 +519,28 @@ textarea {
   vertical-align: top;
 }
 
+.documents-row {
+  cursor: pointer;
+}
+
+.documents-row:hover {
+  background: var(--surface-muted);
+}
+
+.document-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.document-open:hover .document-name {
+  text-decoration: underline;
+}
+
 .documents-table th[scope='row'] {
   overflow-wrap: anywhere;
 }
@@ -537,6 +559,16 @@ textarea {
 
 .documents-table td {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 見出しの折り返しで列が縦に伸びないようにする（文書名の列だけが、残りの幅を使って折り返す） */
+.documents-table thead th {
+  white-space: nowrap;
+}
+
+.documents-table th[scope='row'] {
+  min-width: 12rem;
 }
 
 .view-switch {
@@ -545,10 +577,11 @@ textarea {
   margin: 0 0 1rem;
 }
 
+/* 選択中も字幅は変えない（太字にすると、隣のボタンが動く）。枠線と背景で示す */
 .view-switch .btn[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--surface-muted);
-  font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .pdf-frame {
@@ -605,6 +638,16 @@ textarea {
 }
 
 /* ---- 関係図（入寮規程）---- */
+
+.relation-note {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
 
 .relation-toolbar {
   display: flex;
@@ -677,7 +720,7 @@ textarea {
 
 @media (max-width: 720px) {
   .relation-canvas {
-    height: 22rem;
+    height: 28rem;
   }
 }
 
@@ -871,4 +914,82 @@ textarea {
 .relation-flow .react-flow__handle {
   opacity: 0;
   pointer-events: none;
+}
+
+/* ---- 狭い画面（スマホ）----
+   ヘッダーは 2 段に固定する（1 段目: 題名と操作、2 段目: タブ）。画面を切り替えても高さとタブの位置が動かない。 */
+@media (max-width: 520px) {
+  .app-header {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'title actions'
+      'nav nav';
+  }
+
+  .view-tabs {
+    gap: 0;
+  }
+
+  .view-tab {
+    flex: 1;
+    padding-block: 0.45rem;
+  }
+}
+
+/* 資料一覧は、狭い画面ではカードにする（表のままだと、文書名の列が細くなり、全部の列が縦に折り返す）。
+   文書名のボタン（aria-label 付き）が操作の入口なので、読み上げでも開ける */
+@media (max-width: 720px) {
+  .documents-table,
+  .documents-table tbody {
+    display: block;
+  }
+
+  .documents-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .documents-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin-bottom: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--surface);
+  }
+
+  .documents-table th,
+  .documents-table td {
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .documents-table th[scope='row'] {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .documents-table td {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .documents-table td::before {
+    content: attr(data-label) ' ';
+    font-size: 0.75rem;
+  }
+
+  /* 「状態」は見出しが要らないほど明らか。ほかの数値だけ、ラベルを付ける */
+  .documents-table td[data-label='状態']::before {
+    content: none;
+  }
+
+  .documents-row:hover {
+    background: var(--surface-muted);
+  }
 }
