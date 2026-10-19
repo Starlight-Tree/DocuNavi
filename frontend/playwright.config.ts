@@ -11,9 +11,31 @@ const PYTHON =
 const AUTH_PORT = Number(process.env.E2E_AUTH_PORT ?? 8101);
 const AUTH_BASE_URL = `http://127.0.0.1:${AUTH_PORT}`;
 
+// 実 API の検証（`npm run test:e2e:real-api`）。E2E_REAL_API=1 のときだけ、この構成になる（通常の test:e2e には現れない）。
+// 本物の Gemini を呼ぶ（課金）ので、通常の E2E・CI とは完全に分ける。サーバーは tests/real_api_server.py（127.0.0.1:8102）
+const REAL_API = process.env.E2E_REAL_API === '1';
+const REAL_API_PORT = Number(process.env.E2E_REAL_API_PORT ?? 8102);
+const REAL_API_BASE_URL = `http://127.0.0.1:${REAL_API_PORT}`;
+
+const realApiConfig = defineConfig({
+  testDir: './e2e/real-api',
+  fullyParallel: false,
+  workers: 1,
+  retries: 0, // 再実行は課金が増えるので、しない
+  reporter: [['list']],
+  projects: [{ name: 'real-api', testMatch: '*.e2e.ts', use: { baseURL: REAL_API_BASE_URL } }],
+  webServer: {
+    command: `${PYTHON} ../tests/real_api_server.py`,
+    env: { E2E_REAL_API_PORT: String(REAL_API_PORT) },
+    url: `${REAL_API_BASE_URL}/health`,
+    reuseExistingServer: false,
+    timeout: 60_000,
+  },
+});
+
 // 2 つのアプリを立てる: 8100 = ログインを使わない画面（VITE_SUPABASE_* が空のビルド）、
 // 8101 = 偽の Supabase の URL を入れたビルド（ログイン画面が出る。通信は e2e/support/supabase-mock.ts が差し替える）
-export default defineConfig({
+const mockConfig = defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   workers: 1,
@@ -52,3 +74,5 @@ export default defineConfig({
     },
   ],
 });
+
+export default REAL_API ? realApiConfig : mockConfig;
