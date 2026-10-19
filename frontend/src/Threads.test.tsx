@@ -7,7 +7,8 @@ import { MSG_NO_THREADS } from './components/ThreadSidebar';
 import { THREAD_ID_STORAGE_KEY } from './lib/storage';
 import { fakeAuth } from './test/auth';
 import type { FakeAuth } from './test/auth';
-import { DEFAULT_REPLY, errorResponse, installFetch, jsonResponse, replyResponse } from './test/helpers';
+import { MSG_HISTORY_FAILED } from './hooks/useChat';
+import { DEFAULT_REPLY, deferred, errorResponse, installFetch, jsonResponse, replyResponse } from './test/helpers';
 
 const UPDATED = '2026-10-19T05:30:00+00:00';
 
@@ -25,12 +26,32 @@ function setup(auth: FakeAuth | null) {
   return { user };
 }
 
-/** 会話の一覧の状態を持つ偽のサーバー。DELETE は一覧から外す。 */
-function threadsServer(initial: ReturnType<typeof thread>[], options: { failDelete?: boolean } = {}) {
+type HistoryItem = { role: 'user' | 'assistant'; text: string };
+
+/**
+ * 会話の一覧の状態を持つ偽のサーバー。DELETE は一覧から外す。
+ * GET /threads/{id}/messages は options.messages[id]（無ければ空）を返す。gate[id] があればそれが解けるまで待つ。
+ */
+function threadsServer(
+  initial: ReturnType<typeof thread>[],
+  options: {
+    failDelete?: boolean;
+    failMessages?: boolean;
+    messages?: Record<string, HistoryItem[]>;
+    gate?: Record<string, Promise<void>>;
+  } = {},
+) {
   let items = [...initial];
   const log: Array<{ method: string; url: string; authorization: string | null }> = [];
-  const handler = (url: string, method: string, init: RequestInit) => {
+  const handler = async (url: string, method: string, init: RequestInit) => {
     log.push({ method, url, authorization: new Headers(init.headers).get('Authorization') });
+    const history = /^\/threads\/([^/]+)\/messages$/.exec(url);
+    if (history) {
+      const id = decodeURIComponent(history[1] ?? '');
+      await options.gate?.[id];
+      if (options.failMessages) return errorResponse(503, '会話履歴を操作できませんでした。しばらく待ってから再試行してください。');
+      return jsonResponse({ messages: options.messages?.[id] ?? [] });
+    }
     if (method === 'DELETE') {
       if (options.failDelete) return errorResponse(503, '会話履歴を操作できませんでした。しばらく待ってから再試行してください。');
       const id = decodeURIComponent(url.split('/threads/')[1] ?? '');
@@ -108,6 +129,90 @@ describe('会話の一覧', () => {
     await user.click(screen.getByRole('button', { name: '送信' }));
     await screen.findByText(DEFAULT_REPLY);
     expect(chatBodies()[0]).toEqual({ message: '続きの質問', thread_id: 't1' });
+  });
+
+  it('会話を選ぶと、以前のやり取りをトークン付きで取得して画面に並べる', async () => {
+    const server = threadsServer([thread('t1', '最初の質問')], {
+      messages: {
+        t1: [
+          { role: 'user', text: 'ザーハードの大気は？' },
+          { role: 'assistant', text: '主に二酸化炭素です。' },
+        ],
+      },
+    });
+    const { chatBodies } = installFetch(() => replyResponse({ thread_id: 't1' }), server.handler);
+    const { user } = setup(fakeAuth());
+
+    await user.click(await screen.findByTitle('最初の質問'));
+
+    const log = await screen.findByRole('log', { name: '会話' });
+    expect(await within(log).findByText('ザーハードの大気は？')).toBeInTheDocument();
+    expect(within(log).getByText('主に二酸化炭素です。')).toBeInTheDocument();
+    expect(screen.queryByTestId('resumed-notice')).not.toBeInTheDocument();
+    expect(server.log.find((entry) => entry.url === '/threads/t1/messages')).toMatchObject({
+      method: 'GET',
+      authorization: 'Bearer tok-1',
+    });
+    // 続きを送ると、その会話に付く。取り込んだ発言は送り直さない（最後の発言だけを送る）
+    await user.type(screen.getByRole('textbox', { name: 'メッセージ' }), '続きの質問');
+    await user.click(screen.getByRole('button', { name: '送信' }));
+    await screen.findByText(DEFAULT_REPLY);
+    expect(chatBodies()).toEqual([{ message: '続きの質問', thread_id: 't1' }]);
+    expect(within(log).getByText('ザーハードの大気は？')).toBeInTheDocument();
+  });
+
+  it('取得している間は読み込み中を出し、届いたら消える', async () => {
+    const gate = deferred<void>();
+    const server = threadsServer([thread('t1', '最初の質問')], {
+      messages: { t1: [{ role: 'user', text: '昔の質問' }] },
+      gate: { t1: gate.promise },
+    });
+    installFetch(() => replyResponse(), server.handler);
+    const { user } = setup(fakeAuth());
+
+    await user.click(await screen.findByTitle('最初の質問'));
+    expect(await screen.findByTestId('history-loading')).toBeInTheDocument();
+    gate.resolve();
+
+    expect(await screen.findByText('昔の質問')).toBeInTheDocument();
+    expect(screen.queryByTestId('history-loading')).not.toBeInTheDocument();
+  });
+
+  it('取得に失敗したら、固定メッセージを出し、続きは送れる', async () => {
+    const server = threadsServer([thread('t1', '最初の質問')], { failMessages: true });
+    const { chatBodies } = installFetch(() => replyResponse({ thread_id: 't1' }), server.handler);
+    const { user } = setup(fakeAuth());
+
+    await user.click(await screen.findByTitle('最初の質問'));
+
+    expect(await screen.findByTestId('history-error')).toHaveTextContent(MSG_HISTORY_FAILED);
+    expect(screen.queryByText(/SECRET|internal/)).not.toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: 'メッセージ' }), '続きの質問');
+    await user.click(screen.getByRole('button', { name: '送信' }));
+    await screen.findByText(DEFAULT_REPLY);
+    expect(chatBodies()[0]).toEqual({ message: '続きの質問', thread_id: 't1' });
+  });
+
+  it('別の会話に移ったあとに届いた、前の会話の発言は取り込まない', async () => {
+    const slow = deferred<void>();
+    const server = threadsServer([thread('t2', '二つ目の質問'), thread('t1', '最初の質問')], {
+      messages: {
+        t1: [{ role: 'user', text: '最初の会話の発言' }],
+        t2: [{ role: 'user', text: '二つ目の会話の発言' }],
+      },
+      gate: { t1: slow.promise },
+    });
+    installFetch(() => replyResponse(), server.handler);
+    const { user } = setup(fakeAuth());
+
+    await user.click(await screen.findByTitle('最初の質問')); // 遅い
+    await user.click(screen.getByTitle('二つ目の質問'));
+    expect(await screen.findByText('二つ目の会話の発言')).toBeInTheDocument();
+    slow.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(screen.queryByText('最初の会話の発言')).not.toBeInTheDocument();
+    expect(screen.getByText('二つ目の会話の発言')).toBeInTheDocument();
   });
 
   it('回答が届いたあと、新しい会話を一覧に反映する', async () => {
