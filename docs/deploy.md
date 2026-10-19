@@ -154,9 +154,75 @@ as_me gcloud secrets add-iam-policy-binding database-url \
 - Cloud Run から Supabase への接続は未確認です（開発コンテナからは、プーラーの URL で届くことを確かめました。2026-10-14）。
   直接接続は既定で IPv6 のため、IPv4 で届くプーラーの接続 URL を使う想定です。
   届くかどうかは、デプロイして `/health` の `history` が `postgres` になるかで確かめます。
-- 会話履歴の保存期間は 90 日という方針ですが、**削除の定期実行は未設定なので、いまは保証していません**（`docs/configuration.md`）。削除は、同じイメージで Cloud Run Job を作り（コマンドを
-  `python -m app.history_admin --older-than-days 90 --apply` に上書き。`DATABASE_URL` は同じ Secret）、Cloud Scheduler から週次で呼ぶ予定です
-  （未実施。Job の作成は、最初の 1 回を `--apply` なしで件数を見てから）。削除のために HTTP ルートは作りません（認証が無いため）。
+- 会話履歴の保存期間は 90 日という方針ですが、**削除の定期実行は未設定なので、いまは保証していません**（`docs/configuration.md`）。定期実行の手順は、次の D です（未実施）。
+
+### D. 会話履歴の 90 日削除（Cloud Run Job + Cloud Scheduler）
+
+**この節は手順の案で、未実行です。** 実行するのは、B・C まで済んで、サービスが `/health` の `history` を `postgres` にして動いてから
+（Cloud Run が始まる前は、Job も Scheduler も作れません。請求先アカウントと、上の準備 0・1 が前提です）。
+Job と Scheduler の作成は書き込みなので、あなたが実行します（`as_me`）。フラグは `gcloud ... --help` で存在を確かめましたが、実行はしていません。
+
+- 削除の実体は `python -m app.history_admin --older-than-days 90 --apply`（[configuration.md](configuration.md)）。同じ条件で何度実行しても、
+  消える会話は「90 日以上動きのない会話」だけなので、再実行されても害はありません（一覧を取ってから消すまでに新しい発言が入った会話が消えうる点だけは、`history_admin` の説明のとおり）。
+- 削除のために HTTP ルートは作りません（認証が無いため）。Job はアプリのイメージを使い、コマンドだけを上書きします。
+- Job は `DATABASE_URL` の Secret（C の `database-url`）だけを渡します。LLM のキーは要りません。Cloud Run から DB に届くことは、C の確認（`/health`）が先です。
+
+```bash
+# 1. Cloud Scheduler の API を有効にする（初回だけ）
+as_me gcloud services enable cloudscheduler.googleapis.com --project "$PROJECT_ID"
+
+# 2. サービスが今使っているイメージを調べる（読み取り）
+IMAGE=$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
+  --format='value(spec.template.spec.containers[0].image)')
+
+# 3. Job を作る（コマンドを上書き。実行用 SA と Secret はサービスと同じ）
+JOB=zahard-chatbot-history-cleanup
+as_me gcloud run jobs create "$JOB" \
+  --project "$PROJECT_ID" --region "$REGION" \
+  --image "$IMAGE" \
+  --service-account "${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --set-secrets "DATABASE_URL=database-url:latest" \
+  --command python \
+  --args=-m,app.history_admin,--older-than-days,90 \
+  --max-retries 1 --task-timeout 300
+```
+
+3 では、わざと `--apply` を付けていません（件数を表示するだけの Job）。最初の 1 回は手動で実行し、ログで件数を見てから `--apply` を足します。
+
+```bash
+# 4. 手動で 1 回実行する（件数を表示するだけ。--wait で終わるまで待つ）
+as_me gcloud run jobs execute "$JOB" --project "$PROJECT_ID" --region "$REGION" --wait
+#    ログ: 「対象の会話: N 件（削除はしていません。…）」。閲覧専用の ID でログを読めるかは未確認（読めなければ `as_me` を付ける）
+gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=${JOB}" \
+  --project "$PROJECT_ID" --limit 10 --format='value(textPayload)'
+
+# 5. 件数が想定どおりなら、--apply を足す
+as_me gcloud run jobs update "$JOB" --project "$PROJECT_ID" --region "$REGION" \
+  --args=-m,app.history_admin,--older-than-days,90,--apply
+
+# 6. Scheduler 用の専用サービスアカウントを作り、この Job を呼ぶ権限だけを付ける
+SCHED_SA=history-cleanup-scheduler
+as_me gcloud iam service-accounts create "$SCHED_SA" --display-name="History cleanup scheduler" --project "$PROJECT_ID"
+as_me gcloud run jobs add-iam-policy-binding "$JOB" --project "$PROJECT_ID" --region "$REGION" \
+  --member="serviceAccount:${SCHED_SA}@${PROJECT_ID}.iam.gserviceaccount.com" --role=roles/run.invoker
+
+# 7. 週 1 回（毎週日曜 3:00 JST）に Job を実行する Scheduler を作る
+as_me gcloud scheduler jobs create http "${JOB}-weekly" \
+  --project "$PROJECT_ID" --location "$REGION" \
+  --schedule "0 3 * * 0" --time-zone "Asia/Tokyo" \
+  --http-method POST \
+  --uri "https://run.googleapis.com/v2/projects/${PROJECT_ID}/locations/${REGION}/jobs/${JOB}:run" \
+  --oauth-service-account-email "${SCHED_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --max-retry-attempts 1
+```
+
+- **動いたかの確認:** 7 の後、Scheduler の画面（または `as_me gcloud scheduler jobs run "${JOB}-weekly" --location "$REGION"`）で 1 回起こし、
+  上の `logging read` で「削除した会話: N 件」を見ます。これで初めて「定期実行が動いた」と言えます。それまでは、動くと確かめていません。
+- **イメージの更新:** Job のイメージは作った時点のものです。サービスをデプロイし直したら、`as_me gcloud run jobs update "$JOB" --image "$IMAGE" …` で合わせます
+  （古いイメージでも、`history_admin` が変わらなければ動きます）。
+- **未確認:** この Job の実行（イメージに `python` と `history_admin` が入って動くこと）、Cloud Run から Supabase への接続、Scheduler から Job を呼ぶ権限の過不足、
+  `--args` の書き方での `--apply` の追加。`history_admin` の `--apply` は、Supabase（実 DB）では `--thread-id` でだけ確かめています。
+- **失敗に気づく:** 失敗しても通知は出ません（Cloud Monitoring のアラートは未設定）。当面は、月に 1 度、`logging read` で最後の実行を見ます。
 
 ### 値の根拠
 
