@@ -22,7 +22,7 @@
 
 | 順 | 項目 | 中身 |
 |---|---|---|
-| 1 | 認証の実機確認 | 本物の Supabase・Google でのログイン、ログイン後の URL の復元。会話の一覧と本人による削除は未実装 |
+| 1 | 認証の実機確認 | 本物の Supabase・Google でのログイン、ログイン後の URL の復元。会話の一覧と本人による削除は、バックエンドの API を実装済み（`GET /threads`、`DELETE /threads/{id}`）。画面、Supabase の実 DB・実 JWT での確認は未 |
 | 2 | Cloud Run に公開する前の守り | 下の「公開前の守り」。`--max-instances`、予算アラート、`CORS_ORIGINS` の絞り込み、認証必須での配備。課金アカウントが前提 |
 | 3 | 運用 | 履歴の 90 日削除の定期実行、Docker ビルドと `docker compose up` の確認 |
 | 4 | 4a の残り | 原本を R2 に置く |
@@ -87,7 +87,7 @@ Supabase と Cloud SQL の選び方の目安:
 | 1 | **済み。** DB 版の checkpointer は接続プールを起動時に開いて終了時に閉じる（`app/history.py`、`app/main.py` の lifespan）。`get_graph` は開いている保存先を渡してグラフを作り、キャッシュのキーに保存先を含める（閉じた後のグラフを使い回さない） | `tests/test_history_store.py`・`tests/test_history_postgres.py` |
 | 1 | **コードは済み。** 接続は、Supabase のプーラー（Shared pooler）の URL を使う。開発コンテナからは届くことを確かめた（直接接続は IPv6 のみで届かなかった）。prepared statement は使わない設定にしたので、transaction mode（6543）でも動く設計で、そのポートで起動・往復・再起動をまたいだ続きを確かめた（2026-10-14）。**残り:** `--max-instances` × `DATABASE_POOL_MAX_SIZE` が接続数の上限に収まるか、Cloud Run から届くか | 直接接続は既定で IPv6（IPv4 は有料のアドオン） |
 | 1・4b | 秘密情報の置き場所を決める。Supabase の `DATABASE_URL` と Cloudflare の API トークンは Secret Manager に置く。ローカルは `.env`（開発用には、権限を絞った DB ロールを使う） | ベンダーが増えると秘密も増える。開発コンテナには読み取り中心の権限だけを置く（[.devcontainer/README.md](../.devcontainer/README.md)） |
-| 2 | **コードは済み。** `AUTH_MODE=required` では、履歴のキーが `<利用者 ID>:<thread_id>` になり、他の利用者の会話に届かない。`off`（既定）のあいだは、`thread_id` の形式の検証だけで、UUID の推測困難さが守り | 会話の一覧・本人による削除は未実装 |
+| 2 | **コードは済み。** `AUTH_MODE=required` では、履歴のキーが `<利用者 ID>:<thread_id>` になり、他の利用者の会話に届かない。`off`（既定）のあいだは、`thread_id` の形式の検証だけで、UUID の推測困難さが守り | 会話の一覧・本人による削除は、API を実装済み（[api.md](api.md)）。画面は未実装。Supabase の実 DB・実 JWT・返答生成中の削除は未確認 |
 | 4a | コーパスの読み込み（`app/agents/tools.py` の `CHUNK_DIR` と無期限の `lru_cache`）を差し替え可能にし、内容が変わったらキャッシュを捨てる。`search_chunks` の戻り値 `(ファイル名, 本文)` はそのまま使える | アップロードで資料が増減する |
 | 3 つ目の外部サービスを入れる前 | 環境変数の読み取りが `graph.py`・`routes.py`・`main.py` に散らばっている。設定を 1 か所（settings）に集約する | 変数群（DB・R2・認証）が増える |
 | 5 | Dockerfile の frontend ビルド段が不要になる（ビルド引数か、Dockerfile の分割）。CI の Docker ビルドの確認も合わせる | フロントを別の場所から配信する |
