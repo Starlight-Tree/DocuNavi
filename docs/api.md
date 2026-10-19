@@ -104,6 +104,31 @@ data: [DONE]
 
 クライアントが切断した場合は、LLM 呼び出しを取り消して何も返しません（`/chat` と同じ。[configuration.md](configuration.md) の「クライアントの切断」）。
 
+## `GET /threads`、`DELETE /threads/{thread_id}`
+
+会話の一覧と、会話の削除（バックエンドだけ。画面はまだ使っていない）。履歴の保存先（Postgres またはメモリ）を、`/chat` と同じ checkpointer 経由で読み書きする。
+
+- **`GET /threads`:** ログイン中の利用者の会話を、最後の更新が新しい順に、最大 50 件返す。
+
+  ```json
+  {"threads": [{"thread_id": "…", "title": "ザーハードの大気について…", "created_at": "2026-10-19T…+09:00", "updated_at": "…"}]}
+  ```
+
+  `thread_id` は `/chat` に送ると会話が続く値（利用者 ID の接頭辞は付かない）。`title` は最初のユーザー発言の先頭（空白をまとめて 40 文字まで。
+  超えたら末尾が `…`）で、新しい列も LLM 呼び出しも使わない。`created_at` / `updated_at` は最初と最後のチェックポイントの時刻で、無ければ `null`。
+- **`DELETE /threads/{thread_id}`:** 会話を 1 件消す。成功は 204（本文なし）。`thread_id` の形式は `/chat` と同じ（`:` を含むと 422）。
+- **認証:**
+
+  | `AUTH_MODE` | `GET /threads` | `DELETE /threads/{thread_id}` |
+  |---|---|---|
+  | `required` | 本人の会話だけ。トークンが無い・不正なら 401 | 本人の会話だけ。他人の ID は、存在しないのと同じ 404（区別しない） |
+  | `off`（既定） | 404（匿名の会話には持ち主がなく、一覧にすると他人の会話が見えるため） | `thread_id` を知っていれば消せる（`/chat` で続きを書ける条件と同じ） |
+
+- **エラー:** 404（`指定された会話が見つかりません。` / off の一覧は `会話の一覧は、ログイン（AUTH_MODE=required）のときだけ使えます。`）、
+  422（不正な `thread_id`）、503（履歴の保存先を操作できない。固定メッセージで、例外の内容・接続先は含まない）。
+- **未確認:** Supabase の実 DB での速度（題名のために会話ごとに履歴を読むので、最大 50 回の読み出しがある）、本物の JWT を通した確認、
+  返答の生成中に同じ会話を削除したときの挙動。テストは、メモリと、ローカルの Postgres 17 で行った（`tests/test_threads.py`、`tests/test_threads_postgres.py`）。
+
 ## `GET /documents`、`GET /documents/{id}/chunks`、`GET /documents/{id}/file`
 
 資料の一覧（読み取り専用）。**DB（`documents` / `chunks`）に保存された内容**を返します。チャットの検索（ベクトル検索）が読むのと同じ DB なので、

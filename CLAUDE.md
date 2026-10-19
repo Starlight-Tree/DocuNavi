@@ -34,6 +34,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - `app/auth.py`: ログイン。`AUTH_MODE=off`（既定）は匿名、`required` は `/chat` と `/chat/stream` に Supabase の JWT（JWKS の ES256/RS256 だけ。`exp` `iss` `aud` `sub` 必須、`sub` は UUID）を要求し、
   履歴のキーを `<sub>:<thread_id>` にする（`sub` 以外から利用者 ID を取らない）。公開鍵が無ければ共有秘密には切り替えず、起動を失敗させる。
   実際の Supabase・Google でのログインと質問は、ローカルで確認済み（2026-10-19）。トークンの期限切れ後の更新、Docker、公開環境は未確認（`docs/configuration.md` の「ログイン（認証）」）。画面側は `frontend/src/auth/`
+- `app/api/threads.py`: 会話の一覧と削除（`GET /threads`、`DELETE /threads/{thread_id}`。画面は未対応）。`required` では本人の会話だけ。`off` は一覧が 404（匿名の会話に持ち主がいない）。題名は最初の発言の先頭で、列も LLM も使わない
 - `app/api/documents.py`: 資料一覧（`GET /documents`、`/documents/{id}/chunks`。読み取り専用）。DB の `documents` / `chunks` の内容を返す（埋め込みのベクトルは返さない）。
   チャットの検索が読むのと同じ DB。`AUTH_MODE=required` で認証。画面は「資料一覧」タブ（`DocumentsView`。入寮規程だけ「関係図」の切り替えがある）
 - `app/history_admin.py`: 履歴の削除コマンド（`python -m app.history_admin`。既定は件数の表示だけ、`--apply` で削除）。アプリからは使わない
