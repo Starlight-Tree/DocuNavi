@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
       sourcemap: false,
     },
     server: {
+      host: '127.0.0.1',
       proxy: {
         '/chat': proxy,
         '/health': proxy,
