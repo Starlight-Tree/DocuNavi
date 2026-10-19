@@ -1311,7 +1311,15 @@ def classify_cli(cli: str, args: list[str]) -> Finding | None:
 
     if cli == "gcloud":
         if group == "auth":
-            return None if pos[:2] == ["auth", "list"] else Finding(
+            if pos[:2] == ["auth", "list"]:
+                return None
+            # 許すのは、引数なしのログイン起動（承認はユーザーがブラウザーで行うので、毎回確認も挟む）と、全員のログアウトだけ。
+            # --no-launch-browser や --account などの付いた形、トークンの取得・切り替えは、これまでどおり拒否する
+            if args == ["auth", "login"]:
+                return Finding("ask", "gcloud auth login を起動します。ブラウザーでのアカウントの選択と承認は、ユーザーが行います。")
+            if args == ["auth", "revoke", "--all"]:
+                return None
+            return Finding(
                 "deny", "gcloud auth の操作（ログイン・トークンの取得・切り替え）は私には許可していません。必要ならユーザーが実行します。"
             )
         if group == "config":
