@@ -168,6 +168,29 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     const cards = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
     cards.forEach((card) => expect(within(card).queryByText(/^p\./)).not.toBeInTheDocument());
   });
+
+  it('1 位と類似度が離れた 2 件目（weak）は、カードに出さない。抜粋の一覧には残る', async () => {
+    installSourcesFetch([
+      { name: 'tsubasa_dorm_rules.pdf', page: 2, page_end: 3, weak: false },
+      { name: 'tsubasa_dorm_rules.pdf', page: 1, page_end: null, weak: true },
+    ]);
+    render(<App />);
+    await ask(userEvent.setup());
+
+    const cards = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+    expect(cards).toHaveLength(1);
+    expect(within(cards[0]!).getByText('p.2–3')).toBeInTheDocument();
+    // LLM が受け取った抜粋は、折りたたみの中に 2 件とも残る
+    expect(screen.getByText('参照した設定資料の抜粋（2 件）')).toBeInTheDocument();
+  });
+
+  it('sources と出典が合わないときは、weak でも絞らない（ずれた判定を使わない）', async () => {
+    installSourcesFetch([{ name: 'tsubasa_dorm_rules.pdf', page: 2, page_end: null, weak: true }]);
+    render(<App />);
+    await ask(userEvent.setup());
+
+    expect(await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })).toHaveLength(2);
+  });
 });
 
 describe('続けて聞く', () => {

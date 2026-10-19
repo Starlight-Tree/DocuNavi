@@ -15,6 +15,10 @@ from app.search_vector import Hit
 logger = logging.getLogger(__name__)
 
 TOP_K = 2
+# 画面の出典カードを絞る基準: 同じ検索の 1 位との類似度の差がこれより大きい 2 件目以降は「弱い」とし、カードに出さない。
+# LLM に渡す件数・文面は変えない。値は、最終確認の 52 問（答えのある 38 問）の 1 位と 2 位の差から決めた。2 件目が答えに要った 4 問
+# の差は 0〜0.04 で、0.05 はそれを隠さない最小の丸めた値。標本が小さい（資料 6 冊・80 チャンク）ので、資料が増えたら測り直す
+WEAK_GAP = 0.05
 
 _NOT_FOUND_TEXT = "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
 # 検索が使えなかったときに、呼び出し側（API）へ出す固定文。例外の文字列には接続先・URL・本文が入りうるので載せない
@@ -51,12 +55,17 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
     """画面に渡す出典の一覧（`_format_hits` の見出しと同じ順）。ツールの artifact で、LLM には渡らない。
 
     `page` は 1 以上の整数だけ、`page_end` は `page` より大きいときだけ入れる（不正な値は None にして、画面が表示しない）。
+    `weak` は、1 位との類似度の差が `WEAK_GAP` を超える 2 件目以降（画面の出典カードに出さない）。類似度が無ければ False。
     """
     sources: list[dict[str, Any]] = []
-    for hit in hits:
+    top = hits[0].similarity if hits else None
+    for index, hit in enumerate(hits):
         page = hit.page if isinstance(hit.page, int) and hit.page >= 1 else None
         page_end = hit.page_end if page is not None and isinstance(hit.page_end, int) and hit.page_end > page else None
-        sources.append({"name": hit.source, "page": page, "page_end": page_end})
+        weak = (
+            index > 0 and top is not None and hit.similarity is not None and round(top - hit.similarity, 4) > WEAK_GAP
+        )
+        sources.append({"name": hit.source, "page": page, "page_end": page_end, "weak": weak})
     return sources
 
 
