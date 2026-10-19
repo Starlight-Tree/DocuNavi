@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => {
         '/chat': proxy,
         '/health': proxy,
         '/documents': proxy,
+        '/threads': proxy,
       },
     },
     preview: {
@@ -32,6 +33,7 @@ export default defineConfig(({ mode }) => {
         '/chat': proxy,
         '/health': proxy,
         '/documents': proxy,
+        '/threads': proxy,
       },
     },
     test: {

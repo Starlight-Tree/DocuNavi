@@ -686,17 +686,163 @@ textarea {
   color: var(--text);
 }
 
+/* チャット画面。ログイン中は、左に会話の一覧が付く。隠すだけで残す（資料一覧を開いても、生成中の回答や入力途中の文を失わない） */
+.chat-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.chat-layout[hidden] {
+  display: none;
+}
+
+/* 会話の一覧がある間は、本文の幅は変えずに、その分だけ全体を広げる */
+.app-with-sidebar {
+  max-width: 78rem;
+}
+
+.thread-sidebar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 16rem;
+  min-height: 0;
+  padding: 0.75rem 0.5rem 0.75rem 1rem;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.thread-sidebar-title {
+  margin: 0 0 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.thread-sidebar-note,
+.thread-sidebar-error {
+  margin: 0.25rem 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.thread-sidebar-error {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--danger-border);
+  border-radius: 0.5rem;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thread-item {
+  position: relative;
+  border-radius: 0.5rem;
+}
+
+.thread-item:hover,
+.thread-item:focus-within {
+  background: var(--surface-muted);
+}
+
+.thread-item[data-current='true'] {
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.thread-open {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  padding: 0.4rem 3rem 0.4rem 0.6rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.thread-open:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.thread-title {
+  overflow: hidden;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-time {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.thread-delete {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  /* 目立たせすぎない。キーボードで来たとき・触れたときは見える */
+  opacity: 0;
+}
+
+.thread-item:hover .thread-delete,
+.thread-item:focus-within .thread-delete,
+.thread-item[data-current='true'] .thread-delete {
+  opacity: 1;
+}
+
+.thread-delete:hover:not(:disabled) {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.thread-delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.thread-confirm {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0 0.6rem 0.4rem;
+}
+
+.thread-confirm-yes {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
 /* 隠すだけで残す。表示中は、元の縦並び（メッセージ・エラー・入力欄）をそのまま保つ */
 .chat-pane {
+  min-width: 0;
   display: flex;
   flex: 1;
   flex-direction: column;
   min-height: 0;
 }
 
-.chat-pane[hidden] {
-  display: none;
-}
 
 /* ---- 資料一覧 ---- */
 
@@ -1210,6 +1356,21 @@ textarea {
   .view-tab {
     flex: 1;
     padding-block: 0.45rem;
+  }
+}
+
+/* 会話の一覧は、狭い画面では上に積む（崩れないことの確認だけで、モバイル向けの最適化はしない） */
+@media (max-width: 700px) {
+  .chat-layout {
+    flex-direction: column;
+  }
+
+  .thread-sidebar {
+    width: auto;
+    max-height: 9rem;
+    padding: 0.5rem 1rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
   }
 }
 

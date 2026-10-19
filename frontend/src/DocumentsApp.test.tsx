@@ -51,6 +51,7 @@ function installDocsFetch(route: Route) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'mock' });
+    if (url.endsWith('/threads')) return jsonResponse({ threads: [] }); // 会話の一覧（ログイン中だけ）。資料の呼び出しには数えない
     calls.push({ url, init: init ?? {} });
     return route(url, init ?? {}, calls.length);
   });

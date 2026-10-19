@@ -114,17 +114,25 @@ export interface FetchHarness {
   chatInits: () => RequestInit[];
 }
 
+export type ThreadsHandler = (url: string, method: string, init: RequestInit) => Response | Promise<Response>;
+
 /**
  * fetch を差し替える。/health は常に mode=mock を返し、/chat/stream は handler に渡す。
+ * /threads 系は threads に渡す（渡さなければ、空の一覧を返す）。
  * handler の第 2 引数は /chat/stream の呼び出し回数（1 始まり）。
  */
-export function installFetch(handler: ChatHandler): FetchHarness {
+export function installFetch(handler: ChatHandler, threads?: ThreadsHandler): FetchHarness {
   const bodies: Array<Record<string, unknown>> = [];
   const inits: RequestInit[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith('/health')) {
       return jsonResponse({ status: 'ok', mode: 'mock' });
+    }
+    // 会話の一覧と削除（ログイン中だけ呼ばれる）。チャットの呼び出し回数には数えない
+    if (/\/threads(\/|$)/.test(url)) {
+      const method = init?.method ?? 'GET';
+      return threads ? threads(url, method, init ?? {}) : jsonResponse({ threads: [] });
     }
     const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
     bodies.push(body);
