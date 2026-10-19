@@ -145,7 +145,11 @@ A のコマンドの `--set-env-vars` を、次の 1 行に置き換えます。
 
 ```bash
 read -rsp 'DATABASE_URL: ' DATABASE_URL; echo
-printf '%s' "$DATABASE_URL" | as_me gcloud secrets create database-url --data-file=- --project "$PROJECT_ID"
+# 貼り付けの先頭の 1 文字が欠けた事故があったので、先頭を確かめてから登録する（下の「実際に通った記録」）
+case "$DATABASE_URL" in
+  postgresql://*) printf '%s' "$DATABASE_URL" | as_me gcloud secrets create database-url --data-file=- --project "$PROJECT_ID" ;;
+  *) echo "先頭が postgresql:// ではありません。登録しません。" ;;
+esac
 unset DATABASE_URL
 as_me gcloud secrets add-iam-policy-binding database-url \
   --member="serviceAccount:${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
@@ -160,19 +164,21 @@ as_me gcloud secrets add-iam-policy-binding database-url \
 
 - `--max-instances` × `DATABASE_POOL_MAX_SIZE`（既定 5）が、DB の接続数の上限に収まるようにします（2 インスタンスなら 10 本）。
 - DB に届かないと、**起動に失敗してリビジョンが Ready になりません**（メモリへは切り替わりません）。ログで原因を確かめます。
-- Cloud Run から Supabase への接続は未確認です（開発コンテナからは、プーラーの URL で届くことを確かめました。2026-10-14）。
-  直接接続は既定で IPv6 のため、IPv4 で届くプーラーの接続 URL を使う想定です。
-  届くかどうかは、デプロイして `/health` の `history` が `postgres` になるかで確かめます。
+- Cloud Run から Supabase への接続は、**プーラーの URL（ポート 6543、transaction mode）で届くことを確かめました（2026-10-20。`/health` の `history` が `postgres`）。**
+  直接接続は既定で IPv6 のため、IPv4 で届くプーラーの接続 URL を使います。
 - 会話履歴の保存期間は 90 日という方針ですが、**削除の定期実行は未設定なので、いまは保証していません**（`docs/configuration.md`）。定期実行の手順は、次の D です（未実施）。
 
-### D. 会話履歴の 90 日削除（Cloud Run Job + Cloud Scheduler）
+### D. 会話履歴の削除（Cloud Run Job + Cloud Scheduler。最初は 7 日）
+
+**削除の日数は、最初は 7 日にします**（2026-10-20 に決定）。方針の 90 日（`docs/configuration.md`）は変えておらず、様子を見て、下の `7` を書き換えて延ばします。
+最後の動きから 7 日たった会話は消え、サイドバーの一覧からも消えます（戻せません）。実行は週 1 回なので、実際に消えるのは 7〜14 日後です。
 
 **この節は手順の案で、未実行です。** 実行するのは、B・C まで済んで、サービスが `/health` の `history` を `postgres` にして動いてから
 （Cloud Run が始まる前は、Job も Scheduler も作れません。請求先アカウントと、上の準備 0・1 が前提です）。
 Job と Scheduler の作成は書き込みなので、あなたが実行します（`as_me`）。フラグは `gcloud ... --help` で存在を確かめましたが、実行はしていません。
 
-- 削除の実体は `python -m app.history_admin --older-than-days 90 --apply`（[configuration.md](configuration.md)）。同じ条件で何度実行しても、
-  消える会話は「90 日以上動きのない会話」だけなので、再実行されても害はありません（一覧を取ってから消すまでに新しい発言が入った会話が消えうる点だけは、`history_admin` の説明のとおり）。
+- 削除の実体は `python -m app.history_admin --older-than-days 7 --apply`（[configuration.md](configuration.md)）。同じ条件で何度実行しても、
+  消える会話は「7 日以上動きのない会話」だけなので、再実行されても害はありません（一覧を取ってから消すまでに新しい発言が入った会話が消えうる点だけは、`history_admin` の説明のとおり）。
 - 削除のために HTTP ルートは作りません（認証が無いため）。Job はアプリのイメージを使い、コマンドだけを上書きします。
 - Job は `DATABASE_URL` の Secret（C の `database-url`）だけを渡します。LLM のキーは要りません。Cloud Run から DB に届くことは、C の確認（`/health`）が先です。
 
@@ -192,7 +198,7 @@ as_me gcloud run jobs create "$JOB" \
   --service-account "${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
   --set-secrets "DATABASE_URL=database-url:latest" \
   --command python \
-  --args=-m,app.history_admin,--older-than-days,90 \
+  --args=-m,app.history_admin,--older-than-days,7 \
   --max-retries 1 --task-timeout 300
 ```
 
@@ -207,7 +213,7 @@ gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=${
 
 # 5. 件数が想定どおりなら、--apply を足す
 as_me gcloud run jobs update "$JOB" --project "$PROJECT_ID" --region "$REGION" \
-  --args=-m,app.history_admin,--older-than-days,90,--apply
+  --args=-m,app.history_admin,--older-than-days,7,--apply
 
 # 6. Scheduler 用の専用サービスアカウントを作り、この Job を呼ぶ権限だけを付ける
 SCHED_SA=history-cleanup-scheduler
@@ -273,15 +279,15 @@ as_me gcloud billing budgets create --billing-account=<請求先アカウント 
 **未対応（公開の前に要る）:**
 
 - **画面のログインは、下の F のイメージで有効にする。** `--source .` のイメージでは `VITE_SUPABASE_*` が空で、`AUTH_MODE=required` では質問できない（`/chat/stream` が 401）。
-- Cloud Run から Supabase（DB と JWKS）に届くこと、トークンの期限切れ後の更新は未確認。
+- トークンの期限切れ後の更新は未確認（Cloud Run から Supabase の DB と JWKS に届くことは、2026-10-20 に確かめた）。
 - 課金の有効化は、このセッションでは確認できなかった（gcloud にログインしていない）。
 
 ### F. ログイン付きのイメージ（`cloudbuild.yaml`）
 
 `--source .` は Dockerfile のビルド引数を渡せないので、画面のログイン設定（`VITE_SUPABASE_URL`・`VITE_SUPABASE_PUBLISHABLE_KEY`。どちらも公開してよい値）は、
 `cloudbuild.yaml` でイメージをビルドして埋め込みます。配備は、できたイメージを `--image` で行います。
-**この節は手順の案で、Cloud Build での実行は未確認です。** 確かめたのは、設定の名前が Dockerfile と合っていること（`tests/test_cloudbuild.py`）と、
-同じ名前の環境変数で `vite build` すると値がバンドルに入ることまでです（Docker は開発コンテナに無く、`docker build` は実行していません）。
+**Cloud Build での実行は確かめました（2026-10-20。約 1 分半で SUCCESS。このイメージで Google ログインと質問が通った）。**
+設定の名前が Dockerfile と合っていることは `tests/test_cloudbuild.py` が確かめます。開発コンテナには Docker が無く、`docker build` はローカルでは実行していません。
 
 ```bash
 REPO=cloud-run-source-deploy      # 初回の --source 配備で作られるリポジトリ。無ければ下で作る
@@ -410,13 +416,27 @@ GUARD_SA=budget-guard
 
 ## 確かめる
 
-認証必須なので、`gcloud run services proxy` でローカルに橋渡しします。呼び出しの権限（`roles/run.invoker`）は
-閲覧専用の ID に無いため、あなた自身の権限（`as_me`）で実行します。
+非公開（`--no-allow-unauthenticated`）の間は、呼び出しの権限（`roles/run.invoker`）が要ります。閲覧専用の ID には無いため、
+あなた自身の権限（`as_me`）で実行します。**ID トークン付きの `curl` が、いちばん簡単です**（2026-10-20 に通った方法）。
+
+```bash
+URL=$(as_me gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')
+TOKEN=$(as_me gcloud auth print-identity-token)
+curl -s -H "Authorization: Bearer $TOKEN" "$URL/health"   # {"status":"ok","mode":"gemini","history":"postgres"} なら本物の LLM と DB に繋がっている
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" "$URL/"   # 200
+unset TOKEN
+```
+
+公開した後は、トークン無しで `curl -s -o /dev/null -w '%{http_code}\n' "$URL/"`（200）と、
+`curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/json' -d '{"message":"test","thread_id":"t"}' "$URL/chat"`（ログイン無しなので 401）を確かめます。
+
+`gcloud run services proxy` でも橋渡しできますが、**バックグラウンド（`&`）で動かすと、端末の入力を待って止まります**（`Stopped`、`curl` は 000）。
+使うなら、別の端末のフォアグラウンドで動かします。
 
 ```bash
 as_me gcloud run services proxy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --port 8080
 # 別のターミナルで
-curl -s localhost:8080/health          # {"status":"ok","mode":"gemini","history":"memory"} なら本物の LLM に繋がっている
+curl -s localhost:8080/health
 curl -s localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"ザーハードの大気について教えて"}'
 ```
 
@@ -445,6 +465,57 @@ curl -s localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"
   ```
 
 - **止める（削除）:** `as_me gcloud run services delete "$SERVICE" --project "$PROJECT_ID" --region "$REGION"`
+
+## 実際に通った記録（2026-10-20）
+
+上の節を、この順に `as_me`（あなた自身の権限）で実行して、公開まで通りました。ID（プロジェクト番号など）は書きません。
+
+**現状:** サービス `docunavi`（`asia-northeast1`、リビジョン `docunavi-00002-…`）、イメージのタグはコミットの短いハッシュ（`cc5709c`）、公開済み（`allUsers` に `roles/run.invoker`）。
+確かめたこと: `/health` が `mode: gemini`・`history: postgres`、公開後の `/` が 200、ログイン無しの `/chat` が 401、ブラウザーで Google ログインと質問が通る。
+
+**順序:**
+
+1. G の予算ガード（先に）。
+2. API の有効化（`run` `cloudbuild` `artifactregistry` `secretmanager`）と、実行用サービスアカウント。
+3. Secret を 2 つ: `gemini-api-key`（B）、`database-url`（C。プーラーの URL）。実行用サービスアカウントに `roles/secretmanager.secretAccessor`。
+4. F のイメージのビルド（`frontend/.env.local` の公開値を `--substitutions` に渡す）。
+5. 非公開でデプロイ。環境変数と Secret は次のとおり。
+
+   ```bash
+   as_me gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
+     --image "$IMAGE" --service-account "${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+     --no-allow-unauthenticated --max-instances 2 --concurrency 20 --timeout 90 \
+     --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,DATABASE_URL=database-url:latest" \
+     --set-env-vars "AUTH_MODE=required,SUPABASE_URL=${SUPABASE_URL},CORS_ORIGINS="
+   ```
+
+   `AUTH_MODE` と `SUPABASE_URL` は `.env` ではなく、このフラグで渡します。`CORS_ORIGINS` は空（同じオリジンで配信するため）。
+6. 「確かめる」の `curl`（ID トークン付き）。
+7. 公開（「公開する・戻す」）。
+8. **Supabase の Redirect URLs に、サービスの URL を足す**（画面のみ。MCP と SQL では変えられない）。Authentication → URL Configuration → Redirect URLs に `<サービスの URL>/**`。
+   ローカル用の `http://localhost:5173` は残す。画面は `redirectTo` に `window.location.origin` を渡す（`frontend/src/auth/supabase.ts`）ので、Site URL が `localhost` のままでもログインは Cloud Run に戻る。
+   メールの確認リンクやパスワード再設定を使い始めるとき、または本番を主に使うときに、Site URL を本番の URL に変える。
+9. ブラウザーで Google ログインと質問を 1 つ。
+
+**再デプロイ（コードを変えたとき）:** コミットしてから、4（ビルド）と 5（デプロイ。`--image` のタグだけ変わる）と 6 を繰り返します。Secret を更新したときは、`:latest` が新しい版を指すので、
+`gcloud run deploy` をもう一度実行して新しいリビジョンを作ります（実行中のリビジョンは、起動時の版のまま）。
+
+**つまずいたこと:**
+
+- **起動に失敗した（`PoolTimeout`、コンテナが `exit(3)`）。** 原因は、Secret `database-url` の最初の版で、先頭の `p` が欠けていたこと（`ostgresql://…`。貼り付けの 1 文字目が `read` の前に取られた）。
+  接続文として不正だと、プールは接続を試し続けて時間切れになるので、ネットワークの問題に見える。
+  調べ方（`as_me`）: ログは `gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.revision_name="<リビジョン名>"' --project "$PROJECT_ID" --freshness=1h --order=asc --limit 60 --format='value(textPayload)'`。
+  値は、パスワードを伏せて見る: `gcloud secrets versions access latest --secret database-url --project "$PROJECT_ID" | sed -E 's#(://[^:@/]+):[^@]*@#\1:***@#; s#\?.*#?…#'`。先頭だけなら `| cut -c1-14`。
+  直し方: 正しい値で新しい版を足し（`gcloud secrets versions add database-url --data-file=-`。C の `case` で先頭を確かめる）、デプロイをやり直す。
+  見るところ: 先頭が `postgresql://`、ホストが `…pooler.supabase.com`、ユーザー名が `<ロール>.<プロジェクト ref>`、ポートが 6543（transaction）か 5432（session）。
+  `db.<ref>.supabase.co` の直接接続は IPv6 のみで、Cloud Run からは届かない。
+- **`gcloud run services proxy` をバックグラウンドで動かすと止まる。** 「確かめる」を参照（ID トークン付きの `curl` を使う）。
+- **閲覧専用の ID（`agent-viewer`）が、このプロジェクトのログやビルドを読めない。** `agent-viewer` は別のプロジェクトのサービスアカウントで、このプロジェクトには設定していない。
+  設定するまでは、`logging read` と `builds log` を `as_me` で実行する。
+- 予算ガードの詰まりは G を参照。
+
+**ロールバック:** 前のリビジョンに戻すのは、上の「公開する・戻す」の `update-traffic`。この記録の通りには実行していない（コマンドの確認のみ）。
+イメージのタグがコミットごとに違うので、前のリビジョンのイメージが残る。
 
 ## 続き
 
