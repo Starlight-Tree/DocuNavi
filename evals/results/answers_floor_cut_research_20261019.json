@@ -1,0 +1,78 @@
+{
+  "generated_at": "2026-10-19T18:49:01+09:00",
+  "model": "gemini-3.1-flash-lite",
+  "max_calls": 20,
+  "max_calls_per_question": 5,
+  "calls_used": 5,
+  "hedge": "off",
+  "wording": "current",
+  "search": {
+    "backend": "vector",
+    "min_similarity": 0.65
+  },
+  "path": "ainvoke（/chat と同じ。画面が使う /chat/stream ではない）",
+  "results": [
+    {
+      "id": "q008",
+      "role": "answerable",
+      "question": "硫化水素",
+      "expected_answer": null,
+      "calls": 1,
+      "elapsed_seconds": 0.3,
+      "error": "GoogleRateLimitError",
+      "says_no_info": null,
+      "search_count": 0,
+      "first_search_empty": null,
+      "searches": [],
+      "answer": null
+    },
+    {
+      "id": "q010",
+      "role": "answerable",
+      "question": "象形文字",
+      "expected_answer": null,
+      "calls": 1,
+      "elapsed_seconds": 0.3,
+      "error": "GoogleRateLimitError",
+      "says_no_info": null,
+      "search_count": 0,
+      "first_search_empty": null,
+      "searches": [],
+      "answer": null
+    },
+    {
+      "id": "q012",
+      "role": "answerable",
+      "question": "昼と夜の気温差について教えて",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 7.3,
+      "error": "GoogleRateLimitError",
+      "says_no_info": null,
+      "search_count": 1,
+      "first_search_empty": true,
+      "searches": [
+        {
+          "query": "昼と夜の気温差",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。まだ断らずに、質問の言い換え・同じ意味の別の語・より一般的な語・短い文のどれかを query にして、search_documents をもう一度呼んでください（検索し直しは 2 回まで）。それでも見つからないときに限り、「資料には記載がありません」と答えてください。"
+        }
+      ],
+      "answer": null
+    },
+    {
+      "id": "q019",
+      "role": "answerable",
+      "question": "メタンガスって入ってる？",
+      "expected_answer": null,
+      "calls": 1,
+      "elapsed_seconds": 0.3,
+      "error": "GoogleRateLimitError",
+      "says_no_info": null,
+      "search_count": 0,
+      "first_search_empty": null,
+      "searches": [],
+      "answer": null
+    }
+  ]
+}

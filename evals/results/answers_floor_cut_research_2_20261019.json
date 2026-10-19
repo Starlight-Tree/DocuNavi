@@ -1,0 +1,149 @@
+{
+  "generated_at": "2026-10-19T19:16:53+09:00",
+  "model": "gemini-3.1-flash-lite",
+  "max_calls": 20,
+  "max_calls_per_question": 5,
+  "calls_used": 15,
+  "hedge": "off",
+  "wording": "current",
+  "pause_seconds": 30.0,
+  "stopped_by_rate_limit": null,
+  "questions_done": 4,
+  "questions_planned": 4,
+  "search": {
+    "backend": "vector",
+    "min_similarity": 0.65
+  },
+  "path": "ainvoke（/chat と同じ。画面が使う /chat/stream ではない）",
+  "results": [
+    {
+      "id": "q008",
+      "role": "answerable",
+      "question": "硫化水素",
+      "expected_answer": null,
+      "calls": 4,
+      "elapsed_seconds": 5.6,
+      "error": null,
+      "rate_limited": false,
+      "rate_limit": null,
+      "says_no_info": false,
+      "search_count": 3,
+      "first_search_empty": true,
+      "searches": [
+        {
+          "query": "硫化水素",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。まだ断らずに、質問の言い換え・同じ意味の別の語・より一般的な語・短い文のどれかを query にして、search_documents をもう一度呼んでください（検索し直しは 2 回まで）。それでも見つからないときに限り、「資料には記載がありません」と答えてください。"
+        },
+        {
+          "query": "H2S",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。まだ断らずに、質問の言い換え・同じ意味の別の語・より一般的な語・短い文のどれかを query にして、search_documents をもう一度呼んでください（検索し直しは 2 回まで）。それでも見つからないときに限り、「資料には記載がありません」と答えてください。"
+        },
+        {
+          "query": "有害物質",
+          "files": [
+            "ザーハード1.pdf",
+            "aoba_aw820_manual.pdf"
+          ],
+          "result": "[ザーハード1.pdf]\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・温度変化：日中と夜間の温度差が激しく、昼間は高温、夜間は極寒となります。\n・有害なガス：硫化水素や二酸化炭素が含まれており、呼吸すると中毒症状を引き起こす恐れがあります。\n\n[aoba_aw820_manual.pdf]\n安全上のご注意\nガソリンや灯油などの引火性の液体が付いた衣類は、洗濯も乾燥もしないでください。\n火災の原因になります。"
+        }
+      ],
+      "answer": "資料によると、ザーハードの大気中には硫化水素が含まれており、呼吸すると中毒症状を引き起こす恐れがあるとされています。"
+    },
+    {
+      "id": "q010",
+      "role": "answerable",
+      "question": "象形文字",
+      "expected_answer": null,
+      "calls": 4,
+      "elapsed_seconds": 10.3,
+      "error": null,
+      "rate_limited": false,
+      "rate_limit": null,
+      "says_no_info": true,
+      "search_count": 3,
+      "first_search_empty": true,
+      "searches": [
+        {
+          "query": "象形文字",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。まだ断らずに、質問の言い換え・同じ意味の別の語・より一般的な語・短い文のどれかを query にして、search_documents をもう一度呼んでください（検索し直しは 2 回まで）。それでも見つからないときに限り、「資料には記載がありません」と答えてください。"
+        },
+        {
+          "query": "文字の起源",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。まだ断らずに、質問の言い換え・同じ意味の別の語・より一般的な語・短い文のどれかを query にして、search_documents をもう一度呼んでください（検索し直しは 2 回まで）。それでも見つからないときに限り、「資料には記載がありません」と答えてください。"
+        },
+        {
+          "query": "文字の種類",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。まだ断らずに、質問の言い換え・同じ意味の別の語・より一般的な語・短い文のどれかを query にして、search_documents をもう一度呼んでください（検索し直しは 2 回まで）。それでも見つからないときに限り、「資料には記載がありません」と答えてください。"
+        }
+      ],
+      "answer": "資料には記載がありません。"
+    },
+    {
+      "id": "q012",
+      "role": "answerable",
+      "question": "昼と夜の気温差について教えて",
+      "expected_answer": null,
+      "calls": 4,
+      "elapsed_seconds": 22.2,
+      "error": null,
+      "rate_limited": false,
+      "rate_limit": null,
+      "says_no_info": true,
+      "search_count": 3,
+      "first_search_empty": true,
+      "searches": [
+        {
+          "query": "昼と夜の気温差",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。まだ断らずに、質問の言い換え・同じ意味の別の語・より一般的な語・短い文のどれかを query にして、search_documents をもう一度呼んでください（検索し直しは 2 回まで）。それでも見つからないときに限り、「資料には記載がありません」と答えてください。"
+        },
+        {
+          "query": "気温の変動",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。まだ断らずに、質問の言い換え・同じ意味の別の語・より一般的な語・短い文のどれかを query にして、search_documents をもう一度呼んでください（検索し直しは 2 回まで）。それでも見つからないときに限り、「資料には記載がありません」と答えてください。"
+        },
+        {
+          "query": "気温",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。まだ断らずに、質問の言い換え・同じ意味の別の語・より一般的な語・短い文のどれかを query にして、search_documents をもう一度呼んでください（検索し直しは 2 回まで）。それでも見つからないときに限り、「資料には記載がありません」と答えてください。"
+        }
+      ],
+      "answer": "資料には記載がありません。"
+    },
+    {
+      "id": "q019",
+      "role": "answerable",
+      "question": "メタンガスって入ってる？",
+      "expected_answer": null,
+      "calls": 3,
+      "elapsed_seconds": 17.3,
+      "error": "GoogleAPIError (status=504)",
+      "rate_limited": false,
+      "rate_limit": null,
+      "says_no_info": null,
+      "search_count": 2,
+      "first_search_empty": true,
+      "searches": [
+        {
+          "query": "メタンガス",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。まだ断らずに、質問の言い換え・同じ意味の別の語・より一般的な語・短い文のどれかを query にして、search_documents をもう一度呼んでください（検索し直しは 2 回まで）。それでも見つからないときに限り、「資料には記載がありません」と答えてください。"
+        },
+        {
+          "query": "成分",
+          "files": [
+            "cafe_store_guide.pdf",
+            "aoba_aw820_manual.pdf"
+          ],
+          "result": "[cafe_store_guide.pdf]\n豆と品質への取り組み\nみなとブレンドの豆は、ブラジル・コロンビア・エチオピアの3か国から仕入れています。\n工房では毎日、味と香りの確認を行い、その記録を1年間保管しています。\n\n[aoba_aw820_manual.pdf]\nはじめに\nこの取扱説明書では、安全上のご注意、設置、運転の手順、お手入れ、故障のときの対処、仕様、保証の順に説明します。"
+        }
+      ],
+      "answer": null
+    }
+  ]
+}
