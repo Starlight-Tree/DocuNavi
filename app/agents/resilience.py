@@ -26,6 +26,8 @@ import asyncio
 import enum
 import importlib
 import logging
+import math
+import os
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import aclosing
@@ -38,6 +40,7 @@ T = TypeVar("T")
 
 _RETRYABLE_CODES = {408, 500, 502, 503, 504}
 _RATE_LIMIT_CODE = 429
+DEFAULT_KEY_SWITCH_HOLD_SECONDS = 60.0
 # 負けた試行の取り消しを待つ上限。取り消しを無視する試行があっても、呼び出しが戻らなくならないようにする
 _CANCEL_GRACE_SECONDS = 1.0
 
@@ -668,3 +671,165 @@ async def stream_with_fallback(
     finally:
         if route == "probe" and breaker is not None:
             breaker.end_probe()
+
+
+def paid_api_key() -> str:
+    """GEMINI_API_KEY_PAID。空（既定）なら、有料キーへの切り替えは使わない。値は、ログにも例外にも入れない。"""
+    key = os.environ.get("GEMINI_API_KEY_PAID", "").strip()
+    return "" if key in {"", "your_api_key_here"} else key
+
+
+def key_switch_hold_seconds() -> float:
+    """GEMINI_KEY_SWITCH_HOLD_SECONDS（既定 60）。有料キーへ切り替えたあと、最初から有料キーを使う秒数。
+
+    0 で無効（毎回、無料キーから試す）。不正値・負数は既定値に戻す。
+    """
+    try:
+        value = float(os.environ.get("GEMINI_KEY_SWITCH_HOLD_SECONDS", ""))
+    except ValueError:
+        return DEFAULT_KEY_SWITCH_HOLD_SECONDS
+    return value if math.isfinite(value) and value >= 0 else DEFAULT_KEY_SWITCH_HOLD_SECONDS
+
+
+class KeySwitch:
+    """無料キーが 429（レート制限）で尽きたとき、有料キーへ一時的に切り替える、プロセス内の状態（GEMINI_KEY_SWITCH_HOLD_SECONDS）。
+
+    - 通常: 無料キーから試す。
+    - 切り替え後: 有料キーが成功したときから hold_seconds の間は、最初から有料キーで投げる（毎回、無料キーで
+      429 を待ってから有料へ回る遅れをなくすため）。満了後は、また無料キーから試す。
+    hold_seconds が 0 以下なら保持しない（毎回、無料キーから試す）。状態はプロセスごとで、インスタンス間では共有しない。
+    使った回数（無料・有料）を数える。キーの値は持たない。メソッドは await を含まないので、ロック無しで整合する。
+    """
+
+    def __init__(
+        self,
+        hold_seconds: float,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        name: str = "LLM",
+    ) -> None:
+        self._hold = hold_seconds
+        self._clock = clock
+        self._name = name
+        self._until: float | None = None
+        self.free_used = 0
+        self.paid_used = 0
+
+    def use_paid(self) -> bool:
+        return self._until is not None and self._clock() < self._until
+
+    def free_ok(self) -> None:
+        self.free_used += 1
+
+    def paid_ok(self) -> None:
+        """有料キーが成功した。保持を延ばす（連続して 429 のあいだは、有料に居続ける）。"""
+        self.paid_used += 1
+        again = self.use_paid()
+        if self._hold > 0:
+            self._until = self._clock() + self._hold
+        logger.warning(
+            "%s: 有料キーで応答しました（無料 %d 回・有料 %d 回）。%s",
+            self._name,
+            self.free_used,
+            self.paid_used,
+            f"{self._hold:g} 秒間は最初から有料キーを使います" if self._hold > 0 and not again else "",
+        )
+
+    def clear(self) -> None:
+        """有料キーが失敗した。保持をやめて、無料キーから試す。"""
+        self._until = None
+
+
+async def call_with_key_switch(
+    free: Callable[[], Awaitable[T]],
+    paid: Callable[[], Awaitable[T]],
+    *,
+    switch: KeySwitch,
+    name: str = "LLM",
+) -> T:
+    """free() が 429 で終わったときだけ、paid() を 1 回呼ぶ。
+
+    free は、ヘッジ・再試行（429 の間隔を空けた再試行を含む）を使い切った呼び出しを渡す。切り替えるのは 429 だけで、
+    認証・不正なリクエスト（400/401/403）・一時的な失敗（5xx・タイムアウト）は、そのまま送出する（別のキーでは
+    解決しない、または別の仕組み＝モデルのフォールバックの担当）。paid も失敗したときは、paid の失敗ではなく
+    free の 429 を送出する（呼び出し側のエラー変換がこれまでと変わらないように。paid の失敗の種類だけログに残す）。
+    switch が保持中（直前に有料キーが成功した）なら paid() から始める。それが失敗したら保持をやめて free() を試す。
+    """
+    if switch.use_paid():
+        try:
+            return await paid()
+        except Exception as exc:
+            logger.warning("%s: 有料キーが失敗しました（%s）。無料キーを試します", name, type(exc).__name__)
+            switch.clear()
+    try:
+        result = await free()
+    except Exception as exc:
+        if classify_failure(exc) is not Failure.RATE_LIMITED:
+            raise
+        failure = exc
+    else:
+        switch.free_ok()
+        return result
+    logger.warning("%s: 無料キーが 429（レート制限）で尽きたため、有料キーで 1 回だけ試します", name)
+    try:
+        result = await paid()
+    except Exception as exc:
+        logger.warning("%s: 有料キーも失敗しました（%s）。元の 429 を返します", name, type(exc).__name__)
+        raise failure from None
+    switch.paid_ok()
+    return result
+
+
+async def stream_with_key_switch(
+    free: Callable[[], AsyncIterator[T]],
+    paid: Callable[[], AsyncIterator[T]],
+    *,
+    switch: KeySwitch,
+    name: str = "LLM",
+) -> AsyncIterator[T]:
+    """free() のストリームを流し、最初のチャンクの前に 429 で終わったときだけ paid() に切り替える。
+
+    判定は call_with_key_switch と同じ。最初のチャンクを送った後の失敗は、そのまま送出する（別のキーで
+    やり直すと、先に送った本文と食い違うため）。チャンクを 1 つも返さずに終わったストリームは、一時的な失敗
+    （EmptyStream）として扱い、切り替えない。
+    """
+    sent = False
+    if switch.use_paid():
+        try:
+            async with aclosing(_stream_items(paid, name)) as items:
+                async for item in items:
+                    if not sent:
+                        switch.paid_ok()
+                    sent = True
+                    yield item
+            return
+        except Exception as exc:
+            if sent:
+                raise
+            logger.warning("%s: 有料キーが失敗しました（%s）。無料キーを試します", name, type(exc).__name__)
+            switch.clear()
+    try:
+        async with aclosing(_stream_items(free, name)) as items:
+            async for item in items:
+                if not sent:
+                    switch.free_ok()
+                sent = True
+                yield item
+        return
+    except Exception as exc:
+        if sent or classify_failure(exc) is not Failure.RATE_LIMITED:
+            raise
+        failure = exc
+    logger.warning("%s: 無料キーが 429（レート制限）で尽きたため、有料キーで 1 回だけ試します", name)
+    try:
+        async with aclosing(_stream_items(paid, name)) as items:
+            async for item in items:
+                if not sent:
+                    switch.paid_ok()
+                sent = True
+                yield item
+    except Exception as exc:
+        if sent:
+            raise
+        logger.warning("%s: 有料キーも失敗しました（%s）。元の 429 を返します", name, type(exc).__name__)
+        raise failure from None
