@@ -64,6 +64,7 @@ function ChatScreen() {
             waiting={chat.waiting}
             busy={chat.pending}
             resumed={chat.threadId !== null && chat.messages.length === 0}
+            history={chat.history}
             onExample={chat.pending ? undefined : chat.send}
           />
           {chat.error && (

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChatMessage } from '../hooks/useChat';
+import { MSG_HISTORY_FAILED } from '../hooks/useChat';
+import type { ChatMessage, HistoryStatus } from '../hooks/useChat';
 import { followUpQuestions } from '../lib/followUps';
 import { renderMarkdown } from '../lib/markdown';
 import { parseSources } from '../lib/sources';
@@ -13,6 +14,8 @@ interface MessageListProps {
   busy?: boolean;
   /** 再読み込み後など、thread_id は引き継いでいるが、画面に履歴が無い状態。 */
   resumed?: boolean;
+  /** 保存済みの会話のやり取りを取得している間（loading）と、失敗したとき（error）。 */
+  history?: HistoryStatus;
   /** 空の画面の質問例を押したときに、その質問を送る。渡さなければ、質問例は出さない。 */
   onExample?: (text: string) => void;
 }
@@ -36,6 +39,7 @@ export function MessageList({
   waiting,
   busy = false,
   resumed = false,
+  history = 'idle',
   onExample,
 }: MessageListProps) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -93,7 +97,19 @@ export function MessageList({
       tabIndex={0}
       onScroll={handleScroll}
     >
-      {messages.length === 0 && !waiting && resumed && (
+      {messages.length === 0 && !waiting && history === 'loading' && (
+        <p className="empty-state" role="status" data-testid="history-loading">
+          これまでのやり取りを読み込んでいます…
+        </p>
+      )}
+
+      {messages.length === 0 && !waiting && history === 'error' && (
+        <p className="empty-state" role="alert" data-testid="history-error">
+          {MSG_HISTORY_FAILED}
+        </p>
+      )}
+
+      {messages.length === 0 && !waiting && resumed && history === 'idle' && (
         <p className="empty-state" data-testid="resumed-notice">
           前回の会話の続きです（これまでのやり取りは画面に表示されません）。
           <br />
@@ -101,7 +117,7 @@ export function MessageList({
         </p>
       )}
 
-      {messages.length === 0 && !waiting && !resumed && (
+      {messages.length === 0 && !waiting && !resumed && history === 'idle' && (
         <div className="empty-state">
           <p>登録された資料（設定資料・規程・取扱説明書・店舗案内など）について質問してみましょう。</p>
           {onExample && (
