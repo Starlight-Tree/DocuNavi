@@ -2,6 +2,8 @@
 
 - `GET /threads`: ログイン中の利用者の会話を、新しい順に返す。`AUTH_MODE=required` のときだけ使える。匿名（off）の会話には
   持ち主がなく、一覧にすると他人の会話が見えてしまうので、404 を返す
+- `GET /threads/{thread_id}/messages`: 会話の発言を古い順に返す（ユーザーと最終回答だけ。ツールの結果は含めない）。
+  required では本人の会話だけ（他人の ID は存在しないのと同じ 404）。off では `thread_id` を知っていることが権限
 - `DELETE /threads/{thread_id}`: 会話を 1 件消す。required では本人の会話だけ（他人の ID は存在しないのと同じ 404）。
   off では `/chat` と同じく、`thread_id` を知っていることが権限
 - 題名は、会話の最初のユーザー発言の先頭（新しい列も LLM 呼び出しも使わない）。履歴のチェックポイントから読む
@@ -13,10 +15,10 @@ import asyncio
 import logging
 import re
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Response
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
 
@@ -56,6 +58,34 @@ class ThreadSummary(BaseModel):
 
 class ThreadList(BaseModel):
     threads: list[ThreadSummary]
+
+
+class ThreadMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str
+
+
+class MessageList(BaseModel):
+    messages: list[ThreadMessage]
+
+
+def visible_messages(messages: list[Any]) -> list[ThreadMessage]:
+    """画面に出す発言だけ（古い順）。ユーザーの発言と、ツール呼び出しの無い（最終回答の）AI の発言で、本文が空のものは除く。
+
+    ツールの結果（検索で引いた資料の本文）と、ツールを呼ぶだけの発話は、画面に出さない。
+    """
+    shown: list[ThreadMessage] = []
+    for message in messages:
+        if isinstance(message, HumanMessage):
+            role = "user"
+        elif isinstance(message, AIMessage) and not message.tool_calls:
+            role = "assistant"
+        else:
+            continue
+        text = message.text.strip()
+        if text:
+            shown.append(ThreadMessage(role=role, text=text))
+    return shown
 
 
 def _saver() -> BaseCheckpointSaver:
@@ -148,6 +178,21 @@ async def list_threads(user_id: Annotated[str | None, Depends(current_user)]) ->
     except Exception as exc:  # noqa: BLE001 - 固定メッセージにする
         raise _unavailable(exc) from None
     return ThreadList(threads=list(threads))
+
+
+@router.get("/{thread_id}/messages", response_model=MessageList)
+async def get_thread_messages(
+    thread_id: Annotated[str, Path(max_length=routes.MAX_THREAD_ID_LENGTH, pattern=r"^[A-Za-z0-9_-]+$")],
+    user_id: Annotated[str | None, Depends(current_user)],
+) -> MessageList:
+    key = conversation_key(user_id, thread_id)
+    try:
+        latest = await _saver().aget_tuple({"configurable": {"thread_id": key}})
+    except Exception as exc:  # noqa: BLE001 - 固定メッセージにする
+        raise _unavailable(exc) from None
+    if latest is None:
+        raise HTTPException(status_code=404, detail=_DETAIL_NOT_FOUND)
+    return MessageList(messages=visible_messages(latest.checkpoint.get("channel_values", {}).get("messages", [])))
 
 
 @router.delete("/{thread_id}", status_code=204)
