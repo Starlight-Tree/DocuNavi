@@ -13,6 +13,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "build:e2e": "VITE_SUPABASE_URL= VITE_SUPABASE_PUBLISHABLE_KEY= VITE_API_BASE_URL= vite build --outDir dist-e2e --emptyOutDir",
+    "build:e2e:auth": "VITE_SUPABASE_URL=https://auth.e2e.invalid VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_e2e_dummy VITE_API_BASE_URL= vite build --outDir dist-e2e-auth --emptyOutDir",
     "test:e2e": "playwright test"
   },
   "dependencies": {

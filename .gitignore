@@ -20,3 +20,4 @@ __pycache__/
 test-results/
 playwright-report/
 frontend/dist-e2e/
+frontend/dist-e2e-auth/
