@@ -148,17 +148,21 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   コマンドを提示してユーザーに実行してもらう。提示するコマンドには、誰の権限で動かすかを明示する
   （準備は `env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`、日常のデプロイは `--impersonate-service-account=agent-deployer@…`。
   [.devcontainer/README.md](.devcontainer/README.md) の「書き込みをするとき」）。
-- **ログイン・認証情報には触れない。** `gcloud auth` の操作（`list` を除く）、`gcloud config set/unset`、
+- **ログインの起動だけは、引数なしの `gcloud auth login` に限って実行してよい。** フックが毎回「確認」を返す。
+  ブラウザーでのアカウントの選択と承認は、ユーザーが行う。`--no-launch-browser` は使わない（コードの受け渡しを避ける）。
+  ログイン後は、読み取り（`gcloud billing projects describe`、`gcloud services list` など）だけ実行する。
+  開発コンテナにはブラウザーが無く、ユーザーのブラウザーへ戻れるかは未確認。届かなければ、ユーザーが自分の端末でログインする。
+- **それ以外の認証・認証情報には触れない。** `gcloud auth` の操作（`list`・上の `login`・`revoke --all` を除く）、`gcloud config set/unset`、
   `--impersonate-service-account` / `--account` / `--access-token-file`、`CLOUDSDK_*` の設定、
-  `~/.config/gcloud` やトークンの読み出しはしない。PreToolUse フック（`.claude/hooks/guard-cloud-cli.py`）が止める。
+  `~/.config/gcloud` やトークンの読み出し・保存・送信はしない。PreToolUse フック（`.claude/hooks/guard-cloud-cli.py`）が止める。
   止められたら、回避せず（別の書き方・スクリプト経由・別のツールで同じことをしない）、ユーザーに伝える。
 - **日常の ID を外す操作もしない。** `env -u`、`unset`、`export -n`、CLI の前に置いた `sudo` などは、フックが止める。
   外さないと実行できない書き込みは、自分では外さず、コマンドを提示してユーザーに実行してもらう。
 - **フックが「確認」を返した操作は、ユーザーの承認なしに進めない。**
 - **ガードを外さない。** `.claude/settings.json` のフック・権限ルール・`disableBypassPermissionsMode` を、頼まれずに
   編集・無効化しない。`--dangerously-skip-permissions` を勧めない。
-- **トークンの中身は表示・ログ・コミットしない。** 作業の終わりには、`gcloud auth revoke --all` でのログアウトを促す。
-  ログインはボリュームに残さない。
+- **トークンの中身は表示・ログ・コミットしない。** 作業の終わりには、`gcloud auth revoke --all` でログアウトする
+  （日常の ID を固定していると、素のままでは失敗することがある。失敗したら、ユーザーに実行してもらう）。ログインはボリュームに残さない。
 
 ## gh（読み取り専用のトークン + ガード）
 
