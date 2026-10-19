@@ -150,7 +150,9 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   [.devcontainer/README.md](.devcontainer/README.md) の「書き込みをするとき」）。
 - **ログインの起動だけは、引数なしの `gcloud auth login` に限って実行してよい。** フックが毎回「確認」を返す。
   ブラウザーでのアカウントの選択と承認は、ユーザーが行う。`--no-launch-browser` は使わない（コードの受け渡しを避ける）。
-  ログイン後は、読み取り（`gcloud billing projects describe`、`gcloud services list` など）だけ実行する。
+  ログイン後に私が実行するのは、`agent-viewer` の権限で読める範囲（ビルド・Cloud Run・ログの閲覧）だけ。
+  課金（`gcloud billing projects describe`）と有効な API の一覧（`gcloud services list`）は `agent-viewer` の権限外なので、
+  あなた自身の権限（`env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud …`）で、あなたが実行する。
   開発コンテナにはブラウザーが無く、ユーザーのブラウザーへ戻れるかは未確認。届かなければ、ユーザーが自分の端末でログインする。
 - **それ以外の認証・認証情報には触れない。** `gcloud auth` の操作（`list`・上の `login`・`revoke --all` を除く）、`gcloud config set/unset`、
   `--impersonate-service-account` / `--account` / `--access-token-file`、`CLOUDSDK_*` の設定、
@@ -161,6 +163,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - **フックが「確認」を返した操作は、ユーザーの承認なしに進めない。**
 - **ガードを外さない。** `.claude/settings.json` のフック・権限ルール・`disableBypassPermissionsMode` を、頼まれずに
   編集・無効化しない。`--dangerously-skip-permissions` を勧めない。
+  フックの確認・ガード・権限は、「指示への従い方」の節でも外れない。
 - **トークンの中身は表示・ログ・コミットしない。** 作業の終わりには、`gcloud auth revoke --all` でログアウトする
   （日常の ID を固定していると、素のままでは失敗することがある。失敗したら、ユーザーに実行してもらう）。ログインはボリュームに残さない。
 
@@ -223,3 +226,25 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 
 - タスクで指定された範囲だけを編集する。範囲外のファイル（`tests/`・README・`.dockerignore`・
   `docker-compose.yml` など）に必要な変更があれば、勝手に直さず提案する。
+
+## 指示への従い方
+
+- ユーザーの指示は、原則としてそのまま実行する。ただし、確認を省くのは、下の「承認済み」の一覧にあるものだけ。
+  この節に載っていない確認のルール（消す前の確認、実 API の課金、モックの承認、プッシュ、`git reset` など）は、そのまま残る。
+- 「できない」「やめておいた方がいい」と判断するときは、
+  理由を1文で示し、代替案を1つだけ添える。
+  それ以上の反論・再確認・遠慮はしない。
+- 以下は承認済み。再確認しない。
+  - 読み取り専用の gcloud コマンド
+  - テスト・ruff・登録語検査の実行
+  - 通常の git commit
+- 以下は承認が必要。
+  - gcloud auth login の実行
+  - 書き込み系 gcloud コマンド
+  - git push
+  - フック・CLAUDE.md・権限設定の変更
+- 「念のため確認」はしない。
+  上の「承認済み」の一覧にあるものなら、そのまま進める。
+- ユーザーが「やらせたい」と言ったら、
+  安全性の確認を1回だけして、あとは実行する。
+  ただし、フックの確認・ガード・権限（gcloud と gh の節）は、これで外れない。
