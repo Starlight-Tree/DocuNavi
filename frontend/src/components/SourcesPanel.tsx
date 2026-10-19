@@ -23,6 +23,8 @@ export function SourcesPanel({ context, sources: refs }: SourcesPanelProps) {
   const [opening, setOpening] = useState<number | null>(null);
   const [failure, setFailure] = useState<Exclude<OpenSourceResult, 'opened'> | null>(null);
   if (sources.length === 0) return null;
+  // 1 位と類似度が離れた 2 件目以降は、カードに出さない（番号は元の順のまま。抜粋の一覧には全部残す）
+  const cards = sources.map((source, index) => ({ source, index })).filter(({ source }) => !source.weak);
 
   const open = async (index: number) => {
     const source = sources[index];
@@ -38,7 +40,7 @@ export function SourcesPanel({ context, sources: refs }: SourcesPanelProps) {
     <div className="sources">
       <p className="source-cards-label">出典</p>
       <div className="source-cards" role="group" aria-label="出典（押すと元のPDFを開きます）">
-        {sources.map((source, index) => (
+        {cards.map(({ source, index }) => (
           <button
             key={`${index}-${source.name}`}
             type="button"

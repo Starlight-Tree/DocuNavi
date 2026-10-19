@@ -7,6 +7,8 @@ export interface SourceDoc {
   page?: number;
   /** ページをまたぐ表の最終ページ。 */
   pageEnd?: number;
+  /** 1 位との類似度の差が大きい 2 件目以降。出典カードには出さない（抜粋の一覧には残す）。サーバーが送らなければ無い。 */
+  weak?: boolean;
 }
 
 /** サーバーが `messageMetadata.sources` で送る、出典ごとのページ（context の出典と同じ順）。 */
@@ -14,6 +16,7 @@ export interface SourceRef {
   name: string;
   page: number | null;
   pageEnd: number | null;
+  weak: boolean;
 }
 
 // バックエンドは検索結果を "[ファイル名.txt]\n本文"（PDF なら .pdf）を空行で連ねた形で返す。
@@ -67,24 +70,31 @@ export function parseSourceRefs(value: unknown): SourceRef[] | undefined {
   const refs: SourceRef[] = [];
   for (const item of value) {
     if (typeof item !== 'object' || item === null) return undefined;
-    const { name, page, page_end: pageEnd } = item as Record<string, unknown>;
+    const { name, page, page_end: pageEnd, weak } = item as Record<string, unknown>;
     if (typeof name !== 'string') return undefined;
     const validPage = isPage(page) ? page : null;
-    refs.push({ name, page: validPage, pageEnd: validPage !== null && isPage(pageEnd) && pageEnd > validPage ? pageEnd : null });
+    refs.push({
+      name,
+      page: validPage,
+      pageEnd: validPage !== null && isPage(pageEnd) && pageEnd > validPage ? pageEnd : null,
+      weak: weak === true,
+    });
   }
   return refs;
 }
 
 /**
  * context から読んだ出典に、サーバーが送ったページを付ける。
- * 件数とファイル名が 1 件ずつ合わないとき（見出しに見える行が本文にあった等）は、ずれを避けてページを付けない。
+ * 件数とファイル名が 1 件ずつ合わないとき（見出しに見える行が本文にあった等）は、ずれを避けてページも weak も付けない。
  */
 export function withPages(docs: SourceDoc[], refs: SourceRef[] | undefined): SourceDoc[] {
   if (!refs || refs.length !== docs.length || docs.some((doc, i) => doc.name !== refs[i]?.name)) return docs;
   return docs.map((doc, i) => {
     const ref = refs[i];
-    if (!ref || ref.page === null) return doc;
-    return ref.pageEnd === null ? { ...doc, page: ref.page } : { ...doc, page: ref.page, pageEnd: ref.pageEnd };
+    if (!ref) return doc;
+    const withWeak = ref.weak ? { ...doc, weak: true } : doc;
+    if (ref.page === null) return withWeak;
+    return ref.pageEnd === null ? { ...withWeak, page: ref.page } : { ...withWeak, page: ref.page, pageEnd: ref.pageEnd };
   });
 }
 
