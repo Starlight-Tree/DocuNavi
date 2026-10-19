@@ -1,0 +1,23 @@
+# Cloud Build でイメージをビルドして Artifact Registry に置く（手順は docs/deploy.md の「F. ログイン付きのイメージ」）。
+# `gcloud run deploy --source .` は Dockerfile のビルド引数を渡せないので、ログイン画面の設定（VITE_SUPABASE_*）を
+# 埋め込むときはこちらを使う。配備は、できたイメージを `gcloud run deploy --image` で行う（このファイルは配備しない）。
+#
+# 置換変数（--substitutions で渡す。ユーザー定義は _ で始まる）:
+#   _IMAGE                       ビルドしたイメージの名前（例: <REGION>-docker.pkg.dev/<PROJECT_ID>/<リポジトリ>/<サービス>:<タグ>）
+#   _SUPABASE_URL                Supabase の URL（公開してよい値。このリポジトリには書かない）
+#   _SUPABASE_PUBLISHABLE_KEY    Supabase の publishable key（公開してよい値。secret key は渡さない）
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - VITE_SUPABASE_URL=${_SUPABASE_URL}
+      - --build-arg
+      - VITE_SUPABASE_PUBLISHABLE_KEY=${_SUPABASE_PUBLISHABLE_KEY}
+      - --tag
+      - ${_IMAGE}
+      - .
+
+# ビルドが通ったあとに push される
+images:
+  - ${_IMAGE}

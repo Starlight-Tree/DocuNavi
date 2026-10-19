@@ -234,6 +234,66 @@ as_me gcloud scheduler jobs create http "${JOB}-weekly" \
 
 初回は、Artifact Registry の Docker リポジトリ（`cloud-run-source-deploy`）の作成を聞かれます。
 
+### E. 公開前の守り（ロードマップ 2）
+
+`--no-allow-unauthenticated` は Cloud Run の入口の認証（IAM）です。公開すると（`allUsers` に `roles/run.invoker`）、これが外れるので、
+**アプリ側のログイン（`AUTH_MODE=required`）と、費用の上限を先に揃えます。** 上の A〜C のコマンドに、次を足します。
+**この節は手順の案で、未実行です**（課金が無効だったため。2026-10-13 時点）。
+
+| 守り | 設定 | 備考 |
+|---|---|---|
+| 費用の上限 | `--max-instances 2`（上の A に入っている） | `2 × DATABASE_POOL_MAX_SIZE` が DB の接続数に収まること（C） |
+| 予算アラート | 下の `budgets create` | 通知だけで、使用は止まらない。上限そのものは `--max-instances` |
+| ログイン | `AUTH_MODE=required` と `SUPABASE_URL`（[configuration.md](configuration.md) の「ログイン（認証）」） | 起動時に JWKS を取得する。取れなければリビジョンが Ready にならない |
+| CORS | `CORS_ORIGINS` | 画面は同じオリジンから配信されるので、CORS は要らない。**空**（何も許可しない）か、サービスの URL に絞る。`*` のままにしない |
+
+```bash
+# 予算アラート（請求先アカウントの管理者の権限。as_me で実行）。金額としきい値は例
+as_me gcloud billing budgets create --billing-account=<請求先アカウント ID> \
+  --display-name="zahard-chatbot" --budget-amount=20USD \
+  --filter-projects="projects/${PROJECT_ID}" \
+  --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0
+```
+
+デプロイのコマンドの `--set-env-vars` に足す（`SUPABASE_URL` は公開してよい値だが、このリポジトリには書かない）:
+
+```bash
+  AUTH_MODE=required,SUPABASE_URL=<https://<ref>.supabase.co>,CORS_ORIGINS=
+```
+
+**未対応（公開の前に要る）:**
+
+- **画面のログインは、下の F のイメージで有効にする。** `--source .` のイメージでは `VITE_SUPABASE_*` が空で、`AUTH_MODE=required` では質問できない（`/chat/stream` が 401）。
+- Cloud Run から Supabase（DB と JWKS）に届くこと、トークンの期限切れ後の更新は未確認。
+- 課金の有効化は、このセッションでは確認できなかった（gcloud にログインしていない）。
+
+### F. ログイン付きのイメージ（`cloudbuild.yaml`）
+
+`--source .` は Dockerfile のビルド引数を渡せないので、画面のログイン設定（`VITE_SUPABASE_URL`・`VITE_SUPABASE_PUBLISHABLE_KEY`。どちらも公開してよい値）は、
+`cloudbuild.yaml` でイメージをビルドして埋め込みます。配備は、できたイメージを `--image` で行います。
+**この節は手順の案で、Cloud Build での実行は未確認です。** 確かめたのは、設定の名前が Dockerfile と合っていること（`tests/test_cloudbuild.py`）と、
+同じ名前の環境変数で `vite build` すると値がバンドルに入ることまでです（Docker は開発コンテナに無く、`docker build` は実行していません）。
+
+```bash
+REPO=cloud-run-source-deploy      # 初回の --source 配備で作られるリポジトリ。無ければ下で作る
+IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:$(git rev-parse --short HEAD)"
+
+# 初回だけ: Artifact Registry のリポジトリを作る（書き込み。as_me）
+as_me gcloud artifacts repositories create "$REPO" --repository-format=docker \
+  --location "$REGION" --project "$PROJECT_ID"
+
+# ビルドして push（書き込み。as_me）。SUPABASE_URL と SUPABASE_PUBLISHABLE_KEY は、画面用の公開値
+as_me gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
+  --substitutions "_IMAGE=${IMAGE},_SUPABASE_URL=${SUPABASE_URL},_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+```
+
+配備は、A のコマンドの `--source .` を `--image "$IMAGE"` に置き換えます（ほかのフラグはそのまま）。`agent-deployer` でできるかは未確認です
+（`roles/run.sourceDeveloper` はソースからの配備用で、`--image` の配備や、ビルドの権限が足りない可能性があります。エラーに出た権限を足します）。
+
+- イメージのタグはコミットごとに変えます（`:latest` にしない）。ロールバックで、前のイメージを指定できるようにするためです。
+- `.dockerignore` が `.env` を除いているので、ビルドコンテキストに秘密は入りません。`VITE_*` に入れる値を、secret key や `DATABASE_URL` にしないこと
+  （バンドルに入り、誰でも読めます）。
+
 ## 確かめる
 
 認証必須なので、`gcloud run services proxy` でローカルに橋渡しします。呼び出しの権限（`roles/run.invoker`）は
