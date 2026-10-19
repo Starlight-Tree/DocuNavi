@@ -129,6 +129,15 @@ A のコマンドの `--set-env-vars` を、次の 1 行に置き換えます。
   --set-secrets "GEMINI_API_KEY=gemini-api-key:latest"
 ```
 
+**無料キーが 429 のときだけ有料キーを使う（任意）。** 無料枠のキー（請求の無いプロジェクト）を `gemini-api-key` に入れて始めるときは、
+予算ガード付きのプロジェクト（`$PROJECT_ID`）に作ったキーを、別の Secret `gemini-api-key-paid` に入れておきます
+（作り方は上と同じ。Secret 名と、`read` の見出しだけを変える）。使うときは `--set-secrets` に足します
+（[configuration.md](configuration.md) の「無料キーが 429 のとき」）。足さなければ、無料キーだけで動きます。
+
+```bash
+  --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,GEMINI_API_KEY_PAID=gemini-api-key-paid:latest"
+```
+
 ### C. DB に接続する（本物の LLM では必須）
 
 `DATABASE_URL` は、資料の検索（DB のベクトル検索）と会話履歴の保存先を兼ねます。無いと、本物の LLM では起動に失敗します（[configuration.md](configuration.md) の「資料の検索」「会話履歴の保存先」）。

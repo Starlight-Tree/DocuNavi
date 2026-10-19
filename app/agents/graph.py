@@ -37,11 +37,16 @@ from app.agents.resilience import (
     EmptyStream,
     FallbackTrace,
     HedgePolicy,
+    KeySwitch,
     PrimaryBreaker,
     call_with_fallback,
+    call_with_key_switch,
     hedged_call,
     hedged_stream,
+    key_switch_hold_seconds,
+    paid_api_key,
     stream_with_fallback,
+    stream_with_key_switch,
 )
 from app.agents.state import AgentState
 from app.agents.tools import TOOLS
@@ -198,7 +203,7 @@ def llm_hedge_policy() -> HedgePolicy | None:
     return HedgePolicy(hedge_delay=delay, max_attempts=llm_max_attempts())
 
 
-def _create_gemini(model: str) -> ChatGoogleGenerativeAI:
+def _create_gemini(model: str, api_key: str | None = None) -> ChatGoogleGenerativeAI:
     """Vertex AI（ADC）または Gemini API キーで、指定したモデルのクライアントを作る（モックの判定は呼び出し側）。
 
     temperature は渡さない。Gemini 3 系は既定の 1.0 のままにするのが公式の推奨で（1.0 未満はループや性能低下の
@@ -212,7 +217,9 @@ def _create_gemini(model: str) -> ChatGoogleGenerativeAI:
         if location := os.environ.get("GOOGLE_CLOUD_LOCATION", "").strip():
             kwargs["location"] = location
         return _with_retry_policy(ChatGoogleGenerativeAI(model=model, vertexai=True, **kwargs))
-    return _with_retry_policy(ChatGoogleGenerativeAI(model=model, google_api_key=os.environ["GEMINI_API_KEY"]))
+    return _with_retry_policy(
+        ChatGoogleGenerativeAI(model=model, google_api_key=api_key or os.environ["GEMINI_API_KEY"])
+    )
 
 
 def create_llm() -> BaseChatModel:
@@ -226,6 +233,18 @@ def create_llm() -> BaseChatModel:
     if is_mock_mode():
         return MockChatModel()
     return _create_gemini(os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL)
+
+
+def create_paid_llm() -> BaseChatModel | None:
+    """無料キーが 429 で尽きたときに 1 回だけ試す、有料キー（GEMINI_API_KEY_PAID）の同じモデルのクライアント。使わないときは None。
+
+    GEMINI_API_KEY_PAID が空・モックモード・Vertex AI（キーを使わない）のときは None。モデルも履歴も主キーと同じなので、
+    別モデルへのフォールバックと違い、履歴（thought signature）の引き継ぎの問題はない。
+    """
+    key = paid_api_key()
+    if not key or is_mock_mode() or use_vertex_ai():
+        return None
+    return _create_gemini(os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL, api_key=key)
 
 
 def llm_fallback_model() -> str:
@@ -334,6 +353,8 @@ async def _stream_reply(
     breaker: PrimaryBreaker | None = None,
     on_fallback: Callable[[], None] | None = None,
     trace: FallbackTrace | None = None,
+    paid_llm: Any = None,
+    key_switch: KeySwitch | None = None,
 ) -> AIMessage:
     """LLM の応答をチャンクごとに受け、本文を逐次ガードに通してカスタムストリームへ流す。
 
@@ -343,16 +364,29 @@ async def _stream_reply(
     （最初のチャンクの後は切り替えない。送った本文と食い違うため）。prefer_fallback・breaker・on_fallback は
     stream_with_fallback と同じ（同じ質問の中でフォールバックを覚える・主モデルを一時的に飛ばす）。
     trace は、ヘッジの中で並行して投げたフォールバックの結果を受け取る（この呼び出しごとに新しいもの）。
+    paid_llm（と key_switch）があれば、無料キーの試行（ヘッジ・429 の間隔を空けた再試行）が最初のチャンクの前に
+    429 で尽きたときだけ、有料キーの同じモデルで 1 回試す（stream_with_key_switch）。
     ガードが漏洩を検知したら、LLM の受信をやめ、そのターンのメッセージを定型文に置き換える（ツール呼び出しも
     捨てる）。漏洩した本文が履歴に残らず、そのターンの検索（ツール）へも進まない。
     """
     writer = get_stream_writer()
     guard = StreamingOutputGuard(SYSTEM_PROMPT)
+
+    def open_primary() -> Any:
+        if paid_llm is None or key_switch is None:
+            return _open_stream(llm, messages, hedge, fallback_llm, fallback_name, trace)
+        return stream_with_key_switch(
+            lambda: _open_stream(llm, messages, hedge, fallback_llm, fallback_name, trace),
+            lambda: _open_stream(paid_llm, messages, hedge, fallback_llm, fallback_name, trace),
+            switch=key_switch,
+            name="Gemini",
+        )
+
     if fallback_llm is None:
-        chunks = _open_stream(llm, messages, hedge)
+        chunks = open_primary()
     else:
         chunks = stream_with_fallback(
-            lambda: _open_stream(llm, messages, hedge, fallback_llm, fallback_name, trace),
+            open_primary,
             lambda: fallback_llm.astream(messages),
             name="Gemini",
             fallback_name=fallback_name,
@@ -388,6 +422,8 @@ def build_graph(
     checkpointer: BaseCheckpointSaver | None = None,
     fallback_llm: BaseChatModel | None = None,
     fallback_breaker: PrimaryBreaker | None = None,
+    paid_llm: BaseChatModel | None = None,
+    key_switch: KeySwitch | None = None,
 ):
     """START -> guard_input -> agent -> (tools -> agent)* -> guard_output -> END のグラフを組み立てる。
 
@@ -400,6 +436,9 @@ def build_graph(
     切り替えたあと、同じ質問の中の以降の呼び出しは、フォールバックから始める（常に）。fallback_breaker は、
     切り替えたあと一定時間、次の質問でも主モデルを飛ばすための状態（llm を渡さないとき、
     GEMINI_FALLBACK_HOLD_SECONDS から作る。テスト等は明示しない限り使わない）。
+    paid_llm は、無料キーの試行（ヘッジ・再試行）が 429（レート制限）で尽きたときだけ 1 回試す、有料キーの同じモデル。
+    切り替えたあと key_switch の保持の間は、最初から有料キーを使う（llm を渡さないとき、GEMINI_API_KEY_PAID が
+    あれば作る。保持は GEMINI_KEY_SWITCH_HOLD_SECONDS。テスト等は明示しない限り使わない）。
     checkpointer は会話履歴（thread_id ごとの状態）の保存先。渡さなければプロセス内メモリ（MemorySaver）で、
     再起動で消え、複数のワーカー・インスタンス間では共有されない。
     """
@@ -409,6 +448,15 @@ def build_graph(
         if not isinstance(llm, MockChatModel):
             if hedge is None:
                 hedge = llm_hedge_policy()
+            if paid_llm is None:
+                paid_llm = create_paid_llm()
+                if paid_llm is not None:
+                    hold = key_switch_hold_seconds()
+                    key_switch = key_switch or KeySwitch(hold, name="Gemini")
+                    logger.info(
+                        "LLM の有料キー: 無料キーが 429 で尽きたときだけ使う（切り替えたあとの %g 秒は、最初から有料キーを使う）",
+                        hold,
+                    )
             if fallback_llm is None:
                 fallback_llm = create_fallback_llm()
                 if fallback_llm is not None:
@@ -425,6 +473,9 @@ def build_graph(
                     )
     llm_with_tools = llm.bind_tools(TOOLS)
     fallback_with_tools = fallback_llm.bind_tools(TOOLS) if fallback_llm is not None else None
+    paid_with_tools = paid_llm.bind_tools(TOOLS) if paid_llm is not None else None
+    if paid_with_tools is not None and key_switch is None:
+        key_switch = KeySwitch(key_switch_hold_seconds(), name="Gemini")
     tool_node = ToolNode(TOOLS)
 
     async def guard_input(state: AgentState) -> dict:
@@ -486,15 +537,27 @@ def build_graph(
                 breaker=fallback_breaker,
                 on_fallback=mark_fallback,
                 trace=trace,
+                paid_llm=paid_with_tools,
+                key_switch=key_switch,
             )
         else:
 
-            async def call_primary() -> AIMessage:
+            async def call_on(model: Any) -> AIMessage:
                 if hedge is None:
-                    return await llm_with_tools.ainvoke(messages)
+                    return await model.ainvoke(messages)
                 # /chat（画面は使っていない）は、フォールバックを並行して投げない。主モデルの試行が尽きてから
                 # 1 回だけ試す（無応答のときは、試行ごとの上限まで待つ）。並行して投げるのは /chat/stream だけ
-                return await hedged_call(lambda: llm_with_tools.ainvoke(messages), hedge, name="Gemini")
+                return await hedged_call(lambda: model.ainvoke(messages), hedge, name="Gemini")
+
+            async def call_primary() -> AIMessage:
+                if paid_with_tools is None or key_switch is None:
+                    return await call_on(llm_with_tools)
+                return await call_with_key_switch(
+                    lambda: call_on(llm_with_tools),
+                    lambda: call_on(paid_with_tools),
+                    switch=key_switch,
+                    name="Gemini",
+                )
 
             if fallback_with_tools is None:
                 reply = await call_primary()

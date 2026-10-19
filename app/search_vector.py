@@ -12,6 +12,7 @@ DB は既存の接続プール（`app/history.py` の `get_pool()`）を借り�
 - **失敗したときは、この関数が例外（`VectorSearchError`）を投げる。** 別の経路に戻らない（どちらで答えたかが曖昧になるため）。
   例外の文字列には接続先・URL・本文が入りうるので、ログには型の名前だけを残す。
 - 埋め込みの呼び出しは 1 回だけ（SDK の再試行は切る）で、上限は `EMBED_TIMEOUT_SECONDS`。質問ごとに API を 1 回呼ぶ。
+  `GEMINI_API_KEY_PAID` があるときだけ、無料キーが 429 だったときに有料キーで 1 回やり直す。
 """
 
 import asyncio
@@ -20,6 +21,7 @@ import os
 from collections.abc import Mapping
 from typing import Any, NamedTuple
 
+from app.agents.resilience import KeySwitch, call_with_key_switch, key_switch_hold_seconds, paid_api_key
 from app.history import get_pool
 from app.ingestion import embedding
 
@@ -68,6 +70,8 @@ class VectorSearchError(RuntimeError):
 
 
 _client: Any | None = None
+_paid_client: Any | None = None
+_key_switch: KeySwitch | None = None
 
 
 def _api_key() -> str:
@@ -79,29 +83,46 @@ def _api_key() -> str:
     return key
 
 
+def _new_client(api_key: str) -> Any:
+    from google import genai
+    from google.genai import types
+
+    return genai.Client(
+        # Vertex AI の環境変数（GOOGLE_GENAI_USE_VERTEXAI）が真でも、埋め込みは API キーで呼ぶ（キーを Vertex に送らない）
+        vertexai=False,
+        api_key=api_key,
+        # 再試行しない（attempts=1）。timeout はミリ秒
+        http_options=types.HttpOptions(
+            timeout=int(EMBED_TIMEOUT_SECONDS * 1000), retry_options=types.HttpRetryOptions(attempts=1)
+        ),
+    )
+
+
 def _get_client() -> Any:
     global _client
     if _client is None:
-        from google import genai
-        from google.genai import types
-
-        _client = genai.Client(
-            # Vertex AI の環境変数（GOOGLE_GENAI_USE_VERTEXAI）が真でも、埋め込みは API キーで呼ぶ（キーを Vertex に送らない）
-            vertexai=False,
-            api_key=_api_key(),
-            # 再試行しない（attempts=1）。timeout はミリ秒
-            http_options=types.HttpOptions(
-                timeout=int(EMBED_TIMEOUT_SECONDS * 1000), retry_options=types.HttpRetryOptions(attempts=1)
-            ),
-        )
+        _client = _new_client(_api_key())
     return _client
 
 
-async def embed_query(query: str) -> list[float]:
-    """検索クエリの埋め込み（768 次元）。API を 1 回呼ぶ。失敗は例外（文字列に URL などが入りうるので、呼び出し側は型だけをログに残す）。"""
+def _get_paid_client() -> Any:
+    """GEMINI_API_KEY_PAID のクライアント（無料キーが 429 のときだけ使う）。"""
+    global _paid_client
+    if _paid_client is None:
+        _paid_client = _new_client(paid_api_key())
+    return _paid_client
+
+
+def _get_key_switch() -> KeySwitch:
+    global _key_switch
+    if _key_switch is None:
+        _key_switch = KeySwitch(key_switch_hold_seconds(), name="埋め込み")
+    return _key_switch
+
+
+async def _embed(client: Any, query: str) -> list[float]:
     from google.genai import types
 
-    client = _get_client()
     contents = [types.Content(parts=[types.Part(text=embedding.query_text(query))])]
     result = await asyncio.wait_for(
         client.aio.models.embed_content(
@@ -112,6 +133,22 @@ async def embed_query(query: str) -> list[float]:
         timeout=EMBED_TIMEOUT_SECONDS + 1.0,
     )
     return embedding.check_vectors([e.values or [] for e in (result.embeddings or [])], 1)[0]
+
+
+async def embed_query(query: str) -> list[float]:
+    """検索クエリの埋め込み（768 次元）。API を 1 回呼ぶ。失敗は例外（文字列に URL などが入りうるので、呼び出し側は型だけをログに残す）。
+
+    GEMINI_API_KEY_PAID があるときだけ、無料キーが 429（レート制限）だったときに有料キーで 1 回やり直す
+    （LLM と同じ方針。ここは再試行しないので、429 はすぐ切り替わる）。400/401/403 や一時的な失敗では切り替えない。
+    """
+    if not paid_api_key():
+        return await _embed(_get_client(), query)
+    return await call_with_key_switch(
+        lambda: _embed(_get_client(), query),
+        lambda: _embed(_get_paid_client(), query),
+        switch=_get_key_switch(),
+        name="埋め込み",
+    )
 
 
 def _chunk_text(heading: str | None, content: str) -> str:
