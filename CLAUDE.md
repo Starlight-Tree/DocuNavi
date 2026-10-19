@@ -82,6 +82,11 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   呼び出しごとのオブジェクトに置く。**有効にする前に**、主モデルで始めた会話
   （thought signature を含む履歴）を別モデルで続けられることを、実 API で両方向とも確かめる（未検証）。
   取り消した試行の課金も未確認。詳細は `docs/configuration.md` の「主モデルが落ちたとき（フォールバック）」。
+- **有料キーへの切り替えは任意で、既定は無効。** `GEMINI_API_KEY_PAID`（予算ガード付きプロジェクトのキー）を入れたときだけ、
+  `GEMINI_API_KEY`（無料キー）の試行が **429 で尽きた** あとに、同じモデルを有料キーで 1 回試す（400/401/403/404 と 5xx では試さない。
+  LLM と質問の埋め込みの両方。部品は `resilience.py` の `KeySwitch` / `call_with_key_switch` / `stream_with_key_switch`）。
+  有料キーが成功してから `GEMINI_KEY_SWITCH_HOLD_SECONDS`（60）の間は、最初から有料キーを使う。キーの値はログに出さない。
+  本物の 429 での確認は未了。詳細は `docs/configuration.md` の「無料キーが 429 のとき」。
 - **`temperature` は指定しない。** Gemini 3 系は既定の 1.0 のままが公式の推奨（1.0 未満はループや性能低下の恐れ）で、
   `gemini-3.5-flash-lite` は指定を無視する。`tests/test_llm_config.py` が、渡さないことと、ライブラリが未指定なら
   送らないことを確かめる。
