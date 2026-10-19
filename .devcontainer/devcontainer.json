@@ -28,8 +28,11 @@
 	// 固定する。ターミナルでもエージェントの実行でも、起動した時点から閲覧専用になる（手動で設定・解除しない）。
 	// 書き込みは、コマンドごとに明示する（env -u でこの変数を外すか、--impersonate-service-account で別の SA を
 	// 指定する）。手順は .devcontainer/README.md。
+	// CLAUDE_CONFIG_DIR: Claude Code の設定ファイル（.claude.json。ローカル登録の MCP を含む）を ~/.claude のボリューム側
+	// （~/.claude/.claude.json）に置き、再ビルドで消えないようにする。Mac の ~/.claude.json は使わない。
 	"containerEnv": {
 		"GH_CONFIG_DIR": "/home/vscode/.gh-config",
+		"CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
 		"TZ": "Asia/Tokyo",
 		"CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT": "agent-viewer@wataru-sandbox.iam.gserviceaccount.com"
 	},

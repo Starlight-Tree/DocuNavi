@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# 書き込み可能な Supabase MCP（supabase-write）を、このプロジェクトのローカル登録（~/.claude.json）に入れ直す。
-# 再ビルドで ~/.claude.json は消えるが、OAuth のトークンは ~/.claude のボリュームに残るので、登録を戻せば再認証は要らない見込み。
+# 書き込み可能な Supabase MCP（supabase-write）を、このプロジェクトのローカル登録に入れる。初回の登録、または登録が失われたときの復旧用。
+# 設定ファイルは、devcontainer.json の CLAUDE_CONFIG_DIR により ~/.claude のボリューム内（~/.claude/.claude.json）にある。
+# このため、通常の再ビルドでは登録も OAuth のトークン（~/.claude/.credentials.json）も残り、このスクリプトは要らない。
+# ボリュームを削除したときなどは、登録が消え、再認証（/mcp）も要る可能性がある。
 # README の「Supabase MCP（読み取り専用の共有）」。
 #
 # ・参照 ID は展開前の ${SUPABASE_PROJECT_REF} のまま登録する（値は ~/.claude/settings.json の env。設定ファイルにもログにも残さない）。
