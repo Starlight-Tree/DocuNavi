@@ -126,8 +126,9 @@ data: [DONE]
 
 - **エラー:** 404（`指定された会話が見つかりません。` / off の一覧は `会話の一覧は、ログイン（AUTH_MODE=required）のときだけ使えます。`）、
   422（不正な `thread_id`）、503（履歴の保存先を操作できない。固定メッセージで、例外の内容・接続先は含まない）。
-- **未確認:** Supabase の実 DB での速度（題名のために会話ごとに履歴を読むので、最大 50 回の読み出しがある）、本物の JWT を通した確認、
-  返答の生成中に同じ会話を削除したときの挙動。テストは、メモリと、ローカルの Postgres 17 で行った（`tests/test_threads.py`、`tests/test_threads_postgres.py`）。
+- **確認の状況:** 本物のログイン（Supabase・Google）での動作は、利用者が実機で確認済み（2026-10-19、利用者の報告。確認した範囲の詳細は記録していない）。
+  テストは、メモリと、ローカルの Postgres 17 で行った（`tests/test_threads.py`、`tests/test_threads_postgres.py`）。
+  **個別には未確認:** Supabase の実 DB での速度（題名のために会話ごとに履歴を読むので、最大 50 回の読み出しがある）、返答の生成中に同じ会話を削除したときの挙動。
 
 ## `GET /documents`、`GET /documents/{id}/chunks`、`GET /documents/{id}/file`
 
