@@ -17,6 +17,24 @@ pytest
 
 GitHub Actions（`.github/workflows/ci.yml`）が、`main` へのプッシュと PR で、バックエンドのテスト（Python 3.12）、
 フロントエンドのテストとビルド、Docker イメージのビルドと起動確認（`/health`・画面・`/chat`）を行います。デプロイは含みません。
+**`docker compose up` は CI では確かめていません**（CI は `docker build` したイメージを `docker run` するだけ）。compose 固有の部分（`docker-compose.yml` のボリューム
+`./app`・`./storage:ro`、`--reload`、ヘルスチェック、`.env` の読み込み）は、開発コンテナに Docker が無いので、**ホスト側で次のとおり確かめてください（未実施）**:
+
+```bash
+docker compose up --build -d                       # .env が無ければモックモード
+docker compose ps                                  # chatbot-api が healthy になる（ヘルスチェック。数十秒かかることがある）
+curl -s localhost:8000/health                      # {"status":"ok",…}。.env に DATABASE_URL があれば "history":"postgres"
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8000/    # 200（画面。frontend/dist はイメージのビルドで入る）
+curl -s -X POST localhost:8000/chat -H 'content-type: application/json' \
+  -d '{"message":"こんにちは","thread_id":"00000000-0000-4000-8000-000000000001"}'   # 返答の JSON（モックなら固定の返答）
+docker compose logs --tail 30 api                  # Traceback や起動失敗が無い
+touch app/main.py && sleep 3 && docker compose logs --tail 5 api   # --reload が反応する（ホスト↔コンテナの変更通知。Docker Desktop では WATCHFILES_FORCE_POLLING が効く）
+docker compose down                                # 終わったら止める
+```
+
+`.env` に実キーがあると、compose のコンテナは本物の LLM と DB に接続します（`DATABASE_URL` と `GEMINI_API_KEY` が必須。揃わなければ起動に失敗します）。
+モックモードだけで確かめるなら、`.env` を一時的に別名にするか、別のディレクトリで実行します。結果（`docker compose ps` と `/health` の出力）を教えてもらえれば、確認済みとして記録します。
+
 アクションのコミット SHA 固定は、Dependabot（`.github/dependabot.yml`）が週次で更新の PR を出します（公開から 7 日待ちます）。手動実行もできます（`workflow_dispatch`）。
 
 依存のバージョンは `requirements.txt` と `requirements-dev.txt` に固定しています（Python 3.12、全プラットフォーム向け）。
