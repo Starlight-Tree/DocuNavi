@@ -12,6 +12,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 | バックエンドのテスト | `pytest`（`tests/conftest.py` がモックモードに固定する。実 API は呼ばない）。Postgres のテストは `TEST_DATABASE_URL` が無いとスキップされる |
 | Postgres 込みのテスト | `make test-db`（一時的な Postgres 17 を起動 → `pytest` 全体 → 停止。失敗しても停止する）。個別には `make test-db-up`（接続 URL を表示）→ `TEST_DATABASE_URL=<URL> pytest …` → `make test-db-down`。初回だけ `apt-get download` でパッケージ（約 20MB）を取得する。ポートは 55432。手順は [docs/development.md](docs/development.md) |
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
+| E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の本物のアプリ `tests/e2e_server.py` に Playwright でつなぐ。実 API は呼ばない。初回だけ `npx playwright install chromium`。手順は [docs/development.md](docs/development.md)） |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（コマンドは [docs/development.md](docs/development.md) の「テスト」節）で `requirements*.txt` を再生成する。`.txt` は直接編集しない |
 | Docker | ホスト側で `docker compose up --build`（開発コンテナ内には Docker が無い） |
 

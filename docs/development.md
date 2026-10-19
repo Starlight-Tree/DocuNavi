@@ -9,6 +9,21 @@ pytest
 
 フロントエンドは Vitest です（`cd frontend && npm test`）。
 
+### E2E（Playwright）
+
+`cd frontend && npm run test:e2e` は、実ブラウザー（Chromium）から、本物のアプリ（FastAPI が画面を配信し、`/chat/stream` を返す）に質問を送り、
+回答と出典が画面に出ることを確かめます（`frontend/e2e/chat.e2e.ts`）。確かめるのは、ブラウザー・配信・ストリームの**つなぎ目**で、回答の中身は pytest / Vitest の役目です。
+
+- 実 API（Gemini・埋め込み・DB・Supabase・Google）は使いません。`tests/e2e_server.py` が、モックモード・メモリ履歴・`AUTH_MODE=off` に固定し、
+  検索を `FakeSearch`、グラフの LLM を `SearchingMockLLM`（どちらも `tests/fakes.py`）に差し替えて、127.0.0.1:8100（`E2E_PORT` で変更）に立てます。`app/` は変えません。
+- 画面は `frontend/dist-e2e` に E2E 用にビルドします（`npm run build:e2e`。`VITE_SUPABASE_*` を空にして、ログイン画面が出ない構成にする。`frontend/dist` は使わない）。
+  `playwright.config.ts` の `webServer` が、ビルドとサーバーの起動・停止まで行います。
+- 初回だけ、Playwright 用の Chromium を入れます: `cd frontend && npx playwright install chromium`（約 120MB。`~/.cache/ms-playwright` に入り、
+  Playwright MCP 用の Chromium（`.devcontainer/install-playwright.sh`）とは別の版です。システムのライブラリーは MCP 用の導入で入っています）。
+- Python は、リポジトリ直下の `.venv` があればそれを、無ければ PATH の `python` を使います（`E2E_PYTHON` で指定できます）。
+- 失敗時の成果物（`frontend/test-results/`・`frontend/playwright-report/`）は Git 管理外です。
+- 今あるのは 1 シナリオ（質問 → 回答と出典）だけで、CI には入れていません。実 API のスモークテストも、まだありません。
+
 テストは DB も埋め込みの API も使いません。資料の検索（`app/agents/tools.py` の `search_chunks_async`）は、`tests/conftest.py` が自動で偽の検索
 （`scripts/bm25_baseline.py`。`storage/pdf/` の PDF を BM25 で引く、決まった入力に決まった出力を返す実装）に差し替えます。
 アプリのモックモードは検索しない固定の返答なので、グラフの「ツール呼び出し → 回答」の流れを通すテストは、偽の LLM（`tests/fakes.py` の
