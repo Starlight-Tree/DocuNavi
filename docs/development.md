@@ -13,16 +13,22 @@ pytest
 
 `cd frontend && npm run test:e2e` は、実ブラウザー（Chromium）から、本物のアプリ（FastAPI が画面を配信し、`/chat/stream` を返す）に質問を送り、
 回答と出典が画面に出ることを確かめます（`frontend/e2e/chat.e2e.ts`）。確かめるのは、ブラウザー・配信・ストリームの**つなぎ目**で、回答の中身は pytest / Vitest の役目です。
+ログインまわりも 3 シナリオあります（`frontend/e2e/auth.e2e.ts`）: ログインして戻ると画面の状態が URL に戻る / チャットが 401 を返すとトークンを 1 回だけ更新して送り直す / 更新できないとログイン画面に戻り、繰り返さない。
 
 - 実 API（Gemini・埋め込み・DB・Supabase・Google）は使いません。`tests/e2e_server.py` が、モックモード・メモリ履歴・`AUTH_MODE=off` に固定し、
   検索を `FakeSearch`、グラフの LLM を `SearchingMockLLM`（どちらも `tests/fakes.py`）に差し替えて、127.0.0.1:8100（`E2E_PORT` で変更）に立てます。`app/` は変えません。
-- 画面は `frontend/dist-e2e` に E2E 用にビルドします（`npm run build:e2e`。`VITE_SUPABASE_*` を空にして、ログイン画面が出ない構成にする。`frontend/dist` は使わない）。
+- 画面は 2 通りにビルドします。`frontend/dist-e2e`（`npm run build:e2e`。`VITE_SUPABASE_*` を空にして、ログイン画面が出ない構成。チャット用）と、
+  `frontend/dist-e2e-auth`（`npm run build:e2e:auth`。偽の Supabase の URL `https://auth.e2e.invalid` を入れた、ログイン画面が出る構成。認証用）です。`frontend/dist` は使いません
+  （`.env.local` の本物の Supabase の設定が入るため）。認証用のサーバーは 127.0.0.1:8101（`E2E_AUTH_PORT` で変更）で、`E2E_DIST=dist-e2e-auth` を渡して立てます。
   `playwright.config.ts` の `webServer` が、ビルドとサーバーの起動・停止まで行います。
+- 認証のシナリオは、本物の supabase-js を、偽の Supabase（`frontend/e2e/support/supabase-mock.ts`。ブラウザー側の `page.route`）につなぎます。
+  `.invalid` のホストへの通信と、127.0.0.1 以外へのすべての通信は止めて記録し、テストの最後に空であることを確かめます（実 Supabase・実 Google には届きません）。
+  更新の失敗の応答の形は SDK のソースに合わせた推定で、**本物の Supabase での更新・期限切れの挙動は、ここでは確かめていません**（本番に近い環境での 1 時間後の確認は別）。
 - 初回だけ、Playwright 用の Chromium を入れます: `cd frontend && npx playwright install chromium`（約 120MB。`~/.cache/ms-playwright` に入り、
   Playwright MCP 用の Chromium（`.devcontainer/install-playwright.sh`）とは別の版です。システムのライブラリーは MCP 用の導入で入っています）。
 - Python は、リポジトリ直下の `.venv` があればそれを、無ければ PATH の `python` を使います（`E2E_PYTHON` で指定できます）。
 - 失敗時の成果物（`frontend/test-results/`・`frontend/playwright-report/`）は Git 管理外です。
-- 今あるのは 1 シナリオ（質問 → 回答と出典）だけで、CI には入れていません。実 API のスモークテストも、まだありません。
+- 今あるのは 4 シナリオ（チャット 1、認証 3）で、CI には入れていません。実 API のスモークテストも、まだありません。
 
 テストは DB も埋め込みの API も使いません。資料の検索（`app/agents/tools.py` の `search_chunks_async`）は、`tests/conftest.py` が自動で偽の検索
 （`scripts/bm25_baseline.py`。`storage/pdf/` の PDF を BM25 で引く、決まった入力に決まった出力を返す実装）に差し替えます。
