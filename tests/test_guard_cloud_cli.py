@@ -52,10 +52,15 @@ def decision(command: str) -> str:
         "gcloud secrets versions access latest --secret=api-key",
         "gcloud billing projects link my-proj --billing-account=0000-0000-0000",
         # 認証・ID の切り替え
-        "gcloud auth login",
+        "gcloud auth login --no-launch-browser",
+        "gcloud auth login --account someone@example.com",
+        "gcloud auth login --brief",
+        "gcloud auth login && gcloud auth print-access-token",
         "gcloud auth print-access-token",
         "gcloud auth application-default print-access-token",
-        "gcloud auth revoke --all",
+        "gcloud auth revoke",
+        "gcloud auth revoke --all --account someone@example.com",
+        "gcloud auth revoke someone@example.com",
         "gcloud config set auth/impersonate_service_account ''",
         "gcloud config unset auth/impersonate_service_account",
         "gcloud builds list --impersonate-service-account=a@p.iam.gserviceaccount.com",
@@ -1307,3 +1312,9 @@ def test_a_crashing_check_fails_closed():
 def test_the_monitor_tool_is_checked_like_bash():
     assert run_hook("gh run delete 1", tool_name="Monitor")[0] == 2
     assert run_hook("gh run list", tool_name="Monitor")[0] == 0
+
+
+def test_gcloud_auth_login_asks_and_revoke_all_passes() -> None:
+    # ログインの起動だけは、確認を挟んで許す（承認はユーザーがブラウザーで行う）。全員のログアウトは通す
+    assert decision("gcloud auth login") == "ask"
+    assert decision("gcloud auth revoke --all") == "pass"
