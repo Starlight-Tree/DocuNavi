@@ -11,6 +11,7 @@
 **できていること**
 
 - Cloud Run への公開（段階 0。2026-10-20。プロジェクト `docunavi-app`、サービス `docunavi`、リージョン `asia-northeast1`。ログインと質問は利用者が確認。通った手順と詰まった点は [deploy.md](deploy.md) の「実際に通った記録」）
+- 履歴の削除コマンド（`python -m app.history_admin`）と、7 日の経過を模した Postgres のテスト（2026-10-20。`tests/test_history_postgres.py`）。**Cloud Run Job と Cloud Scheduler を作成済み**（2026-10-20。毎週日曜 03:00 JST に、最後の動きから 7 日たった会話を削除。Scheduler から Job が動いたことは確認。実際に会話が消えた実績はまだ無い。方針の 90 日は変えない。記録は [deploy.md](deploy.md) の D）
 - Postgres（Supabase）と、会話履歴の保存（段階 1。`--max-instances` × `DATABASE_POOL_MAX_SIZE` が接続数の上限に収まるかは未確認）
 - 認証（段階 2。本物の Supabase・Google でのログインと質問は、ローカルで確認済み（2026-10-19）。トークンの期限切れ後の更新、Docker、公開環境は未確認）
 - 会話の一覧と本人による削除（`GET /threads`、`DELETE /threads/{id}`、ログイン中の左サイドバー。API と画面の本物のログインでの動作は確認済み（2026-10-19、利用者の報告。確認した範囲の詳細は記録していない）。発言を返す API `GET /threads/{id}/messages` と、選んだ会話の過去のやり取りの表示を実装済み（テストとスクリーンショットでの確認。本物のログインでの確認は済み（2026-10-19、利用者の報告。8000 番の画面））
@@ -25,14 +26,13 @@
 | 順 | 項目 | 中身 |
 |---|---|---|
 | 1 | 認証の残りの確認 | ログイン後の URL の復元、トークンの期限切れ後の更新（画面側の E2E は偽の認証で済み。本物のログインでの確認は、利用者は通ったと思っているが詳細の報告がなく、確認済みとは記録していない）。会話の一覧と本人による削除は、API（`GET /threads`、`DELETE /threads/{id}`）と左サイドバーの画面を実装済み。API の本物のログインでの動作は確認済み（2026-10-19、利用者の報告）。画面の本物のログインでの確認も済み（2026-10-19、利用者の報告）。過去のやり取りの表示（`GET /threads/{id}/messages`）は、サイドバーで選んだときまで実装済み（本物のログインでの確認は済み（2026-10-19、利用者の報告）。ページの再読み込みだけでは取得しない） |
-| 2 | Cloud Run の公開後の残り | 公開と、下の「公開前の守り」の設定は済み（2026-10-20）。残り: ① `docunavi-app` 用の閲覧専用 ID（`agent-viewer`）で、エージェントがログを読めるようにする ② 有料キー（`GEMINI_API_KEY_PAID`、Secret `gemini-api-key-paid`）の配備と、本物の 429 での切り替えの確認（コードは済み、確認は偽の 429 のテストのみ）③ 予算の通知が実際に停止の仕組みへ届くかの確認 ④ 使わないプロジェクト（My First Project）の削除（利用者。`services list` と課金を確かめてから）⑤ Supabase の Site URL（いまは `http://localhost:5173`。公開先を主に使うようになったら変える） |
-| 3 | 運用 | 履歴の削除の定期実行（最初は 7 日。方針の 90 日は変えず、様子を見て延ばす。手順は [deploy.md](deploy.md) に書いたが未実行。実 DB での `--apply` も未確認） |
-| 4 | 4a の残り | 原本を R2 に置く |
-| 5 | 4b 自動化 | R2 のイベント通知 → Queue → Cloud Run の取り込み |
-| 6 | 検索の品質（4c の前段） | チャンクの分け方（ページ単位・意味単位）と `TOP_K` の見直しを、既存の評価（`evals/questions.yaml`、`scripts/eval_retrieval.py`）で測る。問数が足りなければ評価の質問を足す。取りこぼしが出てから、ハイブリッド検索（4c。BM25 + ベクトル + リランカー） |
-| 7 | GraphRAG など（条件付き） | 関係をたどる質問や、複数の資料にまたがる質問が多いと分かってから検討する。それまでは見送り |
-| 8 | Vercel でフロント分離（段階 5） | 最後 |
-| 9 | MCP ツール化（将来の拡張） | Cloud Run に自作の MCP サーバーを置き、資料への質問をエージェントから使えるツールにする。認証は IAM と `--no-allow-unauthenticated` を基本にする。Cloud Run 自体を MCP で操作する（デプロイ・ログ確認）のは、必要になってから。Cloud Run が MCP のサーバーをどの方式で載せられるかは、着手するときに公式で確認する（未確認） |
+| 2 | Cloud Run の公開後の残り | 公開と、下の「公開前の守り」の設定は済み（2026-10-20）。残り: ① `docunavi-app` 用の閲覧専用 ID（`agent-viewer`）で、エージェントがログを読めるようにする ② 有料キー（`GEMINI_API_KEY_PAID`、Secret `gemini-api-key-paid`）の配備と、本物の 429 での切り替えの確認（コードは済み、確認は偽の 429 のテストのみ）③ 予算の通知が実際に停止の仕組みへ届くかの確認 ④ Supabase の Site URL（いまは `http://localhost:5173`。公開先を主に使うようになったら変える） |
+| 3 | 4a の残り | 原本を R2 に置く |
+| 4 | 4b 自動化 | R2 のイベント通知 → Queue → Cloud Run の取り込み |
+| 5 | 検索の品質（4c の前段） | チャンクの分け方（ページ単位・意味単位）と `TOP_K` の見直しを、既存の評価（`evals/questions.yaml`、`scripts/eval_retrieval.py`）で測る。問数が足りなければ評価の質問を足す。取りこぼしが出てから、ハイブリッド検索（4c。BM25 + ベクトル + リランカー） |
+| 6 | GraphRAG など（条件付き） | 関係をたどる質問や、複数の資料にまたがる質問が多いと分かってから検討する。それまでは見送り |
+| 7 | Vercel でフロント分離（段階 5） | 最後 |
+| 8 | MCP ツール化（将来の拡張） | Cloud Run に自作の MCP サーバーを置き、資料への質問をエージェントから使えるツールにする。認証は IAM と `--no-allow-unauthenticated` を基本にする。Cloud Run 自体を MCP で操作する（デプロイ・ログ確認）のは、必要になってから。Cloud Run が MCP のサーバーをどの方式で載せられるかは、着手するときに公式で確認する（未確認） |
 
 - 検索の品質は、資料が少ないうちは、ハイブリッド検索より先にチャンクの分け方と `TOP_K` を見る。実際に、関係の薄い 2 件目のチャンクが出典に出た例がある（`TOP_K` は 2、入寮規程の PDF は 3 チャンク）。
 - 段階 3（Cloudflare）は、自分のドメインを持ったときに、順序を問わず入れる。
@@ -157,8 +157,7 @@ FastAPI + LangGraph → 検索 → 回答 + 参照元（source_path から署名
   Cloud Run から届くか、Supabase 上での同時の初回起動・接続切断（`tests/test_history_postgres.py` を Supabase に向けた実行。管理者の URL が要る）、
   Supabase の Exposed schemas にアプリのスキーマが入っていないこと（画面の確認）、`--older-than-days --apply` の Supabase での実行（古い会話がまだ無い）、
   Docker イメージのビルドと `docker compose up`（開発コンテナに Docker が無い）、履歴が増え続けたときのサイズ。
-  保存期間は 90 日という方針だが、いまは保証していない（2026-10-14）。削除の手段はある（`python -m app.history_admin`、`docs/configuration.md`）が、定期実行は未設定
-  （Cloud Run を始めるときに、Cloud Run Job + Cloud Scheduler にする予定）。
+  保存期間の方針は 90 日で、定期実行は 2026-10-20 に Cloud Run Job + Cloud Scheduler で設定した（最初は 7 日。この段落の他の項目は 2026-10-14 時点の記録）。削除の手段は `python -m app.history_admin`（`docs/configuration.md`）。
   CI の `backend` ジョブには Postgres 17 のサービスコンテナを足した（`docs/development.md`）。
 
 ## 公開前の守り（段階 0 から）

@@ -315,3 +315,45 @@ def test_purge_keeps_a_thread_with_any_recent_checkpoint(db, capsys):
     assert history_admin.main(["--older-than-days", "30", "--apply"]) == 0
 
     assert _row_counts(schema, fresh)["checkpoints"] == total
+
+
+def test_purge_at_seven_days_follows_the_clock(db, capsys):
+    """運用の最初の設定（7 日）を、日がたつ様子で確かめる: 6 日目は残り、8 日目に消え、続きを話した会話は残る。"""
+    from app import history_admin
+
+    _, schema = db
+    idle, active = str(uuid.uuid4()), str(uuid.uuid4())
+
+    async def talk(*thread_ids):
+        async with history.history_store() as saver:
+            for thread_id in thread_ids:
+                await _turn(saver, QUESTION, thread_id)
+
+    asyncio.run(talk(idle, active))
+    purge = ["--older-than-days", "7", "--apply"]
+
+    # 1 日目: 何も消えない
+    assert history_admin.main(purge) == 0
+    assert "削除した会話: 0 件" in capsys.readouterr().out
+
+    # 6 日たつ: まだ消えない
+    _age_thread(schema, idle, days=6)
+    _age_thread(schema, active, days=6)
+    assert history_admin.main(purge) == 0
+    assert "削除した会話: 0 件" in capsys.readouterr().out
+    assert _row_counts(schema, idle)["checkpoints"] > 0
+
+    # 6 日目に片方だけ続きを話す（最新のチェックポイントが新しくなる）
+    asyncio.run(talk(active))
+
+    # 8 日たつ: 話さなかった会話だけ消える。続きを話した会話は、その時点から数え直される
+    _age_thread(schema, idle, days=8)
+    assert history_admin.main(purge) == 0
+    assert "削除した会話: 1 件" in capsys.readouterr().out
+    assert _row_counts(schema, idle) == {"checkpoints": 0, "checkpoint_blobs": 0, "checkpoint_writes": 0}
+    assert _row_counts(schema, active)["checkpoints"] > 0
+
+    # 同じ条件で何度実行しても、結果は変わらない
+    assert history_admin.main(purge) == 0
+    assert "削除した会話: 0 件" in capsys.readouterr().out
+    assert _row_counts(schema, active)["checkpoints"] > 0
