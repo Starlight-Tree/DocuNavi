@@ -87,7 +87,7 @@ Supabase の JWKS は公開鍵 1 個（ES256）で、バックエンドの起動
 Google ログイン → 画面に戻る → 質問を送って回答が返る、までをユーザーが通しました（モックの返答と、本物の LLM・DB の回答の両方）。
 自動テスト（`tests/test_auth.py`、`frontend/src/AuthApp.test.tsx`・`frontend/src/auth/`）は、これまでどおり手元で作った鍵と偽の JWKS を使います。
 
-**未確認:** トークンの期限切れ後の更新（`supabase-js` の実際の動作）、Docker イメージ（`VITE_*` をビルドに渡す設定は未対応）、
+**未確認:** トークンの期限切れ後の更新（`supabase-js` の実際の動作）、Docker イメージ（`VITE_*` を渡す `cloudbuild.yaml` と Dockerfile の `ARG` は用意したが、Cloud Build でのビルドは未実行。`docs/deploy.md` の「F」）、
 Cloud Run などの公開環境での動作。
 
 ## 会話履歴の保存先

@@ -13,6 +13,13 @@ RUN npm ci --no-audit --no-fund
 COPY frontend/index.html frontend/tsconfig.json frontend/vite.config.ts ./
 COPY frontend/src ./src
 
+# ログイン画面の設定。Vite はビルド時に VITE_* をバンドルへ埋め込むので、ここで受け取る。
+# どちらも公開してよい値だけ（Supabase の URL と publishable key）。secret key などは渡さない。
+# 空のままなら、ログイン画面を出さず認証なしで動く（AUTH_MODE=required だと質問できない）。
+# この段の ARG は最終イメージに残らない（ビルドのキャッシュとログには残るが、公開値なので許容する）
+ARG VITE_SUPABASE_URL=""
+ARG VITE_SUPABASE_PUBLISHABLE_KEY=""
+
 # tsc --noEmit && vite build（成果物は /frontend/dist）
 RUN npm run build
 
