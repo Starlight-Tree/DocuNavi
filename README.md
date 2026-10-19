@@ -37,7 +37,7 @@ Docker Compose を使う場合は、ホスト側で `docker compose up --build` 
 cd frontend
 npm ci
 npm run build        # frontend/dist を作る。FastAPI が / で配信する
-npm run dev          # 開発サーバー（http://localhost:5173）。/chat（/chat/stream を含む）と /health は localhost:8000 へ転送
+npm run dev          # 開発サーバー（http://localhost:5173）。/chat（/chat/stream を含む）・/health・/documents・/threads は localhost:8000 へ転送
 ```
 
 `frontend/dist` は Git 管理外です。無い状態でも API は動き、`/` はビルド方法を示す 404 を返します（起動後にビルドしても再起動は不要）。

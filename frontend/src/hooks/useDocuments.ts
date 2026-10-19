@@ -17,7 +17,7 @@ export type Loaded<T> =
   | { status: 'ready'; data: T };
 
 /** ログイン中ならトークンを付け、401 なら 1 回更新して送り直す fetch（チャットと同じ仕組み）。 */
-function useAuthedJsonFetch() {
+export function useAuthedJsonFetch() {
   const { client, expire } = useAuth();
   const clientRef = useRef(client);
   const expireRef = useRef(expire);
