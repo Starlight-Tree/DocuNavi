@@ -59,6 +59,7 @@
 | `../scripts/eval_retrieval.py` | 採点の本体 |
 | `answers/questions.yaml` / `results/answers_20261018*.json` / `../scripts/eval_answers.py` | **回答の評価（実 API。ここだけ課金される）**。質問 10 問の選び方、実測の記録、実行の道具（「回答の評価（実 API）」） |
 | `../tests/test_eval_retrieval.py` | 採点の道具のテストと、baseline からの退行の検知 |
+| `../scripts/eval_topk.py` / `results/topk_probe.json` / `../tests/test_eval_topk.py` | **上位件数（`TOP_K`）としきい値の現状の数え上げ**（実 API なし。保存済みの質問の埋め込みを使う）。結果の読み方は `docs/search-design.md` の「上位件数（`TOP_K`）としきい値の現状」 |
 | `../scripts/eval_vector.py` / `vector/plan.json` / `results/vector_dev.json` / `results/vector_final.json` / `../tests/test_eval_vector.py` | **ベクトル検索の比較**（BM25・ベクトル・ハイブリッド。質問の埋め込みだけ実 API）。分割・正解チャンク・結果・道具のテスト（「ベクトル検索の比較」） |
 
 ## 質問の書式

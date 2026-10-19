@@ -1,0 +1,15 @@
+# 回答の評価の質問（4 問）。類似度のしきい値 0.65 で、検索の結果が切れた「答えのある質問」を、実際に LLM へ通して見る（2026-10-19）。
+# 4 問は、scripts/eval_topk.py（evals/results/topk_probe.json）で、質問そのものを埋め込んだときの 1 位の類似度が 0.65 未満だった
+# 答えのある質問の全部（q008 0.627、q010 0.615、q012 0.621、q019 0.648）。質問の本文と正解は、承認済みの評価セットから引く（新しく作らない）。
+# 選び方は、実 API を呼ぶ前に決めた。結果を見て入れ替えない。
+#
+# 注意: 実際の検索のクエリは LLM が作る（質問そのままとは限らない）ので、ここの類似度とは違うことがある。
+# 見たいこと: 検索が空になったとき、LLM が「資料には記載がありません」と断るか（資料にあるのに断る = 取りこぼし）、
+#             クエリを言い換えて再検索し、資料の事実で答えるか。
+#
+# 実行: python -m scripts.eval_answers --run --questions evals/answers/questions_floor_cut.yaml \
+#         --max-calls 12 --per-question 3 --out evals/results/answers_floor_cut_<日付>.json
+- {id: q008, role: answerable}   # 「硫化水素」（キーワードだけ）
+- {id: q010, role: answerable}   # 「象形文字」（キーワードだけ）
+- {id: q012, role: answerable}   # 「昼と夜の気温差について教えて」
+- {id: q019, role: answerable}   # 「メタンガスって入ってる？」

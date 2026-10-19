@@ -1,0 +1,195 @@
+{
+  "generated_at": "2026-10-19T18:23:12+09:00",
+  "git_head": "558ee8b",
+  "corpus_fingerprint": "1041f4e00053fe0e355772b90a2dd6d882fed0477a4ed81c1d9874a11cd1ca3d",
+  "min_similarity": 0.65,
+  "app_top_k": 2,
+  "questions": 120,
+  "answerable": 84,
+  "k_sweep": [
+    {
+      "k": 1,
+      "answerable": 84,
+      "satisfied": 66,
+      "empty": 4,
+      "returned_chunks": 80,
+      "gold_chunks": 69
+    },
+    {
+      "k": 2,
+      "answerable": 84,
+      "satisfied": 75,
+      "empty": 4,
+      "returned_chunks": 155,
+      "gold_chunks": 79
+    },
+    {
+      "k": 3,
+      "answerable": 84,
+      "satisfied": 78,
+      "empty": 4,
+      "returned_chunks": 223,
+      "gold_chunks": 82
+    },
+    {
+      "k": 5,
+      "answerable": 84,
+      "satisfied": 79,
+      "empty": 4,
+      "returned_chunks": 325,
+      "gold_chunks": 83
+    }
+  ],
+  "misses_at_app_top_k": [
+    {
+      "id": "q008",
+      "reason": "below_threshold",
+      "expected_docs": 1,
+      "top1_similarity": 0.627
+    },
+    {
+      "id": "q010",
+      "reason": "below_threshold",
+      "expected_docs": 1,
+      "top1_similarity": 0.615
+    },
+    {
+      "id": "q012",
+      "reason": "below_threshold",
+      "expected_docs": 1,
+      "top1_similarity": 0.621
+    },
+    {
+      "id": "q017",
+      "reason": "beyond_k",
+      "expected_docs": 1,
+      "top1_similarity": 0.732
+    },
+    {
+      "id": "q019",
+      "reason": "below_threshold",
+      "expected_docs": 1,
+      "top1_similarity": 0.648
+    },
+    {
+      "id": "q030",
+      "reason": "beyond_k",
+      "expected_docs": 2,
+      "top1_similarity": 0.779
+    },
+    {
+      "id": "q032",
+      "reason": "beyond_k",
+      "expected_docs": 2,
+      "top1_similarity": 0.788
+    },
+    {
+      "id": "g011",
+      "reason": "beyond_k",
+      "expected_docs": 1,
+      "top1_similarity": 0.807
+    },
+    {
+      "id": "f016",
+      "reason": "beyond_k",
+      "expected_docs": 1,
+      "top1_similarity": 0.677
+    }
+  ],
+  "threshold_sweep": [
+    {
+      "threshold": 0.55,
+      "answerable": 84,
+      "answerable_cut": 0,
+      "out_of_scope": 36,
+      "out_of_scope_passed": 35
+    },
+    {
+      "threshold": 0.6,
+      "answerable": 84,
+      "answerable_cut": 0,
+      "out_of_scope": 36,
+      "out_of_scope_passed": 25
+    },
+    {
+      "threshold": 0.62,
+      "answerable": 84,
+      "answerable_cut": 1,
+      "out_of_scope": 36,
+      "out_of_scope_passed": 22
+    },
+    {
+      "threshold": 0.64,
+      "answerable": 84,
+      "answerable_cut": 3,
+      "out_of_scope": 36,
+      "out_of_scope_passed": 22
+    },
+    {
+      "threshold": 0.65,
+      "answerable": 84,
+      "answerable_cut": 4,
+      "out_of_scope": 36,
+      "out_of_scope_passed": 22
+    },
+    {
+      "threshold": 0.66,
+      "answerable": 84,
+      "answerable_cut": 6,
+      "out_of_scope": 36,
+      "out_of_scope_passed": 21
+    },
+    {
+      "threshold": 0.68,
+      "answerable": 84,
+      "answerable_cut": 8,
+      "out_of_scope": 36,
+      "out_of_scope_passed": 20
+    },
+    {
+      "threshold": 0.7,
+      "answerable": 84,
+      "answerable_cut": 10,
+      "out_of_scope": 36,
+      "out_of_scope_passed": 17
+    }
+  ],
+  "chunk_sizes": {
+    "aoba_aw820_manual.pdf": {
+      "chunks": 35,
+      "min": 41,
+      "median": 69,
+      "max": 235
+    },
+    "cafe_store_guide.pdf": {
+      "chunks": 30,
+      "min": 46,
+      "median": 75,
+      "max": 514
+    },
+    "tsubasa_dorm_rules.pdf": {
+      "chunks": 3,
+      "min": 465,
+      "median": 685,
+      "max": 805
+    },
+    "ザーハード1.pdf": {
+      "chunks": 4,
+      "min": 121,
+      "median": 185,
+      "max": 241
+    },
+    "ザーハード2.pdf": {
+      "chunks": 4,
+      "min": 124,
+      "median": 150,
+      "max": 302
+    },
+    "ザーハード3.pdf": {
+      "chunks": 4,
+      "min": 153,
+      "median": 177,
+      "max": 208
+    }
+  }
+}
