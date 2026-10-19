@@ -250,7 +250,7 @@ as_me gcloud scheduler jobs create http "${JOB}-weekly" \
 ```bash
 # 予算アラート（請求先アカウントの管理者の権限。as_me で実行）。金額としきい値は例
 as_me gcloud billing budgets create --billing-account=<請求先アカウント ID> \
-  --display-name="docunavi" --budget-amount=20USD \
+  --display-name="docunavi" --budget-amount=<金額。請求先アカウントの通貨で> \
   --filter-projects="projects/${PROJECT_ID}" \
   --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0
 ```
@@ -293,6 +293,111 @@ as_me gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
 - イメージのタグはコミットごとに変えます（`:latest` にしない）。ロールバックで、前のイメージを指定できるようにするためです。
 - `.dockerignore` が `.env` を除いているので、ビルドコンテキストに秘密は入りません。`VITE_*` に入れる値を、secret key や `DATABASE_URL` にしないこと
   （バンドルに入り、誰でも読めます）。
+
+### G. 予算の自動停止（課金を紐づけるときに、デプロイより先に）
+
+**この節は手順の案で、未実行です。** 関数は `ops/budget_guard/main.py`（判断はテスト済み。Cloud Billing の API の呼び出しと、GCP での動作は未確認）。
+仕組みは、予算 → Pub/Sub → 関数 → プロジェクトの課金を無効化、という公式の方法です（Cloud Billing の「Disable billing with notifications」）。
+**「無料枠を超えそうになったら止める」ことはできません。** 予算は金額で、Gemini の API キーは同じプロジェクトにあり、課金を紐づけると有料枠に切り替わる可能性があります
+（公式の料金ページで確認）。実際は「月の費用が予算額に届いたら止める」です。金額は仮で、あとで変えられます。
+
+**注意**
+
+- 課金を無効にすると、**プロジェクトのサービスがすべて止まり、リソースは消えることがあります**（公式の警告。猶予の期間は書かれていません）。復旧は手動で、元に戻る保証はありません。
+- 予算の通知は費用の反映より遅れます。**上限は厳密ではなく、止まるまでに予算を超えます。**
+- API の有効化（Cloud Functions など）に課金が要るので、1 の直後から 4 までは続けて行います。その間は上限が働いていません。
+
+```bash
+BILLING_ACCOUNT=<請求先アカウント ID>
+BUDGET=1000                        # 仮。請求先アカウントの通貨で指定する（円なら 1000 円）。あとで変えてよい
+TOPIC=budget-alerts
+GUARD_SA=budget-guard
+```
+
+1. **課金アカウントを紐づける**（Console、またはあなたの権限で）
+
+   ```bash
+   as_me gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT"
+   ```
+
+2. **Pub/Sub のトピックと予算を作る**（アラートは 50%・90%、停止の判断は関数が 100% で行う）
+
+   ```bash
+   as_me gcloud services enable billingbudgets.googleapis.com cloudbilling.googleapis.com pubsub.googleapis.com --project "$PROJECT_ID"
+   as_me gcloud pubsub topics create "$TOPIC" --project "$PROJECT_ID"
+   as_me gcloud billing budgets create --billing-account="$BILLING_ACCOUNT" --billing-project="$PROJECT_ID" \
+     --display-name="docunavi" --budget-amount="$BUDGET" --calendar-period=month \
+     --filter-projects="projects/${PROJECT_ID}" \
+     --credit-types-treatment=exclude-all-credits \
+     --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0 \
+     --notifications-rule-pubsub-topic="projects/${PROJECT_ID}/topics/${TOPIC}"
+   ```
+
+   予算額は、**請求先アカウントの通貨**で指定する（`5USD` のように別の通貨を付けると `INVALID_ARGUMENT` になった。2026-10-20、円のアカウントで、`5USD` は失敗し、`1000`（円）で作成できた）。通貨を付けなければ、アカウントの通貨になる。関数は通貨を見ず、数値だけを比べる。
+   `--billing-project` は、予算の API の課金先（クォータプロジェクト）の指定で、無いと `SERVICE_DISABLED` で失敗する（gcloud が用意する別のプロジェクトを使うため）。
+   `--credit-types-treatment=exclude-all-credits` は、クレジットを引く前の費用で数える指定です。既定（全クレジットを含める）だと、
+   無料トライアルのクレジットが残っている間は費用が 0 のままで、予算に届かず、自動停止が働きません。
+
+3. **関数を作る**（最初は `DRY_RUN=true`。止める判断をログに出すだけで、課金は変えない）
+
+   ```bash
+   as_me gcloud iam service-accounts create "$GUARD_SA" --display-name="Budget guard" --project "$PROJECT_ID"
+   as_me gcloud services enable cloudfunctions.googleapis.com run.googleapis.com eventarc.googleapis.com \
+     cloudbuild.googleapis.com artifactregistry.googleapis.com --project "$PROJECT_ID"
+   as_me gcloud functions deploy budget-guard --gen2 --runtime python312 \
+     --project "$PROJECT_ID" --region "$REGION" \
+     --source ops/budget_guard --entry-point stop_billing --trigger-topic "$TOPIC" \
+     --service-account "${GUARD_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+     --set-env-vars "PROJECT_ID=${PROJECT_ID},DRY_RUN=true"
+   ```
+
+4. **SA の権限を付ける**
+
+   ```bash
+   as_me gcloud billing accounts add-iam-policy-binding "$BILLING_ACCOUNT" \
+     --member="serviceAccount:${GUARD_SA}@${PROJECT_ID}.iam.gserviceaccount.com" --role=roles/billing.admin
+   ```
+
+   `roles/billing.admin`（Billing Account Administrator）は、公式の手順が使う役割です。**必要より広く**（請求先アカウントの権限の管理もできる）、
+   公式は最小の役割を示していません。狭い役割（カスタムロール）は、必要な権限を確かめてからの、あとの課題です。この SA は、この関数だけに使います。
+
+   続けて、トリガーが関数を呼べるようにする。**これが無いと、通知は関数に届かず**、ログに「The request was not authenticated … lacks {run.routes.invoke}」と出る
+   （2026-10-20、`--service-account` を指定してデプロイしたときに、自動では付かなかった）。
+   付けてから効くまで 1〜3 分かかる（付けた直後の通知は同じエラーで失敗し、3 分後の再送で「DRY_RUN: would disable billing」が出た）。
+
+   ```bash
+   as_me gcloud run services add-iam-policy-binding budget-guard --project "$PROJECT_ID" --region "$REGION" \
+     --member="serviceAccount:${GUARD_SA}@${PROJECT_ID}.iam.gserviceaccount.com" --role=roles/run.invoker
+   ```
+
+5. **動作を確かめる**（`DRY_RUN=true` のまま）
+
+   ```bash
+   as_me gcloud pubsub topics publish "$TOPIC" --project "$PROJECT_ID" --message '{"costAmount": 6, "budgetAmount": 5}'
+   gcloud functions logs read budget-guard --gen2 --project "$PROJECT_ID" --region "$REGION" --limit 20   # 「DRY_RUN: would disable billing」
+   ```
+
+   これで確かめられるのは、トリガーと判断までです。**課金を実際に外せる権限があるかは、`DRY_RUN=false` で試すまで確かめられません。**
+   2026-10-20 に、サービスを置く前の 公開用のプロジェクト で試した。`roles/billing.admin`（請求先アカウント）だけで、課金は外れた
+   （`billingEnabled: false`、ログ「billing disabled for the project」）。ただし、最初の版は外す前に `get_project_billing_info` を呼び、
+   プロジェクトの閲覧権限が無くて 403 になった（今は呼ばない）。試験で外れたら、手順 6 の復旧で戻す。本番に切り替える:
+
+   ```bash
+   as_me gcloud functions deploy budget-guard --gen2 --runtime python312 --project "$PROJECT_ID" --region "$REGION" \
+     --source ops/budget_guard --entry-point stop_billing --trigger-topic "$TOPIC" \
+     --service-account "${GUARD_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+     --update-env-vars "DRY_RUN=false"
+   ```
+
+   以後は、**上の Pub/Sub への手動の publish をしない**（本物の停止になる）。
+
+6. **止まったあとの復旧**
+
+   - まず、原因（想定外の使用、攻撃、設定の誤り）を確かめる。同じ月に予算を超えたままだと、再び紐づけた直後に止まる。先に `DRY_RUN=true` に戻すか、予算額を上げる。
+   - 課金を紐づけ直す（`as_me gcloud billing projects link …`、または Console）。
+   - API の有効化・Cloud Run のサービス・Secret が残っているかを確かめ、無ければ作り直す（消えることがある）。
+
+デプロイ（上の A〜F）は、ここまで済んでから行います。
 
 ## 確かめる
 
