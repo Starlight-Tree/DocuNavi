@@ -51,12 +51,16 @@ _VERIFY_SQL = (
 
 
 class Hit(NamedTuple):
-    """検索で拾った 1 チャンク。`page` は PDF の 1 始まりのページ、`page_end` はページをまたぐ表の最終ページ（またがなければ None）。"""
+    """検索で拾った 1 チャンク。`page` は PDF の 1 始まりのページ、`page_end` はページをまたぐ表の最終ページ（またがなければ None）。
+
+    `similarity` はコサイン類似度。画面の出典カードを絞る判断（`app/agents/tools.py` の `WEAK_GAP`）だけに使い、LLM には渡さない。
+    """
 
     source: str
     text: str
     page: int | None = None
     page_end: int | None = None
+    similarity: float | None = None
 
 
 class VectorSearchError(RuntimeError):
@@ -127,7 +131,13 @@ async def search(query: str, top_k: int) -> list[Hit]:
         cursor = await conn.execute(_SEARCH_SQL, params)
         rows = await cursor.fetchall()
     return [
-        Hit(row["source"], _chunk_text(row["heading"], row["content"]), row.get("page"), row.get("page_end"))
+        Hit(
+            row["source"],
+            _chunk_text(row["heading"], row["content"]),
+            row.get("page"),
+            row.get("page_end"),
+            float(row["sim"]),
+        )
         for row in rows
         if float(row["sim"]) >= MIN_SIMILARITY
     ]

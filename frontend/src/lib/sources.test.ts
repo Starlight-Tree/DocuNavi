@@ -65,13 +65,23 @@ describe('parseSourceRefs', () => {
         { name: 'f.pdf', page: 1.5, page_end: null },
       ]),
     ).toEqual([
-      { name: 'a.pdf', page: 2, pageEnd: 3 },
-      { name: 'b.pdf', page: 1, pageEnd: null },
-      { name: 'c.pdf', page: null, pageEnd: null },
-      { name: 'd.pdf', page: null, pageEnd: null },
-      { name: 'e.pdf', page: 2, pageEnd: null },
-      { name: 'f.pdf', page: null, pageEnd: null },
+      { name: 'a.pdf', page: 2, pageEnd: 3, weak: false },
+      { name: 'b.pdf', page: 1, pageEnd: null, weak: false },
+      { name: 'c.pdf', page: null, pageEnd: null, weak: false },
+      { name: 'd.pdf', page: null, pageEnd: null, weak: false },
+      { name: 'e.pdf', page: 2, pageEnd: null, weak: false },
+      { name: 'f.pdf', page: null, pageEnd: null, weak: false },
     ]);
+  });
+
+  it('weak は true のときだけ弱い（文字列の "true" などは弱くしない）', () => {
+    expect(
+      parseSourceRefs([
+        { name: 'a.pdf', page: 1, page_end: null, weak: true },
+        { name: 'b.pdf', page: 1, page_end: null, weak: 'true' },
+        { name: 'c.pdf', page: 1, page_end: null },
+      ])?.map((ref) => ref.weak),
+    ).toEqual([true, false, false]);
   });
 
   it('配列でない・要素の形が違うときは undefined（古い応答として、画面が突き合わせにフォールバックする）', () => {
@@ -89,11 +99,20 @@ describe('withPages', () => {
     { name: 'b.pdf', text: 'B' },
   ];
 
+  it('件数とファイル名が合えば、weak も付ける。合わなければ付けない', () => {
+    const weakRefs = [
+      { name: 'a.pdf', page: null, pageEnd: null, weak: false },
+      { name: 'b.pdf', page: null, pageEnd: null, weak: true },
+    ];
+    expect(withPages(docs, weakRefs)).toEqual([docs[0], { ...docs[1], weak: true }]);
+    expect(withPages(docs, weakRefs.slice(1))).toEqual(docs);
+  });
+
   it('件数とファイル名が合えば、出典ごとにページを付ける', () => {
     expect(
       withPages(docs, [
-        { name: 'a.pdf', page: 2, pageEnd: 3 },
-        { name: 'b.pdf', page: null, pageEnd: null },
+        { name: 'a.pdf', page: 2, pageEnd: 3, weak: false },
+        { name: 'b.pdf', page: null, pageEnd: null, weak: false },
       ]),
     ).toEqual([
       { name: 'a.pdf', text: 'A', page: 2, pageEnd: 3 },
@@ -102,11 +121,11 @@ describe('withPages', () => {
   });
 
   it('件数かファイル名が合わなければ、ずれを避けて何も付けない', () => {
-    expect(withPages(docs, [{ name: 'a.pdf', page: 2, pageEnd: null }])).toEqual(docs);
+    expect(withPages(docs, [{ name: 'a.pdf', page: 2, pageEnd: null, weak: false }])).toEqual(docs);
     expect(
       withPages(docs, [
-        { name: 'a.pdf', page: 2, pageEnd: null },
-        { name: 'x.pdf', page: 1, pageEnd: null },
+        { name: 'a.pdf', page: 2, pageEnd: null, weak: false },
+        { name: 'x.pdf', page: 1, pageEnd: null, weak: false },
       ]),
     ).toEqual(docs);
     expect(withPages(docs, undefined)).toEqual(docs);

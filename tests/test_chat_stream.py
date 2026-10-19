@@ -198,7 +198,9 @@ def test_stream_final_text_and_context_match_chat(client, searching_llm):
     pages = {name: page for _, name, _, page in FakeSearch.CHUNKS}
     names = SOURCE_HEADER.findall(reference["context"])
     assert names
-    assert metadata["sources"] == [{"name": name, "page": pages[name], "page_end": None} for name in names]
+    assert metadata["sources"] == [
+        {"name": name, "page": pages[name], "page_end": None, "weak": False} for name in names
+    ]
 
 
 def test_new_conversation_gets_a_thread_id_and_it_continues(client):
@@ -273,7 +275,9 @@ def test_tool_turn_then_answer_streams_only_the_answer_as_the_last_part(client, 
     assert text_parts(chunks) == ["大気は二酸化炭素です。"]
     assert llm.started == 2
     assert "ザーハード" in chunks[-2]["messageMetadata"]["context"]  # ツールの検索結果
-    assert chunks[-2]["messageMetadata"]["sources"] == [{"name": "ザーハード1.pdf", "page": 1, "page_end": None}]
+    assert chunks[-2]["messageMetadata"]["sources"] == [
+        {"name": "ザーハード1.pdf", "page": 1, "page_end": None, "weak": False}
+    ]
 
 
 def test_sources_are_reset_each_turn_and_for_a_refused_input(client, serve):

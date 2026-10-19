@@ -125,7 +125,7 @@ def test_the_page_goes_to_the_artifact_and_never_into_the_text_the_model_sees(ve
     message = call_tool("糸くずフィルターの掃除")
 
     assert message.content == "[aoba_aw820_manual.pdf]\nお手入れ\n糸くずフィルターは、洗濯のたびに掃除する。"
-    assert message.artifact == [{"name": "aoba_aw820_manual.pdf", "page": 3, "page_end": 4}]
+    assert message.artifact == [{"name": "aoba_aw820_manual.pdf", "page": 3, "page_end": 4, "weak": False}]
     # ページの値は、どの形でも文面に混ざらない
     assert "3" not in message.content and "p." not in message.content
 
@@ -153,8 +153,33 @@ def test_invalid_pages_become_none_so_the_screen_shows_nothing(vector_env, page,
     pool, _ = vector_env
     pool.rows = [{**aoba_row(0.81), "page": page, "page_end": page_end}]
     assert call_tool("糸くずフィルターの掃除").artifact == [
-        {"name": "aoba_aw820_manual.pdf", "page": expected[0], "page_end": expected[1]}
+        {"name": "aoba_aw820_manual.pdf", "page": expected[0], "page_end": expected[1], "weak": False}
     ]
+
+
+def test_a_second_hit_far_below_the_first_is_marked_weak_but_still_goes_to_the_model(vector_env):
+    pool, _ = vector_env
+    pool.rows = [aoba_row(0.80), {**aoba_row(0.74), "content": "別の箇所"}, {**aoba_row(0.75), "content": "近い箇所"}]
+
+    message = call_tool("糸くずフィルターの掃除")
+
+    # 1 位 0.80 との差が 0.06（> WEAK_GAP）の 2 件目は弱く、差が 0.05 ちょうどの 3 件目は弱くない。LLM に渡す文面は 3 件とも変わらない
+    assert [s["weak"] for s in message.artifact] == [False, True, False]
+    assert message.content.count("[aoba_aw820_manual.pdf]") == 3
+
+
+def test_the_gap_is_measured_from_the_first_hit_and_a_close_second_is_not_weak():
+    from app.agents.tools import WEAK_GAP, _sources
+    from app.search_vector import Hit
+
+    assert WEAK_GAP == 0.05
+    close = _sources([Hit("a.pdf", "A", similarity=0.80), Hit("b.pdf", "B", similarity=0.78)])
+    assert [s["weak"] for s in close] == [False, False]
+    far = _sources([Hit("a.pdf", "A", similarity=0.80), Hit("b.pdf", "B", similarity=0.70)])
+    assert [s["weak"] for s in far] == [False, True]
+    # 類似度が無い（偽の検索など）ときは、絞らない。1 件目は、いつも弱くない
+    assert [s["weak"] for s in _sources([Hit("a.pdf", "A"), Hit("b.pdf", "B")])] == [False, False]
+    assert _sources([]) == []
 
 
 def test_a_tool_message_with_an_artifact_survives_the_checkpoint_serializer():
@@ -162,7 +187,10 @@ def test_a_tool_message_with_an_artifact_survives_the_checkpoint_serializer():
     from langchain_core.messages import ToolMessage
     from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
-    sources = [{"name": "a.pdf", "page": 2, "page_end": 3}, {"name": "b.pdf", "page": None, "page_end": None}]
+    sources = [
+        {"name": "a.pdf", "page": 2, "page_end": 3, "weak": False},
+        {"name": "b.pdf", "page": None, "page_end": None, "weak": True},
+    ]
     state = {
         "messages": [ToolMessage(content="[a.pdf]\n本文", tool_call_id="c1", id="t1", artifact=sources)],
         "sources": sources,
