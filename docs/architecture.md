@@ -58,7 +58,7 @@ flowchart TB
     subgraph host["ホスト PC"]
         envfile[".env（Git 管理外）<br/>GEMINI_API_KEY / DATABASE_URL など"]
         subgraph compose["docker compose（Docker 上の実行）"]
-            api["コンテナ chatbot-api :8000<br/>FastAPI + LangGraph + frontend/dist"]
+            api["コンテナ docunavi-api :8000<br/>FastAPI + LangGraph + frontend/dist"]
         end
         subgraph devc["開発コンテナ（devcontainer）"]
             venv[".venv の uvicorn / pytest<br/>（開発中のサーバー :8000）"]
@@ -87,7 +87,7 @@ flowchart TB
     cloudrun -.-> pg
 ```
 
-- アプリの実行は 2 通りです。ホストでの `docker compose up`（`chatbot-api`）と、開発コンテナの `.venv` での `uvicorn`。どちらも 8000 番を使います。
+- アプリの実行は 2 通りです。ホストでの `docker compose up`（`docunavi-api`）と、開発コンテナの `.venv` での `uvicorn`。どちらも 8000 番を使います。
   開発コンテナには Docker が無いので、compose はホスト側で実行します。
 - 検索（`chunks`）と会話履歴は、同じ `DATABASE_URL` の DB です。本物の LLM では `DATABASE_URL` と `GEMINI_API_KEY` が必須で、
   無いとモックモード（キー未設定）か、起動の失敗になります（[search-design.md](search-design.md)）。

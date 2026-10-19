@@ -7,11 +7,11 @@
     },
     "remote.portsAttributes": {
         "8000": {
-            "label": "chatbot-api",
+            "label": "docunavi-api",
             "onAutoForward": "silent"
         },
         "5173": {
-            "label": "chatbot-ui (vite dev)",
+            "label": "docunavi-ui (vite dev)",
             "onAutoForward": "silent"
         }
     }
