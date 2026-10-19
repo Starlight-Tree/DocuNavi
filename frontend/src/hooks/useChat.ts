@@ -17,6 +17,8 @@ import { createAuthedFetch } from '../auth/authFetch';
 import { parseSourceRefs } from '../lib/sources';
 import type { SourceRef } from '../lib/sources';
 import { loadThreadId, saveThreadId } from '../lib/storage';
+import { fetchThreadMessages } from '../api/threads';
+import { useAuthedJsonFetch } from './useDocuments';
 
 type ChatUIMessage = UIMessage<ChatMetadata>;
 
@@ -36,6 +38,8 @@ export interface ChatError {
   retryAfterSeconds?: number;
 }
 
+export const MSG_HISTORY_FAILED =
+  '過去のやり取りを読み込めませんでした。左の一覧からもう一度選ぶか、そのまま続きを送れます。';
 const MSG_UNEXPECTED = '予期しないエラーが発生しました。もう一度お試しください。';
 
 function toChatError(error: unknown): ChatError {
@@ -103,6 +107,9 @@ function validThreadId(value: unknown): value is string {
   );
 }
 
+/** 保存済みの会話の発言を取り込む状態（resume の間）。 */
+export type HistoryStatus = 'idle' | 'loading' | 'error';
+
 export interface UseChat {
   messages: ChatMessage[];
   /** 送信してから、回答が最後まで届く（または失敗・中断する）まで。 */
@@ -121,8 +128,10 @@ export interface UseChat {
   stop: () => void;
   /** 会話（表示と thread_id）を破棄して最初から始める。 */
   reset: () => void;
-  /** 保存済みの会話の続きから始める。以前のやり取りは画面に出ない（履歴を取得する API が無い）。 */
+  /** 保存済みの会話を開く。以前のやり取りを取得して画面に出し、続きを送れるようにする。 */
   resume: (threadId: string) => void;
+  /** resume で以前のやり取りを取得している間（loading）と、取得に失敗したとき（error）。 */
+  history: HistoryStatus;
 }
 
 export function useChat(): UseChat {
@@ -133,6 +142,9 @@ export function useChat(): UseChat {
   const pendingRef = useRef(false);
   // 送信・再試行・リセットのたびに進める。リセット前の送信の完了が、新しい送信の pending を落とさないようにする
   const jobRef = useRef(0);
+  const [history, setHistory] = useState<HistoryStatus>('idle');
+  const historyAbortRef = useRef<AbortController | null>(null);
+  const fetchJson = useAuthedJsonFetch();
 
   // ログイン中は、送る直前にアクセストークンを付ける（期限が近ければ更新し、401 なら 1 回だけ更新して送り直す）
   const { client: authClient, expire } = useAuth();
@@ -191,7 +203,13 @@ export function useChat(): UseChat {
 
   // 画面を閉じるとき（アンマウント）は、実行中の送信を止める。サーバーは切断を見て LLM 呼び出しを取り消す
   const stopOnUnmount = chat.stop;
-  useEffect(() => () => void stopOnUnmount(), [stopOnUnmount]);
+  useEffect(
+    () => () => {
+      void stopOnUnmount();
+      historyAbortRef.current?.abort();
+    },
+    [stopOnUnmount],
+  );
 
   const begin = useCallback((job: Promise<unknown>) => {
     const token = ++jobRef.current;
@@ -227,6 +245,8 @@ export function useChat(): UseChat {
 
   const reset = useCallback(() => {
     jobRef.current += 1;
+    historyAbortRef.current?.abort();
+    setHistory('idle');
     pendingRef.current = false;
     void stopChat();
     setMessages([]);
@@ -239,7 +259,7 @@ export function useChat(): UseChat {
   const resume = useCallback(
     (id: string) => {
       if (!validThreadId(id)) return;
-      jobRef.current += 1;
+      const token = ++jobRef.current;
       pendingRef.current = false;
       void stopChat();
       setMessages([]);
@@ -247,8 +267,31 @@ export function useChat(): UseChat {
       threadIdRef.current = id;
       saveThreadId(id);
       setThreadId(id);
+
+      // 以前のやり取りを取得して並べる。取得の間に別の会話へ移った・新しい会話にした・送信を始めた
+      // （どれも jobRef が進む）なら、遅れて届いた結果は捨てる
+      historyAbortRef.current?.abort();
+      const controller = new AbortController();
+      historyAbortRef.current = controller;
+      setHistory('loading');
+      fetchThreadMessages(fetchJson, id, controller.signal).then(
+        (items) => {
+          if (jobRef.current !== token) return;
+          setMessages(
+            items.map((item, index) => ({
+              id: `history-${id}-${index}`,
+              role: item.role,
+              parts: [{ type: 'text', text: item.text }],
+            })),
+          );
+          setHistory('idle');
+        },
+        () => {
+          if (jobRef.current === token) setHistory('error');
+        },
+      );
     },
-    [clearError, setMessages, stopChat],
+    [clearError, fetchJson, setMessages, stopChat],
   );
 
   return {
@@ -263,5 +306,6 @@ export function useChat(): UseChat {
     stop,
     reset,
     resume,
+    history,
   };
 }

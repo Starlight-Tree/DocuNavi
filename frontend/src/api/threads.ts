@@ -39,6 +39,32 @@ export async function fetchThreads(fetcher: Fetcher, signal?: AbortSignal): Prom
   return threads;
 }
 
+export interface ThreadMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+/** 会話の発言を古い順に取得する（GET /threads/{id}/messages）。形が違えば MSG_BAD_BODY。 */
+export async function fetchThreadMessages(
+  fetcher: Fetcher,
+  threadId: string,
+  signal?: AbortSignal,
+): Promise<ThreadMessage[]> {
+  const init: RequestInit = { headers: { Accept: 'application/json' } };
+  if (signal) init.signal = signal;
+  const response = await fetcher(endpoint(`/threads/${encodeURIComponent(threadId)}/messages`), init);
+  const body: unknown = await response.json().catch(() => null);
+  if (!isRecord(body) || !Array.isArray(body.messages)) throw new ChatApiError(response.status, MSG_BAD_BODY);
+  const messages: ThreadMessage[] = [];
+  for (const item of body.messages) {
+    if (!isRecord(item) || (item.role !== 'user' && item.role !== 'assistant') || typeof item.text !== 'string') {
+      throw new ChatApiError(response.status, MSG_BAD_BODY);
+    }
+    messages.push({ role: item.role, text: item.text });
+  }
+  return messages;
+}
+
 /** 会話を削除する。すでに無い（404）ときは成功として扱う（目的の状態になっている）。 */
 export async function deleteThread(fetcher: Fetcher, threadId: string): Promise<void> {
   try {
