@@ -9,7 +9,8 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 | 目的 | コマンド |
 |---|---|
 | バックエンド起動 | `uvicorn app.main:app --reload`（`.env` が無い・キー未設定ならモックモード） |
-| バックエンドのテスト | `pytest`（`tests/conftest.py` がモックモードに固定する。実 API は呼ばない） |
+| バックエンドのテスト | `pytest`（`tests/conftest.py` がモックモードに固定する。実 API は呼ばない）。Postgres のテストは `TEST_DATABASE_URL` が無いとスキップされる |
+| Postgres 込みのテスト | `make test-db`（一時的な Postgres 17 を起動 → `pytest` 全体 → 停止。失敗しても停止する）。個別には `make test-db-up`（接続 URL を表示）→ `TEST_DATABASE_URL=<URL> pytest …` → `make test-db-down`。初回だけ `apt-get download` でパッケージ（約 20MB）を取得する。ポートは 55432。手順は [docs/development.md](docs/development.md) |
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（コマンドは [docs/development.md](docs/development.md) の「テスト」節）で `requirements*.txt` を再生成する。`.txt` は直接編集しない |
 | Docker | ホスト側で `docker compose up --build`（開発コンテナ内には Docker が無い） |
@@ -51,6 +52,9 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   テストが一致を確かめる）。2 段組みの PDF は、段を検出して読み順を組み直す（`pdf_parser._split_columns`）が、試したのは reportlab 製の 1 冊だけ。実物の書き出しで確かめるまで、アプリには置かない（`evals/fixtures/two_column/`）
 - `scripts/bm25_baseline.py`: 以前アプリが使っていた BM25（ローカルの PDF を読む）。評価の基準線で、アプリは import しない。`scripts/eval_*.py` が使う
 - `frontend/`: UI。`dist/` と `node_modules/` は Git 管理外
+
+テストは Claude Code が自分で実行してよい（読むだけ・一時的な起動で、課金も外部への書き込みも無い）。変更したら、上のコマンドで確かめてから報告する。
+`make test-db` は一時的な Postgres を立てる（ネットワークを使う初回取得あり）。他のセッションが 55432 を使っていたら失敗して止まる（止めない）。
 
 ## 守ること（コードを書く前に）
 
