@@ -5,7 +5,8 @@
 # 基底イメージには apt-key が無く、導入に失敗してコンテナの作成ごと止まる。そのため feature は使わず、
 # gpg --dearmor と signed-by で登録する。このスクリプトはログインしない（ログインは README の「開発環境の gcloud（ログインとガード）」の手順で、ユーザーが行う）。
 #
-# 失敗しても開発コンテナの作成は止めない（gcloud が無いだけで、他の作業はできる）。
+# 失敗したら 15 秒おいて 3 回まで再試行し、それでもだめなら終了コード 1 で終わる。postCreateCommand は ; でつないでいるので、
+# 開発コンテナの作成は止まらない（gcloud が無いだけで、他の作業はできる）。
 set -uo pipefail
 
 if command -v gcloud >/dev/null 2>&1; then
@@ -26,9 +27,17 @@ install_gcloud() {
     sudo apt-get install -y --no-install-recommends google-cloud-cli
 }
 
-if install_gcloud; then
+ok=0
+for i in 1 2 3; do
+  if install_gcloud; then ok=1; break; fi
+  echo "gcloud の導入に失敗しました（$i/3）。15 秒後に再試行します。" >&2
+  sleep 15
+done
+
+if [ "$ok" = 1 ] && command -v gcloud >/dev/null 2>&1; then
   echo "gcloud を導入しました: $(gcloud --version | head -1)"
 else
   echo "gcloud の導入に失敗しました（開発コンテナの作成は続けます）。再実行: bash .devcontainer/install-gcloud.sh" >&2
+  exit 1
 fi
 exit 0
