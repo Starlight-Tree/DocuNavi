@@ -1,0 +1,91 @@
+# 回答の評価の質問（14 問）。検索が空のとき、LLM が言い換えで検索し直すかを見る（2026-10-19）。
+# **固定済み。実 API を呼ぶ前に書いた。結果を見て、質問・正解・判定の基準を入れ替えない。**
+# 質問は、設定資料の .txt（evals/fixtures/zahard_txt/）と洗濯乾燥機の取扱説明書（evals/corpora/guides/source/aoba_aw820_manual.md）の本文だけから書いた。
+# 検索の結果・類似度は見ていない（新しい質問の埋め込みは、まだ作っていない）。承認済みの評価セットと最終確認の質問と、id・質問文が重ならない（n で始まる id）。ただし n014 は、最終確認の資料外の質問と同じ話題（東京タワーの高さ）。
+# 前の測定（evals/answers/questions_floor_cut.yaml の 4 問）は、文面を直す前に見た質問なので、ここには入れない。別に測って、分けて報告する。
+#
+# 質問の作り方: 短いキーワード・口語・ふつうの文を混ぜた（短い語だと検索が空になりやすいので、空になる質問が混ざるように）。
+#   答えのある 10 問: ザーハード 6（n001〜n006）、取扱説明書 4（n007〜n010）
+#   資料外 4 問: 話題は資料にあるが答えは無い 3（n011〜n013）、資料と無関係 1（n014）
+#
+# 判定（回答の文を人が読んで付ける。固定済み）:
+#   答えのある質問: 答えた = 回答が answer の要点を含み、資料にない内容を事実として足していない / 取りこぼし = 資料にあるのに断った /
+#                   誤答 = 答えたが answer と食い違う、または資料にないことを足した
+#   資料外の質問:   正しく断った / 作り話 = 資料にないことを事実として答えた
+#   経過（機械的に取れる）: search_count（検索の回数）、first_search_empty（1 回目が空だったか）、calls（LLM の呼び出し回数）
+#
+# 効果の判断（固定済み）。変更前の文面（--wording before）と、今の文面（--wording current）を、この 14 問で比べる。1 問 1 回ずつ（temperature は 1.0）。
+#   文面を残す: 次を全部満たす
+#     (a) 答えのある 10 問で「答えた」の数が、今の文面 ≥ 変更前の文面
+#     (b) 前の 4 問（questions_floor_cut.yaml）を今の文面で測り、2 問以上が「答えた」
+#     (c) 資料外 4 問で、今の文面の「作り話」が 0
+#     (d) 呼び出しの上限に当たった質問（budget_exceeded）が 0
+#   どれかを満たさない: 「効果が確認できない」と報告し、文面は、この結果を見て直さない（直すなら、新しい質問を先に固定する）。
+#   この判断は、1 問 1 回の少数の観測にもとづく。差が小さいときは「傾向」とだけ書く。
+#
+# 実行（承認を得てから。上限は実行前に示す）。**1 回目（2026-10-19）は、Gemini のレート制限（429）で失敗して判定できなかった**
+# （results/answers_research_before_20261019.json などの 3 ファイル。質問は変えていない）。2 回目は、質問の間に待ち（--pause-seconds）を入れ、
+# 429 が出たらその場で止める（再試行しない）。出力先は、1 回目のファイルと別の名前にする:
+#   変更前: python -m scripts.eval_answers --run --wording before --pause-seconds 30 --questions evals/answers/questions_research.yaml \
+#             --max-calls 36 --per-question 3 --out evals/results/answers_research_before_2_<日付>.json
+#   今の文面: python -m scripts.eval_answers --run --wording current --pause-seconds 30 --questions evals/answers/questions_research.yaml \
+#             --max-calls 70 --per-question 5 --out evals/results/answers_research_current_2_<日付>.json
+#   前の 4 問: python -m scripts.eval_answers --run --wording current --pause-seconds 30 --questions evals/answers/questions_floor_cut.yaml \
+#             --max-calls 20 --per-question 5 --out evals/results/answers_floor_cut_research_2_<日付>.json
+
+- id: n001
+  role: answerable
+  question: "ザーハードの砂漠って、車で移動できる？"
+  answer: "砂丘が続いて移動が困難なので、高機動の車両が必要。"
+- id: n002
+  role: answerable
+  question: "ザーハリアンの宇宙船"
+  answer: "ザーハリアンは、エネルギー源を利用して異星間を移動するための宇宙船を開発した（他の惑星にも移住している可能性がある）。"
+- id: n003
+  role: answerable
+  question: "エネルギー源が出している放射線について教えて"
+  answer: "異常に高い出力を持つ放射線を放出していて、周囲に強力な磁場を形成している。"
+- id: n004
+  role: answerable
+  question: "探査団が生命維持装置を持っていくのはなぜ？"
+  answer: "大気の酸素濃度が地球の1/10以下で、酸素供給装置がないと生存できないから。"
+- id: n005
+  role: answerable
+  question: "遺跡の罠"
+  answer: "遺跡は多層的な構造で、内部にさまざまな罠や障害物が設置されている。"
+- id: n006
+  role: answerable
+  question: "岩山の中には何があるの？"
+  answer: "未知の鉱物やエネルギー源が埋蔵されている（眠っている）可能性がある。"
+- id: n007
+  role: answerable
+  question: "洗濯乾燥機の水圧はどれくらいが目安？"
+  answer: "0.05MPa から 0.8MPa の範囲。"
+- id: n008
+  role: answerable
+  question: "毛布は洗える？"
+  answer: "毛布は 2.0kg まで洗える（羽毛布団と電気毛布は洗えない）。"
+- id: n009
+  role: answerable
+  question: "E04 のエラー"
+  answer: "排水エラー。原因は排水ホースのつまりで、対処の目安は約30分。"
+- id: n010
+  role: answerable
+  question: "出張修理の料金はいくら？"
+  answer: "保証期間内は無料。保証期間を過ぎると出張料が 3,300 円かかる。"
+- id: n011
+  role: on_topic_absent
+  question: "ザーハードの公転周期は何日？"
+  answer: "資料に記載がない（公転周期は書かれていない）。"
+- id: n012
+  role: on_topic_absent
+  question: "ザーハードには衛星がいくつある？"
+  answer: "資料に記載がない（衛星の数は書かれていない）。"
+- id: n013
+  role: on_topic_absent
+  question: "AW-820 の洗濯槽の素材は何ですか？"
+  answer: "資料に記載がない（洗濯槽の素材は書かれていない）。"
+- id: n014
+  role: off_topic
+  question: "東京タワーの高さは？"
+  answer: "資料と無関係の質問。資料に記載がない。"
