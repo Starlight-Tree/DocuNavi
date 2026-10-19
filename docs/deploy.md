@@ -166,16 +166,27 @@ as_me gcloud secrets add-iam-policy-binding database-url \
 - DB に届かないと、**起動に失敗してリビジョンが Ready になりません**（メモリへは切り替わりません）。ログで原因を確かめます。
 - Cloud Run から Supabase への接続は、**プーラーの URL（ポート 6543、transaction mode）で届くことを確かめました（2026-10-20。`/health` の `history` が `postgres`）。**
   直接接続は既定で IPv6 のため、IPv4 で届くプーラーの接続 URL を使います。
-- 会話履歴の保存期間は 90 日という方針ですが、**削除の定期実行は未設定なので、いまは保証していません**（`docs/configuration.md`）。定期実行の手順は、次の D です（未実施）。
+- 会話履歴は、**週 1 回の Job が、最後の動きから 7 日たった会話を削除します**（2026-10-20 に Job と Scheduler を作成。方針の 90 日は変えていません）。手順と確認の記録は、次の D です。
 
 ### D. 会話履歴の削除（Cloud Run Job + Cloud Scheduler。最初は 7 日）
 
-**削除の日数は、最初は 7 日にします**（2026-10-20 に決定）。方針の 90 日（`docs/configuration.md`）は変えておらず、様子を見て、下の `7` を書き換えて延ばします。
+**削除の日数は、最初は 7 日にします**（2026-10-20 に決定）。7 日の動きは、ローカルの Postgres で、時刻を書き換えて日がたつ様子を作って確かめました
+（`tests/test_history_postgres.py` の `test_purge_at_seven_days_follows_the_clock`。6 日目は残り、8 日目に消え、続きを話した会話は残る）。本物の Supabase では未実行です。
+方針の 90 日（`docs/configuration.md`）は変えておらず、様子を見て、下の `7` を書き換えて延ばします。
 最後の動きから 7 日たった会話は消え、サイドバーの一覧からも消えます（戻せません）。実行は週 1 回なので、実際に消えるのは 7〜14 日後です。
 
-**この節は手順の案で、未実行です。** 実行するのは、B・C まで済んで、サービスが `/health` の `history` を `postgres` にして動いてから
+**実行済みです（2026-10-20 JST、利用者が `as_me` で実行）。** B・C まで済んで、サービスが `/health` の `history` を `postgres` にして動いてからの手順です
 （Cloud Run が始まる前は、Job も Scheduler も作れません。請求先アカウントと、上の準備 0・1 が前提です）。
-Job と Scheduler の作成は書き込みなので、あなたが実行します（`as_me`）。フラグは `gcloud ... --help` で存在を確かめましたが、実行はしていません。
+Job と Scheduler の作成は書き込みなので、あなたが実行します（`as_me`）。
+
+**実際に通った記録**（プロジェクト `docunavi-app`、Job `docunavi-history-cleanup`、Scheduler `docunavi-history-cleanup-weekly`）:
+
+- Job を作り（`--apply` なし）、手動で 1 回実行 → ログに「対象の会話: 0 件」、終了コード 0（実行 `…-cr5hf`、04:43 JST）。公開して間もなく、古い会話が無かったため。
+- `--apply` を足し、Scheduler 用のサービスアカウントを作って `run.invoker` を付け、Scheduler を作成（毎週日曜 03:00 JST。最初の定時は 2026-10-25）。
+- `scheduler jobs run` で 1 回起こし、実行 `…-lx97q` が `history-cleanup-scheduler` の実行として 1 / 1 完了（04:47 JST）。Scheduler から Job を呼ぶ権限は足りている。
+- **詰まった点:** サービスアカウントを作った直後の `run jobs add-iam-policy-binding` と `scheduler jobs create` が、「存在しない」「見つからない」で失敗した（IAM の反映待ち）。
+  数十秒〜数分後に同じコマンドをやり直して通った。続けて実行するときは、作成の後に少し待つか、`service-accounts describe` が通るのを確かめてから進める。
+- ログは、実行の完了から数十秒遅れて読めるようになる。空なら、`run jobs executions list` で完了を見る。
 
 - 削除の実体は `python -m app.history_admin --older-than-days 7 --apply`（[configuration.md](configuration.md)）。同じ条件で何度実行しても、
   消える会話は「7 日以上動きのない会話」だけなので、再実行されても害はありません（一覧を取ってから消すまでに新しい発言が入った会話が消えうる点だけは、`history_admin` の説明のとおり）。
@@ -232,11 +243,11 @@ as_me gcloud scheduler jobs create http "${JOB}-weekly" \
 ```
 
 - **動いたかの確認:** 7 の後、Scheduler の画面（または `as_me gcloud scheduler jobs run "${JOB}-weekly" --location "$REGION"`）で 1 回起こし、
-  上の `logging read` で「削除した会話: N 件」を見ます。これで初めて「定期実行が動いた」と言えます。それまでは、動くと確かめていません。
+  上の `logging read` で「削除した会話: N 件」を見ます。Scheduler から動いたかは、`run jobs executions list` の「RUN BY」が Scheduler 用のアカウントで、完了していれば分かります（2026-10-20 に確認済み。ただし、その実行の「削除した会話: N 件」の行そのものは読んでいません）。
 - **イメージの更新:** Job のイメージは作った時点のものです。サービスをデプロイし直したら、`as_me gcloud run jobs update "$JOB" --image "$IMAGE" …` で合わせます
   （古いイメージでも、`history_admin` が変わらなければ動きます）。
-- **未確認:** この Job の実行（イメージに `python` と `history_admin` が入って動くこと）、Cloud Run から Supabase への接続、Scheduler から Job を呼ぶ権限の過不足、
-  `--args` の書き方での `--apply` の追加。`history_admin` の `--apply` は、Supabase（実 DB）では `--thread-id` でだけ確かめています。
+- **確認済み（2026-10-20）:** Job の実行（イメージに `python` と `history_admin` が入って動く）、Cloud Run の Job から Supabase への接続（件数 0 件の表示まで）、Scheduler から Job を呼ぶ権限、`--args` での `--apply` の追加。
+- **未確認:** 実際に会話が削除される動き。`history_admin` の `--apply` は、Supabase（実 DB）では `--thread-id` でだけ確かめていて、`--older-than-days --apply` で消えた実績はまだ無い（古い会話が無いため。ローカルと CI の Postgres では確認済み）。
 - **失敗に気づく:** 失敗しても通知は出ません（Cloud Monitoring のアラートは未設定）。当面は、月に 1 度、`logging read` で最後の実行を見ます。
 
 ### 値の根拠
