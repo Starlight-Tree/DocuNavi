@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { Composer } from './components/Composer';
 import { DocumentsView } from './components/DocumentsView';
@@ -5,8 +6,10 @@ import { ErrorBanner } from './components/ErrorBanner';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
 import { MessageList } from './components/MessageList';
+import { ThreadSidebar } from './components/ThreadSidebar';
 import { useBackendMode } from './hooks/useBackendMode';
 import { useChat } from './hooks/useChat';
+import { useThreads } from './hooks/useThreads';
 import { useUrlState } from './lib/urlState';
 
 function ChatScreen() {
@@ -16,9 +19,25 @@ function ChatScreen() {
   const signedIn = state.status === 'signedIn';
   // 開いている画面は URL が決める（戻る・再読み込み・共有で戻れる）
   const { tab: view, navigate } = useUrlState();
+  // 会話の一覧は、ログイン中（バックエンドが本人の会話を区別できるとき）だけ出す
+  const threads = useThreads(signedIn);
+  const { reload: reloadThreads } = threads;
+  // 回答が最後まで届いた（または止まった）あと、新しい会話・更新された順を一覧に反映する。
+  // 生成中は null。終わると発言の数に変わる（送るたびに数が変わるので、取り直しが走る）
+  const settledCount = chat.pending ? null : chat.messages.length;
+  useEffect(() => {
+    if (settledCount) reloadThreads();
+  }, [settledCount, reloadThreads]);
+
+  const removeThread = async (threadId: string) => {
+    const failure = await threads.remove(threadId);
+    // 開いていた会話を消したら、画面も最初の状態に戻す
+    if (failure === null && threadId === chat.threadId) chat.reset();
+    return failure;
+  };
 
   return (
-    <div className="app">
+    <div className={signedIn ? 'app app-with-sidebar' : 'app'}>
       <Header
         mode={chat.mode ?? healthMode}
         view={view}
@@ -28,18 +47,30 @@ function ChatScreen() {
         onSignOut={signedIn ? () => void signOut() : undefined}
       />
       {/* 資料一覧を開いている間も、チャットは隠すだけで残す（生成中の回答・入力途中の文・スクロール位置を失わない） */}
-      <div className="chat-pane" hidden={view !== 'chat'}>
-        <MessageList
-          messages={chat.messages}
-          waiting={chat.waiting}
-          busy={chat.pending}
-          resumed={chat.threadId !== null && chat.messages.length === 0}
-          onExample={chat.pending ? undefined : chat.send}
-        />
-        {chat.error && (
-          <ErrorBanner error={chat.error} disabled={chat.pending} onRetry={chat.retry} />
+      <div className="chat-layout" hidden={view !== 'chat'}>
+        {signedIn && (
+          <ThreadSidebar
+            state={threads.state}
+            currentId={chat.threadId}
+            busy={chat.pending}
+            onSelect={chat.resume}
+            onDelete={removeThread}
+            onRetry={threads.reload}
+          />
         )}
-        <Composer pending={chat.pending} onSend={chat.send} onStop={chat.stop} />
+        <div className="chat-pane">
+          <MessageList
+            messages={chat.messages}
+            waiting={chat.waiting}
+            busy={chat.pending}
+            resumed={chat.threadId !== null && chat.messages.length === 0}
+            onExample={chat.pending ? undefined : chat.send}
+          />
+          {chat.error && (
+            <ErrorBanner error={chat.error} disabled={chat.pending} onRetry={chat.retry} />
+          )}
+          <Composer pending={chat.pending} onSend={chat.send} onStop={chat.stop} />
+        </div>
       </div>
       {view === 'documents' && <DocumentsView />}
     </div>

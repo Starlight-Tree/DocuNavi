@@ -121,6 +121,8 @@ export interface UseChat {
   stop: () => void;
   /** 会話（表示と thread_id）を破棄して最初から始める。 */
   reset: () => void;
+  /** 保存済みの会話の続きから始める。以前のやり取りは画面に出ない（履歴を取得する API が無い）。 */
+  resume: (threadId: string) => void;
 }
 
 export function useChat(): UseChat {
@@ -234,6 +236,21 @@ export function useChat(): UseChat {
     setThreadId(null);
   }, [clearError, setMessages, stopChat]);
 
+  const resume = useCallback(
+    (id: string) => {
+      if (!validThreadId(id)) return;
+      jobRef.current += 1;
+      pendingRef.current = false;
+      void stopChat();
+      setMessages([]);
+      clearError();
+      threadIdRef.current = id;
+      saveThreadId(id);
+      setThreadId(id);
+    },
+    [clearError, setMessages, stopChat],
+  );
+
   return {
     messages,
     pending,
@@ -245,5 +262,6 @@ export function useChat(): UseChat {
     retry,
     stop,
     reset,
+    resume,
   };
 }
