@@ -135,14 +135,14 @@ jobs:
           context: .
           push: false
           load: true
-          tags: chatbot:ci
+          tags: docunavi:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
       # キーを渡さないので、アプリはモックモードで起動する。固定した依存で実際に動くことと、
       # 画面（フロントエンドのビルド成果物）と /chat が、イメージの中で応答することを確かめる。
       - name: Start the image and check it responds
         run: |
-          docker run -d --name chatbot -p 8000:8000 chatbot:ci
+          docker run -d --name docunavi -p 8000:8000 docunavi:ci
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8000/health > health.json 2>/dev/null; then break; fi
             sleep 1
@@ -156,4 +156,4 @@ jobs:
           grep -q '"reply"' chat.json
       - name: Show container logs on failure
         if: failure()
-        run: docker logs chatbot
+        run: docker logs docunavi

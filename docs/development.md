@@ -37,7 +37,7 @@ GitHub Actions（`.github/workflows/ci.yml`）が、`main` へのプッシュと
 
 ```bash
 docker compose up --build -d                       # .env が無ければモックモード
-docker compose ps                                  # chatbot-api が healthy になる（ヘルスチェック。数十秒かかることがある）
+docker compose ps                                  # docunavi-api が healthy になる（ヘルスチェック。数十秒かかることがある）
 curl -s localhost:8000/health                      # {"status":"ok",…}。.env に DATABASE_URL があれば "history":"postgres"
 curl -s -o /dev/null -w '%{http_code}\n' localhost:8000/    # 200（画面。frontend/dist はイメージのビルドで入る）
 curl -s -X POST localhost:8000/chat -H 'content-type: application/json' \
