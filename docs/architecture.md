@@ -83,6 +83,7 @@ flowchart TB
     api -->|GEMINI_API_KEY| gemini
     venv -->|GEMINI_API_KEY| gemini
     api -.->|JWKS の取得| auth
+    browser -.->|Google ログイン| auth
     cloudrun -.-> pg
 ```
 
@@ -95,6 +96,33 @@ flowchart TB
   - `VITE_SUPABASE_PUBLISHABLE_KEY`: 画面のビルド時に渡す公開用の値で、秘密ではありません。
   - gh の読み取り専用トークン: 開発コンテナの名前付きボリューム（`~/.gh-config`）。gcloud のログインは残しません（[.devcontainer/README.md](../.devcontainer/README.md)）。
 - Cloud Run と Vertex AI は、手順を書いただけで、実行も検証もしていません（[deploy.md](deploy.md)）。
+
+## ログインの流れ
+
+`AUTH_MODE=required` のときの流れです（仕様は [configuration.md](configuration.md) の「ログイン（認証）」）。ブラウザーが Supabase Auth でログインして
+アクセストークン（JWT）を受け取り、API にはそのトークンだけを送ります。バックエンドは、Supabase が公開する鍵で署名を検証します。
+
+```mermaid
+sequenceDiagram
+    participant B as ブラウザー（frontend）
+    participant S as Supabase Auth
+    participant G as Google
+    participant A as バックエンド（FastAPI）
+
+    B->>S: Google でログイン（publishable key）
+    S->>G: 認証
+    G-->>S: 本人確認の結果
+    S-->>B: セッション（アクセストークン）
+    B->>A: POST /chat/stream<br/>Authorization: Bearer トークン
+    A->>S: JWKS の公開鍵（起動時に取得。10 分ごとに更新）
+    A->>A: 署名・exp・iss・aud・sub を検証
+    A-->>B: 回答（履歴のキーは「sub:thread_id」）
+```
+
+- **信頼の境界。** バックエンドが信じるのは、検証に通ったトークンの `sub` だけです。クライアントが送る `thread_id` や、画面の状態は信じません。
+- **秘密と公開の区別。** 画面に渡すのは Supabase の URL と publishable key だけです（公開してよい値）。Gemini のキーと DB の接続 URL は、バックエンドの環境変数にだけあります。
+- **401 のとき。** 画面は、トークンの更新を 1 回試し、だめならログインを促す固定の文を出します。ログイン前の画面（`?tab=documents` など）は、ログイン後に元へ戻ります。
+- **確認の状況。** ローカルで、Google ログイン → 画面に戻る → 質問を送る、を実際の Supabase で通しました（2026-10-19）。本番の環境（Cloud Run）では未確認です。
 
 ## 画面はどう配信されるか
 
