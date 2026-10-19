@@ -1,0 +1,87 @@
+{
+  "generated_at": "2026-10-19T18:29:29+09:00",
+  "model": "gemini-3.1-flash-lite",
+  "max_calls": 12,
+  "max_calls_per_question": 3,
+  "calls_used": 8,
+  "hedge": "off",
+  "search": {
+    "backend": "vector",
+    "min_similarity": 0.65
+  },
+  "path": "ainvoke（/chat と同じ。画面が使う /chat/stream ではない）",
+  "results": [
+    {
+      "id": "q008",
+      "role": "answerable",
+      "question": "硫化水素",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 14.8,
+      "error": null,
+      "says_no_info": true,
+      "searches": [
+        {
+          "query": "硫化水素",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
+        }
+      ],
+      "answer": "資料には記載がありません。"
+    },
+    {
+      "id": "q010",
+      "role": "answerable",
+      "question": "象形文字",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 4.3,
+      "error": null,
+      "says_no_info": true,
+      "searches": [
+        {
+          "query": "象形文字",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
+        }
+      ],
+      "answer": "資料には記載がありません。"
+    },
+    {
+      "id": "q012",
+      "role": "answerable",
+      "question": "昼と夜の気温差について教えて",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 11.4,
+      "error": null,
+      "says_no_info": true,
+      "searches": [
+        {
+          "query": "昼と夜の気温差",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
+        }
+      ],
+      "answer": "資料には記載がありません。"
+    },
+    {
+      "id": "q019",
+      "role": "answerable",
+      "question": "メタンガスって入ってる？",
+      "expected_answer": null,
+      "calls": 2,
+      "elapsed_seconds": 2.0,
+      "error": null,
+      "says_no_info": true,
+      "searches": [
+        {
+          "query": "メタンガス",
+          "files": [],
+          "result": "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
+        }
+      ],
+      "answer": "資料には記載がありません。"
+    }
+  ]
+}
