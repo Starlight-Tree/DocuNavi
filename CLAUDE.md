@@ -93,6 +93,20 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - 変更したら、触れた範囲のテストを実行してから報告する。確認できていないこと（例: Docker ビルド）は
   確認済みと書かない。
 
+## セキュリティの運用
+
+非公開・個人開発なので、`SECURITY.md`（脆弱性の報告窓口）は置かない。ルールはここに置く。リポジトリを公開する段階で、
+`SECURITY.md` と GitHub の Private Vulnerability Reporting を一緒に検討する。
+
+- **画面に渡してよいのは公開用の値だけ。** `VITE_*` はビルド時にバンドルへ埋め込まれ、誰でも読める。入れてよいのは
+  Supabase の URL と publishable key だけ。secret key・`DATABASE_URL`・`GEMINI_API_KEY` は `VITE_*` に入れない。
+- **設定は環境変数で渡す。** 認証・DB・LLM の値をコード・文書・コミットに書かない。`.env` と `frontend/.env.local` は Git 管理外。
+- **他の人が届く環境（Cloud Run など）は `AUTH_MODE=required`。** `off`（既定）は、自分だけが使うローカル開発用。
+- **キーを誤ってコミット・公開したら、失効させて作り直す。** 履歴から消すだけでは足りない。
+- **ガードレールはルールベースで、プロンプトインジェクションを完全には防がない**（`docs/guardrails.md`）。
+- **GitHub 側の自動防御は、ユーザーが設定画面で確認する。** Dependabot は設定済み（`.github/dependabot.yml`）。
+  Secret Scanning と Push Protection が有効かは未確認（読み取り専用のトークンでは見えない）。
+
 ## 開発プロセスの後始末
 
 作業の終わり・セッションの切り替えの前に、自分が起動したサーバー（uvicorn、モック、負荷試験のスクリプト等）を
