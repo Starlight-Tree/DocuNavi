@@ -34,8 +34,8 @@ Vertex AI でのモデルの利用、Cloud Build での Docker ビルド、`agen
 ```bash
 PROJECT_ID=<プロジェクト ID>
 REGION=asia-northeast1            # LLM の呼び出し先（GOOGLE_CLOUD_LOCATION）とは別。実際の値に読み替える
-SERVICE=zahard-chatbot
-RUN_SA=zahard-chatbot-run
+SERVICE=docunavi
+RUN_SA=docunavi-run
 DEPLOYER="agent-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # 既定の「閲覧専用になりすます」環境変数を、この 1 コマンドだけ外して、あなた自身の権限で実行する
@@ -66,7 +66,7 @@ as_me() { env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT "$@"; }
 2. **実行用のサービスアカウントを作る**
 
    ```bash
-   as_me gcloud iam service-accounts create "$RUN_SA" --display-name="Zahard chatbot runtime" --project "$PROJECT_ID"
+   as_me gcloud iam service-accounts create "$RUN_SA" --display-name="DocuNavi runtime" --project "$PROJECT_ID"
    as_me gcloud projects add-iam-policy-binding "$PROJECT_ID" \
      --member="serviceAccount:${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
      --role=roles/aiplatform.user --condition=None
@@ -176,7 +176,7 @@ IMAGE=$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region
   --format='value(spec.template.spec.containers[0].image)')
 
 # 3. Job を作る（コマンドを上書き。実行用 SA と Secret はサービスと同じ）
-JOB=zahard-chatbot-history-cleanup
+JOB=docunavi-history-cleanup
 as_me gcloud run jobs create "$JOB" \
   --project "$PROJECT_ID" --region "$REGION" \
   --image "$IMAGE" \
@@ -250,7 +250,7 @@ as_me gcloud scheduler jobs create http "${JOB}-weekly" \
 ```bash
 # 予算アラート（請求先アカウントの管理者の権限。as_me で実行）。金額としきい値は例
 as_me gcloud billing budgets create --billing-account=<請求先アカウント ID> \
-  --display-name="zahard-chatbot" --budget-amount=20USD \
+  --display-name="docunavi" --budget-amount=20USD \
   --filter-projects="projects/${PROJECT_ID}" \
   --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0
 ```

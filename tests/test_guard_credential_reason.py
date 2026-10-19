@@ -82,7 +82,7 @@ def test_other_denies_do_not_claim_a_matched_word(command):
     "command",
     [
         "findmnt",  # パスを含まない確認は、これまでどおり通る
-        "findmnt -T /workspaces/chatbot",
+        "findmnt -T /workspaces/docunavi",
         'echo ".config/gcloud"',  # 文章に書くだけなら止めない
         "git commit -m 'document ~/.config/gcloud handling'",
     ],

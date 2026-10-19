@@ -53,7 +53,7 @@ if [[ "$account" == *.gserviceaccount.com ]]; then member="serviceAccount:$accou
 
 sa_name="agent-deployer"
 service_account="${sa_name}@${project}.iam.gserviceaccount.com"
-run_sa_name="${RUN_SA_NAME:-zahard-chatbot-run}"
+run_sa_name="${RUN_SA_NAME:-docunavi-run}"
 run_service_account="${run_sa_name}@${project}.iam.gserviceaccount.com"
 # run.sourceDeveloper: ソースからのデプロイ（Cloud Run の作成・更新、ビルドの実行、ソース用バケットと
 #   Artifact Registry のリポジトリの作成）。サービスの IAM ポリシー（allUsers の付与など）は変えられない。
