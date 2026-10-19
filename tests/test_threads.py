@@ -1,4 +1,4 @@
-"""会話の一覧（GET /threads）と本人による削除（DELETE /threads/{id}）。履歴はメモリ。
+"""会話の一覧（GET /threads）、発言の取得（GET /threads/{id}/messages）と本人による削除（DELETE /threads/{id}）。履歴はメモリ。
 
 確かめるのは、本人の会話だけが出ること、題名、他人の会話を消せないこと、匿名（off）の扱い、失敗時の固定メッセージ。
 Postgres での同じ確認は tests/test_threads_postgres.py（TEST_DATABASE_URL があるときだけ）。
@@ -8,7 +8,7 @@ import time
 import uuid
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app import auth
 from app.api import routes, threads
@@ -136,6 +136,78 @@ def test_make_title_uses_the_first_human_message_and_handles_block_content():
     assert threads.make_title([AIMessage(content="AI だけ")]) == "（題名なし）"
 
 
+# --- 発言の取得 -------------------------------------------------------------
+
+
+def test_messages_returns_the_conversation_in_order(client, required, signer, user):
+    headers = _bearer(signer, user)
+    thread_id = _chat(client, headers, "最初の質問です")
+    _chat(client, headers, "続きの質問です", thread_id)
+
+    res = client.get(f"/threads/{thread_id}/messages", headers=headers)
+
+    assert res.status_code == 200
+    messages = res.json()["messages"]
+    assert [(m["role"], m["text"]) for m in messages if m["role"] == "user"] == [
+        ("user", "最初の質問です"),
+        ("user", "続きの質問です"),
+    ]
+    assert [m["role"] for m in messages] == ["user", "assistant", "user", "assistant"]
+    assert all(m["text"] for m in messages)
+
+
+def test_messages_of_another_users_thread_is_404(client, required, signer, user):
+    other = str(uuid.uuid4())
+    thread_id = _chat(client, _bearer(signer, other), "他人の会話です")
+
+    res = client.get(f"/threads/{thread_id}/messages", headers=_bearer(signer, user))
+
+    assert res.status_code == 404
+    assert res.json()["detail"] == "指定された会話が見つかりません。"
+    assert "他人の会話です" not in res.text
+
+
+def test_messages_of_an_unknown_thread_is_404(client, required, signer, user):
+    assert client.get("/threads/nothing/messages", headers=_bearer(signer, user)).status_code == 404
+
+
+def test_messages_need_a_token_when_auth_is_required(client, required, signer, user):
+    thread_id = _chat(client, _bearer(signer, user), "守る会話です")
+
+    assert client.get(f"/threads/{thread_id}/messages").status_code == 401
+
+
+def test_messages_reject_ids_that_could_carry_a_prefix(client, required, signer, user):
+    res = client.get(f"/threads/{uuid.uuid4()}:abc/messages", headers=_bearer(signer, user))
+    assert res.status_code == 422
+
+
+def test_messages_in_off_mode_are_read_by_thread_id(client, monkeypatch):
+    monkeypatch.delenv("AUTH_MODE", raising=False)
+    thread_id = _chat(client, {}, "匿名の会話です")
+
+    res = client.get(f"/threads/{thread_id}/messages")
+
+    assert res.status_code == 200
+    assert res.json()["messages"][0] == {"role": "user", "text": "匿名の会話です"}
+    assert client.get(f"/threads/{uuid.uuid4()}/messages").status_code == 404
+
+
+def test_visible_messages_skip_tool_traffic_and_empty_text():
+    messages = [
+        HumanMessage(content="ザーハードの大気は？"),
+        AIMessage(content="", tool_calls=[{"name": "search_documents", "args": {"query": "大気"}, "id": "c1"}]),
+        ToolMessage(content="資料の本文（画面に出さない）", tool_call_id="c1"),
+        AIMessage(content=[{"type": "text", "text": "窒素が主成分です。"}, {"type": "thinking", "thinking": "内部"}]),
+        AIMessage(content="   "),
+    ]
+
+    assert [(m.role, m.text) for m in threads.visible_messages(messages)] == [
+        ("user", "ザーハードの大気は？"),
+        ("assistant", "窒素が主成分です。"),
+    ]
+
+
 # --- 削除 --------------------------------------------------------------------
 
 
@@ -205,7 +277,9 @@ class _BrokenSaver:
         yield  # pragma: no cover
 
 
-@pytest.mark.parametrize("method, path", [("get", "/threads"), ("delete", "/threads/abc")])
+@pytest.mark.parametrize(
+    "method, path", [("get", "/threads"), ("get", "/threads/abc/messages"), ("delete", "/threads/abc")]
+)
 def test_store_failure_is_a_fixed_503(client, required, signer, user, monkeypatch, method, path):
     monkeypatch.setattr(threads, "_saver", lambda: _BrokenSaver())
 
