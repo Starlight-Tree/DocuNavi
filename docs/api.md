@@ -104,9 +104,9 @@ data: [DONE]
 
 クライアントが切断した場合は、LLM 呼び出しを取り消して何も返しません（`/chat` と同じ。[configuration.md](configuration.md) の「クライアントの切断」）。
 
-## `GET /threads`、`DELETE /threads/{thread_id}`
+## `GET /threads`、`GET /threads/{thread_id}/messages`、`DELETE /threads/{thread_id}`
 
-会話の一覧と、会話の削除。画面は、ログイン中のチャット画面の左サイドバーが使う（一覧・選んで続きから・削除。過去のやり取りは、履歴を返す API が無いので表示されない）。履歴の保存先（Postgres またはメモリ）を、`/chat` と同じ checkpointer 経由で読み書きする。
+会話の一覧と、会話の削除。画面は、ログイン中のチャット画面の左サイドバーが使う（一覧・選んで続きから・削除。過去のやり取りは、画面がまだ `/messages` を使っていないので表示されない）。履歴の保存先（Postgres またはメモリ）を、`/chat` と同じ checkpointer 経由で読み書きする。
 
 - **`GET /threads`:** ログイン中の利用者の会話を、最後の更新が新しい順に、最大 50 件返す。
 
@@ -116,13 +116,21 @@ data: [DONE]
 
   `thread_id` は `/chat` に送ると会話が続く値（利用者 ID の接頭辞は付かない）。`title` は最初のユーザー発言の先頭（空白をまとめて 40 文字まで。
   超えたら末尾が `…`）で、新しい列も LLM 呼び出しも使わない。`created_at` / `updated_at` は最初と最後のチェックポイントの時刻で、無ければ `null`。
+- **`GET /threads/{thread_id}/messages`:** 会話の発言を古い順に返す。ユーザーの発言と、ツール呼び出しの無い最終回答だけで、検索で引いた資料の本文（ツールの結果）は含めない。
+  本文が空のものは除く。履歴に無い会話は 404（required では他人の会話も同じ 404）。
+
+  ```json
+  {"messages": [{"role": "user", "text": "ザーハードの大気は？"}, {"role": "assistant", "text": "…"}]}
+  ```
+
+  回答の出典（`sources`）は、会話の状態に直近の 1 回分しか無い（毎ターン作り直す）ので返さない。
 - **`DELETE /threads/{thread_id}`:** 会話を 1 件消す。成功は 204（本文なし）。`thread_id` の形式は `/chat` と同じ（`:` を含むと 422）。
 - **認証:**
 
-  | `AUTH_MODE` | `GET /threads` | `DELETE /threads/{thread_id}` |
+  | `AUTH_MODE` | `GET /threads` | `GET …/messages`、`DELETE /threads/{thread_id}` |
   |---|---|---|
   | `required` | 本人の会話だけ。トークンが無い・不正なら 401 | 本人の会話だけ。他人の ID は、存在しないのと同じ 404（区別しない） |
-  | `off`（既定） | 404（匿名の会話には持ち主がなく、一覧にすると他人の会話が見えるため） | `thread_id` を知っていれば消せる（`/chat` で続きを書ける条件と同じ） |
+  | `off`（既定） | 404（匿名の会話には持ち主がなく、一覧にすると他人の会話が見えるため） | `thread_id` を知っていれば読める・消せる（`/chat` で続きを書ける条件と同じ） |
 
 - **エラー:** 404（`指定された会話が見つかりません。` / off の一覧は `会話の一覧は、ログイン（AUTH_MODE=required）のときだけ使えます。`）、
   422（不正な `thread_id`）、503（履歴の保存先を操作できない。固定メッセージで、例外の内容・接続先は含まない）。

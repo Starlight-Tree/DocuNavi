@@ -64,6 +64,13 @@ def test_list_and_delete_against_postgres(db, required, signer):  # noqa: F811
         assert all(item["created_at"] and item["updated_at"] for item in listed)
         assert [item["thread_id"] for item in client.get("/threads", headers=b).json()["threads"]] == [theirs]
 
+        # 発言は本人にだけ読める
+        read = client.get(f"/threads/{second}/messages", headers=a)
+        assert read.status_code == 200
+        assert [m["role"] for m in read.json()["messages"]] == ["user", "assistant"]
+        assert read.json()["messages"][0]["text"] == "アリスの二つ目の質問です"
+        assert client.get(f"/threads/{theirs}/messages", headers=a).status_code == 404
+
         # 他人の会話は消せない。持ち主の会話は残る
         assert client.delete(f"/threads/{theirs}", headers=a).status_code == 404
         assert len(client.get("/threads", headers=b).json()["threads"]) == 1
