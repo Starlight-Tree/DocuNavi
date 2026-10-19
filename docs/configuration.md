@@ -81,9 +81,13 @@
 4. Project Settings → JWT Keys で、署名鍵が非対称鍵（ECC P-256 / RSA）であることを確かめる。
 - Supabase でメール確認を切る設定は、メールとパスワードのログインを使うときの開発用の話で、Google ログインでは使いません。
 
-**未確認（2026-10-18 時点）:** 実際の Supabase・Google に対する検証とログインは、まだ一度も動かしていません。テストは、手元で作った鍵と偽の JWKS だけを使います
-（`tests/test_auth.py`、`frontend/src/AuthApp.test.tsx`・`frontend/src/auth/`）。Supabase の JWKS の実物の形、`supabase-js` の実際のログインとトークン更新の動作、
-Docker イメージ（`VITE_*` をビルドに渡す設定は未対応）は未確認です。
+**確認の状況（2026-10-19）:** ローカル（バックエンド `AUTH_MODE=required`、画面は `npm run dev`）で、実際の Supabase・Google を使って確かめました。
+Supabase の JWKS は公開鍵 1 個（ES256）で、バックエンドの起動時の検査が通りました。トークンなしの `/chat` は 401 でした。ブラウザーでは、
+Google ログイン → 画面に戻る → 質問を送って回答が返る、までをユーザーが通しました（モックの返答と、本物の LLM・DB の回答の両方）。
+自動テスト（`tests/test_auth.py`、`frontend/src/AuthApp.test.tsx`・`frontend/src/auth/`）は、これまでどおり手元で作った鍵と偽の JWKS を使います。
+
+**未確認:** トークンの期限切れ後の更新（`supabase-js` の実際の動作）、Docker イメージ（`VITE_*` をビルドに渡す設定は未対応）、
+Cloud Run などの公開環境での動作。
 
 ## 会話履歴の保存先
 
