@@ -12,3 +12,5 @@ psycopg[binary,pool]>=3.2
 pypdf>=6.19
 # ログイン（AUTH_MODE=required）の JWT 検証。Supabase の JWKS（非対称鍵）で署名を確かめる。docs/configuration.md
 PyJWT[crypto]>=2.8
+# 元 PDF の置き場（Cloudflare R2。S3 互換。PDF_STORE=r2 のときだけ使う）。docs/r2-key-issuer.md
+boto3>=1.35
