@@ -136,7 +136,7 @@ Cloud Scheduler（数分おき）──▶ Cloud Run Job docunavi-ingest-poll（
 | 段 | 内容 | 課金・外部への書き込み |
 |---|---|---|
 | 0 | この文書。決めたこと（下）を埋める（済み。仮承認の3項目は後で変えてよい） | なし |
-| 1 | 第 1 版の入口を、偽の取り込みと偽の埋め込みで実装し、テストする（終了コードごとの分岐、0・3 で埋め込む、1・2 で埋め込まない、を網羅） | なし |
+| 1 | **済み（2026-10-21）。** 第 1 版の入口 `app/ingestion/sync.py` を、偽の取り込みと偽の埋め込みで実装し、テストした（`tests/test_ingestion_sync.py`。終了コードごとの分岐、0・3 で埋め込む、1・2 で埋め込まない、を網羅） | なし |
 | 2 | Job・SA・Secret を作る（あなたが実行）。Scheduler は作らず、Job を手動で 1 回実行して確かめる（PDF が変わっていなければ、何も保存されないことを確かめる） | Cloud Run Job が少々 |
 | 3 | PDF を 1 件 R2 に足して Job を手動実行し、検索に出るまでを通しで確かめる。壊れた PDF の分岐も 1 回通す | 埋め込みの実 API（1 件分） |
 | 4 | Scheduler を作って定期実行にする | Scheduler +$0.10/月の見込み |
@@ -155,3 +155,42 @@ Cloud Scheduler（数分おき）──▶ Cloud Run Job docunavi-ingest-poll（
 | 4 | Cloudflare の pull トークン | 第 1 版では**要らない**（Queue を使わない）。第 2 版に進むときに、作り方（画面で作る / 発行 Job に足す）と期限を決める | 確定（第 2 版に先送り） |
 | 5 | 埋め込みの自動実行 | 取り込みが成功したときだけ。**終了コード 0 に加えて 3 でも実行する**（理由は「第 1 版」の節。1・2 では実行しない）。上限は `--max-chunks` | 確定（0 と 3 で埋め込み、1 と 2 では埋め込まない。承認済み） |
 | 6 | 削除の扱い | R2 から消えた PDF は、DB から消さず、ログで知らせるだけ。自動で消さない | 仮承認 |
+
+## 段 1 の実装で決めたこと（2026-10-21）
+
+- 入口は `python -m app.ingestion.sync`（既定は確認だけ。`--apply` で保存し、実 API で埋め込む。`--max-chunks` `--max-calls` は埋め込みへそのまま渡す）。
+  R2 の資料群を `store.collections()` で列挙し、資料群ごとに既存の取り込みを呼び、全部終わってから埋め込みを 1 回だけ呼ぶ。
+- 終了コード: 0 = 完了（**壊れた PDF が混ざっていても 0**。1 にすると Job の再試行が、同じ失敗を無駄に繰り返す。該当の資料群は標準エラーに出す）、
+  1 = 取り込み・埋め込み・R2 の一時的な失敗（想定外のコードも 1）、2 = 設定・使い方の誤り。
+- 名前の形が `COLLECTION_PATTERN` に合わないプレフィックスは、警告して飛ばす（取り込みが 2 で終わり、埋め込みを止めてしまうため）。名前そのものはログに出さない。
+- 「R2 から消えた PDF」の検出は、sync には入れない。既存の `r2-verify`（`python -m app.r2_store verify`）が、DB の文書ごとに R2 の有無とハッシュを確かめる。決めたこと 6 の「ログで知らせる」は、これで足りる。
+- 実行時に要る環境変数: `R2_ACCOUNT_ID` `R2_BUCKET` `R2_CREDENTIALS_FILE`（または `R2_CREDENTIALS_JSON`）、`DATABASE_URL`、`GEMINI_API_KEY`。
+
+## 段 2 の手順（あなたが実行する書き込み）
+
+前提: 配備中のイメージ（`docunavi:8154585`）には `sync.py` が入っていない。新しいコミットからイメージを作る（サービスの配備はしない）。
+Job の SA は、まず `docunavi-run`（サービスと同じ）を使う案にする。必要な Secret（`database-url` `gemini-api-key` `r2-app-read`）にすでに届き、IAM の作業が増えない。
+設計の表の `docunavi-ingester`（専用 SA）は、Job を定期実行にするとき（段 4）に作り直してもよい。
+
+```bash
+IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/docunavi-ingest:$(git rev-parse --short HEAD)"
+
+as_me gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
+  --substitutions "_IMAGE=${IMAGE},_SUPABASE_URL=${SUPABASE_URL},_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+
+as_me gcloud run jobs create docunavi-ingest-sync \
+  --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
+  --service-account "docunavi-run@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --set-env-vars "R2_ACCOUNT_ID=<CLOUDFLARE_ACCOUNT_ID>,R2_BUCKET=docunavi-documents,R2_CREDENTIALS_FILE=/secrets/r2/credentials.json" \
+  --set-secrets "DATABASE_URL=database-url:latest,GEMINI_API_KEY=gemini-api-key:latest,/secrets/r2/credentials.json=r2-app-read:latest" \
+  --command python --args=-m,app.ingestion.sync \
+  --max-retries 0 --task-timeout 900
+
+as_me gcloud run jobs execute docunavi-ingest-sync --project "$PROJECT_ID" --region "$REGION" --wait
+```
+
+- コメントは付けていない（zsh に貼ると壊れるため）。`REGION=asia-northeast1`、`PROJECT_ID=docunavi-app`、`SUPABASE_URL` と `SUPABASE_PUBLISHABLE_KEY` は画面用の公開値で、[deploy.md](deploy.md) の F と同じ。
+- Job は **`--apply` を付けずに** 作る。最初の実行は確認だけ（取り込みは何も保存せず、埋め込みは件数と費用の見積りだけ）。ログで、6 件が「変わらない」で、埋め込みの対象が 0 件なことを見る。
+- 確認の結果が想定どおりなら、`as_me gcloud run jobs update docunavi-ingest-sync … --args=-m,app.ingestion.sync,--apply,--max-chunks,60` で `--apply` を足す。まだ Scheduler は作らない（段 4）。
+- 埋め込みが使うのは無料のキー `GEMINI_API_KEY` だけ（有料キーは渡さない）。無料枠の範囲なので課金は出ないが、枠が尽きると 429 で止まり、埋め込みは終了コード 1 で終わる（次の実行が続きから進む）。
+  GCP の無料クレジットは、Gemini API には使えない可能性が高い（公式の請求の説明を、利用者が AI Studio で確認した範囲。等級 B）。クレジットが払うとは考えない。
