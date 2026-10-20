@@ -395,3 +395,71 @@ def test_upload_reports_config_and_failures_without_values(tmp_path, monkeypatch
     assert r2_store.main(["upload", "--input", str(tmp_path)]) == 1
     err = capsys.readouterr().err
     assert "ClientError" in err and KEY_ID not in err and SECRET_KEY not in err
+
+
+# --- 一致確認（python -m app.r2_store verify）--------------------------------------------------------------------
+
+
+def _ready_docs() -> list[dict]:
+    return [
+        {"id": 1, "source": "a.pdf", "content_hash": sha(PDF_A)},
+        {"id": 2, "source": "b.pdf", "content_hash": sha(PDF_B)},
+    ]
+
+
+def test_verify_uses_the_same_rule_as_the_file_endpoint(r2) -> None:
+    docs = _ready_docs() + [
+        {"id": 3, "source": "a.pdf", "content_hash": sha(b"other bytes")},  # 名前は有るが中身が違う
+        {"id": 4, "source": "nowhere.pdf", "content_hash": sha(PDF_A)},  # 無い
+    ]
+    lines, problems = r2_store.verify_originals(docs, pdf_originals.find_original_in_r2)
+    assert [line.split()[0] for line in lines] == ["ok", "ok", "mismatch", "missing"]
+    assert problems == 2
+
+
+def test_verify_reports_an_unreadable_store_as_unavailable(r2) -> None:
+    r2.error = client_error("AccessDenied", 403)
+    lines, problems = r2_store.verify_originals(_ready_docs(), pdf_originals.find_original_in_r2)
+    assert {line.split()[0] for line in lines} == {"unavailable"} and problems == 2
+
+
+def _verify_env(monkeypatch, docs, s3: FakeS3) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pw-DO-NOT-LOG@host/db")
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(s3, "b"))
+    monkeypatch.setattr(r2_store, "_ready_documents", lambda: docs)
+
+
+def test_verify_exits_zero_only_when_every_ready_document_matches(monkeypatch, s3, capsys) -> None:
+    _verify_env(monkeypatch, _ready_docs(), s3)
+    assert r2_store.main(["verify"]) == 0
+    assert "一致しない 0 件" in capsys.readouterr().out
+    _verify_env(monkeypatch, _ready_docs() + [{"id": 9, "source": "x.pdf", "content_hash": sha(PDF_A)}], s3)
+    assert r2_store.main(["verify"]) == 1
+
+
+def test_verify_with_no_documents_is_not_a_success(monkeypatch, s3, capsys) -> None:
+    _verify_env(monkeypatch, [], s3)
+    assert r2_store.main(["verify"]) == 1
+    assert "一致したとは言えません" in capsys.readouterr().err
+
+
+def test_verify_reports_config_and_failures_without_values(monkeypatch, s3, capsys) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    assert r2_store.main(["verify"]) == 2
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pw-DO-NOT-LOG@host/db")
+
+    def unconfigured():
+        raise r2_store.R2ConfigError("missing: R2_ACCOUNT_ID")
+
+    monkeypatch.setattr(r2_store, "default_store", unconfigured)
+    assert r2_store.main(["verify"]) == 2
+
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(s3, "b"))
+
+    def broken():
+        raise RuntimeError("could not connect to postgresql://user:pw-DO-NOT-LOG@host/db")
+
+    monkeypatch.setattr(r2_store, "_ready_documents", broken)
+    assert r2_store.main(["verify"]) == 1
+    captured = capsys.readouterr()
+    assert "RuntimeError" in captured.err and "pw-DO-NOT-LOG" not in captured.out + captured.err

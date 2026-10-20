@@ -191,17 +191,75 @@ def upload_plan(store: R2Store, root: Path) -> list[tuple[str, Path, str]]:
     return plan
 
 
+def verify_originals(documents: Sequence[Mapping[str, Any]], find: Any) -> tuple[list[str], int]:
+    """DB の資料ごとに、R2 に元の PDF が（名前とハッシュで）見つかるかを確かめる。(表示する行, 問題の件数) を返す。
+
+    `find` は `pdf_originals.find_original_in_r2` と同じ形（source, content_hash → 結果）。本番の `/documents/{id}/file` と同じ規則。
+    """
+    lines: list[str] = []
+    problems = 0
+    for doc in documents:
+        found = find(doc["source"], doc["content_hash"])
+        state = "ok" if found.ok else str(found.reason)
+        problems += 0 if found.ok else 1
+        lines.append(f"{state:12} id={doc['id']} {doc['source']}")
+    return lines, problems
+
+
+def _ready_documents() -> list[dict[str, Any]]:
+    """DB の `status = 'ready'` の資料（id・source・content_hash）。接続は DATABASE_URL（アプリと同じ）。"""
+    import psycopg
+    from psycopg.rows import dict_row
+
+    with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, connect_timeout=10) as conn:
+        rows = conn.execute(
+            "SELECT id, source, content_hash FROM documents WHERE status = 'ready' ORDER BY id"
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def run_verify() -> int:
+    """終了コード: 0 すべて一致 / 1 一致しないものがある・資料が 0 件・DB か R2 を読めない / 2 設定の不足。"""
+    from app import pdf_originals
+
+    if not os.environ.get("DATABASE_URL", "").strip():
+        print("DATABASE_URL が設定されていません。", file=sys.stderr)
+        return 2
+    try:
+        default_store()
+    except R2ConfigError as exc:
+        print(f"R2 の設定が足りません（{exc}）。", file=sys.stderr)
+        return 2
+    try:
+        documents = _ready_documents()
+        lines, problems = verify_originals(documents, pdf_originals.find_original_in_r2)
+    except Exception as exc:  # noqa: BLE001 - 例外の文字列に接続先・SQL が入りうる。クラス名だけを出す
+        print(f"確認に失敗しました（{type(exc).__name__}）。", file=sys.stderr)
+        return 1
+    print("\n".join(lines))
+    if not documents:
+        print("確認する資料がありません（status = ready が 0 件）。一致したとは言えません。", file=sys.stderr)
+        return 1
+    print(f"資料 {len(documents)} 件、一致しない {problems} 件")
+    return 1 if problems else 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m app.r2_store",
-        description="storage/pdf/ の PDF を R2 に置く（既定は計画の表示だけ。--apply で置く）。読み書きのキーが要る",
+        description=(
+            "upload: storage/pdf/ の PDF を R2 に置く（既定は計画の表示だけ。--apply で置く。読み書きのキーが要る）。"
+            "verify: DB の資料ごとに、R2 に元の PDF が一致して見つかるかを確かめる（読み取りのキーと DATABASE_URL が要る）"
+        ),
     )
-    parser.add_argument("action", choices=["upload"])
+    parser.add_argument("action", choices=["upload", "verify"])
     parser.add_argument(
         "--input", type=Path, default=Path("storage/pdf"), help="資料群のディレクトリを含む置き場（既定 storage/pdf）"
     )
     parser.add_argument("--apply", action="store_true", help="実際に置く（既定は計画の表示だけ）")
     args = parser.parse_args(argv)
+    if args.action == "verify":
+        return run_verify()
     try:
         store = default_store()
     except R2ConfigError as exc:
