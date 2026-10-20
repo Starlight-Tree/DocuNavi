@@ -48,6 +48,16 @@
 		"cli-tools": "bash .devcontainer/install-gcloud.sh; bash .devcontainer/install-gh.sh; bash .devcontainer/install-playwright.sh"
 	},
 
+	// 起動のたびに、書き込み可能な Supabase MCP（supabase-write。ローカル登録）を今の作業ディレクトリに登録し直す。
+	// ローカル登録は作業ディレクトリのパスがキーなので、フォルダー名を変えると、ボリュームに設定が残っていても外れるため。
+	// 登録だけで、認証や DB の呼び出しはしない。何度実行しても同じ（登録済みなら何もしない）。
+	// 前景で実行する。バックグラウンドの子プロセスは、起動処理の終了で止められる（`( … &)` も `setsid nohup … &` も、
+	// 2026-10-20 の再ビルドでログができなかった）。登録は 1〜2 秒で終わる。
+	// REGISTER_SUPABASE_WAIT_TRIES=4: claude の実体（VS Code の拡張）が無いときの待ちを最大 20 秒にする（5 秒 × 4 回）。
+	// 失敗や見つからないときも、終了コード 0 でコンテナは起動する（`|| true`）。結果は /tmp/register-supabase-write.log
+	// （成功・登録済み・失敗のどれかが残る）。
+	"postStartCommand": "REGISTER_SUPABASE_WAIT_TRIES=4 bash .devcontainer/register-supabase-write.sh > /tmp/register-supabase-write.log 2>&1 || true",
+
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 

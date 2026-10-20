@@ -257,4 +257,8 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 - **書き込みは、別名のローカル登録で行います**（共有の `supabase` と同じ名前だと、ローカル登録が優先されて、共有側が隠れます）。
   `claude mcp add --scope local --transport http supabase-write "https://mcp.supabase.com/mcp?project_ref=<参照ID>&features=database,docs"`。
   DDL は `db/migrations/` に SQL を残してから、`apply_migration` で適用します。参照 ID は、リポジトリにも会話の記録にも残しません。
+  ローカル登録は作業ディレクトリのパスがキーです。フォルダー名を変えると、設定が残っていても外れます（2026-10-20、chatbot → docunavi で `supabase-write` が一覧から消えた）。
+  そのため、`devcontainer.json` の `postStartCommand` が、起動のたびに `.devcontainer/register-supabase-write.sh` を前景で呼び、今のパスに登録し直します（登録だけで、認証はしません。待ちは最大 20 秒。ログは `/tmp/register-supabase-write.log`）。
+  バックグラウンドにしないのは、子プロセスが起動処理の終了で止められるためです。`( … &)` と `setsid nohup … &` の 2 通りとも、2026-10-20 の再ビルドでログができず、登録も戻りませんでした（診断用に起動の先頭へ目印のファイルを書いて、`postStartCommand` 自体は動いていると確かめた）。
+  前景の書き方は、登録を外した状態からの再ビルドで、自動で登録が戻ることを確かめました（2026-10-20）。パスを変えた直後の最初のセッションだけは、Claude Code が設定を読むほうが登録より早いので、Window の再読み込みが要ります。確かめるときは、先にそのパスの登録を外してから再ビルドします（残っていると、自動登録が失敗しても `/mcp` に出てしまうため）。
 - 変数が未設定でも、`.mcp.json` 全体は壊れません（`claude mcp list` に警告が出て、`${…}` の文字のまま使われます。公式の説明で、スクラッチの読み込みでも確認しました）。Playwright は影響を受けません。

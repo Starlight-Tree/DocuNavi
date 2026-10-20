@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # 書き込み可能な Supabase MCP（supabase-write）を、このプロジェクトのローカル登録に入れる。初回の登録、または登録が失われたときの復旧用。
 # 設定ファイルは、devcontainer.json の CLAUDE_CONFIG_DIR により ~/.claude のボリューム内（~/.claude/.claude.json）にある。
-# このため、通常の再ビルドでは登録も OAuth のトークン（~/.claude/.credentials.json）も残り、このスクリプトは要らない。
+# このため、通常の再ビルドでは登録も OAuth のトークン（~/.claude/.credentials.json）も残る。
+# ただし、ローカル登録は作業ディレクトリのパスがキーなので、フォルダー名を変える（例: chatbot → docunavi）と、設定が残っていても外れる。
+# 起動のたびに devcontainer.json の postStartCommand がこのスクリプトを呼び、今のパスに登録し直す。
 # ボリュームを削除したときなどは、登録が消え、再認証（/mcp）も要る可能性がある。
 # README の「Supabase MCP（読み取り専用の共有）」。
 #
 # ・参照 ID は展開前の ${SUPABASE_PROJECT_REF} のまま登録する（値は ~/.claude/settings.json の env。設定ファイルにもログにも残さない）。
 # ・共有の .mcp.json の supabase（read_only=true）は変えない。別名にするのは、同じ名前だと共有側が隠れるため。
 # ・書き込みのツールは、呼ぶたびに利用者の承認が要る（許可リストには入れない）。
-# ・claude の実体は VS Code の拡張に同梱されていて、コンテナの作成直後はまだ無いことがある。出てくるまで待つ（最大 5 分）。
+# ・claude の実体は VS Code の拡張に同梱されていて、コンテナの作成直後はまだ無いことがある。出てくるまで 5 秒おきに待つ
+#   （既定は 60 回 = 最大 5 分。環境変数 REGISTER_SUPABASE_WAIT_TRIES で回数を変えられる）。
 #   見つからなくても失敗にしない（コンテナの作成を止めない）。そのときは、このスクリプトを手で実行する。
-# ・いまは手で実行する（起動時の自動実行は未設定。設けるなら、作成を止めない形で別に決める）。何度実行しても同じ（登録済みなら何もしない）。
+# ・起動のたびに postStartCommand から、前景で（REGISTER_SUPABASE_WAIT_TRIES=4 = 最大 20 秒）呼ばれる。手で実行してもよい。
+#   何度実行しても同じ（登録済みなら何もしない）。バックグラウンドにしないのは、起動処理の終了で子プロセスが止められるため（2026-10-20 に 2 通りの書き方で確認）。
 
 cd "$(dirname "$0")/.." || exit 0
 
@@ -22,7 +26,9 @@ find_claude() {
 }
 
 claude_bin=""
-for _ in $(seq 1 60); do
+tries="${REGISTER_SUPABASE_WAIT_TRIES:-60}"
+case "$tries" in ''|*[!0-9]*) tries=60 ;; esac
+for _ in $(seq 1 "$tries"); do
   claude_bin=$(find_claude)
   [ -n "$claude_bin" ] && break
   sleep 5
