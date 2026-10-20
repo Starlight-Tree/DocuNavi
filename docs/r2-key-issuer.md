@@ -82,7 +82,7 @@ Claude に上書き権限は与えない）。
 | 3 | `./scripts/store-cloudflare-parent-token.sh <プロジェクト ID>`（親トークンを保存） | **あなた** |
 | 4 | `… --verify`（権限・ソースの一致・否定テスト）の出力を貼る | あなたが実行、Claude が読んで判定 |
 | 5 | `r2-check` → `r2-rotate-if-due-app-read`（最初の 1 回は必ず入れ替わる。下の「自動ローテーション」）→ `r2-verify` → `r2-check` の実行と、ログの確認 | **Claude**（毎回あなたが承認） |
-| 6 | アプリの配備に `r2-app-read` を渡す（`docunavi-run` に `secretAccessor`、`--update-secrets`。`--set-secrets` は他の Secret を外すので使わない） | あなたが実行（コマンドは Claude が出す） |
+| 6 | アプリのサービスに `r2-app-read` をボリュームで渡し、`PDF_STORE=r2` に切り替える（`docunavi-run` に `secretAccessor` は付与済み。配線の Job `r2-wire-*` による段階的な切り替え。手順は [r2-rollout.md](r2-rollout.md)） | あなたが実行（結果は Claude が読む） |
 | 7 | 動作の確認（R2 に PDF を置き、`/file` で取得） | Claude（読み取り）、置く作業は取り込みの Job |
 
 1〜3 は一度きり（コードを直したときの 2 のやり直しを除く）。2 を Claude が実行できない理由は、**Claude が使える ID に IAM を作る権限を渡すと、この仕組み全体が意味を失う**から。
@@ -99,7 +99,7 @@ Claude は、スクリプトを書き、模擬で試し、配備後に読み取�
 | 失敗したとき | 取り消すのは、その実行で作った新しいトークンだけ。記録された有効なキーには触れない（終了コード 2〜5。**通知は無い**ので、Job の失敗はログか `gcloud run jobs executions list` で見る） |
 | 親トークン | R2 のキーの作成・取り消し専用、最小権限（`Account API Tokens: Edit` から。IP 制限なし）、有効期間 90 日。`check`（毎週月曜 05:00）が、残り 21 日を切ると `PARENT_TOKEN_EXPIRING` を WARNING で出す（使えないときも出す。終了コードは変えない）。作り直しは人の作業（年 4 回ほど） |
 | 記録の形 | Secret の JSON に `issued_at`（入れ替え時期の判定に使う。親トークンが使えなくても読める）を足した。アプリは無視する |
-| アプリ側 | `R2_CREDENTIALS_FILE`（Secret をボリュームで渡す。例 `--update-secrets=/secrets/r2/credentials.json=r2-app-read:latest`）を使うと、R2 が認証エラー（401/403）を返したとき、ファイルを読み直し、**鍵の ID が変わっていれば** 1 回だけやり直す。再配備は要らない（`app/r2_store.py`） |
+| アプリ側 | `R2_CREDENTIALS_FILE`（Secret をボリュームで渡す。配線は [r2-rollout.md](r2-rollout.md) の Job が行い、`/secrets/r2/credentials.json` に `latest` をマウントする）を使うと、R2 が認証エラー（401/403）を返したとき、ファイルを読み直し、**鍵の ID が変わっていれば** 1 回だけやり直す。再配備は要らない（`app/r2_store.py`） |
 
 通知は作らない（2026-10-21、あなたが決めた）。`PARENT_TOKEN_EXPIRING` と `KEY_ROTATION_OVERDUE` は、`r2-check` のログに出るだけで、誰にも飛ばない。
 見るのは、Claude に `r2-check` のログを読ませるか、あなたが Cloud Run のログを開いたとき。
