@@ -65,6 +65,21 @@
           }
         ]
       }
+    ],
+    "Elicitation": [
+      {
+        "matcher": "supabase-write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/accept-supabase-elicitation.py"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
