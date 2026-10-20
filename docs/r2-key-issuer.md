@@ -4,10 +4,10 @@ R2 のバケット `docunavi-documents` を読み書きするキー（S3 互換�
 **値を会話・ログ・Claude Code に出さずに**発行して、Secret Manager に保存する仕組み。コードは `ops/r2_key_issuer/`、
 土台の作成は `scripts/setup-r2-key-issuer.sh`、テストは `tests/test_r2_key_issuer.py`。
 
-状態（2026-10-21）: **配備済みで、1 回通しで動かした**（親トークン、SA 3 つ、Secret 3 つ、Job 6 つ、Scheduler 3 つ）。
+状態（2026-10-21）: **配備済みで、1 回通しで動かした**（親トークン、SA 3 つ、Secret 3 つ、Job 6 つ、Scheduler 3 つ）。`r2-issue-ingest-rw`（7 つ目）はスクリプトに足した分で、配備はあなたが `setup-r2-key-issuer.sh` を再実行したとき。
 最初の `rotate-if-due-app-read` で `r2-app-read` の版 2 を発行し、`r2-verify` で R2 の PDF 6 件を新しい鍵で読めることを確かめた（本物の Cloudflare・Secret Manager・R2）。
 作った範囲は、**アプリ用（`r2-app-read`）の自動ローテーションだけ**（2026-10-21 にあなたが決めた）。
-取り込み用（`r2-ingest-rw`）は Secret の空の入れ物と SA `r2-uploader` だけで、発行・入れ替えの Job と Scheduler は、クラウドから PDF を取り込む経路ができたときに足す。
+取り込み用（`r2-ingest-rw`）は、Secret の入れ物と SA `r2-uploader`、発行の Job `r2-issue-ingest-rw`（コードは対応済み。**本人だけが実行する**。PDF を R2 に置くための読み書きのキーを、値を画面に出さずに Secret へ入れる）まで。入れ替えの Job と Scheduler は作らない。使い方は下の「PDF を R2 に置く」。
 通知（メール・Cloud Monitoring のアラート）は作らない。警告は `r2-check` のログで読む。
 
 ## 何を作るか
@@ -17,7 +17,7 @@ R2 のバケット `docunavi-documents` を読み書きするキー（S3 互換�
 | 用途 | 権限（Cloudflare の権限グループ） | 保存先の Secret | 使う側 |
 |---|---|---|---|
 | アプリ用 | 読み取り（`Workers R2 Storage Bucket Item Read`） | `r2-app-read` | Cloud Run のサービス（`GET /documents/{id}/file`） |
-| 取り込み用 | 読み書き（`Workers R2 Storage Bucket Item Write`） | `r2-ingest-rw`（**空の入れ物だけ。発行はまだしない**） | 取り込み（置き場は 4b で決める）。コードは対応済み（`PURPOSES`）だが、Job は作っていない |
+| 取り込み用 | 読み書き（`Workers R2 Storage Bucket Item Write`） | `r2-ingest-rw`（**`r2-issue-ingest-rw` を実行するまで空**） | PDF を R2 に置く操作（`python -m app.r2_store upload`）。取り込み（`app.ingestion.sync`）は読み取りだけなので、`r2-app-read` を使う |
 
 Secret の中身は、`{"access_key_id": …, "secret_access_key": …}` の JSON 1 つ。**1 つの版に組で書く**ので、
 「ID だけ新しい」という食い違いは起きない。Secret Access Key は、トークンの値の SHA-256（Cloudflare の公式の説明どおり）。
@@ -46,17 +46,18 @@ Claude Code ──(gcloud run jobs execute r2-<モード>。フックが毎回�
 
 | 主体 | 持つ権限 | 持たない権限 |
 |---|---|---|
-| `r2-key-issuer`（Job の SA） | 親トークンの Secret と `r2-ingest-rw`（空）への `secretAccessor`、`r2-app-read` への `secretAccessor` と `secretVersionAdder`（Secret 単位。`r2-*` のような接頭辞の一括付与はしない） | プロジェクト全体のロール、他の Secret、Secret の作成、Job の変更 |
+| `r2-key-issuer`（Job の SA） | 親トークンの Secret と `r2-ingest-rw` への `secretAccessor`、`r2-app-read` と `r2-ingest-rw` への `secretAccessor` と `secretVersionAdder`（Secret 単位。`r2-*` のような接頭辞の一括付与はしない） | プロジェクト全体のロール、他の Secret、Secret の作成、Job の変更 |
 | `docunavi-viewer`（Claude の日常の ID） | Job 5 つ（`revoke-all` を除く）への `roles/run.invoker`（実行だけ） | `run.jobs.runWithOverrides`（引数・環境変数の上書き）、Secret の値、IAM の変更 |
 | `agent-deployer`（アプリのデプロイ用） | 変更なし | この SA の `serviceAccountUser`（Job の更新に必要。**付けない**） |
 | あなた | 配備、IAM、親トークンの保存、`revoke-all` | — |
 
-Job は 6 つ。**用途ごとに引数を固定**し、実行時の上書きは使わない（`--args` の上書きには `runWithOverrides` が別に要り、`run.invoker` だけでは足りない。
+Job は 7 つ。**用途ごとに引数を固定**し、実行時の上書きは使わない（`--args` の上書きには `runWithOverrides` が別に要り、`run.invoker` だけでは足りない。
 Claude に上書き権限は与えない）。
 
 | Job | 何をするか | Claude が実行 |
 |---|---|---|
 | `r2-issue-app-read` | 有効なキーが無いときだけ発行（あれば何もしない） | できる（毎回確認） |
+| `r2-issue-ingest-rw` | 読み書き用のキーを発行して `r2-ingest-rw` に入れる（有効なキーがあれば何もしない）。PDF を R2 に置く前に 1 回実行する | **できない（あなただけ）**。書き込める鍵を作るため |
 | `r2-rotate-app-read` | 新しいキーを発行して差し替える（古いトークンは残す） | できる（毎回確認） |
 | `r2-rotate-if-due-app-read` | 記録したキーの発行から 60 日たっていれば、`rotate` と同じことをする。そうでなければ、キーが動くことを確かめるだけで終わる。**Cloud Scheduler が月 1 回起動する** | できる（毎回確認） |
 | `r2-revoke-stale` | 記録されていない古い・失敗の残りのトークンを取り消す。入れ替えで置き換えられた古いキーは、**新しいキーの発行から 7 日たつまで残す**。失敗の残り（記録されたキーより新しいもの）は、作って 15 分たてば取り消す | できる（毎回確認） |
@@ -176,3 +177,20 @@ Cloudflare に GCP のような「長期の秘密を持たない認証」があ�
 | `gcloud run jobs execute r2-…` が毎回「確認」になる | 確認済み（フックを実際に通した。変更不要） |
 | `run.invoker` が引数の上書きを許さない | **未確認**（`--verify` の否定テストで確かめる） |
 | Cloudflare の API（権限グループの名前、リソース名、`Account API Tokens Write` でトークン作成、`value` の返却） | 公式の文書と OpenAPI で確認。実際の呼び出しは未実施 |
+
+## PDF を R2 に置く（`r2-issue-ingest-rw` を配備したあと）
+
+ダッシュボードでキーを作って写す必要はない。あなたが端末で、次の順に実行する。キーの値は画面にもシェルの履歴にも残らず、そのコマンドの環境変数にだけ入る。
+
+```bash
+env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud run jobs execute r2-issue-ingest-rw --project docunavi-app --region asia-northeast1 --wait
+```
+
+発行は最初の 1 回だけ（有効なキーがあれば、2 回目以降は何もしない）。置くときは次の 1 行（`--apply` なしは計画の表示だけ）。
+
+```bash
+R2_ACCOUNT_ID=<アカウント ID> R2_BUCKET=docunavi-documents R2_CREDENTIALS_JSON="$(env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud secrets versions access latest --secret r2-ingest-rw --project docunavi-app)" .venv/bin/python -m app.r2_store upload --input <置き場>
+```
+
+- キーの有効期間は、親トークンの期限と、手動の入れ替え（`rotate-ingest-rw` のモードは、コードにあるが Job は作っていない）に従う。自動では入れ替わらない。使わなくなったら、`r2-revoke-all` で取り消す。
+- 読み書きのキーは、R2 の資料を書き換えられる。端末の履歴やログに値が残る書き方（`echo` や `export` での表示）にしない。
