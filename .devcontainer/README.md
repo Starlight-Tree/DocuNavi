@@ -243,7 +243,7 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 
 ## Supabase MCP（読み取り専用の共有）
 
-リポジトリ直下の `.mcp.json` に、`supabase`（読み取り専用）の定義があります。DB の中身（`documents` / `chunks` など）を、エージェントが読んで確かめるためのものです。
+リポジトリ直下の `.mcp.json` に、`supabase-read`（読み取り専用。2026-10-21 に `supabase` から改名）の定義があります。DB の中身（`documents` / `chunks` など）を、エージェントが読んで確かめるためのものです。
 
 - **読み取り専用です。** URL の `read_only=true` で、書き込み（マイグレーションの適用、書き込みの SQL）を止めます。実際の接続で確かめました（2026-10-18）。
   `apply_migration` のツールは出ず、`CREATE TEMP TABLE` は読み取り専用のトランザクションとして拒否され、`list_tables` などの読み取りは通りました。
@@ -254,7 +254,7 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
   代わりに、ホスト側の環境変数を渡す方法もあります。`devcontainer.json` の `containerEnv` に `"SUPABASE_PROJECT_REF": "${localEnv:SUPABASE_PROJECT_REF}"` を足します（この方法では確かめていません）。
   macOS で Dock から VS Code を起動すると、シェルの環境変数が届かないことがあります。ターミナルから `code .` で開くか、設定したあとで VS Code を起動し直します。
 - **認証は OAuth です。** トークンは設定ファイルに無く、初回は `/mcp` の画面でブラウザーからログインします。トークンは `~/.claude` のボリュームにあり、再ビルドのあとに再認証は要りませんでした（2026-10-18 に 2 回の再ビルドで確認。1 回の環境での結果です）。
-- **書き込みは、別名のローカル登録で行います**（共有の `supabase` と同じ名前だと、ローカル登録が優先されて、共有側が隠れます）。
+- **書き込みは、別名のローカル登録で行います**（共有の `supabase-read` と同じ名前にすると、ローカル登録が優先されて、共有側が隠れます）。
   `claude mcp add --scope local --transport http supabase-write "https://mcp.supabase.com/mcp?project_ref=<参照ID>&features=database,docs"`。
   DDL は `db/migrations/` に SQL を残してから、`apply_migration` で適用します。参照 ID は、リポジトリにも会話の記録にも残しません。
   ローカル登録は作業ディレクトリのパスがキーです。フォルダー名を変えると、設定が残っていても外れます（2026-10-20、chatbot → docunavi で `supabase-write` が一覧から消えた）。
