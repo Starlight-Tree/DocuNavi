@@ -118,6 +118,13 @@ def _find_in_r2(source: str, content_hash: object) -> OriginalPdf:
     return _missing()
 
 
+def find_original_in_r2(source: object, content_hash: object) -> OriginalPdf:
+    """`PDF_STORE` に関わらず R2 から探す（`python -m app.r2_store verify` が、本番と同じ規則で一致を確かめるために使う）。"""
+    if not _usable_name(source):
+        return _missing()
+    return _find_in_r2(str(source), content_hash)
+
+
 def find_original(source: object, content_hash: object) -> OriginalPdf:
     """`source` と `content_hash` に合う元 PDF を探す。
 
