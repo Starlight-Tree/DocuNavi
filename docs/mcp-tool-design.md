@@ -39,6 +39,16 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 - **MCP サーバーの実装方法。** Python の公式 SDK（`mcp` パッケージ）を使う想定だが、バージョン・依存・既存の `requirements*.in` との関係は未調査。
 - **`--functional-type` を付けるべきか。** 付けたときの違い（Agent Registry の費用・権限を含む）は未確認。
 
+## 検証の結果（2026-10-21、`ops/mcp_probe` を `docunavi-mcp-probe` として配備）
+
+- **① プロキシ（`gcloud run services proxy … --port 3000`）で、Claude Code から `ping` が通った。** 登録は local スコープの `claude mcp add --transport http mcp-probe http://127.0.0.1:3000/mcp`（ヘッダーなし、秘密情報なし）。`/mcp` が Connected、`ping` が `pong`。
+  - 呼び出し側の権限は、ユーザー自身の `roles/run.invoker`（プロキシがユーザーの ID で認証する）。コンテナーの日常の ID（`docunavi-viewer`）には要らない。
+  - プロキシは、gcloud の部品が入っていないと動かない。この gcloud は部品の管理が無効（apt 版）なので `sudo apt-get install google-cloud-cli-cloud-run-proxy` が要る。再ビルドで消える（`devcontainer.json` には足していない）。
+- **制約: プロキシは起動時の ID トークンを固定で使う。期限が切れると `401` になる。** 起動から約 45 分で `401` になったことを確認した（期限の長さの確定ではない。公式の 2 ページに期限の記述は無い）。プロキシを起動し直せば直る。
+- **Claude Code は、`401` を受けると OAuth の探索（`/.well-known/…`、`POST /register`）に進み、`/mcp` の画面に「SDK auth failed: Dynamic Client Registration rejected」と出る。** サーバーに OAuth が無いこと自体は原因ではない。画面のエラーが、本当の原因（トークン切れ）を隠す。切れたら Cloud Run のログ（`gcloud logging read`）で `401` を確かめる。
+- **未確認:** ② ID トークンを `Authorization` で直接送る方法（Claude Code の設定に値を保存すると、方針と衝突しうる）、③ IAP。固定のトークンを `--header` で渡す方法は、プロキシの Google ID トークンと衝突するので試していない。
+- **未確認:** 日常で使えるかの判断。1 時間ごとの再起動が許容できるか。
+
 ## ツールの形（案）
 
 名前は `search_documents`。引数は `query`（文字列）と `top_k`（整数、1〜5 程度、既定は `TOP_K` に合わせる）。読み取り専用（`readOnlyHint`）であることを、ツールの注釈に付ける。
