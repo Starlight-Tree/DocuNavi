@@ -126,6 +126,7 @@ def run_issue(purpose: str, force: bool, cfg, cf, sm, probe=None) -> int:
         secrets=sm,
         probe=probe or FakeProbe(),
         sleep=lambda s: None,
+        now=lambda: NOW,
     )
 
 
@@ -143,7 +144,11 @@ def test_issue_creates_a_bucket_scoped_token_and_stores_one_version(purpose, gro
     assert policy["permission_groups"] == [{"id": group}]
     secret = issuer.PURPOSES[purpose].secret
     assert sm.store[secret] == [
-        {"access_key_id": "tok1", "secret_access_key": hashlib.sha256(NEW_VALUE.encode()).hexdigest()}
+        {
+            "access_key_id": "tok1",
+            "secret_access_key": hashlib.sha256(NEW_VALUE.encode()).hexdigest(),
+            "issued_at": NOW.isoformat(),  # rotate-if-due が古さを知るための記録
+        }
     ]
 
 
@@ -251,14 +256,84 @@ def _managed(cf, token_id, purpose, issued=OLD) -> None:
     cf.tokens.append({"id": token_id, "name": f"docunavi-r2-{purpose}-{token_id}", "issued_on": issued})
 
 
-def test_revoke_stale_removes_only_unrecorded_old_managed_tokens(cf, sm) -> None:
-    _managed(cf, "active", "app-read")
-    _managed(cf, "old", "app-read")
-    _managed(cf, "fresh", "app-read", issued=NEW)
-    cf.tokens.append({"id": "hand", "name": "my-own-token", "issued_on": OLD})
-    sm.store["r2-app-read"] = [{"access_key_id": "active", "secret_access_key": "x"}]
-    assert issuer.revoke(stale_only=True, api=cf, secrets=sm, now=lambda: NOW, sleep=lambda s: None) == 0
-    assert cf.deleted == ["old"]  # 記録されたもの・作ったばかりのもの・手で作ったもの・親は残る
+def _ago(**delta) -> str:
+    return (NOW - timedelta(**delta)).isoformat().replace("+00:00", "Z")
+
+
+def _record(sm, purpose, token_id) -> None:
+    sm.store[f"r2-{purpose}"] = [{"access_key_id": token_id, "secret_access_key": "x"}]
+
+
+def _stale(cf, sm) -> int:
+    return issuer.revoke(stale_only=True, api=cf, secrets=sm, now=lambda: NOW, sleep=lambda s: None)
+
+
+def test_revoke_stale_keeps_the_recorded_hand_made_and_parent_tokens(cf, sm) -> None:
+    _managed(cf, "active", "app-read", issued=_ago(days=30))
+    cf.tokens.append({"id": "hand", "name": "my-own-token", "issued_on": _ago(days=90)})
+    _record(sm, "app-read", "active")
+    assert _stale(cf, sm) == 0
+    assert cf.deleted == []  # 記録されたもの・手で作ったもの・親は残る
+
+
+def test_revoke_stale_waits_for_the_grace_period_after_a_rotation(cf, sm) -> None:
+    """入れ替えた直後（新しいキーが 3 日前）は、古いキーが 60 日前の発行でも取り消さない。"""
+    _managed(cf, "old", "app-read", issued=_ago(days=63))
+    _managed(cf, "new", "app-read", issued=_ago(days=3))
+    _record(sm, "app-read", "new")
+    assert _stale(cf, sm) == 0
+    assert cf.deleted == []
+
+
+def test_revoke_stale_counts_the_grace_from_the_replacing_key_not_from_the_old_keys_age(cf, sm) -> None:
+    _managed(cf, "old", "app-read", issued=_ago(days=200))
+    _managed(cf, "new", "app-read", issued=_ago(hours=1))
+    _record(sm, "app-read", "new")
+    assert _stale(cf, sm) == 0 and cf.deleted == []
+
+
+def test_revoke_stale_removes_the_old_key_once_the_grace_period_has_passed(cf, sm) -> None:
+    _managed(cf, "old", "app-read", issued=_ago(days=70))
+    _managed(cf, "new", "app-read", issued=_ago(days=7, minutes=1))
+    _record(sm, "app-read", "new")
+    assert _stale(cf, sm) == 0
+    assert cf.deleted == ["old"]
+
+
+def test_revoke_stale_is_exactly_seven_days(cf, sm) -> None:
+    assert issuer.GRACE_DAYS == 7
+    _managed(cf, "old", "app-read", issued=_ago(days=70))
+    _managed(cf, "new", "app-read", issued=_ago(days=6, hours=23))
+    _record(sm, "app-read", "new")
+    assert _stale(cf, sm) == 0 and cf.deleted == []
+
+
+def test_revoke_stale_grace_is_per_purpose(cf, sm) -> None:
+    _managed(cf, "old-read", "app-read", issued=_ago(days=100))
+    _managed(cf, "new-read", "app-read", issued=_ago(days=40))
+    _managed(cf, "old-rw", "ingest-rw", issued=_ago(days=100))
+    _managed(cf, "new-rw", "ingest-rw", issued=_ago(days=1))
+    _record(sm, "app-read", "new-read")
+    _record(sm, "ingest-rw", "new-rw")
+    assert _stale(cf, sm) == 0
+    assert cf.deleted == ["old-read"]  # 取り込み用の古いキーは、まだ猶予中
+
+
+def test_revoke_stale_removes_a_failed_leftover_newer_than_the_recorded_key_after_15_minutes(cf, sm) -> None:
+    """保存に失敗して残ったトークン（記録されたキーより新しい）は、使われていない。作ったばかりのものだけ残す。"""
+    _managed(cf, "active", "app-read", issued=_ago(days=10))
+    _managed(cf, "leftover", "app-read", issued=_ago(hours=2))
+    _managed(cf, "fresh", "app-read", issued=_ago(minutes=3))
+    _record(sm, "app-read", "active")
+    assert _stale(cf, sm) == 0
+    assert cf.deleted == ["leftover"]
+
+
+def test_revoke_stale_without_a_recorded_successor_waits_for_the_grace_period(cf, sm) -> None:
+    _managed(cf, "young", "app-read", issued=_ago(days=3))
+    _managed(cf, "old", "app-read", issued=_ago(days=9))
+    assert _stale(cf, sm) == 0  # 記録が無い。使われているかもしれないので、7 日たつまで残す
+    assert cf.deleted == ["old"]
 
 
 def test_revoke_stale_skips_tokens_with_unknown_age(cf, sm) -> None:
@@ -339,6 +414,17 @@ def test_no_secret_value_reaches_the_logs_or_output(cfg, cf, sm, caplog, capsys)
         cf.create_error = issuer.CloudflareError(500, [1], ambiguous=True)
         run_issue("app-read", True, cfg, cf, sm)
         issuer.check(cfg=cfg, api=cf, secrets=sm, probe=FakeProbe())
+        sm.add_error = None
+        issuer.rotate_if_due(
+            issuer.PURPOSES["app-read"],
+            cfg=cfg,
+            api=cf,
+            secrets=sm,
+            probe=FakeProbe(),
+            sleep=lambda s: None,
+            now=lambda: NOW + timedelta(days=61),
+        )
+        issuer.revoke(stale_only=True, api=cf, secrets=sm, now=lambda: NOW + timedelta(days=90), sleep=lambda s: None)
         issuer.revoke(stale_only=False, api=cf, secrets=sm, now=lambda: NOW, sleep=lambda s: None)
     out = capsys.readouterr()
     for text in (caplog.text, out.out, out.err):
@@ -356,7 +442,7 @@ def test_main_rejects_unknown_modes_and_missing_settings(monkeypatch: pytest.Mon
 
 
 def test_modes_match_the_purposes() -> None:
-    assert set(issuer.MODES) == {f"{a}-{p}" for a in ("issue", "rotate") for p in issuer.PURPOSES} | {
+    assert set(issuer.MODES) == {f"{a}-{p}" for a in ("issue", "rotate", "rotate-if-due") for p in issuer.PURPOSES} | {
         "revoke-stale",
         "revoke-all",
         "check",
@@ -433,3 +519,184 @@ def test_http_list_tokens_follows_pages() -> None:
     pages = {"1": [{"id": str(i)} for i in range(50)], "2": [{"id": "last"}]}
     api = _http(lambda r: _json(200, {"success": True, "errors": [], "result": pages[r.url.params["page"]]}))
     assert len(api.list_tokens()) == 51
+
+
+# --- 自動ローテーション（rotate-if-due、猶予、親トークンの期限の警告） -------------------------------------------------
+
+
+def _rotate_if_due(purpose: str, cfg, cf, sm, probe=None, now: datetime = NOW, api=None) -> int:
+    return issuer.rotate_if_due(
+        issuer.PURPOSES[purpose],
+        cfg=cfg,
+        api=api or cf,
+        secrets=sm,
+        probe=probe or FakeProbe(),
+        sleep=lambda s: None,
+        now=lambda: now,
+    )
+
+
+def _issued_days_ago(sm, purpose: str, days: int | None, token_id: str = "old") -> None:
+    value = {"access_key_id": token_id, "secret_access_key": "x"}
+    if days is not None:
+        value["issued_at"] = (NOW - timedelta(days=days)).isoformat()
+    sm.store[f"r2-{purpose}"] = [value]
+
+
+def test_rotate_if_due_does_nothing_before_60_days(cfg, cf, sm, caplog) -> None:
+    assert issuer.DUE_DAYS == 60
+    _issued_days_ago(sm, "app-read", 59)
+    probe = FakeProbe()
+    with caplog.at_level(logging.INFO):
+        assert _rotate_if_due("app-read", cfg, cf, sm, probe) == 0
+    assert cf.created == [] and cf.deleted == [] and len(sm.store["r2-app-read"]) == 1
+    assert probe.calls == [("old", False)] and "not due" in caplog.text
+
+
+def test_rotate_if_due_does_not_need_the_parent_token_when_nothing_is_due(cfg, sm) -> None:
+    """親トークンの期限が切れていても、入れ替え時期でなければ Job は成功する（Scheduler の毎月の起動が失敗にならない）。"""
+    _issued_days_ago(sm, "app-read", 10)
+    assert _rotate_if_due("app-read", cfg, None, sm, api=issuer.NoParent()) == 0
+
+
+@pytest.mark.parametrize("days", [60, 61, 400])
+def test_rotate_if_due_rotates_at_60_days_and_keeps_the_old_token(days, cfg, cf, sm) -> None:
+    _managed(cf, "old", "app-read", issued=_ago(days=days))
+    _issued_days_ago(sm, "app-read", days)
+    assert _rotate_if_due("app-read", cfg, cf, sm) == 0
+    assert {t["id"] for t in cf.tokens} == {"old", "tok1"}  # 古いトークンも残る
+    assert cf.deleted == []  # 古いキーは取り消さない（猶予のあと revoke-stale が取り消す）
+    latest = sm.store["r2-app-read"][-1]
+    assert latest["access_key_id"] == "tok1" and latest["issued_at"] == NOW.isoformat()
+    assert len(sm.store["r2-app-read"]) == 2
+
+
+def test_rotate_if_due_rotates_a_record_without_a_date(cfg, cf, sm) -> None:
+    _issued_days_ago(sm, "ingest-rw", None)
+    assert _rotate_if_due("ingest-rw", cfg, cf, sm) == 0
+    assert len(cf.created) == 1 and len(sm.store["r2-ingest-rw"]) == 2
+
+
+def test_rotate_if_due_issues_the_first_key_when_none_is_recorded(cfg, cf, sm) -> None:
+    assert _rotate_if_due("app-read", cfg, cf, sm) == 0
+    assert sm.store["r2-app-read"][0]["issued_at"] == NOW.isoformat()
+
+
+def test_rotate_if_due_replaces_a_young_key_that_no_longer_works(cfg, cf, sm, caplog) -> None:
+    _issued_days_ago(sm, "app-read", 5)
+    probe = FakeProbe(failures=1)  # 記録されたキーの確認だけ失敗する
+    with caplog.at_level(logging.INFO):
+        assert _rotate_if_due("app-read", cfg, cf, sm, probe) == 0
+    assert "not usable" in caplog.text and len(cf.created) == 1 and len(sm.store["r2-app-read"]) == 2
+
+
+def test_rotate_if_due_uses_a_write_probe_for_the_ingest_key(cfg, cf, sm) -> None:
+    _issued_days_ago(sm, "ingest-rw", 1)
+    probe = FakeProbe()
+    assert _rotate_if_due("ingest-rw", cfg, cf, sm, probe) == 0
+    assert probe.calls == [("old", True)]
+
+
+def test_a_failed_rotation_revokes_only_the_new_token_and_keeps_the_recorded_key(cfg, cf, sm) -> None:
+    _managed(cf, "old", "app-read", issued=_ago(days=70))
+    _issued_days_ago(sm, "app-read", 70)
+    assert _rotate_if_due("app-read", cfg, cf, sm, FakeProbe(failures=999)) == 4  # 新しいキーの確認が最後まで通らない
+    assert "old" in {t["id"] for t in cf.tokens}  # 記録されたキーのトークンは残る
+    assert cf.deleted == ["tok1"]  # 取り消したのは、作った新しいトークンだけ
+    assert len(sm.store["r2-app-read"]) == 1 and sm.store["r2-app-read"][-1]["access_key_id"] == "old"
+
+
+def test_a_failed_save_during_rotation_keeps_the_recorded_key(cfg, cf, sm) -> None:
+    _managed(cf, "old", "app-read", issued=_ago(days=70))
+    _issued_days_ago(sm, "app-read", 70)
+    sm.add_error = RuntimeError("boom")
+    assert _rotate_if_due("app-read", cfg, cf, sm) == 5
+    assert cf.deleted == ["tok1"] and "old" in {t["id"] for t in cf.tokens}
+    assert sm.store["r2-app-read"][-1]["access_key_id"] == "old"
+
+
+def test_rotation_with_an_expired_parent_token_changes_nothing(cfg, cf, sm) -> None:
+    _issued_days_ago(sm, "app-read", 70)
+    assert _rotate_if_due("app-read", cfg, cf, sm, api=issuer.NoParent()) == 2
+    assert len(sm.store["r2-app-read"]) == 1 and cf.created == [] and cf.deleted == []
+
+
+def test_rotate_if_due_stops_when_the_secret_cannot_be_read(cfg, cf, sm) -> None:
+    sm.read_error = RuntimeError("denied")
+    assert _rotate_if_due("app-read", cfg, cf, sm) == 5
+    assert cf.created == []
+
+
+def test_rotation_then_revoke_stale_follows_the_seven_day_grace(cfg, cf, sm) -> None:
+    """通し: 60 日で入れ替え → 3 日後は古いキーが残る → 7 日後に取り消される → 新しいキーは残る。"""
+    day0 = NOW - timedelta(days=61)
+    cf_old = {"id": "old", "name": "docunavi-r2-app-read-old", "issued_on": day0.isoformat().replace("+00:00", "Z")}
+    cf.tokens.append(cf_old)
+    sm.store["r2-app-read"] = [{"access_key_id": "old", "secret_access_key": "x", "issued_at": day0.isoformat()}]
+    assert _rotate_if_due("app-read", cfg, cf, sm, now=NOW) == 0
+    new_id = sm.store["r2-app-read"][-1]["access_key_id"]
+    for token in cf.tokens:  # フェイクの発行時刻（NEW）を、入れ替えの時刻に合わせる
+        if token["id"] == new_id:
+            token["issued_on"] = NOW.isoformat().replace("+00:00", "Z")
+    kwargs = {"stale_only": True, "api": cf, "secrets": sm, "sleep": lambda s: None}
+    assert issuer.revoke(now=lambda: NOW + timedelta(days=3), **kwargs) == 0
+    assert cf.deleted == []
+    assert issuer.revoke(now=lambda: NOW + timedelta(days=7, minutes=1), **kwargs) == 0
+    assert cf.deleted == ["old"] and new_id in {t["id"] for t in cf.tokens}
+
+
+def test_check_warns_with_a_fixed_phrase_when_the_parent_token_has_under_21_days(cfg, cf, sm, caplog) -> None:
+    assert issuer.PARENT_WARN_DAYS == 21
+    cf.expires_on = (datetime.now(UTC) + timedelta(days=20, hours=1)).isoformat()
+    with caplog.at_level(logging.INFO):
+        assert issuer.check(cfg=cfg, api=cf, secrets=sm, probe=FakeProbe()) == 0  # 終了コードは変えない
+    assert "PARENT_TOKEN_EXPIRING: 20 days left" in caplog.text
+
+
+def test_check_is_quiet_when_the_parent_token_has_21_days_or_more(cfg, cf, sm, caplog) -> None:
+    cf.expires_on = (datetime.now(UTC) + timedelta(days=21, hours=1)).isoformat()
+    with caplog.at_level(logging.INFO):
+        issuer.check(cfg=cfg, api=cf, secrets=sm, probe=FakeProbe())
+    assert "PARENT_TOKEN_EXPIRING" not in caplog.text
+
+
+def test_check_warns_when_the_parent_token_is_not_usable(cfg, sm, caplog) -> None:
+    with caplog.at_level(logging.INFO):
+        assert issuer.check(cfg=cfg, api=issuer.NoParent(), secrets=sm, probe=FakeProbe()) == 0
+    assert "PARENT_TOKEN_EXPIRING: parent token is not usable" in caplog.text
+
+
+def test_main_runs_rotate_if_due_for_the_named_purpose(monkeypatch, cf, sm) -> None:
+    for name, value in {"CLOUDFLARE_ACCOUNT_ID": ACCOUNT, "R2_BUCKET": BUCKET, "GCP_PROJECT_ID": "p"}.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(issuer, "SecretManager", lambda project: sm)
+    monkeypatch.setattr(issuer, "HttpCloudflare", lambda account, token: cf)
+    monkeypatch.setattr(issuer, "s3_probe", lambda cfg: FakeProbe())
+    assert issuer.main(["x", "rotate-if-due-ingest-rw"]) == 0
+    assert [c["name"].startswith("docunavi-r2-ingest-rw-") for c in cf.created] == [True]
+    assert issuer.main(["x", "rotate-if-due-nothing"]) == 2
+
+
+def _real_days_ago(days: int) -> str:
+    return (datetime.now(UTC) - timedelta(days=days, hours=1)).isoformat()
+
+
+@pytest.mark.parametrize(("days", "warns"), [(60, False), (91, False), (100, False), (101, True), (400, True)])
+def test_check_warns_when_a_recorded_key_is_overdue_for_rotation(days, warns, cfg, cf, sm, caplog) -> None:
+    """入れ替えは月 1 回の起動なので、正常でも 91 日ほどになる。100 日を超えたら、入れ替えが止まっている。"""
+    assert issuer.OVERDUE_DAYS == 100
+    run_issue("app-read", False, cfg, cf, sm)
+    sm.store["r2-app-read"][-1]["issued_at"] = _real_days_ago(days)
+    with caplog.at_level(logging.INFO):
+        assert (
+            issuer.check(cfg=cfg, api=cf, secrets=sm, probe=FakeProbe()) == 0
+        )  # 終了コードは変えない（アラートはログ）
+    assert ("KEY_ROTATION_OVERDUE: app-read" in caplog.text) is warns
+
+
+def test_check_does_not_warn_overdue_for_a_record_without_a_date(cfg, cf, sm, caplog) -> None:
+    run_issue("app-read", False, cfg, cf, sm)
+    del sm.store["r2-app-read"][-1]["issued_at"]
+    with caplog.at_level(logging.INFO):
+        issuer.check(cfg=cfg, api=cf, secrets=sm, probe=FakeProbe())
+    assert "KEY_ROTATION_OVERDUE" not in caplog.text

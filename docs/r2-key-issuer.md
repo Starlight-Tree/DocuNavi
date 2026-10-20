@@ -4,8 +4,11 @@ R2 のバケット `docunavi-documents` を読み書きするキー（S3 互換�
 **値を会話・ログ・Claude Code に出さずに**発行して、Secret Manager に保存する仕組み。コードは `ops/r2_key_issuer/`、
 土台の作成は `scripts/setup-r2-key-issuer.sh`、テストは `tests/test_r2_key_issuer.py`。
 
-状態（2026-10-20）: **コードとテストは書いた。外部には何も作っていない**（Cloudflare の親トークン、GCP のサービスアカウント・Secret・Job は未作成）。
-作る前に、下の「承認が必要な変更」をあなたが確認する。
+状態（2026-10-21）: **配備済みで、1 回通しで動かした**（親トークン、SA 3 つ、Secret 3 つ、Job 6 つ、Scheduler 3 つ）。
+最初の `rotate-if-due-app-read` で `r2-app-read` の版 2 を発行し、`r2-verify` で R2 の PDF 6 件を新しい鍵で読めることを確かめた（本物の Cloudflare・Secret Manager・R2）。
+作った範囲は、**アプリ用（`r2-app-read`）の自動ローテーションだけ**（2026-10-21 にあなたが決めた）。
+取り込み用（`r2-ingest-rw`）は Secret の空の入れ物と SA `r2-uploader` だけで、発行・入れ替えの Job と Scheduler は、クラウドから PDF を取り込む経路ができたときに足す。
+通知（メール・Cloud Monitoring のアラート）は作らない。警告は `r2-check` のログで読む。
 
 ## 何を作るか
 
@@ -14,7 +17,7 @@ R2 のバケット `docunavi-documents` を読み書きするキー（S3 互換�
 | 用途 | 権限（Cloudflare の権限グループ） | 保存先の Secret | 使う側 |
 |---|---|---|---|
 | アプリ用 | 読み取り（`Workers R2 Storage Bucket Item Read`） | `r2-app-read` | Cloud Run のサービス（`GET /documents/{id}/file`） |
-| 取り込み用 | 読み書き（`Workers R2 Storage Bucket Item Write`） | `r2-ingest-rw` | 取り込み（`python -m app.ingestion`。置き場は 4b で決める） |
+| 取り込み用 | 読み書き（`Workers R2 Storage Bucket Item Write`） | `r2-ingest-rw`（**空の入れ物だけ。発行はまだしない**） | 取り込み（置き場は 4b で決める）。コードは対応済み（`PURPOSES`）だが、Job は作っていない |
 
 Secret の中身は、`{"access_key_id": …, "secret_access_key": …}` の JSON 1 つ。**1 つの版に組で書く**ので、
 「ID だけ新しい」という食い違いは起きない。Secret Access Key は、トークンの値の SHA-256（Cloudflare の公式の説明どおり）。
@@ -25,7 +28,7 @@ Secret の中身は、`{"access_key_id": …, "secret_access_key": …}` の JSO
 |---|---|---|
 | 親トークンの置き場 | コンテナの中。Claude が読める | Secret Manager。読めるのは Job 用の SA だけ |
 | 処理の中身 | Claude が書き換えて、そのまま動かせる | あなたがデプロイしたイメージ（digest 固定）だけが動く |
-| Claude にできること | 何でも（スクリプトの中身次第） | 固定の 6 つの Job を「実行する」ことだけ。引数も上書きできない |
+| Claude にできること | 何でも（スクリプトの中身次第） | 固定の 5 つの Job を「実行する」ことだけ。引数も上書きできない |
 | 値の行き先 | Claude の目に入りうる | Job の中で Secret Manager に書かれて終わり |
 
 リポジトリのコードは Claude が編集できる。ただし、**編集しても、あなたが `setup-r2-key-issuer.sh` で配備し直すまで、動いている Job は変わらない**。
@@ -43,20 +46,21 @@ Claude Code ──(gcloud run jobs execute r2-<モード>。フックが毎回�
 
 | 主体 | 持つ権限 | 持たない権限 |
 |---|---|---|
-| `r2-key-issuer`（Job の SA） | 親トークンの Secret への `secretAccessor`。出力 2 つへの `secretAccessor` と `secretVersionAdder`（Secret 単位。`r2-*` のような接頭辞の一括付与はしない） | プロジェクト全体のロール、他の Secret、Secret の作成、Job の変更 |
-| `docunavi-viewer`（Claude の日常の ID） | Job 6 つ（`revoke-all` を除く）への `roles/run.invoker`（実行だけ） | `run.jobs.runWithOverrides`（引数・環境変数の上書き）、Secret の値、IAM の変更 |
+| `r2-key-issuer`（Job の SA） | 親トークンの Secret と `r2-ingest-rw`（空）への `secretAccessor`、`r2-app-read` への `secretAccessor` と `secretVersionAdder`（Secret 単位。`r2-*` のような接頭辞の一括付与はしない） | プロジェクト全体のロール、他の Secret、Secret の作成、Job の変更 |
+| `docunavi-viewer`（Claude の日常の ID） | Job 5 つ（`revoke-all` を除く）への `roles/run.invoker`（実行だけ） | `run.jobs.runWithOverrides`（引数・環境変数の上書き）、Secret の値、IAM の変更 |
 | `agent-deployer`（アプリのデプロイ用） | 変更なし | この SA の `serviceAccountUser`（Job の更新に必要。**付けない**） |
 | あなた | 配備、IAM、親トークンの保存、`revoke-all` | — |
 
-Job は 7 つ。**用途ごとに引数を固定**し、実行時の上書きは使わない（`--args` の上書きには `runWithOverrides` が別に要り、`run.invoker` だけでは足りない。
+Job は 6 つ。**用途ごとに引数を固定**し、実行時の上書きは使わない（`--args` の上書きには `runWithOverrides` が別に要り、`run.invoker` だけでは足りない。
 Claude に上書き権限は与えない）。
 
 | Job | 何をするか | Claude が実行 |
 |---|---|---|
-| `r2-issue-app-read` / `r2-issue-ingest-rw` | 有効なキーが無いときだけ発行（あれば何もしない） | できる（毎回確認） |
-| `r2-rotate-app-read` / `r2-rotate-ingest-rw` | 新しいキーを発行して差し替える（古いトークンは残す） | できる（毎回確認） |
-| `r2-revoke-stale` | 記録されていない古い・失敗の残りのトークンを取り消す（15 分以内に作ったものは触らない） | できる（毎回確認） |
-| `r2-check` | 点検だけ（何も作らない・変えない） | できる（毎回確認） |
+| `r2-issue-app-read` | 有効なキーが無いときだけ発行（あれば何もしない） | できる（毎回確認） |
+| `r2-rotate-app-read` | 新しいキーを発行して差し替える（古いトークンは残す） | できる（毎回確認） |
+| `r2-rotate-if-due-app-read` | 記録したキーの発行から 60 日たっていれば、`rotate` と同じことをする。そうでなければ、キーが動くことを確かめるだけで終わる。**Cloud Scheduler が月 1 回起動する** | できる（毎回確認） |
+| `r2-revoke-stale` | 記録されていない古い・失敗の残りのトークンを取り消す。入れ替えで置き換えられた古いキーは、**新しいキーの発行から 7 日たつまで残す**。失敗の残り（記録されたキーより新しいもの）は、作って 15 分たてば取り消す | できる（毎回確認） |
+| `r2-check` | 点検だけ（何も作らない・変えない）。**Cloud Scheduler が週 1 回起動する** | できる（毎回確認） |
 | `r2-revoke-all` | このバケット用のトークンを全部取り消す（漏れたとき） | **できない（あなただけ）** |
 
 ## 値を出さない仕組み
@@ -77,12 +81,40 @@ Claude に上書き権限は与えない）。
 | 2 | `./scripts/setup-r2-key-issuer.sh <プロジェクト ID> --cloudflare-account <ID>`（SA・Secret の入れ物・イメージ・Job・権限） | **あなた**（IAM を作る権限があるのは本人だけ。Claude に届く経路にしない） |
 | 3 | `./scripts/store-cloudflare-parent-token.sh <プロジェクト ID>`（親トークンを保存） | **あなた** |
 | 4 | `… --verify`（権限・ソースの一致・否定テスト）の出力を貼る | あなたが実行、Claude が読んで判定 |
-| 5 | `r2-check` → `r2-issue-app-read` → `r2-issue-ingest-rw` → `r2-check` の実行と、ログの確認 | **Claude**（毎回あなたが承認） |
-| 6 | アプリの配備に `r2-app-read` を渡す（`docunavi-run` に `secretAccessor`、`--set-secrets`） | あなたが実行（コマンドは Claude が出す） |
+| 5 | `r2-check` → `r2-rotate-if-due-app-read`（最初の 1 回は必ず入れ替わる。下の「自動ローテーション」）→ `r2-verify` → `r2-check` の実行と、ログの確認 | **Claude**（毎回あなたが承認） |
+| 6 | アプリの配備に `r2-app-read` を渡す（`docunavi-run` に `secretAccessor`、`--update-secrets`。`--set-secrets` は他の Secret を外すので使わない） | あなたが実行（コマンドは Claude が出す） |
 | 7 | 動作の確認（R2 に PDF を置き、`/file` で取得） | Claude（読み取り）、置く作業は取り込みの Job |
 
 1〜3 は一度きり（コードを直したときの 2 のやり直しを除く）。2 を Claude が実行できない理由は、**Claude が使える ID に IAM を作る権限を渡すと、この仕組み全体が意味を失う**から。
 Claude は、スクリプトを書き、模擬で試し、配備後に読み取りで検証する側。
+
+## 自動ローテーション（2026-10-21 に採用・配備。通知は作らない）
+
+親トークンを Secret Manager に置いたままにする運用（下の表の B、有効期間は最長 90 日）を採る。決めたこと:
+
+| 項目 | 内容 |
+|---|---|
+| 入れ替え | Cloud Scheduler が毎月 1 日 04:00（JST）に `rotate-if-due-app-read` を起動。記録したキーが 60 日より古い（古さが分からない・動かない場合も）ときだけ入れ替える。`r2-ingest-rw` は対象外 |
+| 古いキー | 入れ替えでは取り消さない。`revoke-stale`（毎週月曜 04:30）が、**置き換えた新しいキーの発行から 7 日**たってから取り消す（古いキー自身の古さではない）。記録より新しい残りは 15 分たてば取り消す |
+| 失敗したとき | 取り消すのは、その実行で作った新しいトークンだけ。記録された有効なキーには触れない（終了コード 2〜5。**通知は無い**ので、Job の失敗はログか `gcloud run jobs executions list` で見る） |
+| 親トークン | R2 のキーの作成・取り消し専用、最小権限（`Account API Tokens: Edit` から。IP 制限なし）、有効期間 90 日。`check`（毎週月曜 05:00）が、残り 21 日を切ると `PARENT_TOKEN_EXPIRING` を WARNING で出す（使えないときも出す。終了コードは変えない）。作り直しは人の作業（年 4 回ほど） |
+| 記録の形 | Secret の JSON に `issued_at`（入れ替え時期の判定に使う。親トークンが使えなくても読める）を足した。アプリは無視する |
+| アプリ側 | `R2_CREDENTIALS_FILE`（Secret をボリュームで渡す。例 `--update-secrets=/secrets/r2/credentials.json=r2-app-read:latest`）を使うと、R2 が認証エラー（401/403）を返したとき、ファイルを読み直し、**鍵の ID が変わっていれば** 1 回だけやり直す。再配備は要らない（`app/r2_store.py`） |
+
+通知は作らない（2026-10-21、あなたが決めた）。`PARENT_TOKEN_EXPIRING` と `KEY_ROTATION_OVERDUE` は、`r2-check` のログに出るだけで、誰にも飛ばない。
+見るのは、Claude に `r2-check` のログを読ませるか、あなたが Cloud Run のログを開いたとき。
+
+**最初の入れ替えで起きること（想定内）:**
+
+- `r2-app-read` の v1 は、ダッシュボードで作った鍵（`docunavi-r2-read`）で、`issued_at` がない。最初の `rotate-if-due-app-read` は古さが分からないので、**必ずその場で入れ替える**（v2）。
+- `docunavi-r2-read` は、管理する名前（`docunavi-r2-app-read-…`）に一致しないので、`revoke-stale` は取り消さない。入れ替えと `r2-verify`（最新の版を読む）の成功を確かめてから、**あなたが画面で取り消す**。
+- 入れ替えの前の `r2-check` は、`app-read` で「記録したキーに対応するトークンがない」と出て、終了コード 1 になる（v1 が管理外のため）。入れ替えのあとは 0 になる。
+- 本番のアプリは、まだ `r2-app-read` を使っていない（`PDF_STORE=r2` とボリュームの追加は別の承認）。入れ替えは本番に影響しない。
+
+確認済み（2026-10-21、手動実行）: 親トークンの検証、権限グループ、トークンの作成、R2 での動作確認、Secret への保存、`r2-verify`。
+未確認: Scheduler からの実際の起動（初回は 10/26 月曜 04:30 `revoke-stale`・05:00 `r2-check`、11/1 04:00 入れ替え）、`revoke-stale` が旧い管理キーを取り消すこと（次の入れ替え後）、
+ボリュームの `latest` が再配備なしで新しい版に変わること、動作確認の失敗・保存の失敗の経路（本物では起きていない。模擬のテストのみ）。
+`PDF_STORE=r2` への切り替えと、アプリへのボリュームの追加は別の承認。
 
 ## 以降に残る操作と、親トークンの期限
 
@@ -90,8 +122,8 @@ Claude は、スクリプトを書き、模擬で試し、配備後に読み取�
 
 | 親トークンの運用 | 期限が切れた後にあなたがすること | 頻度と手間 | 漏れたときの影響 |
 |---|---|---|---|
-| **A. 都度（有効 1 日）**（推奨） | 発行・入れ替え・取り消しの前に、画面で作る → `store-…sh` → Claude が Job を実行 | キーの入れ替えのたび（年 0〜2 回を想定）。1 回およそ 3 分 | 待機中は失効済みで無害 |
-| B. 90 日 | 期限が来る前に同じ手順で作り直す（`r2-check` が残り日数を出す） | 年 4 回ほど。入れ替えの要否に関係なく発生 | 最大 90 日間、トークンを作れる |
+| A. 都度（有効 1 日） | 発行・入れ替え・取り消しの前に、画面で作る → `store-…sh` → Claude が Job を実行 | キーの入れ替えのたび（年 0〜2 回を想定）。1 回およそ 3 分 | 待機中は失効済みで無害 |
+| **B. 90 日（採用）** | 期限が来る前に同じ手順で作り直す（`r2-check` が残り日数を出し、21 日を切ると警告する） | 年 4 回ほど。入れ替えの要否に関係なく発生 | 最大 90 日間、トークンを作れる |
 | C. 1 年 | 年 1 回 | 年 1 回 | 最大 1 年間 |
 
 期限の無いトークンは作らない。期限切れは異常ではなく、`r2-check` は警告として出す（キーの点検は続ける）。
@@ -110,7 +142,7 @@ Cloudflare に GCP のような「長期の秘密を持たない認証」があ�
 | 保存は成功したが応答が届かなかった | 最新の版が新しい ID なら成功として扱う | — |
 | 取り消しにも失敗 | 残ったトークンの名前を `ORPHAN` として出す | `r2-revoke-stale`（15 分後）、または画面で取り消す |
 | 2 つの実行が重なった | 各版は組で書かれるので食い違わない。後から書いた方が有効。負けた方のトークンが残る | `r2-revoke-stale` |
-| キーの入れ替え | ① `r2-rotate-*` ② アプリを再配備して動作確認 ③ `r2-revoke-stale`（古いキーを取り消す） | ②の前に③をしない（動いているインスタンスが止まる） |
+| キーの入れ替え（手動。自動化が止まったときの代替） | ① 親トークンを作って保存（`store-cloudflare-parent-token.sh`）→ `r2-check` ② `r2-rotate-<用途>` ③ アプリの `/documents/{id}/file` で取得できることを確かめる ④ **7 日後に** `r2-revoke-stale`（古いキーが取り消される。7 日前の実行では何も取り消さない） | ④の前に古いキーを画面で取り消さない（動いているインスタンスが止まる）。アプリがボリューム（`R2_CREDENTIALS_FILE`）でなく環境変数で鍵を受けている場合は、②のあと再配備する |
 | 漏れた疑い | あなたが `r2-revoke-all` → 親トークンを作り直し → `r2-issue-*` → 再配備 | 取り消すとアプリの `/file` と取り込みは止まる |
 
 ## 限界（隠さずに書く）

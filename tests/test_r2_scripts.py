@@ -156,15 +156,15 @@ def test_setup_issues_only_the_intended_commands(sandbox) -> None:
 
     modes = [
         "issue-app-read",
-        "issue-ingest-rw",
         "rotate-app-read",
-        "rotate-ingest-rw",
+        "rotate-if-due-app-read",
         "revoke-stale",
         "check",
         "revoke-all",
-    ]
+    ]  # r2-ingest-rw の発行・入れ替えの Job は作らない（取り込み経路ができたときに足す）
     all_deploys = [line for line in log if line.startswith("run jobs deploy")]
     deploys = [line for line in all_deploys if " --service-account r2-key-issuer@" in line]
+    assert deploys == all_deploys  # 取り込み・一致確認の Job は作らない・変えない（r2-verify は作成済み）
     assert [line.split()[3] for line in deploys] == [f"r2-{m}" for m in modes]
     for mode, line in zip(modes, deploys, strict=True):
         assert f"--args={mode}" in line  # 引数は Job の定義に固定する（実行時の上書きは使わない）
@@ -172,16 +172,25 @@ def test_setup_issues_only_the_intended_commands(sandbox) -> None:
         assert "@sha256:abc123" in line  # イメージは digest で固定
         assert "--service-account r2-key-issuer@proj-x.iam.gserviceaccount.com" in line
 
-    invokers = [line for line in log if "run jobs add-iam-policy-binding" in line]
-    assert {line.split()[3] for line in invokers} == {f"r2-{m}" for m in modes if m != "revoke-all"} | {
-        "r2-upload-plan",
-        "r2-upload",
-        "r2-verify",
+    all_invokers = [line for line in log if "run jobs add-iam-policy-binding" in line]
+    assert all("--role=roles/run.invoker" in line for line in all_invokers)
+    invokers = [line for line in all_invokers if "docunavi-viewer@" in line]
+    assert {line.split()[3] for line in invokers} == {
+        f"r2-{m}" for m in modes if m != "revoke-all"
     }  # revoke-all は本人だけ
-    assert all("--role=roles/run.invoker" in line and "docunavi-viewer@" in line for line in invokers)
+    # Scheduler の SA が起動できるのは、自動で動かす 3 つだけ（発行・手動の入れ替え・revoke-all は起動できない）
+    scheduled = [line for line in all_invokers if "r2-scheduler@proj-x.iam.gserviceaccount.com" in line]
+    assert {line.split()[3] for line in scheduled} == {
+        "r2-rotate-if-due-app-read",
+        "r2-revoke-stale",
+        "r2-check",
+    }
+    assert len(scheduled) + len(invokers) == len(all_invokers)
 
     adders = [line for line in log if "secretVersionAdder" in line]
-    assert {line.split()[2] for line in adders} == {"r2-app-read", "r2-ingest-rw"}  # 親トークンには版を足せない
+    assert {line.split()[2] for line in adders} == {
+        "r2-app-read"
+    }  # 親トークンと、空のままの r2-ingest-rw には版を足せない
     issuer = "--member=serviceAccount:r2-key-issuer@proj-x.iam.gserviceaccount.com"
     accessors = [line for line in log if "secretAccessor" in line]
     assert {line.split()[2] for line in accessors if issuer in line} == {
@@ -190,23 +199,19 @@ def test_setup_issues_only_the_intended_commands(sandbox) -> None:
         "r2-ingest-rw",
     }
     assert all(issuer in line for line in adders)
-    # PDF の配置・確認の Job: 置く SA は取り込み用キーだけ、確認はアプリの実行用 SA が読み取りキーだけ
+    assert not any("r2-scheduler@" in line for line in log if "secrets " in line)  # Scheduler は Secret に触れない
+    # 取り込み用の SA は r2-ingest-rw だけ、アプリの実行用 SA は r2-app-read だけ読める（Job は無い）
     others = {line.split()[2]: line for line in accessors if issuer not in line}
     assert set(others) == {"r2-ingest-rw", "r2-app-read"}
     assert "--member=serviceAccount:r2-uploader@proj-x.iam.gserviceaccount.com" in others["r2-ingest-rw"]
     assert "--member=serviceAccount:docunavi-run@proj-x.iam.gserviceaccount.com" in others["r2-app-read"]
-
-    tools = {line.split()[3]: line for line in all_deploys if line not in deploys}
-    assert set(tools) == {"r2-upload-plan", "r2-upload", "r2-verify"}
-    for line in tools.values():
-        assert "@sha256:abc123" in line and "--command=python" in line and "--max-retries=0" in line
-    assert "--args=-m,app.r2_store,upload " in tools["r2-upload-plan"] and "--apply" not in tools["r2-upload-plan"]
-    assert "--args=-m,app.r2_store,upload,--apply" in tools["r2-upload"]
-    assert "--args=-m,app.r2_store,verify" in tools["r2-verify"]
-    assert "--service-account r2-uploader@proj-x.iam.gserviceaccount.com" in tools["r2-upload"]
-    assert "--service-account docunavi-run@proj-x.iam.gserviceaccount.com" in tools["r2-verify"]
-    assert "R2_CREDENTIALS_JSON=r2-app-read:latest,DATABASE_URL=database-url:latest" in tools["r2-verify"]
-    assert "R2_CREDENTIALS_JSON=r2-ingest-rw:latest" in tools["r2-upload"]
+    # 作らないもの: 通知（Cloud Monitoring）、取り込み・配置の Job、アプリのイメージ、r2-ingest-rw の入れ替え
+    assert "monitoring" not in text and "r2-upload" not in text.replace("r2-uploader", "") and "r2tools" not in text
+    assert "ingest-rw" not in " ".join(line.split()[3] for line in all_deploys)
+    assert not any("ingest-rw" in line and "scheduler" in line for line in log)
+    created = [line for line in log if "secrets create" in line]
+    assert {line.split()[2] for line in created} == {"cloudflare-issuer-token", "r2-app-read", "r2-ingest-rw"}
+    assert not any("versions add" in line and "r2-ingest-rw" in line for line in log)  # 空のまま
 
 
 def test_verify_changes_nothing_and_only_impersonates_for_the_negative_tests(sandbox) -> None:
@@ -245,3 +250,55 @@ def test_store_never_puts_the_token_in_arguments_or_output(sandbox) -> None:
 def test_store_rejects_an_empty_token(sandbox) -> None:
     result = run(sandbox, STORE, "proj-x", stub=True, stdin="\n")
     assert result.returncode == 1 and not any("versions add" in line for line in calls(sandbox))
+
+
+# --- 自動ローテーション（Scheduler）---------------------------------------------------------------------------------
+
+
+def _setup_log(sandbox) -> list[str]:
+    result = run(sandbox, SETUP, *SETUP_ARGS, "-y", stub=True)
+    assert result.returncode == 0, result.stderr
+    return calls(sandbox)
+
+
+def test_scheduler_jobs_call_the_fixed_jobs_without_a_body_or_retries(sandbox) -> None:
+    log = _setup_log(sandbox)
+    created = {line.split()[4]: line for line in log if line.startswith("scheduler jobs create http")}
+    expected = {
+        "r2-sched-rotate-app-read": ("0 4 1 * *", "r2-rotate-if-due-app-read"),
+        "r2-sched-revoke-stale": ("30 4 * * 1", "r2-revoke-stale"),
+        "r2-sched-check": ("0 5 * * 1", "r2-check"),  # 週 1 回
+    }
+    assert set(created) == set(expected)
+    for name, (cron, job) in expected.items():
+        line = created[name]
+        assert f"--schedule={cron} " in line and "--time-zone=Asia/Tokyo" in line
+        assert f"--uri=https://run.googleapis.com/v2/projects/proj-x/locations/asia-northeast1/jobs/{job}:run" in line
+        assert "--oauth-service-account-email=r2-scheduler@proj-x.iam.gserviceaccount.com" in line
+        assert "--max-retry-attempts=0" in line  # 失敗しても自動では再試行しない（二重に入れ替えない）
+        for forbidden in ("--message-body", "--headers", "--oidc"):
+            assert forbidden not in line  # 引数は渡さない（Job の固定の引数のまま）
+
+
+def test_the_scheduler_service_account_has_no_project_role_and_no_secret_access(sandbox) -> None:
+    log = _setup_log(sandbox)
+    created = [line for line in log if line.startswith("iam service-accounts create r2-scheduler")]
+    assert len(created) == 1
+    mentions = [line for line in log if "r2-scheduler@" in line and "run jobs add-iam-policy-binding" not in line]
+    assert all(line.startswith(("iam service-accounts describe", "scheduler jobs create http")) for line in mentions), (
+        mentions
+    )
+
+
+def test_setup_needs_no_alert_address_and_the_check_phrases_match_the_code(sandbox) -> None:
+    result = run(sandbox, SETUP, *SETUP_ARGS, "-y", stub=True)  # ALERT_EMAIL なしで動く（通知は作らない）
+    assert result.returncode == 0, result.stderr
+    # 通知は無いので、警告の文言は r2-check のログで読む。コードが出す文言であること
+    source = (ROOT / "ops" / "r2_key_issuer" / "main.py").read_text()
+    for phrase in ("PARENT_TOKEN_EXPIRING", "KEY_ROTATION_OVERDUE"):
+        assert f'"{phrase}:' in source
+
+
+def test_the_alert_address_is_not_in_the_repository() -> None:
+    for path in (SETUP, ROOT / "docs" / "r2-key-issuer.md"):
+        assert "@gmail.com" not in path.read_text()
