@@ -24,7 +24,7 @@
 	// GH_CONFIG_DIR: ~/.config/gh ではなく専用の場所にする。~/.config がイメージに無いと、マウントの親ディレクトリが
 	// root 所有で作られ、他のツール（gcloud など）が ~/.config に書けなくなるため。
 	// TZ: date やログの時刻を JST にする（開発コンテナだけ。Docker イメージや Cloud Run の時刻は変わらない）
-	// CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT: gcloud の日常の ID を、閲覧専用の agent-viewer へのなりすましに
+	// CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT: gcloud の日常の ID を、閲覧専用の docunavi-viewer（運用用プロジェクト docunavi-ops のサービスアカウント）へのなりすましに
 	// 固定する。ターミナルでもエージェントの実行でも、起動した時点から閲覧専用になる（手動で設定・解除しない）。
 	// 書き込みは、コマンドごとに明示する（env -u でこの変数を外すか、--impersonate-service-account で別の SA を
 	// 指定する）。手順は .devcontainer/README.md。
@@ -34,7 +34,7 @@
 		"GH_CONFIG_DIR": "/home/vscode/.gh-config",
 		"CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
 		"TZ": "Asia/Tokyo",
-		"CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT": "agent-viewer@wataru-sandbox.iam.gserviceaccount.com"
+		"CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT": "docunavi-viewer@docunavi-ops.iam.gserviceaccount.com"
 	},
 
 	// claude-volume / gh-volume: 新規作成直後のボリュームは root 所有になるため、vscode ユーザーが書き込めるようにする。

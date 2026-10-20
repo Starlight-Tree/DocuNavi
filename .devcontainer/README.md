@@ -11,7 +11,7 @@
 
 | 層 | 内容 | 効くもの |
 |---|---|---|
-| 日常の ID | コンテナの環境変数 `CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`（`devcontainer.json` の `containerEnv`）で、閲覧専用の `agent-viewer` に固定します。起動した時点から、ターミナルでもエージェントでも閲覧専用で、書き込みは 403 になります | 誤操作、素朴な指示の埋め込み、戻し忘れ |
+| 日常の ID | コンテナの環境変数 `CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`（`devcontainer.json` の `containerEnv`）で、閲覧専用の `docunavi-viewer`（運用用プロジェクト `docunavi-ops` のサービスアカウント）に固定します。起動した時点から、ターミナルでもエージェントでも閲覧専用で、書き込みは 403 になります | 誤操作、素朴な指示の埋め込み、戻し忘れ |
 | PreToolUse フック | `.claude/hooks/guard-cloud-cli.py` が、実行前に gcloud などの呼び出しを検査します。削除・IAM・課金の変更・認証情報の取得・ID の切り替えは拒否し、書き込み系は確認を強制します | 同上、設定の書き換え |
 | 権限ルール | `.claude/settings.json`: 読み取り系の gcloud だけ許可し、`~/.config/gcloud` と `.gcloud-token` の読み取りを拒否し、bypass モードを無効にします | 同上 |
 | GCP 側 | 予算アラート、プロジェクトの削除防止（lien） | 最後の砦 |
@@ -35,28 +35,37 @@
 
 2. **閲覧専用のサービスアカウントを作る**（一度だけ。ホスト、Cloud Shell、または手順 1 の直後のコンテナの統合ターミナルで実行します）
 
+   サービスアカウントは、閲覧の対象（アプリのプロジェクト）とは別の**運用用プロジェクト**に置きます（このリポジトリでは
+   `docunavi-ops`。アプリ用の権限と閲覧用の権限を混ぜないため）。運用用プロジェクトは先に作っておきます。課金は付けません。
+
    ```bash
-   ./scripts/setup-agent-viewer.sh <プロジェクト ID>      # 内容を表示して確認を取ります。何度実行しても構いません
+   ./scripts/setup-agent-viewer.sh <運用用プロジェクト ID> <対象プロジェクト ID>      # 内容を表示して確認を取ります。何度実行しても構いません
    ```
 
    実際の操作は次のコマンドと同じです。
 
    ```bash
-   PROJECT_ID=<プロジェクト ID>
+   OPS_PROJECT=<運用用プロジェクト ID>        # docunavi-ops
+   TARGET_PROJECT=<対象プロジェクト ID>       # docunavi-app
    ME=<あなたのアカウント>
-   SA=agent-viewer@${PROJECT_ID}.iam.gserviceaccount.com
+   SA=docunavi-viewer@${OPS_PROJECT}.iam.gserviceaccount.com
 
-   gcloud services enable iamcredentials.googleapis.com --project "$PROJECT_ID"
-   gcloud iam service-accounts create agent-viewer --display-name="Agent read-only" --project "$PROJECT_ID"
-   for role in roles/cloudbuild.builds.viewer roles/run.viewer roles/logging.viewer; do
-     gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+   gcloud services enable iamcredentials.googleapis.com --project "$OPS_PROJECT"
+   gcloud iam service-accounts create docunavi-viewer --display-name="DocuNavi viewer" --project "$OPS_PROJECT"
+   gcloud iam service-accounts add-iam-policy-binding "$SA" \
+     --member="user:${ME}" --role=roles/iam.serviceAccountTokenCreator --project "$OPS_PROJECT"
+   for role in roles/cloudbuild.builds.viewer roles/run.viewer roles/logging.viewer roles/serviceusage.serviceUsageConsumer; do
+     gcloud projects add-iam-policy-binding "$TARGET_PROJECT" \
        --member="serviceAccount:${SA}" --role="$role" --condition=None
    done
-   gcloud iam service-accounts add-iam-policy-binding "$SA" \
-     --member="user:${ME}" --role=roles/iam.serviceAccountTokenCreator --project "$PROJECT_ID"
    ```
 
-   `logging.viewer` はプロジェクト内のログをすべて読めます。同じプロジェクトに別用途のログがあるなら、外すか絞ってください。
+   `logging.viewer` は対象プロジェクト内のログをすべて読めます。同じプロジェクトに別用途のログがあるなら、外すか絞ってください。
+   `serviceusage.serviceUsageConsumer` は、なりすまし中の API の利用を対象プロジェクトに数えさせる（下の「読み取りの書き方」の
+   `--billing-project`）ために付けます。付けないと、運用用プロジェクトで Cloud Build などの API を有効にする必要が出て、
+   有効化に課金の紐づけが要ります。
+
+   作成した直後は IAM の反映に数分かかります。`does not exist` や `Failed to impersonate` が出たら、待ってやり直してください。
 
 3. **日常の ID は、環境変数で閲覧専用に固定されています**（手順はありません）
 
@@ -80,13 +89,14 @@
 
    出力の見方:
 
-   - `WARNING: ... All API calls will be executed as [agent-viewer@...]` が出ていれば、閲覧専用の ID で動いています。
+   - `WARNING: ... All API calls will be executed as [docunavi-viewer@...]` が出ていれば、閲覧専用の ID で動いています。
    - `PERMISSION_DENIED: Failed to impersonate` は、作成直後の IAM の反映待ちです（数分で解消します）。
-   - `API [...] not enabled on project` は、そのプロジェクトで該当の API が無効、という意味です。なりすまし中の呼び出しは、
-     プロジェクトの API の有効化状況に従います。使う API（Cloud Build、Cloud Run、Logging など）を有効にしてから確認してください。
+   - `API [...] not enabled on project <運用用プロジェクトの番号>` は、なりすまし中の API の利用が、サービスアカウントを置いた
+     運用用プロジェクトに数えられている、という意味です。Cloud Build など一部の API で出ます。コマンドに
+     `--billing-project=<対象プロジェクト ID>` を付けてください（`serviceUsageConsumer` が要ります）。
    - 閲覧専用の ID は、付与した 3 つのロールの範囲しか読めません。IAM やサービスの一覧などが拒否されるのは、設計どおりです。
 
-5. **終わったら**、コンテナの統合ターミナルでログアウトします。ログイン情報はボリュームに残しません（再ビルドでも消えます）。
+5. **ログアウトは、毎回は要りません**（続けて使うあいだは維持してよい）。長期に使わないとき、共有の端末、不審な挙動のときは、コンテナの統合ターミナルでログアウトします。ログイン情報はボリュームに残しません（再ビルドでも消えます）。
    これはコンテナ内のログインを消す操作で、ホストの gcloud のログインを消す手順ではありません
    （ただし `gcloud auth revoke` はサーバー側でもトークンを失効させます。公式の説明には、同じアカウントで使っている
    他の端末への影響は書かれていません）。代替方式（ホストで短期トークンを発行する）を使うなら、
@@ -105,7 +115,7 @@
 |---|---|---|
 | 一度きりの準備（API の有効化、SA の作成、権限の付与、サービスの公開） | コマンドの先頭に `env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT` を付ける（この 1 コマンドだけ変数が外れる） | あなた自身 |
 | 日常のデプロイ | `--impersonate-service-account=agent-deployer@<プロジェクト ID>.iam.gserviceaccount.com` を付ける（フラグは環境変数より優先される） | `agent-deployer`（`scripts/setup-agent-deployer.sh` で作る） |
-| 読み取り | 何も付けない | `agent-viewer` |
+| 読み取り | 何も付けない（Cloud Build の閲覧は `--billing-project=<対象プロジェクト ID>` を付ける） | `docunavi-viewer` |
 
 - `setup-agent-viewer.sh` と `setup-agent-deployer.sh` は、スクリプトの中で変数を外すので、そのまま実行できます。
 - あなたが project の `owner` のままなので、`agent-deployer` は「あなたの権限を減らす」ものではありません。
@@ -132,9 +142,9 @@
 ホストで短期トークン（約 1 時間）を発行し、`--access-token-file` で使う方式も残しています（`scripts/issue-agent-token.sh`）。
 ログインを置かないので、いちばん安全です。ただし、フックは ID を切り替える `--access-token-file` を拒否するので、
 この方式を使うなら `.claude/hooks/guard-cloud-cli.py` の `IDENTITY_FLAGS` から外してください。
-また、この方式ではトークンがすでに `agent-viewer` のものなので、環境変数の既定（なりすまし）を外して使います
+また、この方式ではトークンがすでに `docunavi-viewer` のものなので、環境変数の既定（なりすまし）を外して使います
 （`env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud ... --access-token-file=.gcloud-token`）。
-外さないと、`agent-viewer` が自分自身になりすまそうとして失敗します。
+外さないと、`docunavi-viewer` が自分自身になりすまそうとして失敗します。
 
 ## 開発環境の GitHub CLI（gh）
 
