@@ -11,12 +11,12 @@ Vertex AI でのモデルの利用、Cloud Build での Docker ビルド、`agen
 ## 誰の権限で実行するか
 
 書き込み系のコマンド（API の有効化、サービスアカウントや権限の作成、デプロイ、公開）は、**あなたが実行します。**
-開発コンテナの gcloud は、既定で閲覧専用の `agent-viewer` になりすましています（[.devcontainer/README.md](../.devcontainer/README.md)）。
+開発コンテナの gcloud は、既定で閲覧専用の `docunavi-viewer`（運用用プロジェクト `docunavi-ops` のサービスアカウント）になりすましています（[.devcontainer/README.md](../.devcontainer/README.md)）。
 書き込みは、コマンドごとに「誰の権限か」を明示します。
 
 | 操作 | 使う ID | 書き方 |
 |---|---|---|
-| 読み取り（ログ、状態の確認） | `agent-viewer` | 何も付けない |
+| 読み取り（ログ、状態の確認） | `docunavi-viewer` | 何も付けない。Cloud Build の閲覧だけ `--billing-project=docunavi-app` を付ける |
 | 一度きりの準備、公開、削除 | あなた自身 | コマンドの先頭に `as_me`（下で定義） |
 | デプロイ、ロールバック | `agent-deployer` | `--impersonate-service-account="$DEPLOYER"` |
 
@@ -111,7 +111,7 @@ gcloud run deploy "$SERVICE" \
 ### B. Gemini API キー（代替）
 
 キーは **Secret Manager から渡します。** `--set-env-vars` に直接書くと、サービスの設定を読める人
-（`roles/run.viewer` を持つ `agent-viewer` を含む）に値が見えてしまいます。
+（`roles/run.viewer` を持つ `docunavi-viewer` を含む）に値が見えてしまいます。
 
 ```bash
 as_me gcloud services enable secretmanager.googleapis.com --project "$PROJECT_ID"
@@ -526,8 +526,14 @@ curl -s localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"
   Supabase の Redirect URLs は文字列で照合するので、登録していない側から入ると、Site URL に戻される（当時の Site URL は `http://localhost:5173`。いまは公開の URL）。
   正規の URL は前者の 1 つとし、Redirect URLs にもそれだけを入れる。ハッシュ付きの URL は使わない。
 - **`gcloud run services proxy` をバックグラウンドで動かすと止まる。** 「確かめる」を参照（ID トークン付きの `curl` を使う）。
-- **閲覧専用の ID（`agent-viewer`）が、このプロジェクトのログやビルドを読めない。** `agent-viewer` は別のプロジェクトのサービスアカウントで、このプロジェクトには設定していない。
-  設定するまでは、`logging read` と `builds log` を `as_me` で実行する。
+- **閲覧専用の ID が、このプロジェクトのログやビルドを読めなかった（2026-10-20 に解消）。** 旧 `agent-viewer` は別のプロジェクト
+  （`wataru-sandbox`）のサービスアカウントで、このプロジェクトには設定していなかった。運用用のプロジェクト `docunavi-ops` に
+  `docunavi-viewer` を作り（旧 `agent-viewer` は削除済み）、`docunavi-app` に `run.viewer` `logging.viewer` `cloudbuild.builds.viewer` と
+  `serviceusage.serviceUsageConsumer` を付けた。Cloud Run の状態・ログ・ビルドが読めることを、この ID のなりすましで確認した。
+  通らなかった点: ① 作成直後は IAM の反映に数分かかる（`does not exist`、`Failed to impersonate`）。
+  ② `gcloud builds list` は、なりすまし中の API の利用を `docunavi-ops` に数えるので、`Cloud Build API has not been used`（`SERVICE_DISABLED`）
+  になる。`docunavi-ops` で有効にするには課金の紐づけが要る。紐づけず、`--billing-project=docunavi-app` を付けて `docunavi-app` に数えさせると通る
+  （`serviceUsageConsumer` が要る）。
 - 予算ガードの詰まりは G を参照。
 
 **ロールバック:** 前のリビジョンに戻すのは、上の「公開する・戻す」の `update-traffic`。この記録の通りには実行していない（コマンドの確認のみ）。

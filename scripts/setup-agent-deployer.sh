@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cloud Run へのデプロイ用サービスアカウント agent-deployer の作成と IAM の付与を、一度だけ行う。
-# 日常の ID は閲覧専用の agent-viewer（コンテナの既定）。デプロイのときだけ、このサービスアカウントに
+# 日常の ID は閲覧専用の docunavi-viewer（コンテナの既定）。デプロイのときだけ、このサービスアカウントに
 # --impersonate-service-account で明示的になりすます（docs/deploy.md）。サービスを公開する権限は付けない。
 #
 # 権限のあるアカウントでログインした状態で、ユーザーが実行する（エージェントは実行しない:
@@ -18,7 +18,7 @@
 # 足りないと、権限エラーになることがある。その場合は、エラーに出たサービスアカウントに対して付与する。
 set -euo pipefail
 
-# 書き込みなので、本人の ID で動かす（コンテナの既定は agent-viewer へのなりすまし。書き込みは 403 になる）
+# 書き込みなので、本人の ID で動かす（コンテナの既定は docunavi-viewer へのなりすまし。書き込みは 403 になる）
 unset CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT
 
 project=""
