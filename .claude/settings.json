@@ -39,7 +39,8 @@
     ],
     "ask": [
       "Bash(git push)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "mcp__cloudflare__execute"
     ],
     "deny": [
       "Read(~/.config/gcloud/**)",
