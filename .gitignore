@@ -1,5 +1,7 @@
 node_modules/
 .env
+# psql の接続情報（パスワードを含む）。置き場所は ~/.pgpass でリポジトリの外だが、誤ってコピーしてもコミットしない
+.pgpass
 .venv/
 __pycache__/
 .pytest_cache/
