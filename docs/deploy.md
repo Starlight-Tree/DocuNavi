@@ -505,8 +505,9 @@ curl -s localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"
 7. 公開（「公開する・戻す」）。
 8. **Supabase の Redirect URLs に、サービスの URL を足す**（画面のみ。MCP と SQL では変えられない）。Authentication → URL Configuration → Redirect URLs に `<サービスの URL>/**`。
    ローカル用の `http://localhost:5173` は残す。画面は `redirectTo` に `window.location.origin` を渡す（`frontend/src/auth/supabase.ts`）ので、Site URL が `localhost` のままでもログインは Cloud Run に戻る。
-   メールの確認リンクやパスワード再設定を使い始めるとき、または本番を主に使うときに、Site URL を本番の URL に変える。
+   メールの確認リンクやパスワード再設定を使い始めるとき、または本番を主に使うときに、Site URL を本番の URL に変える（2026-10-20 に変えた。変更後、本番とローカル（`http://localhost:5173`）のログインと質問が通った。利用者の報告）。
 9. ブラウザーで Google ログインと質問を 1 つ。
+   Google の OAuth クライアントを `docunavi-app` の新しいものに替えたあとも、同じ手順で通った（2026-10-20、利用者の報告）。
 
 **再デプロイ（コードを変えたとき）:** コミットしてから、4（ビルド）と 5（デプロイ。`--image` のタグだけ変わる）と 6 を繰り返します。Secret を更新したときは、`:latest` が新しい版を指すので、
 `gcloud run deploy` をもう一度実行して新しいリビジョンを作ります（実行中のリビジョンは、起動時の版のまま）。
@@ -520,6 +521,10 @@ curl -s localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"
   直し方: 正しい値で新しい版を足し（`gcloud secrets versions add database-url --data-file=-`。C の `case` で先頭を確かめる）、デプロイをやり直す。
   見るところ: 先頭が `postgresql://`、ホストが `…pooler.supabase.com`、ユーザー名が `<ロール>.<プロジェクト ref>`、ポートが 6543（transaction）か 5432（session）。
   `db.<ref>.supabase.co` の直接接続は IPv6 のみで、Cloud Run からは届かない。
+- **ログイン後に `localhost:5173` へ戻される（`ERR_CONNECTION_REFUSED`）。** Cloud Run のサービスには URL が 2 種類ある
+  （`https://docunavi-<PROJECT_NUMBER>.asia-northeast1.run.app` と、ハッシュ付きの `https://docunavi-xe42miq4da-an.a.run.app`）。
+  Supabase の Redirect URLs は文字列で照合するので、登録していない側から入ると、Site URL に戻される（当時の Site URL は `http://localhost:5173`。いまは公開の URL）。
+  正規の URL は前者の 1 つとし、Redirect URLs にもそれだけを入れる。ハッシュ付きの URL は使わない。
 - **`gcloud run services proxy` をバックグラウンドで動かすと止まる。** 「確かめる」を参照（ID トークン付きの `curl` を使う）。
 - **閲覧専用の ID（`agent-viewer`）が、このプロジェクトのログやビルドを読めない。** `agent-viewer` は別のプロジェクトのサービスアカウントで、このプロジェクトには設定していない。
   設定するまでは、`logging read` と `builds log` を `as_me` で実行する。
