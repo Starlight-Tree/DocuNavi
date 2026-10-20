@@ -156,12 +156,13 @@ def test_setup_issues_only_the_intended_commands(sandbox) -> None:
 
     modes = [
         "issue-app-read",
+        "issue-ingest-rw",
         "rotate-app-read",
         "rotate-if-due-app-read",
         "revoke-stale",
         "check",
         "revoke-all",
-    ]  # r2-ingest-rw の発行・入れ替えの Job は作らない（取り込み経路ができたときに足す）
+    ]  # r2-ingest-rw は、発行の Job だけ作る（入れ替えの Job と Scheduler は作らない）
     all_deploys = [line for line in log if line.startswith("run jobs deploy")]
     deploys = [line for line in all_deploys if " --service-account r2-key-issuer@" in line]
     assert deploys == all_deploys  # 取り込み・一致確認の Job は作らない・変えない（r2-verify は作成済み）
@@ -176,8 +177,8 @@ def test_setup_issues_only_the_intended_commands(sandbox) -> None:
     assert all("--role=roles/run.invoker" in line for line in all_invokers)
     invokers = [line for line in all_invokers if "docunavi-viewer@" in line]
     assert {line.split()[3] for line in invokers} == {
-        f"r2-{m}" for m in modes if m != "revoke-all"
-    }  # revoke-all は本人だけ
+        f"r2-{m}" for m in modes if m not in ("revoke-all", "issue-ingest-rw")
+    }  # revoke-all と、書き込める鍵を作る issue-ingest-rw は本人だけ
     # Scheduler の SA が起動できるのは、自動で動かす 3 つだけ（発行・手動の入れ替え・revoke-all は起動できない）
     scheduled = [line for line in all_invokers if "r2-scheduler@proj-x.iam.gserviceaccount.com" in line]
     assert {line.split()[3] for line in scheduled} == {
@@ -189,8 +190,9 @@ def test_setup_issues_only_the_intended_commands(sandbox) -> None:
 
     adders = [line for line in log if "secretVersionAdder" in line]
     assert {line.split()[2] for line in adders} == {
-        "r2-app-read"
-    }  # 親トークンと、空のままの r2-ingest-rw には版を足せない
+        "r2-app-read",
+        "r2-ingest-rw",
+    }  # 親トークンには版を足せない
     issuer = "--member=serviceAccount:r2-key-issuer@proj-x.iam.gserviceaccount.com"
     accessors = [line for line in log if "secretAccessor" in line]
     assert {line.split()[2] for line in accessors if issuer in line} == {
@@ -205,13 +207,15 @@ def test_setup_issues_only_the_intended_commands(sandbox) -> None:
     assert set(others) == {"r2-ingest-rw", "r2-app-read"}
     assert "--member=serviceAccount:r2-uploader@proj-x.iam.gserviceaccount.com" in others["r2-ingest-rw"]
     assert "--member=serviceAccount:docunavi-run@proj-x.iam.gserviceaccount.com" in others["r2-app-read"]
-    # 作らないもの: 通知（Cloud Monitoring）、取り込み・配置の Job、アプリのイメージ、r2-ingest-rw の入れ替え
+    # 作らないもの: 通知（Cloud Monitoring）、取り込み・配置の Job、アプリのイメージ、r2-ingest-rw の入れ替えの Job と Scheduler
     assert "monitoring" not in text and "r2-upload" not in text.replace("r2-uploader", "") and "r2tools" not in text
-    assert "ingest-rw" not in " ".join(line.split()[3] for line in all_deploys)
+    assert [line.split()[3] for line in all_deploys if "ingest-rw" in line] == ["r2-issue-ingest-rw"]
     assert not any("ingest-rw" in line and "scheduler" in line for line in log)
     created = [line for line in log if "secrets create" in line]
     assert {line.split()[2] for line in created} == {"cloudflare-issuer-token", "r2-app-read", "r2-ingest-rw"}
-    assert not any("versions add" in line and "r2-ingest-rw" in line for line in log)  # 空のまま
+    assert not any(
+        "versions add" in line and "r2-ingest-rw" in line for line in log
+    )  # 値は入れない（発行 Job が入れる）
 
 
 def test_verify_changes_nothing_and_only_impersonates_for_the_negative_tests(sandbox) -> None:
