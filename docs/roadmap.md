@@ -67,7 +67,7 @@
 | 1 | Postgres（第一候補は Supabase。Cloud SQL でも可）と、履歴の保存先の差し替え | 接続プール、マイグレーション、状態の外出し | 現在の `MemorySaver` は、Cloud Run では再起動や複数インスタンスで履歴が失われる。**段階 0 を待たずに進められる**（Supabase の無料枠は GCP の課金が不要。履歴が残る効果は、デプロイしたときに出る）。**コードは実装済み、Supabase への実接続も確認済み（2026-10-14。下の「確認の状況」）。** |
 | 2 | 認証 | JWT の検証、会話と利用者の紐づけ | **R2 のアップロードより先。** 無認証だと誰でも書き込める。**コードは実装済み（Supabase Auth の Google ログイン + バックエンドの JWT 検証。`AUTH_MODE=off|required`、既定は off）。実際の Supabase・Google との接続とログインは未確認**（[configuration.md](configuration.md) の「ログイン（認証）」） |
 | 3 | Cloudflare（DNS・独自ドメイン・レート制限） | DNS、プロキシ、WAF | 自分のドメインが要る。ドメインが無ければ後回しでよい。順序はどこでもよい |
-| 4a | R2 に原本を置き、手動で取り込む（抽出 → チャンク化 → 埋め込み → pgvector へ upsert） | S3 互換 API、取り込みの冪等性、pgvector | **ローカルの PDF からの取り込み・埋め込みと DB 検索は実装済み。R2 に置く部分が残り。** 認証が前提。アップロード資料を利用者ごとに分けるか、全員共通かを先に決める。`page`・`source_path` などは取り込み時にしか取れないので、4a で持たせる |
+| 4a | R2 に原本を置き、手動で取り込む（抽出 → チャンク化 → 埋め込み → pgvector へ upsert） | S3 互換 API、取り込みの冪等性、pgvector | **ローカルの PDF からの取り込み・埋め込みと DB 検索は実装済み。R2 に置く部分が残り。** 認証が前提。アップロード資料を利用者ごとに分けるか、全員共通かを先に決める。`page`・`source` などは取り込み時にしか取れないので、4a で持たせる |
 | 4b | 自動化（R2 のイベント通知 → Queue → Cloud Run の取り込み） | イベント駆動、キュー、リトライ | 取り込みはチャット用サービスと分ける。push と pull は、遅延と認証の手間で選ぶ（下の「段階 4 の設計」） |
 | 4c | ハイブリッド検索（日本語の全文索引）、引用、署名付き URL | 検索の品質、参照元の返し方 | 資料が増え、ベクトル検索だけでは取りこぼす質問が出てから。日本語の索引は DB ごとに違う |
 | 5 | Vercel でフロントを分離 | CORS、クロスオリジンの認証、環境ごとの API の向き先 | いちばん手間がかかるので最後。Vite のまま静的配信か、Next.js 化するかを先に決める |
@@ -114,19 +114,19 @@ Supabase と Cloud SQL の選び方の目安:
 ```text
 R2 のイベント通知 → Cloudflare Queue → Cloud Run の取り込み（サービスまたはジョブ）
   → 抽出（必要なら PDF 変換）→ チャンク化 → 埋め込み → Postgres + pgvector に upsert
-FastAPI + LangGraph → 検索 → 回答 + 参照元（source_path から署名付き URL）
+FastAPI + LangGraph → 検索 → 回答 + 参照元（source から署名付き URL）
 ```
 
 - **取り込みはチャット用サービスと分ける。** 抽出や埋め込みは重く、同じサービスに入れると、応答の遅延と「容量の注意」（`--concurrency`）の計算を崩す。
 - **Cloudflare 側は薄い中継にする。** Worker のメモリは 128 MB（isolate ごと）で、queue consumer の CPU 時間も限られる。PDF の抽出や埋め込みは Cloud Run で行う。
 - **冪等にする。** イベントは重複して届きうる。`documents` に内容のハッシュと状態を持たせ、`chunks` は `UNIQUE (document_id, chunk_index)` で upsert する。
-- **参照元は DB のデータとして持つ。** 回答時に `source_path` から署名付き URL を作る。LLM に URL を書かせない。
+- **参照元は DB のデータとして持つ。** 回答時に `source` から署名付き URL を作る。LLM に URL を書かせない。
 
 データモデルの出発点:
 
 | テーブル | 列 |
 |---|---|
-| `documents` | `id`, `source_path`, `content_hash`, `status`, `created_at`, `updated_at` |
+| `documents` | `id`, `source`, `content_hash`, `status`, `created_at`, `updated_at` |
 | `chunks` | `id`, `document_id`（`ON DELETE CASCADE`）, `chunk_index`, `page`, `content`, `embedding vector(N)`, `embedding_model`, `embedding_dimensions`, `created_at` |
 
 - `vector(N)` は、索引を作るために次元を型で固定する。モデルを変えて次元が変わると、列かテーブルの作り直しになるので、`embedding_model` と `embedding_dimensions` を持たせる。
