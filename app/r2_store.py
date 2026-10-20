@@ -9,8 +9,14 @@
 - `R2_BUCKET`: バケット名（`docunavi-documents`）
 - `R2_CREDENTIALS_JSON`: `{"access_key_id": …, "secret_access_key": …}`。Secret Manager の `r2-app-read`（読み取り）または
   `r2-ingest-rw`（読み書き）の値を、Cloud Run の `--set-secrets` でそのまま渡す
+- `R2_CREDENTIALS_FILE`: 同じ JSON が入ったファイルのパス（Cloud Run が Secret をボリュームとして渡すとき。例
+  `--set-secrets=/secrets/r2/credentials.json=r2-app-read:latest`）。`R2_CREDENTIALS_JSON` が空のときだけ使う
 
 書き込み（`python -m app.r2_store upload`）は、読み書きのキーが要る。アプリ本体（`app/main.py`）は読み取りしかしない。
+
+鍵の入れ替え（docs/r2-key-issuer.md）: R2 が認証エラー（401/403）を返したら、`R2_CREDENTIALS_FILE` を読み直し、**鍵の ID が変わっていれば**
+新しい鍵で 1 回だけやり直す。ID が同じなら（本当に権限が無い）やり直さずに元のエラーを返す。再配備は要らない。
+`R2_CREDENTIALS_JSON`（環境変数）は起動時の値のまま変わらないので、読み直しても同じ ID になり、やり直しは起きない。
 """
 
 import argparse
@@ -19,7 +25,7 @@ import json
 import logging
 import os
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -30,6 +36,15 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger(__name__)
 
 _MISSING_CODES = {"NoSuchKey", "404", "NotFound"}
+_AUTH_CODES = {
+    "InvalidAccessKeyId",
+    "SignatureDoesNotMatch",
+    "AccessDenied",
+    "InvalidToken",
+    "ExpiredToken",
+    "401",
+    "403",
+}
 _CRED_KEYS = ("access_key_id", "secret_access_key")
 
 
@@ -52,6 +67,12 @@ class R2Config:
 def config_from_env(env: Mapping[str, str] | None = None) -> R2Config:
     env = os.environ if env is None else env
     values = {name: env.get(name, "").strip() for name in ("R2_ACCOUNT_ID", "R2_BUCKET", "R2_CREDENTIALS_JSON")}
+    path = env.get("R2_CREDENTIALS_FILE", "").strip()
+    if not values["R2_CREDENTIALS_JSON"] and path:  # ボリュームで渡された Secret。呼ぶたびに読む（入れ替えに追従する）
+        try:
+            values["R2_CREDENTIALS_JSON"] = Path(path).read_text(encoding="utf-8").strip()
+        except OSError:
+            raise R2ConfigError("R2_CREDENTIALS_FILE cannot be read") from None
     missing = [name for name, value in values.items() if not value]
     if missing:
         raise R2ConfigError(f"missing: {', '.join(missing)}")
@@ -83,20 +104,54 @@ def make_client(config: R2Config) -> Any:
     )
 
 
-class R2Store:
-    """バケット 1 つへの操作。`client` は boto3 の S3 クライアント（テストでは偽物を渡す）。"""
+def _is_auth_error(exc: ClientError) -> bool:
+    error = exc.response.get("Error", {})
+    status = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    return error.get("Code") in _AUTH_CODES or status in (401, 403)
 
-    def __init__(self, client: Any, bucket: str) -> None:
-        self._client = client
+
+class R2Store:
+    """バケット 1 つへの操作。`client` は boto3 の S3 クライアント（テストでは偽物を渡す）。
+
+    `reload` は、鍵が入れ替わったかもしれないときに呼ぶ（新しいクライアントと鍵の ID を返す）。認証エラーのとき 1 回だけ呼び、
+    鍵の ID が変わっていれば、新しいクライアントで操作をやり直す。
+    """
+
+    def __init__(
+        self,
+        client: Any,
+        bucket: str,
+        reload: Callable[[], tuple[Any, str]] | None = None,
+        key_id: str | None = None,
+    ) -> None:
+        self._state = (client, key_id)  # クライアントと鍵の ID は、まとめて入れ替える（スレッドから同時に呼ばれる）
         self._bucket = bucket
+        self._reload = reload
+
+    def _call(self, operation: str, **params: Any) -> Any:
+        client, key_id = self._state
+        try:
+            return getattr(client, operation)(Bucket=self._bucket, **params)
+        except ClientError as exc:
+            if not _is_auth_error(exc) or self._reload is None:
+                raise
+            try:
+                fresh_client, fresh_id = self._reload()
+            except Exception:  # noqa: BLE001 - 読み直せないときは、元のエラーを返す（読み直しの失敗の中身は出さない）
+                raise exc from None
+            if fresh_id == key_id:  # 鍵は同じ。権限が無いだけなので、やり直さない
+                raise
+            self._state = (fresh_client, fresh_id)
+            logger.info("R2 の鍵が入れ替わっていたので、読み直しました")
+            return getattr(fresh_client, operation)(Bucket=self._bucket, **params)
 
     def _pages(self, **params: Any) -> Any:
         token = None
         while True:
-            kwargs = {"Bucket": self._bucket, **params}
+            kwargs = dict(params)
             if token:
                 kwargs["ContinuationToken"] = token
-            page = self._client.list_objects_v2(**kwargs)
+            page = self._call("list_objects_v2", **kwargs)
             yield page
             if not page.get("IsTruncated"):
                 return
@@ -115,7 +170,7 @@ class R2Store:
     def get(self, key: str, max_bytes: int) -> bytes | None:
         """オブジェクトの中身。無い・大きすぎるなら None。それ以外の失敗（権限・通信）は例外のまま。"""
         try:
-            response = self._client.get_object(Bucket=self._bucket, Key=key)
+            response = self._call("get_object", Key=key)
         except ClientError as exc:
             if exc.response.get("Error", {}).get("Code") in _MISSING_CODES:
                 return None
@@ -129,7 +184,7 @@ class R2Store:
     def etag(self, key: str) -> str | None:
         """オブジェクトの ETag（単一パートの PUT なら MD5 の 16 進）。無ければ None。"""
         try:
-            response = self._client.head_object(Bucket=self._bucket, Key=key)
+            response = self._call("head_object", Key=key)
         except ClientError as exc:
             if exc.response.get("Error", {}).get("Code") in _MISSING_CODES:
                 return None
@@ -137,14 +192,20 @@ class R2Store:
         return str(response.get("ETag", "")).strip('"') or None
 
     def put(self, key: str, data: bytes) -> None:
-        self._client.put_object(Bucket=self._bucket, Key=key, Body=data, ContentType="application/pdf")
+        self._call("put_object", Key=key, Body=data, ContentType="application/pdf")
+
+
+def _fresh_client() -> tuple[Any, str]:
+    """環境（`R2_CREDENTIALS_FILE` なら、いまのファイルの中身）から、新しいクライアントと鍵の ID を作る。"""
+    config = config_from_env()
+    return make_client(config), config.access_key_id
 
 
 @lru_cache(maxsize=1)
 def default_store() -> R2Store:
     """環境変数の設定で作る、プロセスで 1 つの置き場。設定が足りなければ R2ConfigError。"""
     config = config_from_env()
-    return R2Store(make_client(config), config.bucket)
+    return R2Store(make_client(config), config.bucket, reload=_fresh_client, key_id=config.access_key_id)
 
 
 # --- 取り込み・アップロード用 ---------------------------------------------------------------------------------

@@ -463,3 +463,191 @@ def test_verify_reports_config_and_failures_without_values(monkeypatch, s3, caps
     assert r2_store.main(["verify"]) == 1
     captured = capsys.readouterr()
     assert "RuntimeError" in captured.err and "pw-DO-NOT-LOG" not in captured.out + captured.err
+
+
+# --- 鍵の入れ替えへの追従（認証エラーのとき、ファイルを読み直して 1 回だけやり直す） ---------------------------------------
+
+NEW_KEY_ID = "NEW-KEY-ID-DO-NOT-LOG"
+NEW_SECRET = "NEW-SECRET-ACCESS-KEY-DO-NOT-LOG"
+
+
+def creds_json(key_id: str, secret: str) -> str:
+    return json.dumps({"access_key_id": key_id, "secret_access_key": secret})
+
+
+def test_credentials_file_is_used_when_the_json_variable_is_empty(tmp_path: Path) -> None:
+    path = tmp_path / "credentials.json"
+    path.write_text(creds_json(KEY_ID, SECRET_KEY) + "\n")
+    env = {"R2_ACCOUNT_ID": "acct", "R2_BUCKET": "b", "R2_CREDENTIALS_FILE": str(path)}
+    assert r2_store.config_from_env(env).access_key_id == KEY_ID
+    path.write_text(creds_json(NEW_KEY_ID, NEW_SECRET))
+    assert r2_store.config_from_env(env).access_key_id == NEW_KEY_ID  # 呼ぶたびに、いまのファイルを読む
+
+
+def test_the_json_variable_wins_over_the_file(tmp_path: Path) -> None:
+    path = tmp_path / "credentials.json"
+    path.write_text(creds_json(NEW_KEY_ID, NEW_SECRET))
+    assert r2_store.config_from_env({**ENV, "R2_CREDENTIALS_FILE": str(path)}).access_key_id == KEY_ID
+
+
+def test_an_unreadable_credentials_file_is_a_config_error_without_the_path(tmp_path: Path) -> None:
+    env = {"R2_ACCOUNT_ID": "acct", "R2_BUCKET": "b", "R2_CREDENTIALS_FILE": str(tmp_path / "missing.json")}
+    with pytest.raises(r2_store.R2ConfigError) as error:
+        r2_store.config_from_env(env)
+    assert str(error.value) == "R2_CREDENTIALS_FILE cannot be read" and "missing.json" not in str(error.value)
+
+
+def test_a_credentials_file_in_the_wrong_shape_is_a_config_error(tmp_path: Path) -> None:
+    path = tmp_path / "credentials.json"
+    path.write_text(json.dumps({"access_key_id": KEY_ID}))
+    env = {"R2_ACCOUNT_ID": "acct", "R2_BUCKET": "b", "R2_CREDENTIALS_FILE": str(path)}
+    with pytest.raises(r2_store.R2ConfigError) as error:
+        r2_store.config_from_env(env)
+    assert KEY_ID not in str(error.value)
+
+
+class Calls:
+    def __init__(self) -> None:
+        self.reloads = 0
+
+
+def store_with_reload(old: FakeS3, fresh: tuple[FakeS3, str] | Exception, calls: Calls) -> r2_store.R2Store:
+    def reload() -> tuple[FakeS3, str]:
+        calls.reloads += 1
+        if isinstance(fresh, Exception):
+            raise fresh
+        return fresh
+
+    return r2_store.R2Store(old, "docunavi-documents", reload=reload, key_id=KEY_ID)
+
+
+@pytest.mark.parametrize(
+    ("code", "status"),
+    [("InvalidAccessKeyId", 403), ("SignatureDoesNotMatch", 403), ("AccessDenied", 403), ("Unauthorized", 401)],
+)
+def test_an_auth_error_reloads_the_key_and_retries_once_with_the_new_client(code, status) -> None:
+    old = FakeS3({"cafe/a.pdf": PDF_A})
+    old.error = client_error(code, status)
+    new = FakeS3({"cafe/a.pdf": PDF_A})
+    calls = Calls()
+    store = store_with_reload(old, (new, NEW_KEY_ID), calls)
+    assert store.get("cafe/a.pdf", 1_000_000) == PDF_A
+    assert calls.reloads == 1
+    assert store.get("cafe/a.pdf", 1_000_000) == PDF_A  # 以降は新しいクライアントを使い続ける（読み直しは増えない）
+    assert calls.reloads == 1
+
+
+def test_every_operation_follows_a_key_rotation() -> None:
+    old = FakeS3()
+    old.error = client_error("InvalidAccessKeyId", 403)
+    new = FakeS3({"cafe/a.pdf": PDF_A})
+    store = store_with_reload(old, (new, NEW_KEY_ID), Calls())
+    assert store.collections() == ["cafe"]
+    old.error = client_error("InvalidAccessKeyId", 403)
+    store = store_with_reload(old, (new, NEW_KEY_ID), Calls())
+    assert store.pdf_keys("cafe/") == ["cafe/a.pdf"]
+    old.error = client_error("InvalidAccessKeyId", 403)
+    store = store_with_reload(old, (new, NEW_KEY_ID), Calls())
+    assert store.etag("cafe/a.pdf") == hashlib.md5(PDF_A).hexdigest()
+
+
+def test_an_unchanged_key_id_is_not_retried() -> None:
+    """鍵は同じ（本当に権限が無い・鍵が失効した）。やり直さず、元のエラーを返す。"""
+    old = FakeS3()
+    old.error = client_error("AccessDenied", 403)
+    new = FakeS3({"cafe/a.pdf": PDF_A})
+    calls = Calls()
+    store = store_with_reload(old, (new, KEY_ID), calls)
+    with pytest.raises(ClientError):
+        store.get("cafe/a.pdf", 1_000_000)
+    assert calls.reloads == 1
+
+
+def test_the_retry_happens_only_once() -> None:
+    old = FakeS3()
+    old.error = client_error("InvalidAccessKeyId", 403)
+    new = FakeS3()
+    new.error = client_error("InvalidAccessKeyId", 403)
+    calls = Calls()
+    store = store_with_reload(old, (new, NEW_KEY_ID), calls)
+    with pytest.raises(ClientError):
+        store.get("cafe/a.pdf", 1_000_000)
+    assert calls.reloads == 1
+
+
+@pytest.mark.parametrize(("code", "status"), [("NoSuchKey", 404), ("InternalError", 500), ("SlowDown", 503)])
+def test_other_errors_do_not_reload_the_key(code, status) -> None:
+    old = FakeS3()
+    old.error = client_error(code, status)
+    calls = Calls()
+    store = store_with_reload(old, (FakeS3(), NEW_KEY_ID), calls)
+    if code == "NoSuchKey":
+        assert store.get("cafe/a.pdf", 1_000_000) is None
+    else:
+        with pytest.raises(ClientError):
+            store.get("cafe/a.pdf", 1_000_000)
+    assert calls.reloads == 0
+
+
+def test_a_failed_reload_returns_the_original_error_without_its_own_details() -> None:
+    old = FakeS3()
+    old.error = client_error("InvalidAccessKeyId", 403)
+    store = store_with_reload(old, r2_store.R2ConfigError("R2_CREDENTIALS_FILE cannot be read"), Calls())
+    with pytest.raises(ClientError) as error:
+        store.get("cafe/a.pdf", 1_000_000)
+    assert error.value is old.error and error.value.__cause__ is None and error.value.__suppress_context__
+
+
+def test_the_default_store_follows_a_rotated_credentials_file(monkeypatch, tmp_path: Path, caplog) -> None:
+    """Cloud Run がボリュームで渡す Secret が新しい版に変わったら、再配備なしで新しい鍵に切り替わる（模擬）。"""
+    path = tmp_path / "credentials.json"
+    path.write_text(creds_json(KEY_ID, SECRET_KEY))
+    old = FakeS3({"cafe/a.pdf": PDF_A})
+    old.error = client_error("InvalidAccessKeyId", 403)  # 古い鍵は、入れ替えのあと失効した
+    new = FakeS3({"cafe/a.pdf": PDF_A})
+    clients = {KEY_ID: old, NEW_KEY_ID: new}
+    monkeypatch.setattr(r2_store, "make_client", lambda config: clients[config.access_key_id])
+    for name, value in {
+        "R2_ACCOUNT_ID": "acct",
+        "R2_BUCKET": "docunavi-documents",
+        "R2_CREDENTIALS_FILE": str(path),
+    }.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.delenv("R2_CREDENTIALS_JSON", raising=False)
+    r2_store.default_store.cache_clear()
+    try:
+        store = r2_store.default_store()  # 起動時は古い鍵
+        path.write_text(creds_json(NEW_KEY_ID, NEW_SECRET))  # Secret の新しい版（ボリュームの中身が変わる）
+        with caplog.at_level(logging.DEBUG):
+            found = pdf_originals.find_original_in_r2("a.pdf", sha(PDF_A))
+        assert found.ok and found.data == PDF_A
+        assert store is r2_store.default_store()  # 置き場は作り直さない。鍵だけ入れ替わる
+    finally:
+        r2_store.default_store.cache_clear()
+    for secret in (KEY_ID, SECRET_KEY, NEW_KEY_ID, NEW_SECRET):
+        assert secret not in caplog.text
+
+
+def test_an_environment_variable_key_is_not_reloaded(monkeypatch) -> None:
+    """環境変数で渡された鍵は起動時のまま。読み直しても同じ ID なので、やり直しは起きない。"""
+    old = FakeS3()
+    old.error = client_error("InvalidAccessKeyId", 403)
+    monkeypatch.setattr(r2_store, "make_client", lambda config: old)
+    for name, value in ENV.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.delenv("R2_CREDENTIALS_FILE", raising=False)
+    r2_store.default_store.cache_clear()
+    try:
+        assert pdf_originals.find_original_in_r2("a.pdf", sha(PDF_A)).reason == "unavailable"
+    finally:
+        r2_store.default_store.cache_clear()
+
+
+def test_the_issuers_secret_with_an_issued_at_field_is_accepted() -> None:
+    """発行 Job は、キー ID・Secret Access Key に加えて issued_at（入れ替え時期の記録）を同じ JSON に入れる。アプリはそれを無視する。"""
+    creds = json.dumps(
+        {"access_key_id": KEY_ID, "secret_access_key": SECRET_KEY, "issued_at": "2026-10-21T12:00:00+00:00"}
+    )
+    config = r2_store.config_from_env({**ENV, "R2_CREDENTIALS_JSON": creds})
+    assert (config.access_key_id, config.secret_access_key) == (KEY_ID, SECRET_KEY)
+    assert "issued_at" not in repr(config)
