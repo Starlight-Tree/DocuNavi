@@ -262,3 +262,12 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
   バックグラウンドにしないのは、子プロセスが起動処理の終了で止められるためです。`( … &)` と `setsid nohup … &` の 2 通りとも、2026-10-20 の再ビルドでログができず、登録も戻りませんでした（診断用に起動の先頭へ目印のファイルを書いて、`postStartCommand` 自体は動いていると確かめた）。
   前景の書き方は、登録を外した状態からの再ビルドで、自動で登録が戻ることを確かめました（2026-10-20）。パスを変えた直後の最初のセッションだけは、Claude Code が設定を読むほうが登録より早いので、Window の再読み込みが要ります。確かめるときは、先にそのパスの登録を外してから再ビルドします（残っていると、自動登録が失敗しても `/mcp` に出てしまうため）。
 - 変数が未設定でも、`.mcp.json` 全体は壊れません（`claude mcp list` に警告が出て、`${…}` の文字のまま使われます。公式の説明で、スクラッチの読み込みでも確認しました）。Playwright は影響を受けません。
+
+### `supabase-write` の破壊的な SQL が `declined` になる
+
+`DELETE` などの破壊的な SQL を流すと、承認の画面が出ないまま `{"status":"declined"}` が返ることがあります（2026-10-21、`delete … where id = 22` で複数回）。
+
+- **実測：** Supabase MCP は、破壊的な SQL の前に確認要求（elicitation。本文は `This SQL includes destructive operations` で始まる）を送ります。`settings.json` の `Elicitation` フック（matcher `supabase-write`、`.claude/hooks/accept-supabase-elicitation.py`）に、その要求が届くことは、ログで確かめました。
+- **推測（未確認）：** 要求に誰も答えないために `declined` になり、VS Code 拡張が確認の画面を出せないためと見ています。拡張側の実装は確かめていません。権限のモードや `ask` ルールが原因ではありませんでした。
+- **フックの既定：** `ENFORCE = False` で、記録だけして何も答えません。サーバー名・本文の接頭辞・プロジェクト参照・`mode=form` がすべて合うときだけ答える作りで、例外のときは答えません。
+- **ログの見方：** `~/.claude/elicitation-hook.log` に 1 要求 1 行（`server`、`match`、`enforce`、時刻。本文は残さない）。`supabase-write` の行が増えて `match: true` なら、要求が届いたことを示します。`enforce` は、そのときのフックの設定です。
