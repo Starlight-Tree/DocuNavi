@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # R2 キーの発行 Job（ops/r2_key_issuer、手順と設計は docs/r2-key-issuer.md）の土台を、一度だけ作る。
-# 作るもの: 実行用サービスアカウント r2-key-issuer、Secret の入れ物 3 つ（r2-ingest-rw は空のまま）、Cloud Run Job 6 つ（モードごとに引数を固定）、
+# 作るもの: 実行用サービスアカウント r2-key-issuer、Secret の入れ物 3 つ（r2-ingest-rw は、発行 Job を実行するまで空）、Cloud Run Job 7 つ（モードごとに引数を固定）、
 # Secret と Job への最小の権限。親トークンの値は、ここでは扱わない（scripts/store-cloudflare-parent-token.sh）。
 # 自動ローテーション用に、Cloud Scheduler の Job 3 つ（月 1 回の app-read の入れ替え、週 1 回の古いキーの取り消し、週 1 回の点検）と、
 # その実行用 SA r2-scheduler（上の Job のうち 3 つの run.invoker だけ）。
-# 取り込み用: SA r2-uploader（r2-ingest-rw だけ読める）と、アプリの実行用 SA に r2-app-read の読み取りを付ける。r2-ingest-rw の発行・入れ替えの Job と、
-# 取り込みの Job は作らない（クラウドから PDF を取り込む経路ができたときに、Job と Scheduler を足す）。一致確認の Job r2-verify は作成済みで、このスクリプトは触らない。
+# 取り込み用: SA r2-uploader（r2-ingest-rw だけ読める）と、アプリの実行用 SA に r2-app-read の読み取りを付ける。r2-ingest-rw の発行 Job（r2-issue-ingest-rw。
+# PDF を R2 に置く読み書きのキーを、値を画面に出さずに Secret へ入れる。実行できるのは本人だけ）は作る。入れ替えの Job と Scheduler、取り込みの Job は作らない。
+# 一致確認の Job r2-verify は作成済みで、このスクリプトは触らない。
 # 通知（メール・Cloud Monitoring のアラート）は作らない。PARENT_TOKEN_EXPIRING などは r2-check のログに出るだけ。
 #
 # 権限のあるアカウントでログインした状態で、ユーザーが実行する（エージェントは実行しない:
@@ -87,10 +88,10 @@ deployer_sa="${DEPLOYER_SA:-agent-deployer@${project}.iam.gserviceaccount.com}"
 sa_name="r2-key-issuer"
 sa="${sa_name}@${project}.iam.gserviceaccount.com"
 parent_secret="cloudflare-issuer-token"   # 親トークン（発行専用）。値は store-cloudflare-parent-token.sh で入れる
-out_secrets=(r2-app-read)                 # 発行したキー（キー ID と Secret Access Key の JSON）。版の追加で更新する。r2-ingest-rw は空の入れ物だけ
+out_secrets=(r2-app-read r2-ingest-rw)    # 発行したキー（キー ID と Secret Access Key の JSON）。版の追加で更新する。r2-ingest-rw は、r2-issue-ingest-rw を実行するまで空
 all_secrets=("$parent_secret" "${out_secrets[@]}" r2-ingest-rw)
-modes=(issue-app-read rotate-app-read rotate-if-due-app-read revoke-stale check revoke-all)
-# 閲覧専用の ID に実行を許す Job。revoke-all（全部取り消す）は、本人だけが実行できるようにする
+modes=(issue-app-read issue-ingest-rw rotate-app-read rotate-if-due-app-read revoke-stale check revoke-all)
+# 閲覧専用の ID に実行を許す Job。revoke-all（全部取り消す）と issue-ingest-rw（書き込める鍵を作る）は、本人だけが実行できるようにする
 viewer_modes=(issue-app-read rotate-app-read rotate-if-due-app-read revoke-stale check)
 
 # 自動ローテーション（Cloud Scheduler）。名前|cron（JST）|起動する Job。Scheduler は引数を渡さない（Job の固定の引数のまま動く）
@@ -125,7 +126,7 @@ verify() {
   "$GCLOUD" projects get-iam-policy "$project" --flatten=bindings \
     --filter="bindings.members:serviceAccount:${sa}" --format='value(bindings.role)' || true
 
-  echo "== Secret の権限（想定: $sa に secretAccessor。r2-app-read には secretVersionAdder も。他の主体は無し。r2-ingest-rw は空）"
+  echo "== Secret の権限（想定: $sa に secretAccessor。r2-app-read と r2-ingest-rw には secretVersionAdder も。他の主体は無し）"
   for s in "${all_secrets[@]}"; do
     echo "-- $s"
     "$GCLOUD" secrets get-iam-policy "$s" --project "$project" --format='table(bindings.role,bindings.members.flatten())' || ok=false
@@ -191,8 +192,8 @@ echo "Secret の入れ物:      ${all_secrets[*]}（無ければ作成。値は�
 echo "Secret の権限:        $sa に secretAccessor（3 つ）と secretVersionAdder（${out_secrets[*]}）"
 echo "イメージ:             $image（Cloud Build で作り、digest を固定して配備）"
 echo "Job（引数を固定）:    ${modes[*]/#/r2-}"
-echo "Job の権限:           $viewer_sa に roles/run.invoker（${viewer_modes[*]/#/r2-}。revoke-all は付けない。引数の上書きは許さない）"
-echo "取り込み用:           SA $uploader_sa（r2-ingest-rw の secretAccessor だけ。Job は作らない）、$run_sa に r2-app-read の secretAccessor"
+echo "Job の権限:           $viewer_sa に roles/run.invoker（${viewer_modes[*]/#/r2-}。revoke-all と issue-ingest-rw は付けない。引数の上書きは許さない）"
+echo "取り込み用:           SA $uploader_sa（r2-ingest-rw の secretAccessor だけ）、$run_sa に r2-app-read の secretAccessor。r2-issue-ingest-rw は本人だけ実行（閲覧専用の ID には付けない）"
 echo "一致確認:             Job r2-verify は作成済みのまま触らない"
 echo "自動ローテーション:   SA $scheduler_sa（プロジェクトのロールは無し。次の Job の run.invoker だけ）と Cloud Scheduler の Job 3 つ（$tz）"
 for entry in "${schedules[@]}"; do
@@ -259,7 +260,7 @@ for m in "${viewer_modes[@]}"; do
   echo "付与しました: run.invoker -> r2-$m（$viewer_sa）"
 done
 
-# --- 取り込み用の SA（Job は作らない）---
+# --- 取り込み用の SA ---
 if ! "$GCLOUD" iam service-accounts describe "$uploader_sa" --project "$project" >/dev/null 2>&1; then
   "$GCLOUD" iam service-accounts create r2-uploader --display-name="R2 PDF uploader (Cloud Run Job)" --project "$project"
   echo "作成しました: $uploader_sa（反映を待ちます）"
