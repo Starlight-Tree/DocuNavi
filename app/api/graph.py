@@ -21,6 +21,7 @@ from app.api.documents import (
     _DETAIL_NOT_CONFIGURED,
     _DETAIL_NOT_FOUND,
     _DETAIL_ORIGINAL_MISMATCH,
+    _DETAIL_ORIGINAL_UNAVAILABLE,
     _DOCUMENT_SQL,
     _MAX_ID,
     _no_store,
@@ -127,6 +128,8 @@ async def _load(document_id: int) -> tuple[GraphSource, Analysis]:
     if not original.ok or original.data is None:
         if original.reason == "mismatch":
             raise HTTPException(status_code=409, detail=_DETAIL_ORIGINAL_MISMATCH)
+        if original.reason == "unavailable":
+            raise HTTPException(status_code=503, detail=_DETAIL_ORIGINAL_UNAVAILABLE)
         raise HTTPException(status_code=404, detail=_DETAIL_NO_ORIGINAL)
     try:
         analysis = await asyncio.to_thread(analyze_dorm_rules, original.data)

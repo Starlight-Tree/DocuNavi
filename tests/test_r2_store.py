@@ -1,0 +1,397 @@
+"""R2（S3 互換）の置き場（app/r2_store.py）と、それを使う元 PDF の配信・取り込み。S3 は偽のクライアントで、実 R2 にはつながない。
+
+確かめるのは、PDF_STORE=r2 でも `storage/pdf/` と同じ規則（名前が完全一致・ハッシュが合うものだけ）で返すこと、R2 を読めないときは
+「見つからない」にせず 503 の固定文にして（ローカルへ切り替えない）、鍵の値をどこにも出さないこと、`r2://` の取り込みとアップロードの計画。
+"""
+
+import hashlib
+import json
+import logging
+from pathlib import Path
+
+import pytest
+from botocore.exceptions import ClientError
+
+from app import pdf_originals, r2_store
+from app.api import documents
+from app.ingestion import __main__ as cli
+from tests.test_document_file import PDF_A, PDF_B, doc_row, sha
+from tests.test_documents import FakePool, use_pool  # noqa: F401
+
+KEY_ID = "KEY-ID-DO-NOT-LOG"
+SECRET_KEY = "SECRET-ACCESS-KEY-DO-NOT-LOG"
+CREDS = json.dumps({"access_key_id": KEY_ID, "secret_access_key": SECRET_KEY})
+ENV = {"R2_ACCOUNT_ID": "acct", "R2_BUCKET": "docunavi-documents", "R2_CREDENTIALS_JSON": CREDS}
+
+
+def client_error(code: str, status: int = 400, op: str = "GetObject") -> ClientError:
+    return ClientError(
+        {"Error": {"Code": code, "Message": f"{KEY_ID} {SECRET_KEY}"}, "ResponseMetadata": {"HTTPStatusCode": status}},
+        op,
+    )
+
+
+class FakeBody:
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+
+    def read(self, n: int = -1) -> bytes:
+        return self._data if n < 0 else self._data[:n]
+
+
+class FakeS3:
+    """list_objects_v2 / get_object / head_object / put_object だけの S3。ページは 2 件ずつにして、続きの取得も通す。"""
+
+    def __init__(self, objects: dict[str, bytes] | None = None) -> None:
+        self.objects = dict(objects or {})
+        self.error: Exception | None = None
+        self.puts: list[str] = []
+
+    def _check(self) -> None:
+        if self.error:
+            raise self.error
+
+    def list_objects_v2(self, Bucket, Prefix="", Delimiter=None, ContinuationToken=None):  # noqa: N803
+        self._check()
+        keys = sorted(k for k in self.objects if k.startswith(Prefix))
+        prefixes: list[str] = []
+        contents: list[str] = []
+        for k in keys:
+            rest = k[len(Prefix) :]
+            if Delimiter and Delimiter in rest:
+                p = Prefix + rest.split(Delimiter)[0] + Delimiter
+                if p not in prefixes:
+                    prefixes.append(p)
+            else:
+                contents.append(k)
+        items = [("p", p) for p in prefixes] + [("c", c) for c in contents]
+        start = int(ContinuationToken or 0)
+        page = items[start : start + 2]
+        more = start + 2 < len(items)
+        out = {
+            "CommonPrefixes": [{"Prefix": v} for t, v in page if t == "p"],
+            "Contents": [{"Key": v} for t, v in page if t == "c"],
+            "IsTruncated": more,
+        }
+        if more:
+            out["NextContinuationToken"] = str(start + 2)
+        return out
+
+    def get_object(self, Bucket, Key):  # noqa: N803
+        self._check()
+        if Key not in self.objects:
+            raise client_error("NoSuchKey", 404)
+        data = self.objects[Key]
+        return {"Body": FakeBody(data), "ContentLength": len(data)}
+
+    def head_object(self, Bucket, Key):  # noqa: N803
+        self._check()
+        if Key not in self.objects:
+            raise client_error("404", 404, "HeadObject")
+        return {"ETag": f'"{hashlib.md5(self.objects[Key]).hexdigest()}"'}
+
+    def put_object(self, Bucket, Key, Body, ContentType):  # noqa: N803
+        self._check()
+        assert ContentType == "application/pdf"
+        self.objects[Key] = Body
+        self.puts.append(Key)
+
+
+@pytest.fixture
+def s3() -> FakeS3:
+    return FakeS3({"cafe/a.pdf": PDF_A, "cafe/b.pdf": PDF_B, "guides/a.pdf": PDF_B, "zahard/z.pdf": PDF_A})
+
+
+@pytest.fixture
+def r2(monkeypatch, s3) -> FakeS3:
+    """PDF_STORE=r2 にして、置き場を偽の S3 に差し替える。"""
+    monkeypatch.setenv("PDF_STORE", "r2")
+    r2_store.default_store.cache_clear()
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(s3, "docunavi-documents"))
+    return s3
+
+
+# --- 設定 -------------------------------------------------------------------------------------------------
+
+
+def test_config_is_read_from_the_environment_and_never_shows_the_secret() -> None:
+    config = r2_store.config_from_env(ENV)
+    assert config.endpoint == "https://acct.r2.cloudflarestorage.com" and config.bucket == "docunavi-documents"
+    assert config.access_key_id == KEY_ID
+    assert KEY_ID not in repr(config) and SECRET_KEY not in repr(config)
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [
+        ({}, "missing: R2_ACCOUNT_ID, R2_BUCKET, R2_CREDENTIALS_JSON"),
+        ({**ENV, "R2_BUCKET": ""}, "missing: R2_BUCKET"),
+        ({**ENV, "R2_CREDENTIALS_JSON": "not json " + SECRET_KEY}, "R2_CREDENTIALS_JSON is not valid JSON"),
+        ({**ENV, "R2_CREDENTIALS_JSON": json.dumps({"access_key_id": KEY_ID})}, "R2_CREDENTIALS_JSON needs"),
+        ({**ENV, "R2_CREDENTIALS_JSON": "[1]"}, "R2_CREDENTIALS_JSON needs"),
+    ],
+)
+def test_bad_config_is_reported_by_name_without_values(env, expected) -> None:
+    with pytest.raises(r2_store.R2ConfigError) as exc:
+        r2_store.config_from_env(env)
+    assert expected in str(exc.value) and SECRET_KEY not in str(exc.value) and KEY_ID not in str(exc.value)
+
+
+def test_the_client_is_pointed_at_the_account_endpoint_with_signature_v4() -> None:
+    client = r2_store.make_client(r2_store.config_from_env(ENV))
+    assert client.meta.endpoint_url == "https://acct.r2.cloudflarestorage.com"
+    assert client.meta.config.signature_version == "s3v4"
+
+
+# --- R2Store -----------------------------------------------------------------------------------------------
+
+
+def test_collections_are_the_top_level_prefixes_across_pages(s3) -> None:
+    assert r2_store.R2Store(s3, "b").collections() == ["cafe", "guides", "zahard"]
+
+
+def test_pdf_keys_are_under_the_prefix_and_only_pdfs(s3) -> None:
+    s3.objects["cafe/readme.txt"] = b"x"
+    s3.objects["cafe/UPPER.PDF"] = PDF_A
+    assert r2_store.R2Store(s3, "b").pdf_keys("cafe/") == ["cafe/UPPER.PDF", "cafe/a.pdf", "cafe/b.pdf"]
+
+
+def test_get_returns_none_for_missing_or_too_large_but_raises_on_other_errors(s3) -> None:
+    store = r2_store.R2Store(s3, "b")
+    assert store.get("cafe/a.pdf", 1000) == PDF_A
+    assert store.get("cafe/none.pdf", 1000) is None
+    assert store.get("cafe/a.pdf", len(PDF_A) - 1) is None
+    s3.error = client_error("AccessDenied", 403)
+    with pytest.raises(ClientError):
+        store.get("cafe/a.pdf", 1000)
+
+
+def test_etag_is_the_md5_of_the_object(s3) -> None:
+    store = r2_store.R2Store(s3, "b")
+    assert store.etag("cafe/a.pdf") == hashlib.md5(PDF_A).hexdigest()
+    assert store.etag("cafe/none.pdf") is None
+
+
+# --- 元 PDF の探索（PDF_STORE=r2）------------------------------------------------------------------------------
+
+
+def test_finds_the_object_whose_name_and_hash_match(r2) -> None:
+    result = pdf_originals.find_original("z.pdf", sha(PDF_A))
+    assert result.ok and result.data == PDF_A
+
+
+def test_with_the_same_name_in_two_collections_the_matching_hash_wins(r2) -> None:
+    assert pdf_originals.find_original("a.pdf", sha(PDF_B)).data == PDF_B  # cafe/a.pdf は PDF_A、guides/a.pdf は PDF_B
+    assert pdf_originals.find_original("a.pdf", sha(PDF_A)).data == PDF_A
+
+
+def test_same_name_but_other_content_is_a_mismatch(r2, caplog) -> None:
+    with caplog.at_level(logging.WARNING):
+        result = pdf_originals.find_original("z.pdf", sha(b"other"))
+    assert (result.ok, result.reason) == (False, "mismatch")
+
+
+def test_a_missing_hash_cannot_be_verified(r2) -> None:
+    assert pdf_originals.find_original("z.pdf", None).reason == "mismatch"
+
+
+def test_an_unknown_name_is_missing(r2) -> None:
+    assert pdf_originals.find_original("nope.pdf", sha(PDF_A)).reason == "missing"
+
+
+@pytest.mark.parametrize("name", ["../x.pdf", "cafe/a.pdf", "..", "", "a\\b.pdf"])
+def test_names_that_are_not_plain_file_names_are_missing_without_asking_r2(r2, name) -> None:
+    r2.error = RuntimeError("must not be called")
+    assert pdf_originals.find_original(name, sha(PDF_A)).reason == "missing"
+
+
+@pytest.mark.parametrize(
+    "error", [client_error("AccessDenied", 403), client_error("InternalError", 500), TimeoutError("slow")]
+)
+def test_an_unreadable_store_is_unavailable_not_missing(r2, caplog, error) -> None:
+    r2.error = error
+    with caplog.at_level(logging.WARNING):
+        result = pdf_originals.find_original("z.pdf", sha(PDF_A))
+    assert (result.ok, result.reason) == (False, "unavailable")
+    assert KEY_ID not in caplog.text and SECRET_KEY not in caplog.text  # 例外の本文（鍵の ID が入りうる）は出さない
+
+
+def test_it_does_not_fall_back_to_local_files(r2, tmp_path, monkeypatch) -> None:
+    (tmp_path / "cafe").mkdir()
+    (tmp_path / "cafe" / "z.pdf").write_bytes(PDF_A)
+    monkeypatch.setattr(pdf_originals, "PDF_DIR", tmp_path)
+    r2.error = client_error("AccessDenied", 403)
+    assert pdf_originals.find_original("z.pdf", sha(PDF_A)).reason == "unavailable"
+
+
+def test_missing_configuration_is_unavailable(monkeypatch) -> None:
+    monkeypatch.setenv("PDF_STORE", "r2")
+    for name in ENV:
+        monkeypatch.delenv(name, raising=False)
+    r2_store.default_store.cache_clear()
+    assert pdf_originals.find_original("z.pdf", sha(PDF_A)).reason == "unavailable"
+
+
+def test_the_default_store_is_still_the_local_directory(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("PDF_STORE", raising=False)
+    monkeypatch.setattr(pdf_originals, "PDF_DIR", tmp_path)
+    (tmp_path / "cafe").mkdir()
+    (tmp_path / "cafe" / "x.pdf").write_bytes(PDF_A)
+    assert pdf_originals.find_original("x.pdf", sha(PDF_A)).ok
+
+
+# --- API ----------------------------------------------------------------------------------------------------
+
+
+def test_file_endpoint_serves_from_r2(client, use_pool, r2) -> None:  # noqa: F811
+    use_pool(FakePool(document=[doc_row(source="z.pdf", content_hash=sha(PDF_A))]))
+    res = client.get("/documents/1/file")
+    assert res.status_code == 200 and res.content == PDF_A
+    assert res.headers["content-type"] == "application/pdf" and res.headers["cache-control"] == "no-store"
+
+
+def test_file_endpoint_answers_503_with_a_fixed_message_when_r2_fails(client, use_pool, r2) -> None:  # noqa: F811
+    use_pool(FakePool(document=[doc_row(source="z.pdf", content_hash=sha(PDF_A))]))
+    r2.error = client_error("AccessDenied", 403)
+    res = client.get("/documents/1/file")
+    assert res.status_code == 503
+    assert res.json() == {"detail": documents._DETAIL_ORIGINAL_UNAVAILABLE}
+    assert KEY_ID not in res.text and SECRET_KEY not in res.text
+
+
+def test_file_endpoint_keeps_404_and_409_for_missing_and_mismatch(client, use_pool, r2) -> None:  # noqa: F811
+    use_pool(FakePool(document=[doc_row(source="nope.pdf", content_hash=sha(PDF_A))]))
+    assert client.get("/documents/1/file").status_code == 404
+    use_pool(FakePool(document=[doc_row(source="z.pdf", content_hash=sha(PDF_B))]))
+    assert client.get("/documents/1/file").status_code == 409
+
+
+# --- r2:// の取り込み -----------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def ingest_env(monkeypatch):
+    monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: False)
+    monkeypatch.setenv("DATABASE_URL", "")
+
+
+def real_pdfs() -> dict[str, bytes]:
+    root = Path(__file__).resolve().parents[1] / "storage" / "pdf" / "cafe"
+    return {f"cafe/{p.name}": p.read_bytes() for p in sorted(root.glob("*.pdf"))[:1]}
+
+
+def test_ingestion_reads_a_collection_from_r2_with_the_prefix_as_its_collection(
+    ingest_env, monkeypatch, capsys
+) -> None:
+    objects = real_pdfs()
+    (name,) = [k.split("/", 1)[1] for k in objects]
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(FakeS3(objects), "b"))
+    assert cli.main(["--input", "r2://cafe"]) == 0
+    out = capsys.readouterr().out
+    assert name in out and "collection=cafe" in out and "status=would_insert" in out
+    assert "確認だけ" in out
+
+
+def test_ingestion_can_take_a_single_object(ingest_env, monkeypatch, capsys) -> None:
+    objects = {**real_pdfs(), "cafe/other.pdf": PDF_A}
+    (name,) = [k.split("/", 1)[1] for k in real_pdfs()]
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(FakeS3(objects), "b"))
+    assert cli.main(["--input", f"r2://cafe/{name}"]) == 0
+    out = capsys.readouterr().out
+    assert name in out and "other.pdf" not in out and "文書 1 件" in out
+
+
+def test_ingestion_from_r2_reports_missing_input_config_and_failures(ingest_env, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(FakeS3({}), "b"))
+    assert cli.main(["--input", "r2://cafe"]) == 2  # PDF が無い
+    assert cli.main(["--input", "r2://bad name"]) == 2  # 資料群の名前の形
+    capsys.readouterr()
+
+    def unconfigured():
+        raise r2_store.R2ConfigError("missing: R2_BUCKET")
+
+    monkeypatch.setattr(r2_store, "default_store", unconfigured)
+    assert cli.main(["--input", "r2://cafe"]) == 2
+    assert "R2_BUCKET" in capsys.readouterr().err
+
+    broken = FakeS3({"cafe/a.pdf": PDF_A})
+    broken.error = client_error("AccessDenied", 403)
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(broken, "b"))
+    assert cli.main(["--input", "r2://cafe"]) == 1
+    err = capsys.readouterr().err
+    assert "ClientError" in err and KEY_ID not in err and SECRET_KEY not in err
+
+
+def test_the_temporary_download_is_removed(ingest_env, monkeypatch) -> None:
+    seen: list[Path] = []
+    original = r2_store.download_collection
+
+    def spy(store, collection, target, max_bytes, only=None):
+        seen.append(target)
+        return original(store, collection, target, max_bytes, only)
+
+    monkeypatch.setattr(r2_store, "download_collection", spy)
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(FakeS3(real_pdfs()), "b"))
+    assert cli.main(["--input", "r2://cafe"]) == 0
+    assert seen and not seen[0].exists()
+
+
+def test_download_refuses_keys_that_would_leave_the_target(tmp_path) -> None:
+    store = r2_store.R2Store(FakeS3({"cafe/../evil.pdf": PDF_A, "cafe/ok.pdf": PDF_A}), "b")
+    files = r2_store.download_collection(store, "cafe", tmp_path / "t", 1000)
+    assert [f.name for f in files] == ["ok.pdf"] and not (tmp_path / "evil.pdf").exists()
+
+
+# --- アップロード -----------------------------------------------------------------------------------------------
+
+
+def make_local(tmp_path: Path) -> Path:
+    for rel, data in {
+        "cafe/a.pdf": PDF_A,
+        "cafe/new.pdf": PDF_B,
+        "guides/g.pdf": PDF_A,
+        "top.pdf": PDF_A,
+        "cafe/note.txt": b"x",
+    }.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_bytes(data)
+    return tmp_path
+
+
+def test_upload_plan_classifies_new_same_and_changed(tmp_path) -> None:
+    s3 = FakeS3({"cafe/a.pdf": PDF_A, "guides/g.pdf": PDF_B})
+    plan = r2_store.upload_plan(r2_store.R2Store(s3, "b"), make_local(tmp_path))
+    assert [(k, state) for k, _, state in plan] == [
+        ("cafe/a.pdf", "same"),
+        ("cafe/new.pdf", "new"),
+        ("guides/g.pdf", "changed"),
+    ]  # top.pdf と .txt は対象外
+
+
+def test_upload_defaults_to_a_dry_run(tmp_path, monkeypatch, capsys) -> None:
+    s3 = FakeS3({"cafe/a.pdf": PDF_A})
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(s3, "b"))
+    assert r2_store.main(["upload", "--input", str(make_local(tmp_path))]) == 0
+    assert s3.puts == [] and "確認だけ" in capsys.readouterr().out
+
+
+def test_upload_apply_puts_only_what_differs(tmp_path, monkeypatch, capsys) -> None:
+    s3 = FakeS3({"cafe/a.pdf": PDF_A, "guides/g.pdf": PDF_B})
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(s3, "b"))
+    assert r2_store.main(["upload", "--input", str(make_local(tmp_path)), "--apply"]) == 0
+    assert sorted(s3.puts) == ["cafe/new.pdf", "guides/g.pdf"] and s3.objects["guides/g.pdf"] == PDF_A
+    assert "置く対象 2 件" in capsys.readouterr().out
+
+
+def test_upload_reports_config_and_failures_without_values(tmp_path, monkeypatch, capsys) -> None:
+    def unconfigured():
+        raise r2_store.R2ConfigError("missing: R2_ACCOUNT_ID")
+
+    monkeypatch.setattr(r2_store, "default_store", unconfigured)
+    assert r2_store.main(["upload", "--input", str(make_local(tmp_path))]) == 2
+    broken = FakeS3()
+    broken.error = client_error("AccessDenied", 403)
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(broken, "b"))
+    assert r2_store.main(["upload", "--input", str(tmp_path)]) == 1
+    err = capsys.readouterr().err
+    assert "ClientError" in err and KEY_ID not in err and SECRET_KEY not in err

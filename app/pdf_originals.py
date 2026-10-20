@@ -12,6 +12,10 @@ DB の `documents` が持っているのは、`source`（ファイル名）と `
   （行き先の中身が一致していても返さない）
 - 大きすぎるファイルは読まない（`MAX_ORIGINAL_BYTES`）
 
+置き場は環境変数 `PDF_STORE` で選ぶ。`local`（既定）は上のとおり `storage/pdf/`。`r2` は Cloudflare R2（`app/r2_store.py`）で、
+キー `<資料群>/<source>` を同じ規則（資料群の列挙 → 名前が完全に一致 → ハッシュの確認）で探す。R2 を読めなかった（設定の不足・通信・権限）ときは
+reason="unavailable"（見つからない・食い違いとは区別する。API は 503 の固定文）。ローカルへは切り替えない（食い違った版を見せないため）。
+
 同期の関数（ファイルを読む）。API からはスレッドで呼ぶ。
 """
 
@@ -31,7 +35,7 @@ PDF_DIR = Path(__file__).resolve().parents[1] / "storage" / "pdf"
 # 元 PDF として読む上限。いまの PDF は 100 KB 前後。応答はメモリに載せるので、これを超えるものは返さない
 MAX_ORIGINAL_BYTES = 20 * 1024 * 1024
 
-Reason = Literal["missing", "mismatch"]
+Reason = Literal["missing", "mismatch", "unavailable"]
 
 
 @dataclass(frozen=True)
@@ -91,6 +95,29 @@ def _read_regular_file(path: Path) -> bytes | None:
     return data if len(data) <= MAX_ORIGINAL_BYTES else None
 
 
+def _find_in_r2(source: str, content_hash: object) -> OriginalPdf:
+    from app import r2_store
+
+    wanted = content_hash.strip().lower() if isinstance(content_hash, str) else ""
+    try:
+        store = r2_store.default_store()
+        seen = False
+        for collection in store.collections():
+            data = store.get(f"{collection}/{source}", MAX_ORIGINAL_BYTES)
+            if data is None:
+                continue
+            seen = True
+            if wanted and hashlib.sha256(data).hexdigest() == wanted:
+                return OriginalPdf(ok=True, data=data)
+    except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・鍵の ID が入りうる。型の名前だけを残す
+        logger.warning("R2 から元の PDF を読めませんでした (%s)", type(exc).__name__)
+        return OriginalPdf(ok=False, reason="unavailable")
+    if seen:
+        logger.warning("元の PDF の内容が、DB に保存された資料と一致しません")
+        return OriginalPdf(ok=False, reason="mismatch")
+    return _missing()
+
+
 def find_original(source: object, content_hash: object) -> OriginalPdf:
     """`source` と `content_hash` に合う元 PDF を探す。
 
@@ -99,6 +126,8 @@ def find_original(source: object, content_hash: object) -> OriginalPdf:
     """
     if not _usable_name(source):
         return _missing()
+    if os.environ.get("PDF_STORE", "local").strip().lower() == "r2":
+        return _find_in_r2(str(source), content_hash)
     root = Path(PDF_DIR)
     try:
         root = root.resolve(strict=True)

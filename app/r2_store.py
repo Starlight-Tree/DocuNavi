@@ -1,0 +1,226 @@
+"""元 PDF の置き場（Cloudflare R2。S3 互換）の読み書き。
+
+置き場の形は `storage/pdf/` と同じ。オブジェクトのキーは `<資料群>/<ファイル名>`（例: `cafe/menu.pdf`）。
+バケットは private のまま使う（公開 URL・r2.dev は使わない）。手順と設計は docs/r2-key-issuer.md。
+
+設定は環境変数で渡す（値をコード・ログ・応答に出さない）:
+
+- `R2_ACCOUNT_ID`: Cloudflare のアカウント ID（エンドポイント `https://<ID>.r2.cloudflarestorage.com` に使う）
+- `R2_BUCKET`: バケット名（`docunavi-documents`）
+- `R2_CREDENTIALS_JSON`: `{"access_key_id": …, "secret_access_key": …}`。Secret Manager の `r2-app-read`（読み取り）または
+  `r2-ingest-rw`（読み書き）の値を、Cloud Run の `--set-secrets` でそのまま渡す
+
+書き込み（`python -m app.r2_store upload`）は、読み書きのキーが要る。アプリ本体（`app/main.py`）は読み取りしかしない。
+"""
+
+import argparse
+import hashlib
+import json
+import logging
+import os
+import sys
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
+from botocore.exceptions import ClientError
+
+logger = logging.getLogger(__name__)
+
+_MISSING_CODES = {"NoSuchKey", "404", "NotFound"}
+_CRED_KEYS = ("access_key_id", "secret_access_key")
+
+
+class R2ConfigError(Exception):
+    """設定の不足・形の誤り。メッセージには変数の名前だけを入れる（値は入れない）。"""
+
+
+@dataclass(frozen=True)
+class R2Config:
+    account_id: str
+    bucket: str
+    access_key_id: str = field(repr=False)
+    secret_access_key: str = field(repr=False)
+
+    @property
+    def endpoint(self) -> str:
+        return f"https://{self.account_id}.r2.cloudflarestorage.com"
+
+
+def config_from_env(env: Mapping[str, str] | None = None) -> R2Config:
+    env = os.environ if env is None else env
+    values = {name: env.get(name, "").strip() for name in ("R2_ACCOUNT_ID", "R2_BUCKET", "R2_CREDENTIALS_JSON")}
+    missing = [name for name, value in values.items() if not value]
+    if missing:
+        raise R2ConfigError(f"missing: {', '.join(missing)}")
+    try:
+        creds = json.loads(values["R2_CREDENTIALS_JSON"])
+    except ValueError:
+        raise R2ConfigError("R2_CREDENTIALS_JSON is not valid JSON") from None
+    if not isinstance(creds, dict) or not all(isinstance(creds.get(k), str) and creds[k] for k in _CRED_KEYS):
+        raise R2ConfigError("R2_CREDENTIALS_JSON needs access_key_id and secret_access_key")
+    return R2Config(values["R2_ACCOUNT_ID"], values["R2_BUCKET"], creds["access_key_id"], creds["secret_access_key"])
+
+
+def make_client(config: R2Config) -> Any:
+    import boto3
+    from botocore.config import Config
+
+    return boto3.client(
+        "s3",
+        endpoint_url=config.endpoint,
+        region_name="auto",  # R2 では使わないが、SDK が要る
+        aws_access_key_id=config.access_key_id,
+        aws_secret_access_key=config.secret_access_key,
+        config=Config(
+            signature_version="s3v4",
+            retries={"max_attempts": 3, "mode": "standard"},
+            connect_timeout=5,
+            read_timeout=15,
+        ),
+    )
+
+
+class R2Store:
+    """バケット 1 つへの操作。`client` は boto3 の S3 クライアント（テストでは偽物を渡す）。"""
+
+    def __init__(self, client: Any, bucket: str) -> None:
+        self._client = client
+        self._bucket = bucket
+
+    def _pages(self, **params: Any) -> Any:
+        token = None
+        while True:
+            kwargs = {"Bucket": self._bucket, **params}
+            if token:
+                kwargs["ContinuationToken"] = token
+            page = self._client.list_objects_v2(**kwargs)
+            yield page
+            if not page.get("IsTruncated"):
+                return
+            token = page["NextContinuationToken"]
+
+    def collections(self) -> list[str]:
+        """バケット直下の「資料群」（`cafe/` のような最上位のプレフィックス）を名前順に。"""
+        names = [p["Prefix"].rstrip("/") for page in self._pages(Delimiter="/") for p in page.get("CommonPrefixes", [])]
+        return sorted(n for n in names if n)
+
+    def pdf_keys(self, prefix: str) -> list[str]:
+        """プレフィックス配下の PDF のキー（拡張子の大小は問わない）を名前順に。"""
+        keys = [o["Key"] for page in self._pages(Prefix=prefix) for o in page.get("Contents", [])]
+        return sorted(k for k in keys if k.lower().endswith(".pdf"))
+
+    def get(self, key: str, max_bytes: int) -> bytes | None:
+        """オブジェクトの中身。無い・大きすぎるなら None。それ以外の失敗（権限・通信）は例外のまま。"""
+        try:
+            response = self._client.get_object(Bucket=self._bucket, Key=key)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in _MISSING_CODES:
+                return None
+            raise
+        length = response.get("ContentLength")
+        if isinstance(length, int) and length > max_bytes:
+            return None
+        data = response["Body"].read(max_bytes + 1)
+        return data if len(data) <= max_bytes else None
+
+    def etag(self, key: str) -> str | None:
+        """オブジェクトの ETag（単一パートの PUT なら MD5 の 16 進）。無ければ None。"""
+        try:
+            response = self._client.head_object(Bucket=self._bucket, Key=key)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in _MISSING_CODES:
+                return None
+            raise
+        return str(response.get("ETag", "")).strip('"') or None
+
+    def put(self, key: str, data: bytes) -> None:
+        self._client.put_object(Bucket=self._bucket, Key=key, Body=data, ContentType="application/pdf")
+
+
+@lru_cache(maxsize=1)
+def default_store() -> R2Store:
+    """環境変数の設定で作る、プロセスで 1 つの置き場。設定が足りなければ R2ConfigError。"""
+    config = config_from_env()
+    return R2Store(make_client(config), config.bucket)
+
+
+# --- 取り込み・アップロード用 ---------------------------------------------------------------------------------
+
+
+def download_collection(
+    store: R2Store, collection: str, target: Path, max_bytes: int, only: str | None = None
+) -> list[Path]:
+    """`<collection>/` 配下の PDF を `target/<collection>/…` に保存して、そのパスを返す（取り込みに渡すため）。"""
+    out: list[Path] = []
+    for key in store.pdf_keys(f"{collection}/"):
+        relative = key[len(collection) + 1 :]
+        if only is not None and relative != only:
+            continue
+        parts = Path(relative).parts
+        if not parts or ".." in parts or Path(relative).is_absolute():  # キーは置き場の外へ出さない
+            logger.warning("安全でないキーを飛ばしました")
+            continue
+        data = store.get(key, max_bytes)
+        if data is None:
+            continue
+        path = target / collection / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        out.append(path)
+    return out
+
+
+def upload_plan(store: R2Store, root: Path) -> list[tuple[str, Path, str]]:
+    """`root/<資料群>/<ファイル>.pdf` を、R2 の `<資料群>/<ファイル>.pdf` に置く計画。(キー, パス, 状態) の一覧。
+
+    状態は new（無い）・changed（中身が違う）・same（同じ。上書きしない）。比較は MD5（R2 の ETag）。
+    """
+    plan: list[tuple[str, Path, str]] = []
+    for path in sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() == ".pdf"):
+        relative = path.relative_to(root).as_posix()
+        if "/" not in relative:  # 資料群のディレクトリの直下に置く決まり
+            continue
+        remote = store.etag(relative)
+        state = (
+            "new" if remote is None else "same" if remote == hashlib.md5(path.read_bytes()).hexdigest() else "changed"
+        )
+        plan.append((relative, path, state))
+    return plan
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m app.r2_store",
+        description="storage/pdf/ の PDF を R2 に置く（既定は計画の表示だけ。--apply で置く）。読み書きのキーが要る",
+    )
+    parser.add_argument("action", choices=["upload"])
+    parser.add_argument(
+        "--input", type=Path, default=Path("storage/pdf"), help="資料群のディレクトリを含む置き場（既定 storage/pdf）"
+    )
+    parser.add_argument("--apply", action="store_true", help="実際に置く（既定は計画の表示だけ）")
+    args = parser.parse_args(argv)
+    try:
+        store = default_store()
+    except R2ConfigError as exc:
+        print(f"R2 の設定が足りません（{exc}）。", file=sys.stderr)
+        return 2
+    try:
+        plan = upload_plan(store, args.input)
+        for key, path, state in plan:
+            print(f"{state:8} {key}")
+            if args.apply and state != "same":
+                store.put(key, path.read_bytes())
+    except Exception as exc:  # noqa: BLE001 - 例外の文字列に接続先が入りうる。クラス名だけを出す
+        print(f"R2 の操作に失敗しました（{type(exc).__name__}）。", file=sys.stderr)
+        return 1
+    changes = sum(1 for _, _, state in plan if state != "same")
+    suffix = "" if args.apply else "（確認だけ。何も置いていません。--apply で置きます）"
+    print(f"PDF {len(plan)} 件、置く対象 {changes} 件{suffix}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
