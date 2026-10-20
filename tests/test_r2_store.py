@@ -16,7 +16,7 @@ from app import pdf_originals, r2_store
 from app.api import documents
 from app.ingestion import __main__ as cli
 from tests.test_document_file import PDF_A, PDF_B, doc_row, sha
-from tests.test_documents import FakePool, use_pool  # noqa: F401
+from tests.test_documents import FakePool, chunk_row, use_pool  # noqa: F401
 
 KEY_ID = "KEY-ID-DO-NOT-LOG"
 SECRET_KEY = "SECRET-ACCESS-KEY-DO-NOT-LOG"
@@ -264,6 +264,32 @@ def test_file_endpoint_keeps_404_and_409_for_missing_and_mismatch(client, use_po
     assert client.get("/documents/1/file").status_code == 404
     use_pool(FakePool(document=[doc_row(source="z.pdf", content_hash=sha(PDF_B))]))
     assert client.get("/documents/1/file").status_code == 409
+
+
+@pytest.mark.parametrize(
+    ("source", "content_hash", "error"),
+    [
+        ("z.pdf", sha(PDF_A), None),  # 読める
+        ("nope.pdf", sha(PDF_A), None),  # R2 に無い
+        ("z.pdf", sha(PDF_B), None),  # 名前は同じで中身が違う
+        ("z.pdf", sha(PDF_A), client_error("AccessDenied", 403)),  # R2 を読めない（鍵の失効など）
+    ],
+)
+def test_the_document_screen_keeps_working_whatever_r2_answers(
+    client,
+    use_pool,
+    r2,
+    source,
+    content_hash,
+    error,  # noqa: F811
+) -> None:
+    """PDF_STORE=r2 に切り替えたあと、PDF が R2 に無い・読めないときも、資料一覧の取得（/chunks）は 200 で、元 PDF の有無だけが変わる。"""
+    use_pool(FakePool(document=[doc_row(source=source, content_hash=content_hash)], chunks=[chunk_row(0)]))
+    r2.error = error
+    res = client.get("/documents/1/chunks")
+    assert res.status_code == 200
+    assert res.json()["original_pdf"] is (source == "z.pdf" and content_hash == sha(PDF_A) and error is None)
+    assert KEY_ID not in res.text and SECRET_KEY not in res.text
 
 
 # --- r2:// の取り込み -----------------------------------------------------------------------------------------
