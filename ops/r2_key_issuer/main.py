@@ -11,6 +11,16 @@
 - 先にトークンを作り、動作を確かめ、保存に成功してから終わる。途中で失敗したら、作ったトークンをその場で取り消す。
   取り消しも失敗したら、残ったトークンの名前を出して異常終了する（`revoke-stale` が片付ける）。
 
+自動ローテーション（Cloud Scheduler が月 1 回 `rotate-if-due-*` を起動する）:
+- `rotate-if-due-*` は、記録したキーの発行から `DUE_DAYS`（60）日たっていなければ、何も変えずに終わる（キーが動くことだけ確かめる。
+  動かなければ、その場で入れ替える）。入れ替えるときは、新しいキーの動作確認と保存に成功してから終わり、**古いキーは取り消さない**。
+- 古いキーは、`revoke-stale` が、置き換えた新しいキーの発行から `GRACE_DAYS`（7）日たってから取り消す。アプリは Secret を読み直して
+  新しいキーに切り替わる（app/r2_store.py）が、動いているインスタンスが古いキーを持っている間は取り消さない。
+- 失敗したときに取り消すのは、そのとき作った新しいトークンだけ。記録された有効なキーには触れない。
+- `check` は、親トークンの残りが `PARENT_WARN_DAYS`（21）日を切ると（または使えないと）、固定の文言 `PARENT_TOKEN_EXPIRING` を出す
+  （Cloud Monitoring のログベースのアラートが拾う）。記録したキーが `OVERDUE_DAYS`（100）日より古ければ `KEY_ROTATION_OVERDUE` を出す
+  （Scheduler や `rotate-if-due` が止まっていることの検知。`check` 自身が止まったことは、Job の完了数の欠落アラートが拾う）。
+
 終了コード: 0 成功 / 1 `check` で問題あり / 2 設定・入力の誤り（何も作っていない）/ 3 作成の結果が不明 /
 4 作ったトークンの動作確認に失敗、または取り消しに失敗 / 5 保存または読み出しに失敗。
 """
@@ -36,6 +46,12 @@ MANAGED_NAME = re.compile(r"^docunavi-r2-(app-read|ingest-rw)-[A-Za-z0-9_-]+$")
 # 作った直後のトークンは、他の実行が保存する前かもしれないので、`revoke-stale` は触れない
 MIN_AGE_SECONDS = 15 * 60
 PROBE_ATTEMPTS = 6
+DUE_DAYS = 60  # 記録したキーがこれより新しければ、`rotate-if-due` は何もしない
+GRACE_DAYS = 7  # 入れ替えたあと、古いキーを取り消さずに待つ日数（置き換えた新しいキーの発行から数える）
+GRACE_SECONDS = GRACE_DAYS * 24 * 3600
+PARENT_WARN_DAYS = 21  # 親トークンの残りがこれを切ったら警告する
+# 入れ替えは月 1 回の起動なので、正常でもキーは最大 91 日（60 日 + 次の起動まで）ほど使われる。これを超えたら入れ替えが止まっている
+OVERDUE_DAYS = 100
 
 
 @dataclass(frozen=True)
@@ -55,6 +71,8 @@ MODES = (
     "issue-ingest-rw",
     "rotate-app-read",
     "rotate-ingest-rw",
+    "rotate-if-due-app-read",
+    "rotate-if-due-ingest-rw",
     "revoke-stale",
     "revoke-all",
     "check",
@@ -114,6 +132,12 @@ def token_name(purpose: Purpose, execution: str) -> str:
     return f"{TOKEN_PREFIX}{purpose.key}-{execution}"[:120]
 
 
+def purpose_of(name: object) -> str | None:
+    """管理しているトークンの名前から、用途（app-read / ingest-rw）を取り出す。"""
+    match = MANAGED_NAME.match(str(name or ""))
+    return match.group(1) if match else None
+
+
 def find_permission_group(api: Cloudflare, name: str) -> str:
     """権限グループを名前から ID にする。Cloudflare は ID を使うよう勧めるので、ID は実行のたびに引く（ID を書き込まない）。"""
     found = [g for g in api.permission_groups() if g.get("name") == name]
@@ -158,6 +182,7 @@ def issue(
     secrets: Secrets,
     probe: Probe,
     sleep: Callable[[float], None] = time.sleep,
+    now: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> int:
     """キーを発行して Secret に保存する。force=False（issue）は、有効なキーが既にあれば何もしない。"""
     try:
@@ -203,7 +228,12 @@ def issue(
         return recover_unknown_create(api, name, sleep)
 
     token_id, value = str(created["id"]), str(created["value"])
-    creds = {"access_key_id": token_id, "secret_access_key": secret_access_key(value)}
+    # issued_at は `rotate-if-due` が古さを知るために使う（親トークンが使えなくても読める）。アプリは ID と Secret Access Key だけを読む
+    creds = {
+        "access_key_id": token_id,
+        "secret_access_key": secret_access_key(value),
+        "issued_at": now().isoformat(),
+    }
     del value, created
 
     problems: list[str] = []
@@ -235,6 +265,33 @@ def issue(
     return 0
 
 
+def rotate_if_due(
+    purpose: Purpose,
+    *,
+    cfg: Config,
+    api: Cloudflare,
+    secrets: Secrets,
+    probe: Probe,
+    sleep: Callable[[float], None] = time.sleep,
+    now: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> int:
+    """記録したキーが `DUE_DAYS` 日より古い（または古さが分からない・動かない）ときだけ入れ替える。古いキーは取り消さない。"""
+    try:
+        current = secrets.read_json(purpose.secret)
+    except Exception as e:
+        log.error("cannot read secret %s (%s)", purpose.secret, type(e).__name__)
+        return 5
+    issued = parse_time(current.get("issued_at")) if current else None
+    if current and issued is not None and (now() - issued).days < DUE_DAYS:
+        if not probe(current, purpose.can_write, cfg.execution):
+            log.info("not due: purpose=%s age_days=%d (nothing changed)", purpose.key, (now() - issued).days)
+            return 0
+        log.warning("recorded key for %s is not usable; rotating now", purpose.key)
+    elif current:
+        log.info("due: purpose=%s (age is unknown or over %d days)", purpose.key, DUE_DAYS)
+    return issue(purpose, force=True, cfg=cfg, api=api, secrets=secrets, probe=probe, sleep=sleep, now=now)
+
+
 def recover_unknown_create(api: Cloudflare, name: str, sleep: Callable[[float], None]) -> int:
     """作成の結果が不明（タイムアウトなど）。名前で探し、あれば取り消す（値は受け取れていないので使えない）。"""
     log.warning("create token result unknown; looking for name=%s", name)
@@ -253,12 +310,13 @@ def recover_unknown_create(api: Cloudflare, name: str, sleep: Callable[[float], 
     return 3
 
 
-def active_ids(secrets: Secrets) -> set[str]:
-    ids: set[str] = set()
+def recorded_by_purpose(secrets: Secrets) -> dict[str, str]:
+    """用途ごとの、いま有効なキーの ID（Secret の最新の版）。"""
+    ids: dict[str, str] = {}
     for p in PURPOSES.values():
         current = secrets.read_json(p.secret)
         if current:
-            ids.add(current["access_key_id"])
+            ids[p.key] = current["access_key_id"]
     return ids
 
 
@@ -275,6 +333,23 @@ def parse_time(text: str | None) -> datetime | None:
         return None
 
 
+def stale_verdict(issued: datetime | None, successor_issued: datetime | None, current: datetime) -> str:
+    """記録されていないトークンを、いま取り消してよいか。revoke（取り消す）/ grace（猶予中）/ new（作ったばかり）/ unknown（発行時刻が不明）。
+
+    - 記録されたキーに置き換えられた古いキー（発行が新しいキーより前）: 新しいキーの発行から `GRACE_SECONDS` たつまで残す。
+      古いキーの発行からの日数ではない（60 日使ったキーを、入れ替えの直後に取り消してしまうため）
+    - 置き換え先が分からない（記録が無い・トークンが無い）: 自分の発行から `GRACE_SECONDS` たつまで残す（使われているかもしれない）
+    - 記録されたキーより新しい: 保存に失敗して残ったもの。他の実行が保存中かもしれないので、`MIN_AGE_SECONDS` たったら取り消す
+    """
+    if issued is None:
+        return "unknown"
+    if successor_issued is None:
+        return "revoke" if (current - issued).total_seconds() >= GRACE_SECONDS else "grace"
+    if issued < successor_issued:
+        return "revoke" if (current - successor_issued).total_seconds() >= GRACE_SECONDS else "grace"
+    return "revoke" if (current - issued).total_seconds() >= MIN_AGE_SECONDS else "new"
+
+
 def revoke(
     *,
     stale_only: bool,
@@ -283,13 +358,16 @@ def revoke(
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
-    """stale_only=True: 記録されたキー以外（失敗で残ったものと、入れ替え前の古いもの）を取り消す。False: 全部取り消す。"""
+    """stale_only=True: 記録されたキー以外のうち、猶予を過ぎたものだけを取り消す（`stale_verdict`）。False: 全部取り消す。"""
     try:
         parent_id = str(api.verify().get("id", ""))
-        keep = active_ids(secrets) if stale_only else set()
+        recorded = recorded_by_purpose(secrets) if stale_only else {}
+        keep = set(recorded.values())
         if stale_only:
             log.info("recorded keys: %d", len(keep))
-        targets = [t for t in managed_tokens(api, parent_id) if t["id"] not in keep]
+        tokens = managed_tokens(api, parent_id)
+        issued_by_id = {str(t["id"]): parse_time(t.get("issued_on")) for t in tokens}
+        targets = [t for t in tokens if t["id"] not in keep]
     except CloudflareError as e:
         log.error("cannot list tokens (status=%s codes=%s)", e.status, e.codes)
         return 3
@@ -300,11 +378,13 @@ def revoke(
     failed = 0
     skipped = 0
     for t in targets:
-        issued = parse_time(t.get("issued_on"))
-        if stale_only and (issued is None or (now() - issued).total_seconds() < MIN_AGE_SECONDS):
-            skipped += 1  # 作ったばかり（他の実行が保存中かもしれない）。発行時刻が読めないものも触らない
-            log.info("skipped (too new or unknown age): name=%s", t.get("name"))
-            continue
+        if stale_only:
+            successor = recorded.get(purpose_of(t.get("name")) or "")
+            verdict = stale_verdict(parse_time(t.get("issued_on")), issued_by_id.get(successor or ""), now())
+            if verdict != "revoke":
+                skipped += 1  # 猶予中・作ったばかり・発行時刻が読めないものは触らない
+                log.info("skipped (%s): name=%s", verdict, t.get("name"))
+                continue
         if delete_with_retry(api, str(t["id"]), sleep):
             log.info("revoked: name=%s", t.get("name"))
         else:
@@ -323,7 +403,14 @@ def check(*, cfg: Config, api: Cloudflare, secrets: Secrets, probe: Probe) -> in
         log.info("parent token: status=%s expires_on=%s", info.get("status"), info.get("expires_on", "none"))
         expires = parse_time(info.get("expires_on"))
         if expires is not None:
-            log.info("parent token: %d days left", (expires - datetime.now(UTC)).days)
+            days_left = (expires - datetime.now(UTC)).days
+            log.info("parent token: %d days left", days_left)
+            if days_left < PARENT_WARN_DAYS:
+                log.warning(
+                    "PARENT_TOKEN_EXPIRING: %d days left; create a new parent token and store it "
+                    "(scripts/store-cloudflare-parent-token.sh)",
+                    days_left,
+                )
         for p in PURPOSES.values():
             try:
                 find_permission_group(api, p.permission)
@@ -333,9 +420,9 @@ def check(*, cfg: Config, api: Cloudflare, secrets: Secrets, probe: Probe) -> in
                 log.error("%s", e)
         tokens = {t["id"]: t for t in managed_tokens(api, str(info.get("id", "")))}
     except CloudflareError as e:
-        # 親トークンは発行・入れ替え・取り消しのときだけ使う。期限切れ・未保存は通常の待機状態なので、異常にしない
+        # 自動ローテーションでは、親トークンが使えないと次の入れ替えができない。終了コードは変えず、アラート用の文言で知らせる
         log.warning(
-            "parent token is not usable (status=%s codes=%s): issue/rotate/revoke need a new one; "
+            "PARENT_TOKEN_EXPIRING: parent token is not usable (status=%s codes=%s): issue/rotate/revoke need a new one; "
             "checking the recorded keys only",
             e.status,
             e.codes,
@@ -352,6 +439,14 @@ def check(*, cfg: Config, api: Cloudflare, secrets: Secrets, probe: Probe) -> in
             log.warning("%s: no key recorded yet", p.key)
             continue
         recorded.add(current["access_key_id"])
+        issued = parse_time(current.get("issued_at"))
+        if issued is not None and (datetime.now(UTC) - issued).days > OVERDUE_DAYS:
+            log.warning(
+                "KEY_ROTATION_OVERDUE: %s is %d days old (rotation runs at %d days; check the Scheduler and the rotate-if-due Jobs)",
+                p.key,
+                (datetime.now(UTC) - issued).days,
+                DUE_DAYS,
+            )
         if tokens is not None and current["access_key_id"] not in tokens:
             bad += 1
             log.error("%s: the recorded key has no matching token", p.key)
@@ -453,7 +548,7 @@ class SecretManager:
             return None
         if not isinstance(data, dict) or not {"access_key_id", "secret_access_key"} <= data.keys():
             raise ValueError("unexpected secret format")
-        return {k: str(data[k]) for k in ("access_key_id", "secret_access_key")}
+        return {k: str(data[k]) for k in ("access_key_id", "secret_access_key", "issued_at") if k in data}
 
     def add_json(self, name: str, value: dict[str, str]) -> str:
         import google_crc32c
@@ -548,6 +643,9 @@ def main(argv: list[str]) -> int:
             log.warning("parent token secret cannot be read (%s)", type(e).__name__)
             api = NoParent()
         probe = s3_probe(cfg)
+        if mode.startswith("rotate-if-due-"):
+            purpose = PURPOSES[mode.removeprefix("rotate-if-due-")]
+            return rotate_if_due(purpose, cfg=cfg, api=api, secrets=secrets, probe=probe)
         if mode.startswith(("issue-", "rotate-")):
             action, key = mode.split("-", 1)
             return issue(PURPOSES[key], force=action == "rotate", cfg=cfg, api=api, secrets=secrets, probe=probe)
