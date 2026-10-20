@@ -302,3 +302,55 @@ def test_setup_needs_no_alert_address_and_the_check_phrases_match_the_code(sandb
 def test_the_alert_address_is_not_in_the_repository() -> None:
     for path in (SETUP, ROOT / "docs" / "r2-key-issuer.md"):
         assert "@gmail.com" not in path.read_text()
+
+
+# --- scripts/setup-r2-wire.sh ---------------------------------------------------------------------------------
+
+WIRE = ROOT / "scripts" / "setup-r2-wire.sh"
+
+
+@pytest.mark.parametrize("script_args", [SETUP_ARGS + ("-y",), SETUP_ARGS + ("--verify",), SETUP_ARGS])
+def test_wire_setup_refuses_without_a_terminal_and_never_calls_gcloud(sandbox, script_args) -> None:
+    result = run(sandbox, WIRE, *script_args, stub=False, poison=True)
+    assert result.returncode == 3 and "gcloud は呼んでいません" in result.stderr
+    assert not sandbox["marker"].exists() and calls(sandbox) == []
+
+
+def test_wire_setup_creates_three_jobs_and_least_privilege_and_does_not_touch_the_service(sandbox) -> None:
+    result = run(sandbox, WIRE, *SETUP_ARGS, "-y", stub=True)
+    assert result.returncode == 0, result.stderr
+    log = calls(sandbox)
+    deploys = [line for line in log if line.startswith("run jobs deploy")]
+    assert [line.split()[3] for line in deploys] == ["r2-wire-stage", "r2-wire-promote", "r2-wire-rollback"]
+    for line, mode in zip(deploys, ("stage", "promote", "rollback"), strict=True):
+        assert f"--args={mode}" in line and "--service-account r2-wirer@proj-x.iam.gserviceaccount.com" in line
+        assert "@sha256:abc123" in line and "--max-retries=0" in line and "R2_ACCOUNT_ID=ACCT" in line
+    # サービスを変える操作は、スクリプトの中に無い（Job を実行したときだけ変わる）
+    assert not any(line.startswith(("run deploy", "run services update", "run jobs execute")) for line in log)
+    # 権限は 3 つだけ。閲覧専用の ID に Job の実行権限は付けない
+    bindings = [line for line in log if "add-iam-policy-binding" in line]
+    assert len(bindings) == 4
+    assert any("run services add-iam-policy-binding docunavi" in b and "roles/run.developer" in b for b in bindings)
+    assert any(
+        "service-accounts add-iam-policy-binding docunavi-run@proj-x" in b and "roles/iam.serviceAccountUser" in b
+        for b in bindings
+    )
+    assert any(
+        "secrets add-iam-policy-binding r2-app-read" in b and "roles/secretmanager.viewer" in b for b in bindings
+    )
+    # サービスの更新時に、Cloud Run が呼び出し側のイメージ読み取りを確かめる（実際に 403 になった）。リポジトリ単位の reader だけ
+    assert any(
+        "artifacts repositories add-iam-policy-binding cloud-run-source-deploy" in b
+        and "roles/artifactregistry.reader" in b
+        for b in bindings
+    )
+    assert not any("docunavi-viewer" in line or "roles/run.invoker" in line for line in log)
+    assert not any("secretAccessor" in line or "versions add" in line for line in log)
+
+
+def test_wire_setup_verify_changes_nothing(sandbox) -> None:
+    run(sandbox, WIRE, *SETUP_ARGS, "--verify", stub=True)
+    writes = ("create", "deploy", "add-iam-policy-binding", "update", "submit", "enable", "execute")
+    assert not any(
+        any(w in line.split()[:5] for w in writes) for line in calls(sandbox) if not line.startswith("config get-value")
+    )
