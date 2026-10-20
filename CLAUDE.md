@@ -147,7 +147,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 手順と層の説明は [.devcontainer/README.md](.devcontainer/README.md) の「開発環境の gcloud（ログインとガード）」。
 
 - **日常の ID は閲覧専用。** コンテナの環境変数 `CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`
-  （`.devcontainer/devcontainer.json` の `containerEnv`）で、閲覧専用の `agent-viewer` へのなりすましが既定になっている
+  （`.devcontainer/devcontainer.json` の `containerEnv`）で、閲覧専用の `docunavi-viewer`（運用用プロジェクト `docunavi-ops` のサービスアカウント）へのなりすましが既定になっている
   （書き込みは設計上 403）。この既定を外さない・上書きしない。コンテナの再ビルド前は未設定のことがある。その場合も
   自分では設定せず、ユーザーに伝える。
 - **読み取りだけ実行する。** 書き込み系（デプロイ、作成・更新・削除、IAM・課金、API の有効化）は実行せず、
@@ -156,8 +156,9 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   [.devcontainer/README.md](.devcontainer/README.md) の「書き込みをするとき」）。
 - **ログインの起動だけは、引数なしの `gcloud auth login` に限って実行してよい。** フックが毎回「確認」を返す。
   ブラウザーでのアカウントの選択と承認は、ユーザーが行う。`--no-launch-browser` は使わない（コードの受け渡しを避ける）。
-  ログイン後に私が実行するのは、`agent-viewer` の権限で読める範囲（ビルド・Cloud Run・ログの閲覧）だけ。
-  課金（`gcloud billing projects describe`）と有効な API の一覧（`gcloud services list`）は `agent-viewer` の権限外なので、
+  ログイン後に私が実行するのは、`docunavi-viewer` の権限で読める範囲（ビルド・Cloud Run・ログの閲覧）だけ。
+  ビルドの閲覧（`gcloud builds …`）は `--billing-project=docunavi-app` を付ける（付けないと API が `docunavi-ops` に数えられ、無効で失敗する）。
+  課金（`gcloud billing projects describe`）と有効な API の一覧（`gcloud services list`）は `docunavi-viewer` の権限外なので、
   あなた自身の権限（`env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud …`）で、あなたが実行する。
   開発コンテナにはブラウザーが無く、ユーザーのブラウザーへ戻れるかは未確認。届かなければ、ユーザーが自分の端末でログインする。
 - **それ以外の認証・認証情報には触れない。** `gcloud auth` の操作（`list`・上の `login`・`revoke --all` を除く）、`gcloud config set/unset`、
@@ -170,8 +171,10 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - **ガードを外さない。** `.claude/settings.json` のフック・権限ルール・`disableBypassPermissionsMode` を、頼まれずに
   編集・無効化しない。`--dangerously-skip-permissions` を勧めない。
   フックの確認・ガード・権限は、「指示への従い方」の節でも外れない。
-- **トークンの中身は表示・ログ・コミットしない。** 作業の終わりには、`gcloud auth revoke --all` でログアウトする
-  （日常の ID を固定していると、素のままでは失敗することがある。失敗したら、ユーザーに実行してもらう）。ログインはボリュームに残さない。
+- **トークンの中身は表示・ログ・コミットしない。** ログアウト（`gcloud auth revoke --all`）は、毎回の作業の終わりには求めない（2026-10-20、ユーザーが決定）。
+  続けて使うあいだは、ログインを維持してよい。ログアウトを促すのは、長期に使わないとき、共有の端末、不審な挙動のときだけ。
+  日常の ID を固定していると、素のままでは失敗することがある。失敗したら、ユーザーに実行してもらう。ログインはボリュームに残さない
+  （再ビルドで消える）。コンテナの中にはユーザー自身のログインが残る（フックを通らない経路では読める。`.devcontainer/README.md` の「限界」）。SA のキーは作らない・保存しない。
 
 ## gh（読み取り専用のトークン + ガード）
 
