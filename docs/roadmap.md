@@ -10,7 +10,7 @@
 
 **できていること**
 
-- Cloud Run への公開（段階 0。2026-10-20。プロジェクト `docunavi-app`、サービス `docunavi`、リージョン `asia-northeast1`。ログインと質問は利用者が確認。通った手順と詰まった点は [deploy.md](deploy.md) の「実際に通った記録」）
+- Cloud Run への公開（段階 0。2026-10-20。プロジェクト `docunavi-app`、サービス `docunavi`、リージョン `asia-northeast1`。ログインと質問は利用者が確認。Google の新しい OAuth クライアントでも同日に確認。正規の URL は `https://docunavi-114733761361.asia-northeast1.run.app` の 1 つ。通った手順と詰まった点は [deploy.md](deploy.md) の「実際に通った記録」）
 - 履歴の削除コマンド（`python -m app.history_admin`）と、7 日の経過を模した Postgres のテスト（2026-10-20。`tests/test_history_postgres.py`）。**Cloud Run Job と Cloud Scheduler を作成済み**（2026-10-20。毎週日曜 03:00 JST に、最後の動きから 7 日たった会話を削除。Scheduler から Job が動いたことは確認。実際に会話が消えた実績はまだ無い。方針の 90 日は変えない。記録は [deploy.md](deploy.md) の D）
 - Postgres（Supabase）と、会話履歴の保存（段階 1。`--max-instances` × `DATABASE_POOL_MAX_SIZE` が接続数の上限に収まるかは未確認）
 - 認証（段階 2。本物の Supabase・Google でのログインと質問は、ローカルで確認済み（2026-10-19）。トークンの期限切れ後の更新、Docker、公開環境は未確認）
@@ -26,7 +26,7 @@
 | 順 | 項目 | 中身 |
 |---|---|---|
 | 1 | 認証の残りの確認 | ログイン後の URL の復元、トークンの期限切れ後の更新（画面側の E2E は偽の認証で済み。本物のログインでの確認は、利用者は通ったと思っているが詳細の報告がなく、確認済みとは記録していない）。会話の一覧と本人による削除は、API（`GET /threads`、`DELETE /threads/{id}`）と左サイドバーの画面を実装済み。API の本物のログインでの動作は確認済み（2026-10-19、利用者の報告）。画面の本物のログインでの確認も済み（2026-10-19、利用者の報告）。過去のやり取りの表示（`GET /threads/{id}/messages`）は、サイドバーで選んだときまで実装済み（本物のログインでの確認は済み（2026-10-19、利用者の報告）。ページの再読み込みだけでは取得しない） |
-| 2 | Cloud Run の公開後の残り | 公開と、下の「公開前の守り」の設定は済み（2026-10-20）。残り: ① `docunavi-app` 用の閲覧専用 ID（`agent-viewer`）で、エージェントがログを読めるようにする ② 有料キー（`GEMINI_API_KEY_PAID`、Secret `gemini-api-key-paid`）の配備と、本物の 429 での切り替えの確認（コードは済み、確認は偽の 429 のテストのみ）③ 予算の通知が実際に停止の仕組みへ届くかの確認 ④ Supabase の Site URL（いまは `http://localhost:5173`。公開先を主に使うようになったら変える） |
+| 2 | Cloud Run の公開後の残り | 公開と、下の「公開前の守り」の設定は済み（2026-10-20）。残り: ① `docunavi-app` 用の閲覧専用 ID（`agent-viewer`）で、エージェントがログを読めるようにする ② 有料キー（`GEMINI_API_KEY_PAID`、Secret `gemini-api-key-paid`）の配備と、本物の 429 での切り替えの確認（コードは済み、確認は偽の 429 のテストのみ）③ 予算の通知が実際に停止の仕組みへ届くかの確認 ④ **済み（2026-10-20）:** Supabase の Site URL を公開の URL に変えた（本番とローカルのログインは、変更後に利用者が確認） |
 | 3 | 4a の残り | 原本を R2 に置く |
 | 4 | 4b 自動化 | R2 のイベント通知 → Queue → Cloud Run の取り込み |
 | 5 | 検索の品質（4c の前段） | チャンクの分け方（ページ単位・意味単位）と `TOP_K` の見直しを、既存の評価（`evals/questions.yaml`、`scripts/eval_retrieval.py`）で測る。問数が足りなければ評価の質問を足す。取りこぼしが出てから、ハイブリッド検索（4c。BM25 + ベクトル + リランカー） |
