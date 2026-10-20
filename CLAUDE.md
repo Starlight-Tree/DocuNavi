@@ -86,7 +86,8 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   `GEMINI_API_KEY`（無料キー）の試行が **429 で尽きた** あとに、同じモデルを有料キーで 1 回試す（400/401/403/404 と 5xx では試さない。
   LLM と質問の埋め込みの両方。部品は `resilience.py` の `KeySwitch` / `call_with_key_switch` / `stream_with_key_switch`）。
   有料キーが成功してから `GEMINI_KEY_SWITCH_HOLD_SECONDS`（60）の間は、最初から有料キーを使う。キーの値はログに出さない。
-  本物の 429 での確認は未了。詳細は `docs/configuration.md` の「無料キーが 429 のとき」。
+  本番には配備済み（2026-10-20。キー `docunavi-paid` は `docunavi-app`、請求階層は Tier 1、前払い ¥800 を購入済み〔失効は 12 か月、返金なし。残高が尽きると 402 になり、切り替えは起きない〕。Secret `gemini-api-key-paid`、リビジョン `docunavi-00003-b9t`）。
+  有料キーでの実 API の呼び出しは確認済み（2026-10-20、Secret の値で `gemini-3.1-flash-lite` を 1 回呼び、HTTP 200。利用者が実行）。本物の 429 での切り替えと 60 秒の保持は未確認。詳細は `docs/configuration.md` の「無料キーが 429 のとき」。
 - **`temperature` は指定しない。** Gemini 3 系は既定の 1.0 のままが公式の推奨（1.0 未満はループや性能低下の恐れ）で、
   `gemini-3.5-flash-lite` は指定を無視する。`tests/test_llm_config.py` が、渡さないことと、ライブラリが未指定なら
   送らないことを確かめる。

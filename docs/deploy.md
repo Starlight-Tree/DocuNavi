@@ -131,12 +131,38 @@ A のコマンドの `--set-env-vars` を、次の 1 行に置き換えます。
 
 **無料キーが 429 のときだけ有料キーを使う（任意）。** 無料枠のキー（請求の無いプロジェクト）を `gemini-api-key` に入れて始めるときは、
 予算ガード付きのプロジェクト（`$PROJECT_ID`）に作ったキーを、別の Secret `gemini-api-key-paid` に入れておきます
-（作り方は上と同じ。Secret 名と、`read` の見出しだけを変える）。使うときは `--set-secrets` に足します
 （[configuration.md](configuration.md) の「無料キーが 429 のとき」）。足さなければ、無料キーだけで動きます。
+名前は、キー `docunavi-paid`（キーのラベル）、Secret `gemini-api-key-paid`、環境変数 `GEMINI_API_KEY_PAID`。
+
+実際に通した手順（2026-10-20。`as_me` は上の定義、`$PROJECT_ID` は予算ガード付きのプロジェクト）:
 
 ```bash
-  --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,GEMINI_API_KEY_PAID=gemini-api-key-paid:latest"
+# 1. キーを作る。gcloud は結果（キー本体を含む）を stderr に出すので、2>/dev/null で捨てる（付け忘れると画面とログに出る）
+as_me gcloud services enable apikeys.googleapis.com generativelanguage.googleapis.com --project "$PROJECT_ID"
+K=$(as_me gcloud services api-keys create --project "$PROJECT_ID" --display-name=docunavi-paid \
+      --api-target=service=generativelanguage.googleapis.com \
+      --format='value(response.keyString)' 2>/dev/null | tr -d '\n')
+echo "length: ${#K}"        # 39 前後を確かめる。値は表示しない
+# 2. Secret に入れ、実行用サービスアカウントに読み取りを許す
+printf '%s' "$K" | as_me gcloud secrets create gemini-api-key-paid --data-file=- --project "$PROJECT_ID"
+unset K
+as_me gcloud secrets add-iam-policy-binding gemini-api-key-paid \
+  --member="serviceAccount:${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role=roles/secretmanager.secretAccessor --project "$PROJECT_ID"
+# 3. 今のイメージのまま、Secret だけを足す
+as_me gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
+  --update-secrets "GEMINI_API_KEY_PAID=gemini-api-key-paid:latest"
 ```
+
+- **`--set-secrets` ではなく `--update-secrets` を使う。** `--set-secrets` は既存の Secret を置き換える。上の B のデプロイの例（`GEMINI_API_KEY` と有料キーの 2 つだけ）をそのまま使うと、`DATABASE_URL` が外れて起動に失敗する。
+  足したあとは、`gcloud run services describe` で `GEMINI_API_KEY` と `DATABASE_URL` が残っていることを確かめる。
+- **AI Studio の一覧に出すには、プロジェクトのインポートが要る。** 一覧には、取り込んだプロジェクトのキーだけが出る（「プロジェクトをインポート」で `docunavi-app` を選ぶ。`docunavi-ops` は取り込まない）。
+  CLI で作ったキーは Cloud Console の「API とサービス → 認証情報」にも出る。
+- **有料の階層（Tier 1）にするには、AI Studio で最低 $5 の前払いが要る。** 請求階層が「無料トライアル」・ステータスが「前払いが必要」のうちは、有料の枠として使える保証がない。
+  前払い（クレジットの購入）は AI Studio の画面だけで行い、CLI や API では行えない。クレジットは購入から 12 か月で失効し、返金されない。自動チャージは設定しない（設定しなければ、残高が $0 になった時点で止まる）。
+  Google Cloud の無料クレジット（ウェルカムクレジット）は、2026-03-02 以降のアカウントでは Gemini API に使えない（公式の請求ドキュメント。AI Studio の画面で確認）。
+- **前払いの残高が尽きると、有料キーは 402 を返す。** 切り替えの条件は 429 だけなので、その場合は切り替わらず、無料キーの 429 がそのまま返る。
+- 2026-10-20 の記録: `docunavi-app` が Tier 1 と表示され、前払い ¥800 を購入した（利用者の報告）。有料キーでの実 API の呼び出しは確認済み（同日、Secret の値で `gemini-3.1-flash-lite` を 1 回呼んで HTTP 200。キーは 39 文字で、Tier 1 の課金も通っている。利用者が実行した結果の報告）。本物の 429 での切り替えと 60 秒の保持は未確認。
 
 ### C. DB に接続する（本物の LLM では必須）
 
