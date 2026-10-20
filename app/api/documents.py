@@ -38,6 +38,7 @@ _DETAIL_UNAVAILABLE = "資料を取得できませんでした。しばらく待
 _DETAIL_NOT_FOUND = "指定された資料が見つかりません。"
 _DETAIL_NO_ORIGINAL = "元の PDF は利用できません。"
 _DETAIL_ORIGINAL_MISMATCH = "元の PDF が、DB に保存された資料と一致しません。"
+_DETAIL_ORIGINAL_UNAVAILABLE = "元の PDF を取得できませんでした。しばらく待ってから再試行してください。"
 
 _LIST_SQL = (
     "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, d.status AS status, "
@@ -227,6 +228,8 @@ async def document_file(
     if not original.ok or original.data is None:
         if original.reason == "mismatch":
             raise HTTPException(status_code=409, detail=_DETAIL_ORIGINAL_MISMATCH)
+        if original.reason == "unavailable":
+            raise HTTPException(status_code=503, detail=_DETAIL_ORIGINAL_UNAVAILABLE)
         raise HTTPException(status_code=404, detail=_DETAIL_NO_ORIGINAL)
     headers["Content-Disposition"] = _content_disposition(document_id, source)
     return Response(content=original.data, media_type="application/pdf", headers=headers)

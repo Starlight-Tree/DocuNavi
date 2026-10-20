@@ -7,6 +7,10 @@
     python -m app.ingestion --input evals/corpora/cafe/x.pdf          # 1 ファイルだけ
     python -m app.ingestion --input evals/corpora/cafe --apply        # DATABASE_URL の Postgres に保存する
     python -m app.ingestion --input x.pdf --collection guides         # 資料群の名前を指定する
+    python -m app.ingestion --input r2://cafe                         # R2 の cafe/ の PDF を一時ディレクトリに取り、同じ流れで取り込む
+    python -m app.ingestion --input r2://cafe/menu.pdf --apply        # R2 の 1 ファイルだけ
+
+`r2://` は、`R2_ACCOUNT_ID` `R2_BUCKET` `R2_CREDENTIALS_JSON`（`app/r2_store.py`）が要る。資料群の名前は、既定で `r2://` の次の名前になる。
 
 資料群（documents.collection）は、既定で入力のディレクトリ名（ファイル 1 つなら置いてあるディレクトリの名前）。`--collection` で上書きできる。
 名前は英数字・`_`・`-` の 40 文字まで。形が合わなければ保存せず（保存済みの値は残す）、確認のときも表示する。
@@ -20,6 +24,7 @@
 
 import argparse
 import sys
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -29,6 +34,9 @@ from app.history import database_url
 from app.ingestion.pdf_parser import REASONS
 from app.ingestion.repository import MemoryRepository, PostgresRepository
 from app.ingestion.service import COLLECTION_PATTERN, DocumentReport, find_pdfs, ingest
+from app.pdf_originals import MAX_ORIGINAL_BYTES
+
+R2_SCHEME = "r2://"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -36,7 +44,11 @@ def _parser() -> argparse.ArgumentParser:
         prog="python -m app.ingestion",
         description="PDF を解析してチャンクに分ける（既定は確認だけ。--apply で保存する）",
     )
-    parser.add_argument("--input", required=True, type=Path, help="PDF のファイル、または PDF を含むディレクトリ")
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="PDF のファイル、または PDF を含むディレクトリ。r2://<資料群>[/<ファイル名>] で R2 から取る",
+    )
     parser.add_argument(
         "--collection",
         help="資料群の名前（英数字・_・- の 40 文字まで）。既定は入力のディレクトリ名",
@@ -63,12 +75,50 @@ def _print_report(report: DocumentReport) -> None:
     print(f"  status={report.status}")
 
 
+def _fetch_from_r2(spec: str, target: Path) -> Path | None:
+    """`r2://<資料群>[/<ファイル名>]` の PDF を target に取り、取り込みの入力にするパスを返す。形が合わなければ None。"""
+    collection, _, name = spec.removeprefix(R2_SCHEME).partition("/")
+    if not COLLECTION_PATTERN.fullmatch(collection):
+        return None
+    from app import r2_store
+
+    store = r2_store.default_store()
+    files = r2_store.download_collection(store, collection, target, MAX_ORIGINAL_BYTES, only=name or None)
+    if name:
+        return (
+            files[0] if files else target / collection / name
+        )  # 無ければ、存在しないパスのまま渡す（「PDF がありません」になる）
+    (target / collection).mkdir(parents=True, exist_ok=True)
+    return target / collection
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.collection is not None and not COLLECTION_PATTERN.fullmatch(args.collection):
         print("--collection は、英数字・_・- の 40 文字までで指定してください。", file=sys.stderr)
         return 2
-    paths = find_pdfs(args.input)
+    if not args.input.startswith(R2_SCHEME):
+        return _run(args, Path(args.input))
+    from app import r2_store
+
+    # R2 の PDF は一時ディレクトリに取る（終わったら消える）。取り込みの流れは、ローカルの PDF と同じ
+    with tempfile.TemporaryDirectory(prefix="docunavi-r2-") as tmp:
+        try:
+            root = _fetch_from_r2(args.input, Path(tmp))
+        except r2_store.R2ConfigError as exc:
+            print(f"R2 の設定が足りません（{exc}）。", file=sys.stderr)
+            return 2
+        except Exception as exc:  # noqa: BLE001 - 例外の文字列に接続先・鍵の ID が入りうる。クラス名だけを出す
+            print(f"R2 から取得できませんでした（{type(exc).__name__}）。", file=sys.stderr)
+            return 1
+        if root is None:
+            print("r2:// の後は、資料群の名前（英数字・_・- の 40 文字まで）を指定してください。", file=sys.stderr)
+            return 2
+        return _run(args, root)
+
+
+def _run(args: argparse.Namespace, input_path: Path) -> int:
+    paths = find_pdfs(input_path)
     if not paths:
         print("入力に PDF がありません。", file=sys.stderr)
         return 2
@@ -80,7 +130,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     if not url:
-        reports = ingest(paths, args.input, MemoryRepository(), apply=False, collection=args.collection)
+        reports = ingest(paths, input_path, MemoryRepository(), apply=False, collection=args.collection)
     else:
         # アプリと同じ理由で、psycopg は DATABASE_URL があるときだけ import する
         import psycopg
@@ -89,7 +139,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             # prepare_threshold=None: transaction mode のプーラーでも動かす（app/history.py と同じ）
             with psycopg.connect(url, prepare_threshold=None, connect_timeout=10) as conn:
                 repo = PostgresRepository(conn, create_tables=args.apply)
-                reports = ingest(paths, args.input, repo, apply=args.apply, collection=args.collection)
+                reports = ingest(paths, input_path, repo, apply=args.apply, collection=args.collection)
         except psycopg.Error as exc:
             # 例外の文字列には接続先が入りうる。クラス名だけを出す
             print(f"DB の操作に失敗しました（{type(exc).__name__}）。", file=sys.stderr)
