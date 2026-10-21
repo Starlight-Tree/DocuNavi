@@ -40,6 +40,7 @@
     "ask": [
       "Bash(git push)",
       "Bash(git push *)",
+      "Bash(scripts/mcp-proxy.sh)",
       "mcp__cloudflare__execute"
     ],
     "deny": [
