@@ -1,6 +1,6 @@
 # MCP ツール化: 設計の叩き台
 
-状態（2026-10-21）: **接続の検証は済み（プロキシ経由）。`search_documents` のコードとテストを書いた（`ops/mcp_search/`）。本物の DB・Gemini での確認と、Cloud Run への配備は、まだ。**
+状態（2026-10-21）: **`search_documents`（`ops/mcp_search/`）を `docunavi-mcp` として Cloud Run に配備し、プロキシ経由で本物の検索が通った。日常の使い方（1 時間ごとのプロキシ再起動の扱い）は未決。**
 ロードマップの表の 8（将来の拡張）。目的は、資料の検索を、エージェント（まず Claude Code）から使えるツールにすること。
 実用上の必要は小さい（資料は 6 件）。主な価値は、リモート MCP サーバーと、Cloud Run の IAM 認証を学ぶこと。
 
@@ -96,3 +96,13 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 - **確かめたこと:** `mcp` を入れた環境で全体のテストが通る（13 件を含む）。ローカルで HTTP サーバーとして起動し、`initialize`・`tools/list`・`tools/call` が通ること、DB とキーが無いときに固定文のエラーになることを確かめた。
 - **確かめていないこと:** 本物の DB・Gemini での検索、Docker のビルド（開発コンテナーに Docker が無い。Cloud Build で初めて走る）、Cloud Run での動作、Claude Code からのツール呼び出し。
 - **配備の前に決めること:** ① `DATABASE_URL` に、アプリと同じ書き込み権限の Secret（`database-url`）を渡すか、読み取り専用ロール（`readonly`）の URL を別の Secret にするか（このサービスは読むだけなので、後者が最小権限）。② 有料キーを渡すか。③ `run.invoker` を誰に与えるか。④ `DATABASE_POOL_MAX_SIZE` は 2 程度に絞る（接続数の節）。
+
+## 配備と確認（2026-10-21）
+
+- **配備:** サービス `docunavi-mcp`（`asia-northeast1`、非公開、最大 1 インスタンス、並行 10、`DATABASE_POOL_MAX_SIZE=2`）、専用のサービスアカウント `docunavi-mcp`。Secret は `database-url-readonly`（読み取り専用ロールの URL。新規）と `gemini-api-key`（無料キー。アプリと共用）の `secretAccessor` だけ。有料キー（`gemini-api-key-paid`）は渡していない。`run.invoker` は利用者本人だけ。
+- **Docker のビルド:** Cloud Build で `SUCCESS`（1 分 16 秒）。アプリの固定済みの依存と `mcp==1.30.0` は、競合なく入った。
+- **実際の検索（1 回、無料キー）:** プロキシ（`gcloud run services proxy docunavi-mcp --port 3001`）経由で `search_documents` を呼び、質問「糸くずフィルターの掃除」に対して、洗濯機の説明書の該当箇所が 1 位（類似度 0.80）で返った。Cloud Run のログでは、Gemini の埋め込みの呼び出しは 1 回（200）、質問の本文はログに出ていない。
+- **読み取り専用ロールでの検索:** 同じ検索の SQL が `readonly` ロールで動くこと、書き込みは `read-only transaction` で拒否されること、会話履歴の表は読めないことを、配備の前に確かめた。
+- **確認済み（2026-10-21、Claude Code の会話の中から）:** `search_documents` を 1 回呼び、期待どおりの結果が返った。質問「糸くずフィルターの掃除」、1 位は `aoba_aw820_manual.pdf` p.2（類似度 0.80）、2 位は同 p.2（0.68、乾燥フィルターの記述で関連は薄い）。無料キーで Gemini の埋め込み 1 回、書き込みなし。
+- **未確認:** 本物の 429 での有料キーへの切り替え（有料キーを渡していないので起きない）、予算ガードの対象に入るか、プロキシの期限切れを避ける日常の方法、再ビルド後の `docunavi-search` 登録が残るか。
+- **保留:** 有料キーを渡すか、apt の部品を再ビルド時に自動で入れるか、`pgpass` の 2 行目（ID もパスワードも空）の扱い。
