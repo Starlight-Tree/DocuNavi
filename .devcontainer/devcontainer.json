@@ -8,6 +8,15 @@
 	"build": {
 		"dockerfile": "Dockerfile"
 	},
+	// Docker は、ホストのソケットを渡さず、読み取り専用のプロキシ（.devcontainer/docker-proxy/compose.yml）経由にする。
+	// initializeCommand: ホストで、コンテナの作成の前に実行される。プロキシを起動し、ネットワーク docunavi-dev を作る
+	// （無いと runArgs の --network が失敗する）。ホストに docker（OrbStack）が無いと、ここで止まる。
+	// runArgs: 開発コンテナを docunavi-dev に繋ぐ。DOCKER_HOST（下の containerEnv）はこのネットワークの中でだけ引ける名前。
+	// init: プロセスの後始末（ゾンビの回収）を init に任せる。
+	"initializeCommand": "docker compose -f .devcontainer/docker-proxy/compose.yml up -d",
+	"runArgs": ["--network=docunavi-dev"],
+	"init": true,
+
 	"features": {
 		"ghcr.io/devcontainers/features/node:2": {},
 		"ghcr.io/devcontainers/features/python:1": {}
@@ -49,6 +58,7 @@
 		"PGPASSFILE": "/home/vscode/.pg/pgpass",
 		"CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
 		"TZ": "Asia/Tokyo",
+		"DOCKER_HOST": "tcp://docunavi-docker-proxy:2375",
 		"CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT": "docunavi-viewer@docunavi-ops.iam.gserviceaccount.com"
 	},
 
@@ -90,7 +100,8 @@
 				"ms-python.python",
 				"ms-python.vscode-pylance",
 				"mhutchie.git-graph",
-				"ms-ossdata.vscode-pgsql"
+				"ms-ossdata.vscode-pgsql",
+				"ms-azuretools.vscode-containers"
 			]
 		}
 	}
