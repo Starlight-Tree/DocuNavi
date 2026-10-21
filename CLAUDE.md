@@ -14,7 +14,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
-| Docker | ホスト側で `docker compose up --build`（開発コンテナ内には Docker が無い） |
+| Docker | ホスト側で `docker compose up --build`（開発コンテナ内には Docker が無い）。`api`（:8000）と、画面の開発サーバー `frontend`（Vite。:5173）が別コンテナ。`frontend` はホストで起動・healthy・ホットリロード・SSE のプロキシ越しの逐次配信を確認済み（2026-10-21）。Compose の `frontend` からの Google ログインの戻りは未検証。記録は [docs/development.md](docs/development.md) |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 

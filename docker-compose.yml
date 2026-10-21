@@ -27,3 +27,39 @@ services:
       retries: 10
       start_period: 5s
     restart: unless-stopped
+
+  # 画面の開発サーバー（Vite。http://localhost:5173）。api とは別のコンテナで、ホットリロードで動く。
+  # /chat /health /documents /threads は、サービス名 api（Compose 内の名前解決）へ転送する。
+  # api が healthy になってから起動する。api の画面配信（http://localhost:8000）は、これまでどおりイメージの中のビルド済み成果物。
+  frontend:
+    image: node:24-slim
+    container_name: docunavi-frontend
+    working_dir: /app
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_DEV_HOST: "0.0.0.0"
+      VITE_DEV_PROXY_TARGET: "http://api:8000"
+      # ホスト↔コンテナの変更通知が届かず、ホットリロードが効かないときだけ、次の行の # を外す
+      # （ポーリングは CPU を使う。Docker Desktop など、ファイル変更通知が届かない環境向け）
+      # CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./frontend:/app
+      # node_modules はホストのものと分ける（ネイティブの依存が OS ごとに違うため）。依存を変えたら起動時の npm install が反映する
+      - frontend_node_modules:/app/node_modules
+    # package-lock.json のとおりに入れる。ボリュームが node_modules の場所なので、npm ci（ディレクトリごと消す）は使わない
+    command: sh -c "npm install --no-audit --no-fund && npm run dev"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      # 初回は npm install に時間がかかる
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  frontend_node_modules:
