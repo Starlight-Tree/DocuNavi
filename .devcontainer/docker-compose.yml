@@ -1,0 +1,81 @@
+# 開発コンテナ（dev）の定義。devcontainer.json の dockerComposeFile が、../docker-compose.yml（db・api・frontend）に重ねて読む。
+# ホストの `docker compose up`（ルートの docker-compose.yml だけ）には dev は含まれない。
+#
+# 相対パスは、最初のファイル（../docker-compose.yml）のあるリポジトリ直下が基準（このファイルの場所ではない）。
+# 経緯と確認の状況は .devcontainer/README.md の「開発コンテナの構成（Compose）」。
+services:
+  dev:
+    build:
+      context: .devcontainer
+      dockerfile: Dockerfile
+    # Container Tools の一覧で見分けやすいように、自動の名前ではなく固定の名前にする。
+    container_name: docunavi-devcontainer
+    # プロセスの後始末（ゾンビの回収）を init に任せる。
+    init: true
+    # コンテナを起こしておくだけ。VS Code が中に入る（devcontainer.json の overrideCommand の既定と同じ）。
+    command: sleep infinity
+    volumes:
+      - .:/workspaces/docunavi:cached
+      # コンテナを再ビルドしても Claude Code の履歴・認証情報が消えないよう、~/.claude を名前付きボリュームに永続化する。
+      # gh の設定（トークンを含む）も、読み取り専用の細粒度トークンだけを置く前提で、同じく永続化する
+      # （README の「開発環境の GitHub CLI（gh）」）。
+      # gcloud のログイン情報（~/.config/gcloud。リフレッシュトークンを含む）も、2026-10-21 から同じく名前付きボリュームに残す。
+      # 再ビルドのたびに手動でログインし直さずに、MCP の headersHelper（scripts/mcp-auth-header.sh）がつながるようにするため。
+      # 長期の資格情報が保存されるリスクを受け入れた変更。失効や組織のポリシー等で、再ログインが要ることはある。
+      # 消し方は .devcontainer/README.md の「ログアウト」。
+      # ~/.pg は psql の接続情報（pgpass。本番 DB を読み取り専用の readonly ロールで見る。docs/infra-readonly-role.sql）。
+      # ホストの ~/.pgpass はマウントしない（ほかの DB の認証情報まで、コンテナーから読めてしまうため）。パスワードを入れるのはユーザー自身。
+      - claude-config:/home/vscode/.claude
+      - gh-config:/home/vscode/.gh-config
+      - gcloud-config:/home/vscode/.config/gcloud
+      - pg-config:/home/vscode/.pg
+      - playwright-browsers:/home/vscode/.cache/ms-playwright
+    # devcontainer.json の containerEnv と同じ値（Compose ベースで containerEnv が効くかは未確認なので、両方に置く。変えるときは両方を直す）。
+    # GH_CONFIG_DIR: ~/.config/gh ではなく専用の場所にする。~/.config がイメージに無いと、マウントの親ディレクトリが
+    # root 所有で作られ、他のツールが ~/.config に書けなくなるため。gcloud は、ガードのフックと拒否ルールが
+    # ~/.config/gcloud を守っているので、場所を変えずにマウントし、親の所有者は postCreateCommand の gcloud-volume で直す。
+    # TZ: date やログの時刻を JST にする（開発コンテナだけ）。
+    # CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT: gcloud の日常の ID を、閲覧専用の docunavi-viewer へのなりすましに固定する。
+    # 手順は .devcontainer/README.md。
+    # CLAUDE_CONFIG_DIR: Claude Code の設定ファイル（.claude.json。ローカル登録の MCP を含む）を ~/.claude のボリューム側に置く。
+    # DOCKER_HOST: 読み取り専用のプロキシ。docunavi-dev の中でだけ引ける名前。
+    environment:
+      GH_CONFIG_DIR: /home/vscode/.gh-config
+      PGPASSFILE: /home/vscode/.pg/pgpass
+      CLAUDE_CONFIG_DIR: /home/vscode/.claude
+      TZ: Asia/Tokyo
+      DOCKER_HOST: tcp://docunavi-docker-proxy:2375
+      CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT: docunavi-viewer@docunavi-ops.iam.gserviceaccount.com
+    # docunavi-dev だけに繋ぐ（docker-proxy との通信用。外へも出られる）。frontend-net・backend-net には繋がない
+    # （api と db に、開発コンテナから直接届かないようにするため）。
+    networks:
+      - dev-net
+
+  # 実キーの .env で db が空のあいだ、api は起動に失敗して再起動を繰り返し、healthy にならない。
+  # service_healthy のままだと、`docker compose up -d` が frontend の待ちで失敗し、開発コンテナの作成が止まる。
+  # 開発コンテナ経由の起動だけ、api が「起動した」ところまでで進める（ホストの `docker compose up` は service_healthy のまま）。
+  frontend:
+    depends_on:
+      api:
+        condition: service_started
+
+networks:
+  # .devcontainer/docker-proxy/compose.yml が作る（devcontainer.json の initializeCommand が先に起動する）。
+  dev-net:
+    name: docunavi-dev
+    external: true
+
+volumes:
+  # 既存のボリュームの名前をそのまま使う（旧: devcontainer.json の mounts の ${devcontainerId}。2026-10-22 に /proc/self/mountinfo で確認）。
+  # 名前を変えると、Claude Code の履歴・gcloud のログイン・gh のトークン・pgpass が空のボリュームに替わる。
+  # 別のマシンでは、この名前のボリュームが無ければ新しく作られる（空）。
+  claude-config:
+    name: claude-code-config-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
+  gh-config:
+    name: gh-config-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
+  gcloud-config:
+    name: gcloud-config-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
+  pg-config:
+    name: pg-config-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
+  playwright-browsers:
+    name: playwright-browsers-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4

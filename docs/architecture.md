@@ -90,6 +90,8 @@ flowchart TB
 - アプリの実行は 2 通りです。ホストでの `docker compose up`（`docunavi-api`。ローカルの `docunavi-db` につながり、ポートは公開せず、`docunavi-frontend` の 5173 番経由で使う。
   8000 番は `docker-compose.api-port.yml` を重ねたときだけ）と、開発コンテナの `.venv` での `uvicorn`（8000 番。`DATABASE_URL` は `.env` の値）。
   開発コンテナには Docker が無いので、compose はホスト側で実行します。
+  開発コンテナ自体も Compose ベースで（2026-10-22。`.devcontainer/docker-compose.yml`。再ビルドは未実施）、開くと `db` `api` `frontend` も起動します
+  （[.devcontainer/README.md](../.devcontainer/README.md) の「開発コンテナの構成（Compose）」）。
 - 検索（`chunks`）と会話履歴は、同じ `DATABASE_URL` の DB です。本物の LLM では `DATABASE_URL` と `GEMINI_API_KEY` が必須で、
   無いとモックモード（キー未設定）か、起動の失敗になります（[search-design.md](search-design.md)）。
 - 秘密情報の置き場所は、実行時の環境変数だけです。値は文書にも画像にも書きません。
