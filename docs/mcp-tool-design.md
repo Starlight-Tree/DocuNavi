@@ -1,6 +1,6 @@
 # MCP ツール化: 設計の叩き台
 
-状態（2026-10-21）: **叩き台。コードも、Cloud Run・GCP 側の作成も、まだ無い。** 着手するかどうか自体は、まだ決めていない。
+状態（2026-10-21）: **接続の検証は済み（プロキシ経由）。`search_documents` のコードとテストを書いた（`ops/mcp_search/`）。本物の DB・Gemini での確認と、Cloud Run への配備は、まだ。**
 ロードマップの表の 8（将来の拡張）。目的は、資料の検索を、エージェント（まず Claude Code）から使えるツールにすること。
 実用上の必要は小さい（資料は 6 件）。主な価値は、リモート MCP サーバーと、Cloud Run の IAM 認証を学ぶこと。
 
@@ -16,6 +16,8 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 | サービス構成 | **別サービス**（既存の `docunavi` には足さない） | `docunavi` は公開で Supabase の JWT 認証、MCP は IAM 認証で、方式が合わない。接続数・最大インスタンス・秘密情報も別に絞れる |
 | 最初のツール | **資料の検索**（`search_documents` 相当、読み取り専用）。「資料への質問」は作らない | 「質問」は中で Gemini が回答を作り、呼び出し側の LLM と二重になる。ガードレールと出典の扱いも重くなる。検索なら質問の埋め込み 1 回で済む |
 | 利用者 | **Claude Code だけ** | まず自分で使う。ほかのエージェントは後 |
+| 依存の置き場 | **専用のイメージ**（`ops/mcp_search/`）。アプリの `requirements*.in` に `mcp` は足さない | 本番のアプリの依存を動かさず、いつでも消せる。アプリのコード（`app/`）は同じものをイメージに入れ、`app.search_vector.search` をそのまま呼ぶ |
+| 検索結果の `similarity` | **返す**（見出しに `類似度 0.82`） | 呼び出し側の LLM が関連の強さを判断できる。『資料にない』の判断には使えない粗い目安と、ツールの説明に書く。要らなければ消すだけ |
 
 ## 公式で確かめたこと（Google Cloud、2026-10-21）
 
@@ -51,10 +53,10 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 
 ## ツールの形（案）
 
-名前は `search_documents`。引数は `query`（文字列）と `top_k`（整数、1〜5 程度、既定は `TOP_K` に合わせる）。読み取り専用（`readOnlyHint`）であることを、ツールの注釈に付ける。
+名前は `search_documents`。引数は `query`（文字列、1〜500 文字）と `top_k`（整数、1〜5、既定は 2 = アプリの `TOP_K`）。範囲外は検索まで届かず、入力の検証エラーになる。読み取り専用（`readOnlyHint`）であることを、ツールの注釈に付ける。
 
 - 実体は `app.search_vector.search(query, top_k)`。しきい値（`MIN_SIMILARITY` 0.65）もそのまま使う。
-- 返すもの: 各ヒットの、ファイル名・見出し付きの本文・ページ（`page`、`page_end`）。`similarity` を返すかは未定（アプリは LLM に渡していない）。
+- 返すもの: 各ヒットの、ファイル名・ページ・類似度を見出しにして、見出し付きの本文（`[a.pdf p.3-4 類似度 0.82]` の次の行から本文）。アプリが LLM に渡す文面とは違い、出典を示せるようにしている。
 - **出力ガードは通らない。** アプリのガードレール（`StreamingOutputGuard` など）は LLM の回答を検査するもので、生のチャンクを返す MCP には掛からない。返すのは運営者が置いた共通の資料だけなので、漏れて困る内容は含まれない（システムプロンプトの漏洩は別の話）。
 - **返した本文は、呼び出し側から見て「信頼できないデータ」。** 資料に書かれた指示にエージェントが従わないよう、ツールの説明に書く。
 - 「全文を返す」ツール（`fetch` 相当）と資料一覧は、最初は作らない。必要になってから足す。
@@ -83,4 +85,14 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 - 着手するか。着手の時期。
 - 有料キーを MCP 側にも渡すか。
 - 呼び出し側の ID（利用者本人か、専用の SA か）と、ID トークンの渡し方。
-- 検索結果に `similarity` を含めるか。
+
+## 実装（2026-10-21）
+
+- `ops/mcp_search/main.py`: FastMCP（`mcp==1.30.0`、Streamable HTTP、ステートレス）。ツールは `search_documents` の 1 つで、`readOnlyHint` 付き。
+  - DB の接続プールは最初の呼び出しで開いて使い回す（FastMCP の `lifespan` はステートレスだと呼び出しごとに走るため）。プールは `app.history` の置き場所に入れる（`search_vector.search` がそこから借りる）。履歴のテーブルは作らない。
+  - 失敗は固定文（`資料の検索に失敗しました。`）だけを返す。例外の文字列と質問の本文は、応答にもログにも載せない（型の名前と件数だけ）。
+- `ops/mcp_search/Dockerfile`: ビルドの文脈はリポジトリの根。アプリの `requirements.txt` と `ops/mcp_search/requirements.txt`（`mcp` だけ）を 1 回の `pip install` に渡す。`ops/mcp_search/cloudbuild.yaml` が `--file` でこれを指す。
+- テスト: `tests/test_mcp_search.py`（検索と DB は偽物。`mcp` が無い環境では、ツール定義とクライアント呼び出しの 4 件をスキップする。`mcp` はアプリの開発依存に足していないため、CI ではこの 4 件が走らない）。
+- **確かめたこと:** `mcp` を入れた環境で全体のテストが通る（13 件を含む）。ローカルで HTTP サーバーとして起動し、`initialize`・`tools/list`・`tools/call` が通ること、DB とキーが無いときに固定文のエラーになることを確かめた。
+- **確かめていないこと:** 本物の DB・Gemini での検索、Docker のビルド（開発コンテナーに Docker が無い。Cloud Build で初めて走る）、Cloud Run での動作、Claude Code からのツール呼び出し。
+- **配備の前に決めること:** ① `DATABASE_URL` に、アプリと同じ書き込み権限の Secret（`database-url`）を渡すか、読み取り専用ロール（`readonly`）の URL を別の Secret にするか（このサービスは読むだけなので、後者が最小権限）。② 有料キーを渡すか。③ `run.invoker` を誰に与えるか。④ `DATABASE_POOL_MAX_SIZE` は 2 程度に絞る（接続数の節）。
