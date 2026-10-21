@@ -1,3 +1,7 @@
+# プロジェクト名を固定する（ホストの `docker compose up` と、開発コンテナ経由の起動で、同じコンテナ・ボリュームを使うため。
+# 既定はこのフォルダー名で、いまは同じ docunavi）。開発コンテナの定義は .devcontainer/docker-compose.yml。
+name: docunavi
+
 services:
   # 資料の検索と会話履歴用のローカル Postgres（pgvector 入り。本番の Supabase とは別）。
   # ホストにポートを公開せず、internal の backend-net（外へも出られない）にだけ置く。api からだけ db:5432 で届く。

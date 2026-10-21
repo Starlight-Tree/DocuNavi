@@ -291,7 +291,7 @@ Container Tools の画面は、一覧が見える（検証 7）。未確認: コ
 |---|---|
 | プロキシ | `.devcontainer/docker-proxy/compose.yml`。`wollomatic/socket-proxy:1.13.1`（固定）。ホストのソケットを持つのはこのコンテナだけで、ポートはホストに公開しない |
 | 起動 | `devcontainer.json` の `initializeCommand`（ホストで、コンテナの作成の前に実行）。手動なら `docker compose -f .devcontainer/docker-proxy/compose.yml up -d` |
-| 接続 | 開発コンテナを専用のネットワーク `docunavi-dev` に繋ぎ（`runArgs`）、`DOCKER_HOST=tcp://docunavi-docker-proxy:2375`。このネットワークに繋がるのは、プロキシと開発コンテナだけ（`docunavi-api` と `docunavi-frontend` は入れない） |
+| 接続 | 開発コンテナを専用のネットワーク `docunavi-dev` に繋ぎ（2026-10-22 から `.devcontainer/docker-compose.yml` の `networks`。それ以前は `runArgs`）、`DOCKER_HOST=tcp://docunavi-docker-proxy:2375`。このネットワークに繋がるのは、プロキシと開発コンテナだけ（`docunavi-api`・`docunavi-frontend`・`docunavi-db` は入れない） |
 | CLI | `Dockerfile` が Debian の `docker-cli` と `docker-compose`（`docker compose` のプラグイン）を入れる。デーモンは入らない |
 | 拡張 | `ms-azuretools.vscode-containers`（Container Tools） |
 
@@ -335,7 +335,43 @@ Container Tools の画面は、一覧が見える（検証 7）。未確認: コ
    **結果:** 一覧は見える（ユーザーが画面で確認、2026-10-21 JST）。Containers に `docunavi-dev-proxy`（Compose プロジェクト。中にプロキシ）、Individual Containers に開発コンテナと別プロジェクトのコンテナ。
    Images と Volumes は "Failed to connect. Is Docker running? Error response from daemon: Forbid…" と出る（`/images` と `/volumes` が許可リストに無いため。想定どおり）。
    OrbStack 上のすべてのコンテナが見えるのも、「限界」のとおり。未確認: コンテナを開いたときの詳細の表示。
-   開発コンテナの名前は、自動の `vsc-docunavi-<ハッシュ>` だと見分けにくいので、`runArgs` の `--name=docunavi-devcontainer` で固定した（再ビルドで反映）。
+   開発コンテナの名前は、自動の `vsc-docunavi-<ハッシュ>` だと見分けにくいので、`--name=docunavi-devcontainer` で固定した（`runArgs`。Compose ベースにした後は `container_name`）。
+
+### 開発コンテナの構成（Compose。2026-10-22）
+
+**状態（2026-10-22 JST）: 再ビルド済み。開発コンテナの中から確認できた範囲は、設計どおり。** 結果は下の「確認」の各項目。ホスト側の確認（項目 6、`stopCompose`）は未実施。
+
+開発コンテナは Dockerfile ベースから Compose ベースに替えた。`devcontainer.json` の `dockerComposeFile` が `../docker-compose.yml`（db・api・frontend）と
+`.devcontainer/docker-compose.yml`（dev）を重ねて読み、開発コンテナを開くと `db` `api` `frontend` も起動する（`runServices`）。
+
+| 項目 | 内容 |
+|---|---|
+| コンテナ | 5 つ: `docunavi-devcontainer`（dev）、`docunavi-docker-proxy`（別の Compose プロジェクト）、`docunavi-db`・`docunavi-api`・`docunavi-frontend` |
+| ネットワーク | 3 つ: `docunavi-dev`（dev・プロキシ）、`docunavi-frontend-net`（frontend・api）、`docunavi-backend-net`（api・db。internal）。dev は `docunavi-dev` だけ（api・db に直接は届かない） |
+| 設定の置き場所 | dev の定義は `.devcontainer/docker-compose.yml`。`containerEnv` は `devcontainer.json` にも残し（場所を変えない。CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT を含む）、同じ値を dev の `environment` にも置く。変えるときは両方 |
+| ボリューム | 名前は今のまま（`claude-code-config-<ID>` など 5 つ）。Compose の `volumes` で名前を指定した。履歴・ログイン・トークンは引き継がれる想定 |
+| プロジェクト名 | `docker-compose.yml` の `name: docunavi` で固定（ホストの `docker compose up` と同じコンテナ・ボリュームを使う） |
+| 閉じたとき | `shutdownAction: stopCompose`。ウィンドウを閉じると dev・db・api・frontend が止まる（`down` ではない。`pg-data` は残る） |
+| api が失敗するとき | 実キーの `.env` で db が空だと、api は起動に失敗して再起動を繰り返す。開発コンテナ経由の起動だけ、`frontend` の待ちを `service_started` に緩めて、作成が止まらないようにした。資料を取り込むまで api は healthy にならない |
+
+**再ビルドの前（ホストで）:** 古い Dockerfile ベースのコンテナを消す。名前が衝突するため。ボリュームは消えない（`-v` を付けない）。
+`docker rm -f docunavi-devcontainer`。
+
+**確認（再ビルドの後）:**
+1. 開発コンテナが開く。作成が失敗したら、VS Code の「Open in recovery container」から、ログ（`docker compose up` のエラー）を見る。
+   **結果:** 開いた。作成は止まらなかった。
+2. `docker ps`（開発コンテナの中）に `docunavi-db` `docunavi-api` `docunavi-frontend` `docunavi-docker-proxy` が出る。
+   **結果:** 5 つとも出た（db・frontend・proxy は healthy、frontend だけが 5173 番を公開）。ホストの `docker volume ls` で名前が増えていないかは未確認（プロキシはボリュームを見せない）。
+3. **`echo "${CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT:+設定あり}" "$DOCKER_HOST"`（値は出さない）で、閲覧専用の固定とプロキシの接続が効いている。**
+   **結果:** どちらも効いている。`containerEnv` と `environment` のどちらが効いたかは分からない（結果は同じ。両方に置いたまま残す）。
+4. `~/.claude`（履歴・メモリ・MCP の登録）、`gh auth status`、`gcloud auth list` が残っている。
+   **結果:** 残っていた（メモリ 19 ファイル、gh・gcloud のログイン）。5 つのボリュームは以前と同じ名前でマウントされていた。
+5. 実キーの `.env` で db が空のとき、api は起動に失敗して再起動を繰り返し、開発コンテナの作成は止まらない。
+   **結果:** api は `unhealthy`（ログは `relation "documents" does not exist`）。frontend は起動して healthy（`service_started` への上書きが効いた）。
+   開発コンテナからは `docunavi-api:8000` と `docunavi-frontend:5173` に届かない（設計どおり）。
+6. ホストで `docker compose up -d` を同じプロジェクト（`docunavi`）に対して実行しても衝突しない。**未確認**（ホストで `docker compose ls` も見る）。
+7. 未確認: ウィンドウを閉じたときの `stopCompose`、作成時のプロジェクト名が `docunavi` になること（`_devcontainer` が付かないこと。コンテナ名が固定なので、中からは区別できない）。
+   `remoteUser: vscode` と features（node・python）の組み合わせは、`vscode` ユーザーで開けたので動いている。
 
 ### Container Tools が要求する API を調べる
 
