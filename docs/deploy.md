@@ -644,7 +644,8 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
   （この手順は `--no-traffic` を明示するので影響しない）/ Supabase のワイルドカードで、ログインがタグ付き URL に戻ること（2026-10-21 は、タグ付き URL でのログインをせず、昇格のあとに本番の URL で確かめた）/ タグの名前の長さの上限。
   確認済み: タグ付き URL が認証なしで届くこと（2026-10-21）。
 - **Gemini の 503（`This model is currently experiencing high demand`）で質問が 502 になることがある。** 新しいリビジョンの不具合ではない（2026-10-21、昇格の直後に 1 回。数分あけて再送したら 200 で 14 秒）。
-  429 ではないので有料キーへの切り替えは働かず、`GEMINI_FALLBACK_MODEL` は本番で未設定のため別モデルにも切り替わらない（[configuration.md](configuration.md) の「主モデルが落ちたとき」）。
+  429 ではないので有料キーへの切り替えは働かず、この時点では `GEMINI_FALLBACK_MODEL` が本番で未設定だったため、別モデルにも切り替わらなかった。
+  同じ日のあとで有効にした（リビジョン `docunavi-00011-vuy`。[configuration.md](configuration.md) の「検証の状況」）。
   確認で 502 が出たら、まずログのコンテナログの例外（`503 UNAVAILABLE` か）を見て、アプリの問題と切り分ける。
 
 ### 実際に通った記録（2026-10-21）
