@@ -14,7 +14,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
-| Docker | ホスト側で `docker compose up --build`（開発コンテナ内には Docker が無い）。`db`（ローカルの Postgres。pgvector 入り。`internal` のネットワークだけ・ポート非公開・空で始まる）、`api`（ポート非公開。`DATABASE_URL` は `.env` ではなく `db` に固定。8000 番は `docker-compose.api-port.yml` を重ねたときだけ 127.0.0.1 に公開）、画面の開発サーバー `frontend`（Vite。:5173）が別コンテナ。実キーでは、資料を `db` に取り込むまで `api` が起動に失敗する。3 サービスの起動・healthy・`localhost:5173/health` はホストでモックモードで確認済み（2026-10-22）。未確認: 実キーでの起動、資料の取り込み、`api` から Gemini への到達。`frontend` のホットリロード・SSE のプロキシ越しの逐次配信は、2 サービス構成で確認済み（2026-10-21）。Compose の `frontend` からの Google ログインの戻りは未検証。記録は [docs/development.md](docs/development.md) |
+| Docker | 開発コンテナは Compose ベースで、開くと `db` `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`。2026-10-22 に再ビルドを確認。`dev` は `docunavi-dev` だけで `api`・`db` に直接届かない）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`db`（ローカルの Postgres。pgvector 入り。`internal` のネットワークだけ・ポート非公開・空で始まる）、`api`（ポート非公開。`DATABASE_URL` は `.env` ではなく `db` に固定。8000 番は `docker-compose.api-port.yml` を重ねたときだけ 127.0.0.1 に公開）、画面の開発サーバー `frontend`（Vite。:5173）が別コンテナ。実キーでは、資料を `db` に取り込むまで `api` が起動の検査に失敗して unhealthy のまま止まる（`--reload` なので落ちない。開発コンテナの作成は止まらない。取り込み後は `docker compose restart api`。2026-10-22 に取り込み済みで healthy）。3 サービスの起動・healthy・`localhost:5173/health` はホストでモックモードで確認済み（2026-10-22）。未確認: `api` から Gemini への到達（質問への実際の回答）、ホストの `docker compose` との重なり、`stopCompose`。`frontend` のホットリロード・SSE のプロキシ越しの逐次配信は、2 サービス構成で確認済み（2026-10-21）。Compose の `frontend` からの Google ログインの戻りは未検証。記録は [docs/development.md](docs/development.md) |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
@@ -47,13 +47,11 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - **LLM の呼び出しは不安定になりうる。** 遅い呼び出しは待たずに追加の試行を投げ（ヘッジ）、最初の成功を採る。追加の試行はトークンを増やし、
   モデルの変更も料金と品質に響くので、変える前に確認する。`/chat/stream` は「最初のチャンクが届いた試行」を採り、採った後は別の試行へ切り替えない
   （送った本文と食い違うため）。数値と環境変数は `docs/configuration.md` の「LLM の遅延・失敗への対処」。
-- **別モデルへのフォールバックは任意で、既定は無効**（`GEMINI_FALLBACK_MODEL`）。429 と 400/401/403/404 では試さない。主モデルを飛ばす記憶は、
+- **別モデルへのフォールバックは任意で、既定は無効**（`GEMINI_FALLBACK_MODEL`。**本番では 2026-10-21 から `gemini-3.5-flash-lite` で有効**。コードの既定は無効のまま）。429 と 400/401/403/404 では試さない。主モデルを飛ばす記憶は、
   同じ質問の中（`AgentState.fallback_used`。`guard_input` が毎ターン戻す）と、プロセス内のブレーカー（**主モデルが実際にエラーを返したときだけ**開き、遅いだけでは開かない）。
   グラフは `lru_cache` で使い回されるので、リクエスト単位の状態は、グラフの状態か呼び出しごとのオブジェクトに置く。
-  **本番では 2026-10-21 から有効**（`gemini-3.5-flash-lite`。コードの既定は無効のまま）。実 API で、主モデルで始めた会話（thought signature を含む履歴）を、
-  ターンをまたいで両方向（3.1→3.5、3.5→3.1）と、質問の途中で 3.1→3.5 に替える形で続けられることを確かめた（400 なし）。ただし偽のツール・短い履歴・HTTP 以外の経路での確認で、
-  質問の途中で 3.5→3.1 に替える形は未確定。**未確認:** 実際に切り替わった回、取り消した試行の課金、本物の検索結果・長い履歴・HTTP 経由、切り替えた回の回答の品質。
-  詳細は `docs/configuration.md` の「主モデルが落ちたとき（フォールバック）」の「検証の状況」。
+  **未確認:** 実際に切り替わった回、取り消した試行の課金、本物の検索結果・長い履歴・HTTP 経由での引き継ぎ、切り替えた回の回答の品質
+  （履歴の引き継ぎは偽のツール・短い履歴の実 API で確認）。詳細は `docs/configuration.md` の「主モデルが落ちたとき（フォールバック）」の「検証の状況」。
 - **有料キーへの切り替えは任意で、既定は無効**（`GEMINI_API_KEY_PAID`）。無料キーが **429 で尽きた** ときだけ、同じモデルを有料キーで 1 回試す（LLM と質問の埋め込みの両方）。
   キーの値はログに出さない。本番には配備済みで、有料キーでの実 API の呼び出しも確認済み。**未確認:** 本物の 429 での切り替えと 60 秒の保持。詳細と配備の状態は `docs/configuration.md` の「無料キーが 429 のとき」。
 - **`temperature` は指定しない。** Gemini 3 系は既定の 1.0 が公式の推奨で、`gemini-3.5-flash-lite` は指定を無視する。`tests/test_llm_config.py` が確かめる。
