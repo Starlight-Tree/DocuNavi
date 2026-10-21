@@ -5,6 +5,11 @@
 # トークンはファイルにもログにも書かない。失敗したときは、秘密を含まない理由を標準エラーに出して、非ゼロで終わる。
 set -uo pipefail
 
+if ! command -v gcloud >/dev/null 2>&1; then
+  echo "mcp-auth-header: gcloud が見つかりません（開発コンテナの導入が終わっていない可能性があります）" >&2
+  exit 1
+fi
+
 if ! token=$(env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud auth print-identity-token 2>/dev/null) || [ -z "$token" ]; then
   echo "mcp-auth-header: gcloud の ID トークンを取得できません（gcloud auth login が要る可能性があります）" >&2
   exit 1
