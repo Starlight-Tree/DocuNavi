@@ -282,7 +282,7 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 **状態（2026-10-21 JST 夜）: 動いた。** プロキシは `healthy`、開発コンテナから `docker ps` が通り、inspect・exec・rm・info・images は拒否された。
 最初の起動は、プロキシが OrbStack のソケット（`root:root 0660`）を開けず再起動を繰り返した（`group_add: ["0"]` で直した）。
 **`docker logs` と `docker compose ps/logs` は使えない**（CLI が先に inspect を呼ぶため。下の「許可するもの」）。ログは `scripts/dlogs.sh` で読む。
-未確認: Container Tools の画面（検証 7）、拒否の記録の形式。
+Container Tools の画面は、一覧が見える（検証 7）。未確認: コンテナの詳細の表示、拒否の記録の形式。
 
 開発コンテナの VS Code（Container Tools）とエージェントから、OrbStack 上の `docunavi-api` と `docunavi-frontend` の状態・ログを**見るだけ**にするための構成です。
 ホストの Docker ソケットは、開発コンテナに渡しません（ソケットを持つ＝ホストの root とほぼ同じため）。
@@ -332,7 +332,10 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 6. 再ビルドしても、`~/.claude`（会話の履歴・MCP の登録）、`~/.gh-config`（`gh auth status`）、`~/.config/gcloud`（`gcloud auth list`）が残っていること。
    **結果:** 3 つとも残っていた（`${devcontainerId}` が変わらないことは、これで確認とした）。
 7. Container Tools の画面に、コンテナが見えること。**inspect を拒否されて欠ける表示**（コンテナの詳細、環境変数など）を記録する。許可を広げるかは、記録を見てユーザーが決める。
-   **結果:** 未確認（ユーザーが画面で見る）。CLI と同じく inspect を呼ぶ画面は欠けると予想している。
+   **結果:** 一覧は見える（ユーザーが画面で確認、2026-10-21 JST）。Containers に `docunavi-dev-proxy`（Compose プロジェクト。中にプロキシ）、Individual Containers に開発コンテナと別プロジェクトのコンテナ。
+   Images と Volumes は "Failed to connect. Is Docker running? Error response from daemon: Forbid…" と出る（`/images` と `/volumes` が許可リストに無いため。想定どおり）。
+   OrbStack 上のすべてのコンテナが見えるのも、「限界」のとおり。未確認: コンテナを開いたときの詳細の表示。
+   開発コンテナの名前は、自動の `vsc-docunavi-<ハッシュ>` だと見分けにくいので、`runArgs` の `--name=docunavi-devcontainer` で固定した（再ビルドで反映）。
 
 ### Container Tools が要求する API を調べる
 
