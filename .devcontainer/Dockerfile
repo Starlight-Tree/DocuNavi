@@ -19,3 +19,12 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     && apt-get install -y --no-install-recommends google-cloud-cli \
     && rm -rf /var/lib/apt/lists/* \
     && gcloud --version
+
+# Docker の CLI と Compose（docker compose のプラグイン）。Debian 13 のパッケージで、ソケットもデーモンも含まない。
+# 接続先は DOCKER_HOST（devcontainer.json）の読み取り専用プロキシだけ（.devcontainer/README.md の「開発環境の Docker」）。
+RUN export DEBIAN_FRONTEND=noninteractive \
+    && apt-get update -y \
+    && apt-get install -y --no-install-recommends docker-cli docker-compose \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker --version \
+    && docker compose version
