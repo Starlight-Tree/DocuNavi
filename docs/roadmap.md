@@ -32,7 +32,7 @@
 | 4 | 4b 自動化 | **最初の版は済み（2026-10-21）。** R2 を毎時に見て、新しい PDF を取り込み・埋め込む整合の Job（`docunavi-ingest-sync`）と Cloud Scheduler（`docunavi-ingest-sync-hourly`、毎時 0 分 JST）。Scheduler の自動実行、新しい PDF が検索に出ること、壊れた PDF が失敗として記録され他を止めないことを、本番で確認した。設計は [r2-ingest-design.md](r2-ingest-design.md)。R2 のイベント通知 → Queue にする第 2 版は、見送り中 |
 | 6 | GraphRAG など（条件付き） | 関係をたどる質問や、複数の資料にまたがる質問が多いと分かってから検討する。それまでは見送り |
 | 7 | Vercel でフロント分離（段階 5） | 最後 |
-| 8 | MCP ツール化（将来の拡張） | Cloud Run に自作の MCP サーバーを置き、資料への質問をエージェントから使えるツールにする。認証は IAM と `--no-allow-unauthenticated` を基本にする。Cloud Run 自体を MCP で操作する（デプロイ・ログ確認）のは、必要になってから。Cloud Run が MCP のサーバーをどの方式で載せられるかは、着手するときに公式で確認する（未確認） |
+| 8 | MCP ツール化 | **最初の版は済み（2026-10-21）。** 資料の検索 `search_documents`（読み取り専用。「資料への質問」ではなく検索）を、別の Cloud Run サービス `docunavi-mcp`（非公開、`run.invoker` は利用者本人だけ、読み取り専用ロールの DB URL）に置いた。Claude Code から `headersHelper`（`scripts/mcp-auth-header.sh`）でプロキシなしに直接つなぎ、実際の検索が通ることと、コンテナの再ビルド 1 回で手作業なしに再接続することを確かめた（無料キーで各 1 回）。設計・経緯・見方は [mcp-tool-design.md](mcp-tool-design.md)。**未確認:** ID トークンの期限切れ後の自動復旧、再ビルドを重ねたときの安定、予算ガードの対象に入るか。Cloud Run 自体を MCP で操作する（デプロイ・ログ確認）のは、必要になってから |
 
 - 検索の品質は、資料が少ないうちは、ハイブリッド検索より先にチャンクの分け方と `TOP_K` を見る。実際に、関係の薄い 2 件目のチャンクが出典に出た例がある（`TOP_K` は 2、入寮規程の PDF は 3 チャンク）。
 - 段階 3（Cloudflare）は、自分のドメインを持ったときに、順序を問わず入れる。
