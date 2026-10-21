@@ -21,7 +21,9 @@ export default defineConfig(({ mode }) => {
       sourcemap: false,
     },
     server: {
-      host: '127.0.0.1',
+      // 既定は手元だけ（開発コンテナのポート転送もこれで届く）。Compose のコンテナ内では
+      // 外から届くよう VITE_DEV_HOST=0.0.0.0 を渡す（docker-compose.yml の frontend）
+      host: process.env.VITE_DEV_HOST || '127.0.0.1',
       proxy: {
         '/chat': proxy,
         '/health': proxy,

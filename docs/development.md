@@ -64,7 +64,9 @@ pytest
 GitHub Actions（`.github/workflows/ci.yml`）が、`main` へのプッシュと PR で、バックエンドのテスト（Python 3.12）、
 フロントエンドのテストとビルド、Docker イメージのビルドと起動確認（`/health`・画面・`/chat`）を行います。デプロイは含みません。
 **`docker compose up` は CI では確かめていません**（CI は `docker build` したイメージを `docker run` するだけ）。compose 固有の部分（`docker-compose.yml` のボリューム
-`./app`・`./storage:ro`、`--reload`、ヘルスチェック、`.env` の読み込み）は、開発コンテナに Docker が無いので、**ホスト側で次のとおり確かめてください（未実施）**:
+`./app`・`./storage:ro`、`--reload`、ヘルスチェック、`.env` の読み込み）は、開発コンテナに Docker が無いので、ホスト側で次のとおり確かめます。
+**2026-10-21 にホスト側（OrbStack）で確かめたのは、`api` が healthy になること、`/health` の応答、`--reload` の反応、`.env` の実キーでの `/chat/stream`（直接 `localhost:8000`）です。**
+`localhost:8000/` の 200 と `POST /chat` は、この回では実行していません:
 
 ```bash
 docker compose up --build -d                       # .env が無ければモックモード
@@ -77,6 +79,34 @@ docker compose logs --tail 30 api                  # Traceback や起動失敗�
 touch app/main.py && sleep 3 && docker compose logs --tail 5 api   # --reload が反応する（ホスト↔コンテナの変更通知。Docker Desktop では WATCHFILES_FORCE_POLLING が効く）
 docker compose down                                # 終わったら止める
 ```
+
+`frontend` サービス（Vite の開発サーバー。`api` が healthy になってから起動する。これは起動順の制御だけで、あとで `api` が落ちても `frontend` は再起動しない。`docker-compose.yml`）も、ホスト側で次のとおり確かめます。上の `api` の確認に加えて:
+
+```bash
+docker compose config > /dev/null                  # 構文と変数の展開が通る
+docker compose up --build                          # frontend が起動する（初回は npm install。healthy まで数十秒〜1 分）
+docker compose ps                                  # docunavi-api と docunavi-frontend が healthy
+curl -s -o /dev/null -w '%{http_code}\n' localhost:5173/          # 200（Vite の画面）。up -d の直後は npm install 中で 000 になる
+curl -s localhost:5173/health                      # api の /health がそのまま返る（Vite のプロキシ → api:8000）
+touch frontend/src/main.tsx && docker compose logs --tail 5 frontend   # ホットリロードが反応する（効かなければ CHOKIDAR_USEPOLLING）
+docker compose restart frontend && docker compose ps                  # frontend だけ再起動しても api は動き続ける
+```
+
+**検証の記録（2026-10-21、ホスト側。OrbStack の `docker compose`）**
+
+- 確認済み: `docker compose config` が通る / `api` と `frontend` の両方が healthy / `localhost:5173/` が 200 / `localhost:5173/health` が `api` の応答を返す（Vite のプロキシ → `api:8000`）/
+  ホットリロード（`frontend/src/main.tsx` の更新で `page reload`）/ `api` の `--reload` / `frontend/package-lock.json` が変わらない（`git status --short` が空）。
+- SSE: Vite のプロキシ越しの `/chat/stream` が、チャンクを逐次に届けることを確かめた（画面からの `fetch` と、Python の `http.client` で各チャンクの到着時刻を測るスクリプトの 2 通り。
+  実キーの実 API を、短い質問と長い質問で合計 3 回）。プロキシ経由は最初のバイトまで 22.4 秒で 13 チャンクが約 1.25 秒に分かれて届き、`api` に直接つなぐと 31.0 秒で 21 チャンクが約 1.36 秒だった。
+  **この 22.4 秒と 31.0 秒の差は、プロキシの効果ではない**（別々の LLM 呼び出しで、バックエンドの待ちがばらつくだけ）。言えるのは、プロキシが SSE をバッファして一括にしない、待ちを増やしていない、まで。
+- 未検証: 人の目で見たときの、長い回答の表示の感触 / Google ログインが Compose の `frontend` から戻ってくること（`frontend/.env.local` をマウントするので、画面にはログイン画面が出る。`api` は `AUTH_MODE=off` のまま）/
+  `docker compose down` 時の SIGTERM の扱い（`sh -c` 経由。必要なら `init: true`）。
+- 停止（`time docker compose down`）: 合計 10.8 秒。`api` は 0.3 秒、`frontend` は 10.2 秒だった。
+  `frontend` の 10 秒は Compose の既定の停止猶予（10 秒）にちょうど当たるので、SIGTERM で終わらず、猶予のあとに SIGKILL で止まった可能性が高い（`sh -c` が SIGTERM を子の Vite へ渡さないため、と推測。未確認）。
+  開発用なので実害は無く、今回の合格条件には含めない。直すなら `docker-compose.yml` の `frontend` に `init: true`（または `command` を `exec` にする）を足して、`down` が数秒で終わるかを確かめる。
+
+`frontend/package-lock.json` と `package.json` が合っていないと、`npm install` がロックを書き換えます（`git status` で確かめる）。
+`node_modules` は名前付きボリューム `frontend_node_modules` にあります。壊れたら `docker compose down -v` で消えます（`-v` は他のボリュームも消す）。
 
 `.env` に実キーがあると、compose のコンテナは本物の LLM と DB に接続します（`DATABASE_URL` と `GEMINI_API_KEY` が必須。揃わなければ起動に失敗します）。
 モックモードだけで確かめるなら、`.env` を一時的に別名にするか、別のディレクトリで実行します。結果（`docker compose ps` と `/health` の出力）を教えてもらえれば、確認済みとして記録します。
