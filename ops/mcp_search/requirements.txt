@@ -1,0 +1,2 @@
+# アプリの requirements.txt に足す分（Dockerfile が両方を 1 回の pip install に渡す）。アプリ側には足さない
+mcp==1.30.0
