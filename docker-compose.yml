@@ -1,11 +1,37 @@
 services:
+  # 資料の検索と会話履歴用のローカル Postgres（pgvector 入り。本番の Supabase とは別）。
+  # ホストにポートを公開せず、internal の backend-net（外へも出られない）にだけ置く。api からだけ db:5432 で届く。
+  # 空の状態で始まる。資料の取り込みと埋め込みは、api が healthy になってから別に行う（docs/development.md の「ローカルの db」）。
+  db:
+    image: pgvector/pgvector:0.8.7-pg17
+    container_name: docunavi-db
+    environment:
+      POSTGRES_DB: docunavi
+      POSTGRES_PASSWORD: "${LOCAL_DB_PASSWORD:-docunavi-local}"
+      # db/local-init/01-bootstrap.sh が chatbot_app のパスワードに使う
+      APP_DB_PASSWORD: "${LOCAL_DB_PASSWORD:-docunavi-local}"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # pg-data が空の初回の起動でだけ実行される（ロール・スキーマ・vector 型の「入れ物」だけ。テーブルは作らない）
+      - ./db/local-init:/docker-entrypoint-initdb.d:ro
+      # マイグレーションを db の中から psql で適用するため（手順は docs/development.md）。起動時には実行されない
+      - ./db/migrations:/migrations:ro
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d docunavi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
   api:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: docunavi-api
-    ports:
-      - "8000:8000"
+    # ポートは公開しない。画面は frontend（:5173）のプロキシ経由で使う。8000 番を確かめたいときは docker-compose.api-port.yml を重ねる
     env_file:
       # .env が無くても起動できる（その場合は GEMINI_API_KEY 未設定 = モックモード）
       - path: .env
@@ -13,6 +39,15 @@ services:
     environment:
       # ホスト↔コンテナ間のボリュームでファイル変更通知が届かない環境（Docker Desktop 等）向け
       WATCHFILES_FORCE_POLLING: "true"
+      # .env の DATABASE_URL（本番と同じ DB のことがある）は使わず、compose の db に向ける（environment は env_file より優先される）。
+      # ロールは db/local-init/01-bootstrap.sh が作る chatbot_app。パスワードに URL で特別な文字（@ : / など）は使えない
+      DATABASE_URL: "postgresql://chatbot_app:${LOCAL_DB_PASSWORD:-docunavi-local}@db:5432/docunavi"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - frontend-net
+      - backend-net
     volumes:
       # app/ の親が /code になるため `app.main:app` のモジュールパスが保たれ、
       # tools.py の ../../storage/pdf も /code/storage/pdf に解決される。
@@ -40,6 +75,8 @@ services:
         condition: service_healthy
     ports:
       - "5173:5173"
+    networks:
+      - frontend-net
     environment:
       VITE_DEV_HOST: "0.0.0.0"
       VITE_DEV_PROXY_TARGET: "http://api:8000"
@@ -61,5 +98,15 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+# frontend-net: frontend と api（api は Gemini など外へも出る。frontend は npm install で外へ出る）。
+# backend-net: api と db だけ。internal なので、db は外へ出られず、ホストからも届かない。
+networks:
+  frontend-net:
+    name: docunavi-frontend-net
+  backend-net:
+    name: docunavi-backend-net
+    internal: true
+
 volumes:
   frontend_node_modules:
+  pg-data:

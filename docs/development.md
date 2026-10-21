@@ -109,8 +109,37 @@ docker compose restart frontend && docker compose ps                  # frontend
 `frontend/package-lock.json` と `package.json` が合っていないと、`npm install` がロックを書き換えます（`git status` で確かめる）。
 `node_modules` は名前付きボリューム `frontend_node_modules` にあります。壊れたら `docker compose down -v` で消えます（`-v` は他のボリュームも消す）。
 
-`.env` に実キーがあると、compose のコンテナは本物の LLM と DB に接続します（`DATABASE_URL` と `GEMINI_API_KEY` が必須。揃わなければ起動に失敗します）。
+`.env` に実キー（`GEMINI_API_KEY`）があると、compose の `api` は本物の LLM で動き、資料の検索には下の「ローカルの db」が要ります（資料が入っていなければ起動に失敗します）。
 モックモードだけで確かめるなら、`.env` を一時的に別名にするか、別のディレクトリで実行します。結果（`docker compose ps` と `/health` の出力）を教えてもらえれば、確認済みとして記録します。
+
+**ローカルの db（2026-10-22 に構成を変更。モックモードの起動はホスト側で確認済み。資料の取り込みと実キーでの動作は未確認）**
+
+- 構成: `db`（`docunavi-db`。`pgvector/pgvector:0.8.7-pg17`）、`api`（`docunavi-api`）、`frontend`（`docunavi-frontend`）。ネットワークは `docunavi-frontend-net`（`frontend` と `api`）と
+  `docunavi-backend-net`（`api` と `db`。`internal: true` で、`db` は外へも出られず、ホストからも届かない）。ボリュームは `pg-data`（`db` のデータ）と `frontend_node_modules`。
+  `api` と `db` はホストにポートを公開せず、公開するのは `frontend` の 5173 番だけです。起動順は `db` → `api` → `frontend`（どれも `condition: service_healthy`）。
+- **`api` の `DATABASE_URL` は、`.env` の値ではなく compose の `db` に固定されます**（`docker-compose.yml` の `environment` が `env_file` より優先される）。本番の DB には、compose からは届きません。
+  パスワードは `LOCAL_DB_PASSWORD`（省略すると `docunavi-local`。ローカルだけの値で、`db` はポートを公開しない）。
+- `db` は空で始まります。`pg-data` が空の初回の起動で、`db/local-init/01-bootstrap.sh` が入れ物だけを作ります（`extensions` スキーマと `vector` 型、ロール `chatbot_app`、スキーマ `chatbot`）。テーブルと資料は作りません。
+- **このため、`.env` に実キーがある状態で `docker compose up` すると、`api` は「検索できる資料が DB にありません」で起動に失敗し、`frontend` も起動しません**（`api` が healthy にならないため）。
+  先に資料を入れるか、モックモード（`.env` を別名にする）で起動します。
+- 資料を入れる手順（**未実行。最後の埋め込みは Gemini の実 API を呼ぶので課金される。実行する前に承認を取る**）。`api` が起動している必要はなく、`docker compose run --rm api …` でも同じです:
+  1. `docker compose up -d db`
+  2. テーブル: `docker compose run --rm api python -m app.ingestion --apply`（`--apply` なしは確認だけ）
+  3. 埋め込み用の列: `docker compose exec db psql -U postgres -d docunavi -f /migrations/0001_pgvector_embeddings.sql`、続けて `0002`・`0003`・`0005`（`0004` は pgroonga で、ローカルには入れない）
+  4. 埋め込み（実 API）: `docker compose run --rm api python -m app.ingestion.embed --apply`
+  3 の `psql` は `postgres` ロール（所有者の `chatbot_app` ではない）で実行するので、テーブルの所有者が違っても列は足せます。ただし、この順序と各 SQL がローカルで通ることは、まだ確かめていません。
+- **`docker compose down -v` は `pg-data` も消します**（埋め込みの作り直しは実 API を呼ぶ）。`node_modules` だけ消したいときは `docker volume rm docunavi_frontend_node_modules`（先に `docker compose down`）。
+- `api` の 8000 番を確かめたいとき（ビルド済みの画面配信・`curl`）: `docker compose -f docker-compose.yml -f docker-compose.api-port.yml up -d`。8000 番は `127.0.0.1` にだけ公開されます。
+  上のコマンド例の `localhost:8000` は、この上書きを重ねたときの話です（`frontend` の 5173 番経由なら、`localhost:5173/health` などが `api` に届きます）。
+- **確認済み（2026-10-22、ホスト側。`.env` を別名にしたモックモード）:** `docker compose config` が通る / 空の `pg-data` からの初回の起動で、初期化スクリプトが通る
+  （`CREATE SCHEMA`・`CREATE EXTENSION`・`CREATE ROLE`・`CREATE SCHEMA`・`ALTER ROLE`・`GRANT` がログに出る。Postgres 17.11）/ `db`・`api`・`frontend` の 3 つが healthy になる（`db` → `api` → `frontend` の順）/
+  `api` が `internal` の `backend-net` 越しに `db` へ届く（起動ログに「会話履歴の保存先: Postgres」）/ `localhost:5173/health` が `{"status":"ok","mode":"mock","history":"postgres"}` を返す
+  （Vite のプロキシ → `api:8000` → `db`）/ `docker compose ps` で公開されているのは `frontend` の 5173 番だけ（`api` と `db` は `8000/tcp`・`5432/tcp` の表示だけで、ホストには出ない）/
+  `docker compose down` なしの 2 回目の起動（`pg-data` が残る状態）でも、3 つが healthy になる（`docker compose up -d` のあと 20 秒）。
+- 未確認: 実キー（本物の LLM）での起動 / `api` が Gemini に届くこと（`frontend-net` 経由。モックモードでは呼ばない）/ `db` が `internal` で外へ出られないこと（出られないことの実測はしていない）/
+  `docker-compose.api-port.yml` を重ねた起動 / 上の資料の取り込みの手順と SQL / `frontend` の SIGTERM の扱い。
+- `docker compose down`（2026-10-22、ホスト側。`-v` なし）: 3 つのコンテナと 2 つのネットワークが消え、`pg-data` は残る。`db` は 0.2 秒、`api` は 0.4 秒、`frontend` は 10.2 秒。
+  `frontend` が Compose の既定の停止猶予（10 秒）にちょうど当たるのは 2026-10-21 の記録と同じで、SIGTERM で終わっていない可能性が高い（未確認。実害はなく、直すなら `init: true` か `exec`）。
 
 アクションのコミット SHA 固定は、Dependabot（`.github/dependabot.yml`）が週次で更新の PR を出します（公開から 7 日待ちます）。手動実行もできます（`workflow_dispatch`）。
 

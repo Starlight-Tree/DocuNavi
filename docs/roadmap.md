@@ -47,7 +47,7 @@
   改善案は、検索開始・検索完了・生成開始の `status` イベントを先に送り、画面に「検索中…」「生成中…」を出すこと。**トレードオフ:** 今は、最初の本文の前の失敗を `/chat` と同じ HTTP ステータス（429・504 など）で返せる。先に SSE を始めると、ステータスはあとから変えられないので、早い段階の失敗も `error` チャンクで返すことになる。
   画面のエラー処理と、`/chat` との失敗の扱いの整合を、設計で確かめる（`CLAUDE.md` の「切断は失敗ではない」の方針を見直す変更）。着手していない。
 - **開発コンテナまわりの完成形の構想**（2026-10-21、別の会話で整理して利用者が記録を頼んだもの。**未着手・順序表には入れない**。急がず、必要になってから段階的に進める）。
-  いまは、開発コンテナ（`docunavi-devcontainer`）と読み取り専用の Docker プロキシ（`docunavi-docker-proxy`）の 2 つがネットワーク `docunavi-dev` にあり、`api` と `frontend` はホストで `docker compose up` したときだけ動く。
+  着手前（2026-10-21）は、開発コンテナ（`docunavi-devcontainer`）と読み取り専用の Docker プロキシ（`docunavi-docker-proxy`）の 2 つがネットワーク `docunavi-dev` にあり、`api` と `frontend` はホストで `docker compose up` したときだけ動く、という形だった。
   構想は、これを 5 つのコンテナと 3 つのネットワークにする形。
   - コンテナ: `docunavi-devcontainer`、`docunavi-docker-proxy`、`docunavi-api`（:8000）、`docunavi-frontend`（:5173、ホストに公開）、`docunavi-db`（Postgres。ローカルかステージングの DB を、アプリ用に置く）。
   - ネットワーク: `docunavi-dev`（開発コンテナ・プロキシ）、`docunavi-frontend-net`（frontend・api）、`docunavi-backend-net`（api・db。`internal: true`）。
@@ -57,7 +57,12 @@
     **すでにできていること（効果として数えない）:** `docker compose up` 1 回での `api`・`frontend` の起動、ヘルスチェックと `depends_on: condition: service_healthy` による起動順。
     **増えるもの:** コンテナ（2→5）、ネットワーク（1→3）、ローカル DB のスキーマ・pgvector・マイグレーションの管理、空のローカル DB へ資料を入れ直す取り込みと埋め込み（`python -m app.ingestion` と `.embed`。実 API を呼ぶ）。
     チーム開発への対応や費用の削減は、このリポジトリでは根拠が無いので、メリットに数えない。
-  - **決まっていないこと:** `db` はローカルの Postgres かステージングか。`api` を「内部のみ」にすると、今の `localhost:8000` の画面配信の確認ができなくなる（`frontend` 経由だけになる）ので、扱いを決める。本物の LLM を使う確認の DB をどうするか。
+  - **決めたこと（2026-10-22、利用者の指示）:** `db` はローカルの Postgres（pgvector 入り）。`api` は `frontend` 経由だけにし、`localhost:8000` は公開しない（ビルド済みの画面や `curl` の確認は、`docker-compose.api-port.yml` を重ねて 127.0.0.1 に公開する）。
+  **着手した範囲（2026-10-22。ホスト側でモックモードの起動まで確認済み。結果は `docs/development.md` の「ローカルの db」）:** `docker-compose.yml` に `db`・ネットワーク 2 つ（`frontend-net`、`internal` の `backend-net`）・`pg-data` を足し、3 サービスにヘルスチェックと `service_healthy` の起動順を付けた。
+  `api` の `DATABASE_URL` は compose の `db` に固定（`.env` の値は使わない）。初期化は `db/local-init/01-bootstrap.sh`（入れ物だけ）。手順と注意は `docs/development.md` の「ローカルの db」。
+  **残り:** 実キーでの起動確認（資料の取り込みの後）/ テーブルの作成・マイグレーション・資料の取り込み・埋め込み（実 API の課金があるので、実行の前に承認を取る）/ 構想の「3 つのネットワーク」のうち `docunavi-dev`（開発コンテナ側）は従来のまま /
+  構想にあった「プロファイルで dev・prod を分ける」は未着手。**注意:** 取り込むまで、実キーの `docker compose up` は `api` の起動検査で失敗する。`docker compose down -v` は `pg-data`（埋め込み）も消す。
+  **決まっていないこと:** 本物の LLM を使う確認の DB を、いつ・どの資料から入れるか（本番と同じ資料を埋め込み直すか、一部だけか）。
 
 **受動確認（起きたときに見る。能動的には確認しない）**
 
