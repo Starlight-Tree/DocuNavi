@@ -51,7 +51,7 @@ services:
     networks:
       - dev-net
 
-  # 実キーの .env で db が空のあいだ、api は起動に失敗して再起動を繰り返し、healthy にならない。
+  # 実キーの .env で db が空のあいだ、api は起動の検査に失敗し、unhealthy のまま止まる（uvicorn --reload なので、コンテナは落ちない）。
   # service_healthy のままだと、`docker compose up -d` が frontend の待ちで失敗し、開発コンテナの作成が止まる。
   # 開発コンテナ経由の起動だけ、api が「起動した」ところまでで進める（ホストの `docker compose up` は service_healthy のまま）。
   frontend:

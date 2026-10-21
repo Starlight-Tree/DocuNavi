@@ -352,7 +352,7 @@ Container Tools の画面は、一覧が見える（検証 7）。未確認: コ
 | ボリューム | 名前は今のまま（`claude-code-config-<ID>` など 5 つ）。Compose の `volumes` で名前を指定した。履歴・ログイン・トークンは引き継がれる想定 |
 | プロジェクト名 | `docker-compose.yml` の `name: docunavi` で固定（ホストの `docker compose up` と同じコンテナ・ボリュームを使う） |
 | 閉じたとき | `shutdownAction: stopCompose`。ウィンドウを閉じると dev・db・api・frontend が止まる（`down` ではない。`pg-data` は残る） |
-| api が失敗するとき | 実キーの `.env` で db が空だと、api は起動に失敗して再起動を繰り返す。開発コンテナ経由の起動だけ、`frontend` の待ちを `service_started` に緩めて、作成が止まらないようにした。資料を取り込むまで api は healthy にならない |
+| api が失敗するとき | 実キーの `.env` で db が空だと、api は起動の検査に失敗する（`uvicorn --reload` なので、コンテナは落ちず `unhealthy` のまま止まる。再起動はされない）。開発コンテナ経由の起動だけ、`frontend` の待ちを `service_started` に緩めて、作成が止まらないようにした。資料を取り込み、`docker compose restart api` するまで api は healthy にならない（2026-10-22 に取り込み済み。healthy を確認） |
 
 **再ビルドの前（ホストで）:** 古い Dockerfile ベースのコンテナを消す。名前が衝突するため。ボリュームは消えない（`-v` を付けない）。
 `docker rm -f docunavi-devcontainer`。
@@ -366,7 +366,7 @@ Container Tools の画面は、一覧が見える（検証 7）。未確認: コ
    **結果:** どちらも効いている。`containerEnv` と `environment` のどちらが効いたかは分からない（結果は同じ。両方に置いたまま残す）。
 4. `~/.claude`（履歴・メモリ・MCP の登録）、`gh auth status`、`gcloud auth list` が残っている。
    **結果:** 残っていた（メモリ 19 ファイル、gh・gcloud のログイン）。5 つのボリュームは以前と同じ名前でマウントされていた。
-5. 実キーの `.env` で db が空のとき、api は起動に失敗して再起動を繰り返し、開発コンテナの作成は止まらない。
+5. 実キーの `.env` で db が空のとき、api は起動の検査に失敗して `unhealthy` で止まり（再起動はされない）、開発コンテナの作成は止まらない。
    **結果:** api は `unhealthy`（ログは `relation "documents" does not exist`）。frontend は起動して healthy（`service_started` への上書きが効いた）。
    開発コンテナからは `docunavi-api:8000` と `docunavi-frontend:5173` に届かない（設計どおり）。
 6. ホストで `docker compose up -d` を同じプロジェクト（`docunavi`）に対して実行しても衝突しない。**未確認**（ホストで `docker compose ls` も見る）。
