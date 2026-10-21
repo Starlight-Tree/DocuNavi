@@ -503,6 +503,167 @@ curl -s localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"
 
 - **止める（削除）:** `as_me gcloud run services delete "$SERVICE" --project "$PROJECT_ID" --region "$REGION"`
 
+## タグ付きプレビュー（本番に流す前に、画面を専用 URL で確かめる）
+
+**実行済み（2026-10-21）。** 手順 1〜4・7 は実際に通った（記録は節の末尾の「実際に通った記録（2026-10-21）」）。
+手順 5（Supabase のワイルドカード）と、タグ付き URL でのログインの戻り（手順 6 の前半）は、確かめていない（下の「注意と未確認」）。
+フラグの名前は `gcloud run deploy --help` と `gcloud run services update-traffic --help` で確かめた。
+
+書き込みの 4 つ（ビルド・配備・昇格・ロールバック）は、`scripts/preview.sh`（`build` / `deploy <コミット> [<タグ>]` / `promote <タグ>` / `rollback <リビジョン>`）にまとめてある。
+あなたが実行する（私は実行しない）。`PREVIEW_DRY_RUN=1` を付けると、実行せずにコマンドだけ表示する。下の手順は、その中身。
+
+新しいリビジョンを 0% で作り、タグ付きの URL でだけ届くようにします。本番のトラフィックは変わりません。
+[r2-rollout.md](r2-rollout.md) の `r2-wire-stage` / `promote` / `rollback`（Job）は、R2 の環境変数とボリュームを書き換える専用なので、**この手順では使いません。**
+書き込みはすべてあなたが `as_me` で実行します。私が実行するのは、読み取り（`describe`、`curl`）だけです。
+
+```bash
+PROJECT_ID=docunavi-app; REGION=asia-northeast1; SERVICE=docunavi
+TAG="preview-$(date +%Y%m%d-%H%M)"
+IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERVICE}:$(git rev-parse --short HEAD)"
+```
+
+**`IMAGE` のコミットは、ビルドしたものに合わせる。** ビルドのあとに別のコミットを重ねると、`HEAD` は進み、`$(git rev-parse --short HEAD)` はビルドしていないイメージを指す
+（2026-10-21 は、ビルドが `dc969b9`、`HEAD` が `3d3ab79` になり、`dc969b9` を明示した）。`scripts/preview.sh` は、`build` で HEAD と一致しないコミットを拒否し、`deploy` はコミットを引数で受ける。
+
+タグは、小文字・数字・ハイフンの短い名前で、重複しないものにします（日時を入れる）。使える文字数の上限は確かめていません。
+
+### 1. 本番のリビジョン名を控える（読み取り）
+
+ロールバック先です。控えてから先へ進みます。
+
+```bash
+gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='yaml(status.traffic)'
+```
+
+`percent: 100` のリビジョン名を `PROD_REV` として控える。
+
+### 2. イメージをビルドする（あなた）
+
+「実際に通った記録」の F と同じ。公開してよい値（`VITE_SUPABASE_*`）だけを渡す。
+**`as_me` を付ける。** 日常の ID（閲覧専用の `docunavi-viewer`）では、ソースを置くバケット `docunavi-app_cloudbuild` に書けず 403 になる（2026-10-21）。
+
+```bash
+set -a; . frontend/.env.local; set +a
+as_me gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
+  --substitutions "_IMAGE=${IMAGE},_SUPABASE_URL=${VITE_SUPABASE_URL},_SUPABASE_PUBLISHABLE_KEY=${VITE_SUPABASE_PUBLISHABLE_KEY}"
+```
+
+### 3. 0% でデプロイし、タグを付ける（あなた）
+
+```bash
+as_me gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
+  --image "$IMAGE" --no-traffic --tag "$TAG"
+```
+
+- **`--set-env-vars` と `--set-secrets` を付けない。** 付けると、既存の Secret の参照（`GEMINI_API_KEY_PAID` `DATABASE_URL` など）が置き換わって消える。イメージだけを変える。
+- `--no-traffic` は、デプロイ前に `LATEST` へ向いていたトラフィックを、そのときの具体的なリビジョンに固定してから新しいリビジョンを作る（`--help` の記述）。
+  このサービスは、すでにリビジョン名で固定されている（`docunavi-00005-zl7`）ので、変わらない。以後の `LATEST` はトラフィックを受けない。
+
+### 4. 0% とタグ付き URL を確かめる（私）
+
+```bash
+gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='yaml(status.traffic)'
+```
+
+見ること: 新しいリビジョンが `tag: <TAG>` と `url: https://<TAG>---…` を持ち、`percent` が付いていない（0%）こと。`PROD_REV` が `percent: 100` のままであること。
+続けて、タグ付き URL の `/health`（`mode` が `gemini`、`history` が `postgres`）。
+
+```bash
+curl -s "https://${TAG}---<describe に出た、タグを除いたホスト名>/health"
+```
+
+サービスが公開（`allUsers`）なので、タグ付き URL も認証なしで届く（2026-10-21 に確認。`/` と `/health` が 200）。
+あわせて、新しいリビジョンの環境変数の名前と Secret の参照が、本番と同じであることを確かめる（`gcloud run revisions describe <リビジョン> --format=json` から、`env` の名前と `valueFrom` の有無だけを取り出す。値は出さない）。
+
+### 5. Supabase の Redirect URLs（初回だけ。あなた）
+
+Authentication → URL Configuration → Redirect URLs に、次を 1 行足す（画面のみ。MCP と SQL では変えられない）。
+
+```
+https://*---docunavi-xe42miq4da-an.a.run.app/**
+```
+
+- 画面は `redirectTo` に `window.location.origin` を渡す（`frontend/src/auth/supabase.ts`）ので、コードの変更は要らない。Google 側の設定も変えない（Google の戻り先は Supabase）。
+- `*` は `.` と `/` を含まない文字列に一致する（Supabase の公式）。タグには `.` が入らないので、どのタグにも一致する。**実際の URL の形は、手順 4 の `describe` の出力で確かめる**（ハッシュ付きの URL の形で出る）。
+- **サービスの URL は 2 つの形がある。** `https://docunavi-xe42miq4da-an.a.run.app`（`gcloud` が出す形。タグ付き URL もこの形）と、
+  `https://docunavi-114733761361.asia-northeast1.run.app`（プロジェクト番号の形。2026-10-21 に、本番の画面を開いていた URL）。どちらも同じサービスに届く。
+  上のワイルドカードは前者のタグ付き URL にだけ一致する。後者の形でログインを確かめるなら、`https://*---docunavi-114733761361.asia-northeast1.run.app/**` も要る（未登録・未確認）。
+- 本番の Redirect URLs は `docs/deploy.md` の「実際に通った記録」の 8 のとおり、正規の URL 1 つ。ハッシュ付きの URL を本番の入口にしない方針は変えない。タグ付き URL は確認専用。
+- 登録後、手順 6 でログインがタグ付き URL に戻ることを確かめる。戻らない（Site URL に飛ぶ）なら、登録した文字列と実 URL を見比べる。
+
+### 6. 画面で確かめる（あなた）
+
+タグ付き URL をブラウザーで開く。
+
+- Google ログインがタグ付き URL に戻り、質問が 1 つ通る。
+- **SSE:**
+  - 回答が逐次表示される（最初の本文までは 22〜31 秒かかることがある。[roadmap.md](roadmap.md)。そのあとは約 1.3 秒で流れる）。
+  - 回答の途中でタブを閉じる・停止すると、サーバーが続きを取り残さない（ログに `499` 相当の INFO。ERROR にならない）。
+  - 90 秒（`--timeout`）を超える質問で、`error` チャンクの固定メッセージになり、画面が固まらない。
+- 修正した画面（今回変えた箇所）の見た目と動き。
+
+ログ（私が読む）: `gcloud run services logs read "$SERVICE" --project "$PROJECT_ID" --region "$REGION"`。
+
+### 7. 本番へ移す（承認してから。あなた）
+
+```bash
+as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --to-tags "$TAG=100"
+```
+
+このタグのリビジョンが、本番の 100% を受け持つ。移したあと、私が `describe` と本番の `/health` を読む。
+
+**移したあとの状態（2026-10-21 に確認）:** 100% は、そのタグのリビジョン（`status.traffic` に `tag` 付きで残る）に固定される。`LATEST` は受けない。
+以前のリビジョン（`r2prev` `r2new`）は 0% でタグ付きのまま残る。次に配備するときは、先に `describe` で `status.traffic` を読み、
+**通常の（`--no-traffic` なしの）`gcloud run deploy` や `services update` が、新しいリビジョンへ 100% を移すか**を確かめてから行う（未確認）。
+`LATEST` へ戻すなら `as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --to-latest`（未実行）。
+環境変数だけを足す変更も、`services update … --no-traffic --tag <タグ>` で 0% の確認用リビジョンを作ってから、同じ手順 7 で移せる。
+
+### 8. ロールバック（あなた）
+
+手順 1 で控えたリビジョンへ戻す。数秒で済み、設定は消えない。
+
+```bash
+as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --to-revisions="<PROD_REV>=100"
+```
+
+### 9. タグを外す（不要になったら。あなた）
+
+```bash
+as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --remove-tags "$TAG"
+```
+
+オプション名は `--remove-tags`（複数形。カンマ区切りで複数のタグを外せる）。リビジョンそのものは消えない。
+
+### 注意と未確認
+
+- **プレビューも、本番の DB・Gemini のキー・Secret を使う。** 確認で送った質問は、本番の会話履歴に残る（7 日の掃除で消える）。DB を分ける仕組みは無い。
+- サービスが公開なので、タグ付き URL の入口も公開。質問は `AUTH_MODE=required` で守られる。
+- 古いタグ `r2new` `r2prev` が残っている。この手順では触らない（外すかは別に決める）。
+  [r2-rollout.md](r2-rollout.md) の「タグの URL ではログインが通らない」は、手順 5 の登録をする前の状態の記述。
+- 未確認: `agent-deployer` での `--image` のデプロイ（この手順は `as_me` 前提）/ 手動で割り振ったトラフィックが、通常の（`--no-traffic` なしの）デプロイで変わるか
+  （この手順は `--no-traffic` を明示するので影響しない）/ Supabase のワイルドカードで、ログインがタグ付き URL に戻ること（2026-10-21 は、タグ付き URL でのログインをせず、昇格のあとに本番の URL で確かめた）/ タグの名前の長さの上限。
+  確認済み: タグ付き URL が認証なしで届くこと（2026-10-21）。
+- **Gemini の 503（`This model is currently experiencing high demand`）で質問が 502 になることがある。** 新しいリビジョンの不具合ではない（2026-10-21、昇格の直後に 1 回。数分あけて再送したら 200 で 14 秒）。
+  429 ではないので有料キーへの切り替えは働かず、`GEMINI_FALLBACK_MODEL` は本番で未設定のため別モデルにも切り替わらない（[configuration.md](configuration.md) の「主モデルが落ちたとき」）。
+  確認で 502 が出たら、まずログのコンテナログの例外（`503 UNAVAILABLE` か）を見て、アプリの問題と切り分ける。
+
+### 実際に通った記録（2026-10-21）
+
+時刻は JST。サービス `docunavi`。
+
+| 時刻 | 内容 |
+|---|---|
+| 21:08 | ビルド `docunavi:dc969b9`（`gcloud builds submit`、1 分 33 秒、成功）。最初は `as_me` なしで 403、付けて成功 |
+| 21:14 | 本番（100%）は `docunavi-00005-zl7`（タグ `r2new`）。`--no-traffic --tag preview-20261021-2114` で配備 → `docunavi-00009-voj`（0%） |
+| 21:15 | 確認: 00009 は 0%、本番は 00005 のまま。`/health` 200（`gemini` `postgres`）。環境変数の名前 10 個・Secret 参照 3 つ・ボリューム・実行 SA が 00005 と同じ。イメージのダイジェストはビルドと一致 |
+| 21:17 | `update-traffic --to-tags preview-20261021-2114=100` → 100% が 00009 に移った。本番の `/health` 200 |
+| 21:30 | 本番の画面（`docunavi-114733761361.asia-northeast1.run.app`）にログイン（`/threads` 200） |
+| 21:37 | 質問 1 回目: 502（37.5 秒）。原因は Gemini の `503 UNAVAILABLE`（高負荷）。アプリは固定メッセージを返した |
+| 21:38 | 資料一覧から元の PDF を開いた（`/documents/2/file` 200、0.28 秒。R2 のエラーログ 0 件）。本番が R2 から PDF を返すことの確認 |
+| 21:41 | 質問を再送 → `/chat/stream` 200（14.1 秒）。WARNING 以上のログは 0 件 |
+
+確認用の会話（21:37 と 21:41 の 2 件）は、画面から削除する（SQL では消さない。チェックポイントのテーブルが相互に関わるため）。
+
 ## 実際に通った記録（2026-10-20）
 
 上の節を、この順に `as_me`（あなた自身の権限）で実行して、公開まで通りました。ID（プロジェクト番号など）は書きません。
