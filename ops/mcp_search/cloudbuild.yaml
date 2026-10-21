@@ -1,0 +1,17 @@
+# 資料検索の MCP サーバーのイメージを Cloud Build でビルドして Artifact Registry に置く（手順は docs/mcp-tool-design.md）。
+# リポジトリの根を文脈にして、`--file` で ops/mcp_search/Dockerfile を指す（`gcloud builds submit --tag` は別の Dockerfile を選べない）。
+# 配備はしない（できたイメージを `gcloud run deploy --image` で出す）。
+#
+# 置換変数: _IMAGE  ビルドしたイメージの名前（例: <REGION>-docker.pkg.dev/<PROJECT_ID>/<リポジトリ>/docunavi-mcp:<タグ>）
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file
+      - ops/mcp_search/Dockerfile
+      - --tag
+      - ${_IMAGE}
+      - .
+
+images:
+  - ${_IMAGE}
