@@ -30,6 +30,8 @@ uvicorn app.main:app --reload
 
 Docker Compose を使う場合は、ホスト側で `docker compose up --build` を実行します（`.env` が無くても起動し、その場合はモックモードです）。
 イメージのビルド時にフロントエンドもビルドされるので、起動後は <http://localhost:8000> で画面を開けます。
+画面の開発サーバー（Vite のホットリロード）は別のコンテナ `frontend` で動き、<http://localhost:5173> で開きます（`api` が healthy になってから起動し、初回は `npm install` で時間がかかります）。
+片方だけ再起動するには `docker compose restart frontend`（または `api`）。ログは `docker compose logs -f frontend`。変更通知が届かずホットリロードが効かないときは、`docker-compose.yml` の `CHOKIDAR_USEPOLLING` のコメントを外します。
 
 ### 画面を手元でビルド・開発する
 
