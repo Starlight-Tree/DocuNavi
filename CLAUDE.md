@@ -14,7 +14,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
-| Docker | ホスト側で `docker compose up --build`（開発コンテナ内には Docker が無い）。`api`（:8000）と、画面の開発サーバー `frontend`（Vite。:5173）が別コンテナ。`frontend` はホストで起動・healthy・ホットリロード・SSE のプロキシ越しの逐次配信を確認済み（2026-10-21）。Compose の `frontend` からの Google ログインの戻りは未検証。記録は [docs/development.md](docs/development.md) |
+| Docker | ホスト側で `docker compose up --build`（開発コンテナ内には Docker が無い）。`db`（ローカルの Postgres。pgvector 入り。`internal` のネットワークだけ・ポート非公開・空で始まる）、`api`（ポート非公開。`DATABASE_URL` は `.env` ではなく `db` に固定。8000 番は `docker-compose.api-port.yml` を重ねたときだけ 127.0.0.1 に公開）、画面の開発サーバー `frontend`（Vite。:5173）が別コンテナ。実キーでは、資料を `db` に取り込むまで `api` が起動に失敗する。3 サービスの起動・healthy・`localhost:5173/health` はホストでモックモードで確認済み（2026-10-22）。未確認: 実キーでの起動、資料の取り込み、`api` から Gemini への到達。`frontend` のホットリロード・SSE のプロキシ越しの逐次配信は、2 サービス構成で確認済み（2026-10-21）。Compose の `frontend` からの Google ログインの戻りは未検証。記録は [docs/development.md](docs/development.md) |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
