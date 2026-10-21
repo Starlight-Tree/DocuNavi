@@ -1,6 +1,6 @@
 # MCP ツール化: 設計の叩き台
 
-状態（2026-10-21）: **`search_documents`（`ops/mcp_search/`）を `docunavi-mcp` として Cloud Run に配備し、プロキシ経由で本物の検索が通った。日常の使い方（1 時間ごとのプロキシ再起動の扱い）は未決。**
+状態（2026-10-21）: **`search_documents`（`ops/mcp_search/`）を `docunavi-mcp` として Cloud Run に配備し、本物の検索が通った。日常の接続は、Claude Code の `headersHelper`（`scripts/mcp-auth-header.sh`）でプロキシなしの直接接続にした（下の「headersHelper での直接接続」）。確認したのは接続と 1 回の検索まで。期限切れ後の自動復旧と、再ビルド後の自動接続は未検証。**
 ロードマップの表の 8（将来の拡張）。目的は、資料の検索を、エージェント（まず Claude Code）から使えるツールにすること。
 実用上の必要は小さい（資料は 6 件）。主な価値は、リモート MCP サーバーと、Cloud Run の IAM 認証を学ぶこと。
 
@@ -49,7 +49,8 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
   - 起動は `scripts/mcp-proxy.sh`（ユーザー自身の権限。定義の 3 行は要らない。`docunavi-mcp` 用に 3001 番）。再ビルド後は `gcloud auth login` → 上の apt → このスクリプト → `/mcp` で Reconnect。
 - **制約: プロキシは起動時の ID トークンを固定で使う。期限が切れると `401` になる。** 起動から約 45 分で `401` になったことを確認した（期限の長さの確定ではない。公式の 2 ページに期限の記述は無い）。プロキシを起動し直せば直る。
 - **Claude Code は、`401` を受けると OAuth の探索（`/.well-known/…`、`POST /register`）に進み、`/mcp` の画面に「SDK auth failed: Dynamic Client Registration rejected」と出る。** サーバーに OAuth が無いこと自体は原因ではない。画面のエラーが、本当の原因（トークン切れ）を隠す。切れたら Cloud Run のログ（`gcloud logging read`）で `401` を確かめる。
-- **未確認:** ② ID トークンを `Authorization` で直接送る方法（Claude Code の設定に値を保存すると、方針と衝突しうる）、③ IAP。固定のトークンを `--header` で渡す方法は、プロキシの Google ID トークンと衝突するので試していない。
+- **② ID トークンを直接送る方法は、`headersHelper` で通った**（下の「headersHelper での直接接続」。値を設定に保存せず、接続のたびにヘルパーが取る）。**未確認:** ③ IAP。固定のトークンを `--header` で渡す方法は、プロキシの Google ID トークンと衝突するので試していない。
+- プロキシ（`scripts/mcp-proxy.sh`）は、今は予備。再ビルドで消える apt の部品と、約 45 分ごとの再起動が要る。
 - **未確認:** 日常で使えるかの判断。1 時間ごとの再起動が許容できるか。
 
 ## ツールの形（案）
@@ -105,5 +106,34 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 - **実際の検索（1 回、無料キー）:** プロキシ（`gcloud run services proxy docunavi-mcp --port 3001`）経由で `search_documents` を呼び、質問「糸くずフィルターの掃除」に対して、洗濯機の説明書の該当箇所が 1 位（類似度 0.80）で返った。Cloud Run のログでは、Gemini の埋め込みの呼び出しは 1 回（200）、質問の本文はログに出ていない。
 - **読み取り専用ロールでの検索:** 同じ検索の SQL が `readonly` ロールで動くこと、書き込みは `read-only transaction` で拒否されること、会話履歴の表は読めないことを、配備の前に確かめた。
 - **確認済み（2026-10-21、Claude Code の会話の中から）:** `search_documents` を 1 回呼び、期待どおりの結果が返った。質問「糸くずフィルターの掃除」、1 位は `aoba_aw820_manual.pdf` p.2（類似度 0.80）、2 位は同 p.2（0.68、乾燥フィルターの記述で関連は薄い）。無料キーで Gemini の埋め込み 1 回、書き込みなし。
-- **未確認:** 本物の 429 での有料キーへの切り替え（有料キーを渡していないので起きない）、予算ガードの対象に入るか、プロキシの期限切れを避ける日常の方法、再ビルド後の `docunavi-search` 登録が残るか。
+- **未確認:** 本物の 429 での有料キーへの切り替え（有料キーを渡していないので起きない）、予算ガードの対象に入るか、`headersHelper` での期限切れ後の復旧、再ビルド後に `docunavi-search` が手作業なしでつながるか（次の節）。
 - **保留:** 有料キーを渡すか、apt の部品を再ビルド時に自動で入れるか、`pgpass` の 2 行目（ID もパスワードも空）の扱い。
+
+## headersHelper での直接接続（2026-10-21）
+
+登録は local スコープの `{"type":"http","url":"<Cloud Run の URL>/mcp","headersHelper":"/workspaces/docunavi/scripts/mcp-auth-header.sh"}`（`claude mcp add-json`。URL は秘密ではないが、文書には書かない）。
+ヘルパーは `gcloud auth print-identity-token` の結果を `{"Authorization":"Bearer …"}` で標準出力に返すだけ。公式の文書（code.claude.com/docs/en/mcp）では、接続・再接続のたびに実行され（10 秒で打ち切り）、キャッシュされない。401/403 では再実行して 1 回やり直す。
+
+### 確認済み
+
+- 直接接続で `/mcp` が Connected になり、`search_documents` を 1 回（無料キー、書き込みなし）呼んだ。結果はプロキシ経由と同じ（`aoba_aw820_manual.pdf` p.2 が 0.80、同 p.2 が 0.68）。ヘルパーは 10 秒以内に終わった。
+- ヘルパーが使う ID は、ログイン済みのユーザー本人（`gcloud auth list` で 1 アカウントだけ）。日常の閲覧専用のなりすましは、gcloud の設定ファイルには無く、環境変数 `CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT` だけ（`gcloud config configurations describe default` で確認）。ヘルパーは `env -u` でこの変数を外す。`run.invoker` を持つのは本人だけ。
+- Cloud Run のリクエストログ（`--billing-project=docunavi-app` が要る）で、ヘッダー付きの 200/202 と、ヘッダー無しの 403 を見分けられる。
+
+### つながらなかったときの経緯と見方
+
+1. **信頼（trust）が保存されていないと、ヘルパーは実行されない。** プロジェクト／ローカルのヘルパーは、`~/.claude/.claude.json` の `projects["<パス>"].hasTrustDialogAccepted` が `true` のときだけ動く。拡張機能のセッションでは信頼のダイアログが出ず、`false` のままだった。ヘッダーが付かず Cloud Run の IAM が 403 を返し、Claude Code は OAuth の探索に進んで「SDK auth failed: Dynamic Client Registration rejected (HTTP 403)」と出す（本当の原因を隠す）。
+2. **信頼を直しても、「認証が必要」の記録が残ると接続を試さない。** `~/.claude/mcp-needs-auth-cache.json` にそのサーバー名の行があると、ログに `Skipping connection (cached needs-auth)` と出て接続しない。その行を消し、ウィンドウを再読み込みする（拡張機能のセッションでは `/mcp reconnect` が使えない）。
+3. **画面の Authenticate は押さない。** ヘッダー無しの OAuth の探索を始め、403 になる。
+4. 見る場所: 拡張機能のログの `headersHelper` の行、上の 2 つの設定ファイル、Cloud Run のリクエストログ。
+
+### 安全上の注意
+
+- ヘルパーは Claude Code が実行するので、ガードのフック（`guard-cloud-cli.py`）も、確認の表示も通らず、ユーザー自身の権限で動く。スクリプトが書き換えられると、その権限で何でも動く。そのため、CLAUDE.md で「エージェントは実行しない・変更は事前に承認」とし、スクリプトは ID トークンを返す以外をしない。
+- トークンはファイルにもログにも書かない。端末で手で実行すると画面に出るので実行しない。
+
+### 未検証（恒久化が済んだとは言えない）
+
+- **期限切れ後の自動復旧。** ID トークンは約 1 時間（プロキシでは約 45 分で 401 を観測）。公式の文書どおり 401/403 でヘルパーが再実行されるかは、待って確かめていない。
+- **再ビルド後の自動接続。** 信頼のフラグと「認証が必要」の記録は `~/.claude` のボリュームにあるので残る見込みだが、再ビルドして確かめていない。gcloud のログインは、今回の再ビルドでは残っていた（理由は不明）。`devcontainer.json` は「gcloud のログインは残さない」方針で、残らない場合は `gcloud auth login` が要り、ヘルパーは失敗する（標準エラーに理由を出す）。
+- 登録名 `docunavi-search` への置き換えは確認済み（ウィンドウの再読み込みのあと、同じ質問で `search_documents` を 1 回呼び、結果が同じだった）。試験用の `docunavi-search2` は、その後に削除した。

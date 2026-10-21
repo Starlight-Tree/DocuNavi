@@ -16,8 +16,6 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
 | Docker | ホスト側で `docker compose up --build`（開発コンテナ内には Docker が無い） |
 
-テストは Claude Code が自分で実行してよい（読むだけ・一時的な起動で、課金も外部への書き込みも無い）。
-
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
 - `app/api/routes.py`: `/chat` `/chat/stream` `/health`。LLM の失敗は固定メッセージの 429/504/500/502 に変換する。画面は SSE の `/chat/stream`（組み立ては `ui_stream.py`）を使う
@@ -34,9 +32,8 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   `app/api/graph.py`（入寮規程の関係図。`app/relations/` が規則ベースで PDF から都度計算する実験。DB に保存しない）。仕様は `docs/api.md`
 - `app/frontend.py`: `frontend/dist` を配信し、ファイル名らしくない未知の GET/HEAD は `index.html` にフォールバックする
 - `storage/pdf/<名前>/`: PDF の資料（`cafe` `guides` `zahard`）。検索は DB を読むので、PDF を足しても `python -m app.ingestion` と
-  `python -m app.ingestion.embed` をするまで検索には出ない。`zahard` は `evals/fixtures/zahard_txt/` の .txt から `evals/fixtures/zahard_pdf/make_pdf.py` で作ったもの
-  （`tests/test_zahard_pdf.py` が確かめる。見た目の目視は未確認）。`cafe` と `guides` は `evals/corpora/<同じ名前>/` の写し（作り直したら両方を更新。テストが一致を確かめる）。
-  2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は reportlab 製の 1 冊でしか試しておらず、実物で確かめるまでアプリには置かない（`evals/fixtures/two_column/`）
+  `python -m app.ingestion.embed` をするまで検索には出ない。`cafe` `guides` は `evals/corpora/<同じ名前>/` の写し（作り直したら両方を更新）、`zahard` は .txt から作った PDF（`docs/configuration.md` の「評価用の PDF の写し」）。
+  2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は実物で確かめるまでアプリには置かない
 - `storage/chunk/` は空でアプリは読まない。`scripts/bm25_baseline.py` は評価の基準線で、アプリは import しない。`frontend/` の `dist/` と `node_modules/` は Git 管理外
 
 ## 守ること（コードを書く前に）
@@ -53,11 +50,9 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - **別モデルへのフォールバックは任意で、既定は無効**（`GEMINI_FALLBACK_MODEL`）。429 と 400/401/403/404 では試さない。主モデルを飛ばす記憶は、
   同じ質問の中（`AgentState.fallback_used`。`guard_input` が毎ターン戻す）と、プロセス内のブレーカー（**主モデルが実際にエラーを返したときだけ**開き、遅いだけでは開かない）。
   グラフは `lru_cache` で使い回されるので、リクエスト単位の状態は、グラフの状態か呼び出しごとのオブジェクトに置く。
-  **有効にする前に**、主モデルで始めた会話（thought signature を含む履歴）を別モデルで続けられることを、実 API で両方向とも確かめる（未検証。取り消した試行の課金も未確認）。
-  詳細は `docs/configuration.md` の「主モデルが落ちたとき（フォールバック）」。
+  **有効にする前に**、主モデルで始めた会話（thought signature を含む履歴）を別モデルで続けられることを、実 API で両方向とも確かめる（未検証。取り消した試行の課金も未確認）。詳細は `docs/configuration.md` の「主モデルが落ちたとき（フォールバック）」。
 - **有料キーへの切り替えは任意で、既定は無効**（`GEMINI_API_KEY_PAID`）。無料キーが **429 で尽きた** ときだけ、同じモデルを有料キーで 1 回試す（LLM と質問の埋め込みの両方）。
-  キーの値はログに出さない。本番には配備済みで、有料キーでの実 API の呼び出しも確認済み。**未確認:** 本物の 429 での切り替えと 60 秒の保持。
-  残高が尽きると 402 になり、切り替えは起きない。詳細と配備の状態は `docs/configuration.md` の「無料キーが 429 のとき」。
+  キーの値はログに出さない。本番には配備済みで、有料キーでの実 API の呼び出しも確認済み。**未確認:** 本物の 429 での切り替えと 60 秒の保持。詳細と配備の状態は `docs/configuration.md` の「無料キーが 429 のとき」。
 - **`temperature` は指定しない。** Gemini 3 系は既定の 1.0 が公式の推奨で、`gemini-3.5-flash-lite` は指定を無視する。`tests/test_llm_config.py` が確かめる。
 - **切断は失敗ではない。** `/chat` はグラフの実行と `request.receive()`（`http.disconnect` まで待つ監視）を `asyncio.wait` で競わせ、
   切断が先なら LLM 呼び出しを取り消して 499 を返す。この分岐は `except Exception` の外に置き、ログは INFO・固定文・`thread_id`・経過秒だけにする
@@ -125,16 +120,14 @@ gcloud と gh には、誤操作や、取り込んだ文書に埋め込まれた
   日常の ID を固定していると素のままでは失敗することがある。失敗したら、ユーザーに実行してもらう。ログインはボリュームに残さない（再ビルドで消える）。
   コンテナの中にはユーザー自身のログインが残る（フックを通らない経路では読める。README の「限界」）。SA のキーは作らない・保存しない。
 
-## MCP プロキシの例外
+## MCP の接続（docunavi-search）
 
-`scripts/mcp-proxy.sh` の実行は、ユーザーが明示的に指示した場合に限り許可する。
+非公開の `docunavi-mcp` へは、`headersHelper`（`scripts/mcp-auth-header.sh`）で直接つなぐ。ローカルプロキシは使わない。診断と経緯は [docs/mcp-tool-design.md](docs/mcp-tool-design.md)。
 
-- 対象は、コミット `be0a305` 時点の `scripts/mcp-proxy.sh` の内容に限る。
-- 実行前に `git diff be0a305 -- scripts/mcp-proxy.sh` が空であることを確認する。差分があれば実行しない。
-- 用途は `docunavi-mcp` へのローカル Cloud Run プロキシ起動のみ。
-- トークン、パスワード、接続 URL を出力・ログ・コミットに含めない。
-- 自動再起動ループは、ユーザーが別途承認しない限り追加しない。
-- 実行後は、成功・失敗と `Reconnect` の要否だけを報告する。
+- ヘルパーは Claude Code が実行する。ガードのフックも確認も通らず、ユーザー自身の権限で動く。**私は実行しない**（標準出力が ID トークンになる）。
+- スクリプトの変更は、事前にユーザーの承認を得る。「ID トークンを JSON で返す」以外をさせない。トークンは標準エラー・ログ・ファイル・コミットにも出さない。
+- 画面の Authenticate は押さない（ヘッダー無しの OAuth 探索になり、403 で失敗する）。
+- 旧プロキシ `scripts/mcp-proxy.sh` は、ユーザーが明示的に指示したときだけ実行する。実行前に `git diff be0a305 -- scripts/mcp-proxy.sh` が空であることを確かめる。自動再起動ループは足さない。
 
 ## gh（読み取り専用のトークン + ガード）
 
@@ -193,5 +186,4 @@ README の「開発環境の GitHub CLI（gh）」を参照。
 - 「できない」「やめておいた方がいい」と判断するときは、理由を 1 文で示し、代替案を 1 つだけ添える。それ以上の反論・再確認・遠慮はしない。
 - 承認済み（再確認しない）: 読み取り専用の gcloud コマンド / テスト・ruff・登録語検査の実行 / 通常の git commit。
 - 承認が必要: gcloud auth login の実行 / 書き込み系 gcloud コマンド / git push / フック・CLAUDE.md・権限設定の変更。
-- 「念のため確認」はしない。「承認済み」の一覧にあるものなら、そのまま進める。
 - ユーザーが「やらせたい」と言ったら、安全性の確認を 1 回だけして、あとは実行する。ただし、フックの確認・ガード・権限（gcloud と gh の節）は、これで外れない。
