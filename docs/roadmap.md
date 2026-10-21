@@ -60,10 +60,11 @@
   - **決めたこと（2026-10-22、利用者の指示）:** `db` はローカルの Postgres（pgvector 入り）。`api` は `frontend` 経由だけにし、`localhost:8000` は公開しない（ビルド済みの画面や `curl` の確認は、`docker-compose.api-port.yml` を重ねて 127.0.0.1 に公開する）。
   **着手した範囲（2026-10-22。ホスト側でモックモードの起動まで確認済み。結果は `docs/development.md` の「ローカルの db」）:** `docker-compose.yml` に `db`・ネットワーク 2 つ（`frontend-net`、`internal` の `backend-net`）・`pg-data` を足し、3 サービスにヘルスチェックと `service_healthy` の起動順を付けた。
   `api` の `DATABASE_URL` は compose の `db` に固定（`.env` の値は使わない）。初期化は `db/local-init/01-bootstrap.sh`（入れ物だけ）。手順と注意は `docs/development.md` の「ローカルの db」。
-  **残り:** 実キーでの起動確認（資料の取り込みの後）/ テーブルの作成・マイグレーション・資料の取り込み・埋め込み（実 API の課金があるので、実行の前に承認を取る）/ 構想の「3 つのネットワーク」のうち `docunavi-dev`（開発コンテナ側）は従来のまま /
+  **資料の取り込み（2026-10-22 JST、ホスト側で実行済み。利用者の指示）:** テーブルの作成・マイグレーション 0001/0002/0003/0005・取り込み（3 資料群、80 チャンク）・埋め込み（実 API 3 回、約 $0.0023）が通り、`docker compose restart api` で `api` が healthy になった（実キーの起動の検査を通った）。結果は `docs/development.md` の「確認済み（資料の取り込み）」。
+  **残り:** `api` が Gemini に届いて質問に答えること（画面から 1 問）/ ホストの `docker compose` との重なりの確認は、orphan の警告でプロジェクト名が同じことまで分かった / 構想の「3 つのネットワーク」のうち `docunavi-dev`（開発コンテナ側）は従来のまま /
   **開発コンテナを Compose ベースにした（2026-10-22、利用者の指示。再ビルド済みで、開発コンテナの中から確認できた範囲は設計どおり。ホスト側の確認と `stopCompose` は未実施）:** `devcontainer.json` が `dockerComposeFile` で `docker-compose.yml` と `.devcontainer/docker-compose.yml`（dev）を重ね、開くと `db` `api` `frontend` も起動する。
   確認の手順と未確認の前提は `.devcontainer/README.md` の「開発コンテナの構成（Compose）」。これで構想の 5 コンテナ・3 ネットワークが 1 つの設定にそろう（プロキシだけ別の Compose プロジェクト）。
-  構想にあった「プロファイルで dev・prod を分ける」は未着手。**注意:** 取り込むまで、実キーの `docker compose up` は `api` の起動検査で失敗する。`docker compose down -v` は `pg-data`（埋め込み）も消す。
+  構想にあった「プロファイルで dev・prod を分ける」は未着手。**注意:** 資料を取り込む前の、実キーの `docker compose up` は `api` の起動検査で失敗し、`unhealthy` のまま止まる（取り込んだ後は `docker compose restart api`）。`docker compose down -v` は `pg-data`（埋め込み）も消す。
   **決まっていないこと:** 本物の LLM を使う確認の DB を、いつ・どの資料から入れるか（本番と同じ資料を埋め込み直すか、一部だけか）。
 
 **受動確認（起きたときに見る。能動的には確認しない）**

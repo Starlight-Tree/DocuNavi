@@ -10,7 +10,7 @@
 	// postCreateCommand では間に合わない）。ベースは同じ mcr.microsoft.com/devcontainers/base:trixie。
 	"dockerComposeFile": ["../docker-compose.yml", "docker-compose.yml"],
 	// service: VS Code が接続する先（開発コンテナ）。runServices: 一緒に起動するアプリ側のサービス（service は自動で含まれる）。
-	// 実キーの .env で db が空のあいだ、api は起動に失敗して再起動を繰り返す（資料を取り込むまで。docs/development.md）。
+	// 実キーの .env で db が空のあいだ、api は起動の検査に失敗して unhealthy のまま止まる（資料を取り込み、api を再起動するまで。docs/development.md）。
 	// それでも開発コンテナの作成が止まらないよう、./docker-compose.yml で frontend の待ちを service_started に緩めてある。
 	"service": "dev",
 	"runServices": ["db", "api", "frontend"],
