@@ -48,7 +48,8 @@
 - **評価用の PDF の写し。** `storage/pdf/cafe/cafe_store_guide.pdf` は `evals/corpora/cafe/cafe_store_guide.pdf` と、
   `storage/pdf/guides/` の 2 冊は `evals/corpora/guides/` の同名の PDF と、それぞれ同じファイルです
   （`tests/test_bm25_collections.py` が一致を確かめる）。差し替えるときは、両方を更新し、評価の baseline を取り直します。
-  `storage/pdf/zahard/` の 3 冊は、元の .txt を PDF にしたものです（作り方は [evals/fixtures/zahard_pdf/README.md](../evals/fixtures/zahard_pdf/README.md)）。
+  `storage/pdf/zahard/` の 3 冊は、元の .txt を PDF にしたものです（作り方は [evals/fixtures/zahard_pdf/README.md](../evals/fixtures/zahard_pdf/README.md)。`tests/test_zahard_pdf.py` が確かめる。見た目の目視は未確認）。
+  2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は、reportlab 製の 1 冊でしか試しておらず、実物で確かめるまでアプリには置かない（`evals/fixtures/two_column/`）。
 - **BM25 の基準線。** 以前の BM25（ローカルの PDF を読む）は、アプリから外し、評価用に `scripts/bm25_baseline.py` に残しました（`SEARCH_SCOPE` はこの基準線だけが読む）。
 - **確かめていないこと。** 画面が使う `/chat/stream` を、本物の LLM と DB で通した確認。LLM が書く検索クエリでの精度（評価は質問文のまま）。
   質問ごとの追加の遅延と費用（評価では、埋め込みの API は 8 件の 1 回で 1.1〜1.4 秒）。
@@ -302,7 +303,7 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
   を待たないため）。有料キーが成功するたびに延びる。保持の間に有料キーが失敗したら、保持をやめて無料キーを試す。プロセスごとの状態。
 - **モデルと履歴:** 同じモデルなので、別モデルへのフォールバックで未検証の「履歴（thought signature）の引き継ぎ」の問題はない。
 - **ログ:** 切り替えると `app.agents.resilience` が `WARNING` を出す（`有料キーで応答しました（無料 N 回・有料 M 回）`）。キーの値は出さない。
-- **コスト:** 有料キーに流れた分は、そのプロジェクトの予算（`docs/deploy.md` の G）の対象になる。無料キーで 429 になった試行は課金されない。
+- **コスト:** 有料キーに流れた分は、そのプロジェクトの予算（`docs/deploy.md` の G）の対象になる。無料キーで 429 になった試行は課金されない。有料キーの残高が尽きると 402 になり、切り替えは起きない。
 - **未検証:** 本物の 429 での切り替え（偽の 429 で確かめただけ）。日次の上限（RPD）と毎分の上限を区別して保持を変えること
   （`RetryInfo` の待ち時間を読むこと）はしていない。無料キーの入力が製品改善に使われる点は、切り替えても変わらない
   （有料に回るのは 429 のときだけ）ので、他の人が個人情報を入れる段階になったら、無料キーを主にしない。
