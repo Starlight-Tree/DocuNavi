@@ -276,3 +276,70 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 - **推測（未確認）：** 要求に誰も答えないために `declined` になり、VS Code 拡張が確認の画面を出せないためと見ています。拡張側の実装は確かめていません。権限のモードや `ask` ルールが原因ではありませんでした。
 - **フックの既定：** `ENFORCE = False` で、記録だけして何も答えません。サーバー名・本文の接頭辞・プロジェクト参照・`mode=form` がすべて合うときだけ答える作りで、例外のときは答えません。
 - **ログの見方：** `~/.claude/elicitation-hook.log` に 1 要求 1 行（`server`、`match`、`enforce`、時刻。本文は残さない）。`supabase-write` の行が増えて `match: true` なら、要求が届いたことを示します。`enforce` は、そのときのフックの設定です。
+
+## 開発環境の Docker（読み取り専用のソケットプロキシ）
+
+**状態（2026-10-21 JST 夜）: 動いた。** プロキシは `healthy`、開発コンテナから `docker ps` が通り、inspect・exec・rm・info・images は拒否された。
+最初の起動は、プロキシが OrbStack のソケット（`root:root 0660`）を開けず再起動を繰り返した（`group_add: ["0"]` で直した）。
+**`docker logs` と `docker compose ps/logs` は使えない**（CLI が先に inspect を呼ぶため。下の「許可するもの」）。ログは `scripts/dlogs.sh` で読む。
+未確認: Container Tools の画面（検証 7）、拒否の記録の形式。
+
+開発コンテナの VS Code（Container Tools）とエージェントから、OrbStack 上の `docunavi-api` と `docunavi-frontend` の状態・ログを**見るだけ**にするための構成です。
+ホストの Docker ソケットは、開発コンテナに渡しません（ソケットを持つ＝ホストの root とほぼ同じため）。
+
+| 項目 | 内容 |
+|---|---|
+| プロキシ | `.devcontainer/docker-proxy/compose.yml`。`wollomatic/socket-proxy:1.13.1`（固定）。ホストのソケットを持つのはこのコンテナだけで、ポートはホストに公開しない |
+| 起動 | `devcontainer.json` の `initializeCommand`（ホストで、コンテナの作成の前に実行）。手動なら `docker compose -f .devcontainer/docker-proxy/compose.yml up -d` |
+| 接続 | 開発コンテナを専用のネットワーク `docunavi-dev` に繋ぎ（`runArgs`）、`DOCKER_HOST=tcp://docunavi-docker-proxy:2375`。このネットワークに繋がるのは、プロキシと開発コンテナだけ（`docunavi-api` と `docunavi-frontend` は入れない） |
+| CLI | `Dockerfile` が Debian の `docker-cli` と `docker-compose`（`docker compose` のプラグイン）を入れる。デーモンは入らない |
+| 拡張 | `ms-azuretools.vscode-containers`（Container Tools） |
+
+### 許可するもの（GET だけ）
+
+`/_ping` `/version` `/containers/json`（一覧。`docker ps`）`/containers/<名前か ID>/logs`（`docker logs`）。API のバージョン接頭辞 `/v1.NN` は任意。HEAD は `/_ping` だけ。
+`/_ping` と `/version` は、Docker CLI が最初に呼ぶ（無いと接続の確認で失敗する）ので足した。
+
+**許可しないもの:** `/containers/<id>/json`（inspect）、`archive` `export` `top` `exec`、`/events`、`/info`、volumes・networks・secrets・images、POST・PUT・DELETE のすべて。未指定のメソッドは拒否される。
+
+- **`docker inspect` は使えない。** 稼働中のコンテナの環境変数が見えるため。`api` は `env_file: .env` なので、`GEMINI_API_KEY` などが出る。
+- **`docker compose config` も使わない。** プロキシは通さないが、コンテナの中の `.env` を読んで展開するため、`Read(./.env)` の拒否の抜け道になる。
+- **`docker logs` と `docker compose ps` / `logs` は、Forbidden になる**（2026-10-21 JST に実測）。CLI がコンテナごとに inspect を呼ぶため。`docker ps` は通る。
+  ログは `scripts/dlogs.sh <コンテナ名> [行数]` で読む（許可している `GET /containers/<名前>/logs` だけを呼ぶ。名前は `[a-zA-Z0-9_.-]` に限る）。
+  inspect を許可すれば CLI は動くが、環境変数が見えるので許可しない。
+
+### 限界
+
+- **OrbStack 上のすべてのコンテナの一覧とログが見える。** プロキシはパスでしか絞れず、docunavi のものだけには絞れない。ログに秘密を出さない運用が前提（アプリは出さない設計）。
+- **プロキシ自体がホストのソケットを持つ。** 許可リストの書き間違い（特に POST の許可）は、ホストの root と同じになる。変えるときは、必ず下の検証をやり直す。
+- **コンテナの起動・停止・削除は、ここからはできない。** `docker compose up / down / restart` はホストで行う。`POST` を許すと `/containers/create` も通り、ホストのパスをマウントしたコンテナを作れるので、許さない。
+- 接続元の制限は、プライベートアドレス全体（`172.16.0.0/12` `192.168.0.0/16` `10.0.0.0/8`）。ネットワークに繋がるのが 2 つだけ、という構成に頼っている。
+- `initializeCommand` が失敗する（ホストで `docker` が見つからない、など）と、開発コンテナの作成が止まる。
+
+### 検証（ホストで。上から順に）
+
+結果（2026-10-21 JST）を各項目に添える。
+
+1. ホストで `docker compose -f .devcontainer/docker-proxy/compose.yml up -d`。`docker ps` に `docunavi-docker-proxy` が `healthy` で出る。
+   **結果:** 最初は `Restarting`（ログ: `socket not available … permission denied`）。`group_add: ["0"]` を足して `Up (healthy)`。`./healthcheck` も通った。
+2. 開発コンテナを再ビルド（`Dev Containers: Rebuild Container`）。作成のログに、Dockerfile の `docker --version` と `docker compose version` が出る。
+   **結果:** 再ビルド済み。`docker` 26.1.5 が入り、`DOCKER_HOST` が設定された。プロキシが落ちている間は、名前が引けなかった。
+3. 開発コンテナで `docker ps`: `docunavi-api` と `docunavi-frontend` が出る（Compose を起動しておく）。
+   **結果:** 出る（`healthy`）。OrbStack 上のほかのコンテナも見える。`docker logs`・`docker compose ps/logs` は Forbidden（上の「許可するもの」）。代わりに `scripts/dlogs.sh docunavi-api 3` が読める。
+4. 拒否の確認: `docker inspect` `docker exec` `docker rm -f` `docker info` `docker images`（存在しない名前で実施）。
+   **結果:** inspect・exec・info・images は `Forbidden`、`rm -f` は `Method Not Allowed`。
+5. `/var/run/docker.sock` が開発コンテナに**無い**こと（`ls /var/run/docker.sock`）。**結果:** 無い。
+6. 再ビルドしても、`~/.claude`（会話の履歴・MCP の登録）、`~/.gh-config`（`gh auth status`）、`~/.config/gcloud`（`gcloud auth list`）が残っていること。
+   **結果:** 3 つとも残っていた（`${devcontainerId}` が変わらないことは、これで確認とした）。
+7. Container Tools の画面に、コンテナが見えること。**inspect を拒否されて欠ける表示**（コンテナの詳細、環境変数など）を記録する。許可を広げるかは、記録を見てユーザーが決める。
+   **結果:** 未確認（ユーザーが画面で見る）。CLI と同じく inspect を呼ぶ画面は欠けると予想している。
+
+### Container Tools が要求する API を調べる
+
+許可を足す前に、拒否された要求を見る。ホストで `DOCKER_PROXY_LOGLEVEL=DEBUG docker compose -f .devcontainer/docker-proxy/compose.yml up -d`（環境変数を変えて作り直す）。
+開発コンテナで Container Tools を開き、`docker logs docunavi-docker-proxy` で、拒否された要求のメソッドとパスを見る（**拒否が記録される形式は未確認**。出ないときは、確かめ方を決め直す）。
+全メソッドを一時的に許す方法（`-allowGET=.*`）は使わない。見終わったら、`DOCKER_PROXY_LOGLEVEL` を付けずに作り直して INFO に戻す。
+
+### 権限設定（`.claude/settings.json`）
+
+このリポジトリでは、まだ変更していない（変更案は、ユーザーの承認を得てから）。実際の境界はプロキシで、権限設定は二重の安全策。

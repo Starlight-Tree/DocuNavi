@@ -35,7 +35,9 @@
       "Bash(gh ruleset view *)",
       "Bash(gh ruleset check *)",
       "Bash(gh release list *)",
-      "Bash(gh release view *)"
+      "Bash(gh release view *)",
+      "Bash(docker ps *)",
+      "Bash(scripts/dlogs.sh *)"
     ],
     "ask": [
       "Bash(git push)",
@@ -48,7 +50,17 @@
       "Read(./.gcloud-token*)",
       "Read(~/.config/gh/**)",
       "Read(~/.gh-config/**)",
-      "Read(./.env)"
+      "Read(./.env)",
+      "Bash(docker inspect *)",
+      "Bash(docker exec *)",
+      "Bash(docker run *)",
+      "Bash(docker rm *)",
+      "Bash(docker rmi *)",
+      "Bash(docker system *)",
+      "Bash(docker compose config *)",
+      "Bash(docker compose up *)",
+      "Bash(docker compose down *)",
+      "Bash(docker compose restart *)"
     ],
     "disableBypassPermissionsMode": "disable"
   },
