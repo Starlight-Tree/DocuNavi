@@ -12,9 +12,10 @@
 	// initializeCommand: ホストで、コンテナの作成の前に実行される。プロキシを起動し、ネットワーク docunavi-dev を作る
 	// （無いと runArgs の --network が失敗する）。ホストに docker（OrbStack）が無いと、ここで止まる。
 	// runArgs: 開発コンテナを docunavi-dev に繋ぐ。DOCKER_HOST（下の containerEnv）はこのネットワークの中でだけ引ける名前。
+	// --name: Container Tools の一覧で見分けやすいように、自動の vsc-docunavi-<ハッシュ> ではなく固定の名前にする。
 	// init: プロセスの後始末（ゾンビの回収）を init に任せる。
 	"initializeCommand": "docker compose -f .devcontainer/docker-proxy/compose.yml up -d",
-	"runArgs": ["--network=docunavi-dev"],
+	"runArgs": ["--network=docunavi-dev", "--name=docunavi-devcontainer"],
 	"init": true,
 
 	"features": {
@@ -93,8 +94,14 @@
 
 	// コンテナの作成・再ビルド時に自動でインストールする拡張機能。
 	// Python 系は features/python も入れるが、設定ファイルの python.analysis.* を使うので明示しておく
+	// settings: Container Tools の一覧の見出しを、イメージ名（既定の FullTag。開発コンテナは vsc-docunavi-<ハッシュ>）ではなく
+	// コンテナ名にする。右側の説明は、見出しと重なるコンテナ名をやめて状態だけにする。キーは拡張 2.5.3 の package.json で確認。
 	"customizations": {
 		"vscode": {
+			"settings": {
+				"containers.containers.label": "ContainerName",
+				"containers.containers.description": ["Status"]
+			},
 			"extensions": [
 				"anthropic.claude-code",
 				"ms-python.python",
