@@ -51,6 +51,16 @@
 | ⑤ | Django（SaaS 管理） | 条件付き。マルチテナント・権限・課金など、SaaS 管理の具体的な要件が出てから実装する。マルチテナントの分け方（スキーマ・`tenant_id` の行・DB）と導入の時期は未決 |
 | ⑥ | `--use-http2` + hypercorn（h2c） | 条件付き。切断が取り消しになっていないと確認されてから検討する |
 
+**セキュリティ債務（2026-10-24、利用者の指示。実装を止めない。着手の順は未定）**
+
+- **実キーのローテーション未実施。** `docker compose config` が実キーを表示した（2026-10-22）。新キーへの差し替えと旧キーの Google 側での削除は、利用者が自分で行う。「新キーに差し替えたあと、旧キーを Google 側で削除した」という報告を受けて、完了とする。
+- **Compose の Gemini キーが `.env` の平文のまま（Compose secrets 化は未実施）。** 終着点は次の順。
+  1. ローカル: Gemini キーを Compose secrets に移し、`.env` にキーを置かない。**前提の確認が要る:** アプリは今、`GEMINI_API_KEY` を環境変数からしか読まない（`_FILE` 形式の読み取りは無い。R2 の鍵だけ `R2_CREDENTIALS_FILE` で読む）。秘密のファイルを読む変更が先に要る。
+     `docker compose config --no-interpolate` を標準にする案は、`env_file` の値が伏せられるかを**確かめていない**。確かめるまでは、今のルール（`docker compose config` を実行しない・出力を頼まない）を保つ。
+  2. 本番: **Secret Manager は配備済み**（`GEMINI_API_KEY`・`GEMINI_API_KEY_PAID`・`DATABASE_URL`。[deploy.md](deploy.md)）。残りは、専用サービスアカウントの権限が最小かの見直し。
+  3. さらに先: Vertex AI + ADC。LLM の呼び出しは対応済み（`GOOGLE_GENAI_USE_VERTEXAI`）だが、**質問の埋め込みは API キーで呼ぶ**ので、Vertex AI にしてもキーは無くならない（[configuration.md](configuration.md)、[deploy.md](deploy.md)）。キーを無くすには、埋め込みも Vertex AI にする別の変更が要る（モデル・次元・既存の埋め込みとの互換は未確認）。
+- Secret Manager は保管・配布の仕組みで、Gemini API キー自体は短命にならない。短期の資格情報にするには、Vertex AI + ADC への移行とセットになる（別の AI の回答。証拠等級 C。Google の公式の文書は私が読んでいない）。
+
 - 検索の品質は、資料が少ないうちは、ハイブリッド検索より先にチャンクの分け方と `TOP_K` を見る。実際に、関係の薄い 2 件目のチャンクが出典に出た例がある（`TOP_K` は 2、入寮規程の PDF は 3 チャンク）。
 - 段階 3（Cloudflare）は、自分のドメインを持ったときに、順序を問わず入れる（2026-10-22 時点で未実施）。
   形は、**Cloudflare を前段（DNS・独自ドメイン・レート制限）に置き、Cloud Run はアプリ本体（オリジン）のまま**にする。Cloud Run は置き換えない。
