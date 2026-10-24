@@ -7,6 +7,7 @@
 
 # 手元のビルド成果物・キャッシュ（階層を問わず。イメージ内で作り直す）
 .venv
+.venv-django
 **/__pycache__
 **/*.pyc
 **/node_modules
