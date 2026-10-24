@@ -44,9 +44,9 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 
 利用者が決めた形（2026-10）。roadmap の段階 7 の「Vite のまま静的配信か」は、この決定に合わせて直した（2026-10-24）。
 
-## 開発環境: ローカル Supabase（設計。2026-10-25。未実装）
+## 開発環境: ローカル Supabase（設計。2026-10-25。中止）
 
-**現状（2026-10-25）:** 段階 0 の検証に使ったローカル Supabase（コンテナ、ボリューム、イメージ、ホストの `supabase` CLI）は削除済み。今動いているのは Compose の `db`（ローカルの Postgres）と本番の Supabase で、ローカル Supabase は動いていない。再開するときは `supabase init` と `supabase start` から。
+**現状（2026-10-25）:** 中止（利用者の指示）。段階 0 の検証に使ったローカル Supabase（コンテナ、ボリューム、イメージ、ホストの `supabase` CLI）は削除済み。今動いているのは Compose の `db`（ローカルの Postgres）と本番の Supabase で、ローカル Supabase は動いていない。再開するときは `supabase init` と `supabase start` から。
 
 **方向（利用者の指示、2026-10-25）:** 開発環境の DB と Auth を、ローカルの Supabase（Supabase CLI の `supabase start`）にそろえる。本番は Supabase Platform のまま。
 **決めていないこと:** Compose の `db` との関係。**「置き換え候補」**であって、置き換えるか併用するかは、この文書のレビューのあとに利用者が決める。
@@ -88,7 +88,7 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 | Cloud Run の FastAPI | 実装済み | 本番で稼働 | - |
 | Supabase Auth / Postgres + pgvector | 実装済み | 本番で稼働 | - |
 | Cloudflare R2（原本） | 実装済み | 本番で稼働 | - |
-| ローカル Supabase（開発環境） | 決定（方向のみ。未実装） | 利用者の指示（2026-10-25）。段階 0 の実測（A）: ES256 の JWKS、`vector`、`pgroonga` | Compose の `db` との関係は未決。段階 0 の検証環境は 2026-10-25 に削除済み（今は動いていない）。上の「開発環境: ローカル Supabase」 |
+| ローカル Supabase（開発環境） | 中止（2026-10-25、利用者の指示。段階 0 の記録は残す） | 利用者の指示（2026-10-25）。段階 0 の実測（A）: ES256 の JWKS、`vector`、`pgroonga` | Compose の `db` との関係は未決。段階 0 の検証環境は 2026-10-25 に削除済み（今は動いていない）。上の「開発環境: ローカル Supabase」 |
 | Next.js（Vercel） | 実装済み | 本番 URL `https://docunavi-eosin.vercel.app` で稼働（2026-10-24 にデプロイ）。Cloud Run は 2026-10-25 に API のみのリビジョンを promote 済み | 確認の結果と未確認の点は roadmap の①。決めたこと: 下の「段階 7 の前に決めること」 |
 | Cloudflare Worker + プロキシ | 決定（未実装） | 利用者の決定。SSE の通過は測定済み（A、プローブ。下記） | 自分のドメインが要る（roadmap 段階 3） |
 | Cloud Run の `--use-http2` + h2c 対応サーバー（hypercorn） | 候補 | 切断の伝わりをプローブで測定（A）。**実アプリでは未確認** | 実アプリで切断の取り消しが効いていないと確かめられたとき |
