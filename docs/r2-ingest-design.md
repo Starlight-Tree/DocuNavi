@@ -142,6 +142,26 @@ Cloud Scheduler（数分おき）──▶ Cloud Run Job docunavi-ingest-poll（
 | 4 | Scheduler を作って定期実行にする | Scheduler +$0.10/月の見込み |
 | 5（後で） | 第 2 版: Queue と通知の規則を足す。まずテスト用のプレフィックス（例: `_ingest-test/`）で、メッセージの実物を 1 通だけ pull して形を確かめる | Queue の操作が少々（無料枠内） |
 
+### 段 5 の実施メモ（2026-10-25）
+
+- **テスト用のキーは、バケット直下・スラッシュなし（例: `ingest-probe-1.txt`）にする。** 上の表の `_ingest-test/` のようなプレフィックスは使わない。
+  毎時の `docunavi-ingest-sync` は、バケット直下のプレフィックスをすべて「資料群」として扱う（`r2_store.collections()`）ので、`_ingest-test/x.pdf` は本番の検索に取り込まれて埋め込まれ、
+  `_ingest-test/x.txt` は取り込みが終了コード 1 で終わって、その回の埋め込みを止める。直下のキーは資料群にならない。規則は `prefix=ingest-probe` で絞る。確認したら、テスト用のキーは消す。
+- **Cloudflare MCP（`cloudflare`、ローカルスコープ）で Queues と R2 の通知を扱うには、認可のやり直しが要る。** 既定の Minimal では製品のスコープが無く、Queues・R2 は 403 になる（ゾーンも Workers も同じ）。
+  `/mcp` の **Reconnect は保存済みのトークンを使い直す**ので効かない。手順: `/mcp` → `cloudflare` → **Clear authentication** → **Authenticate** → 最初の画面の **Advanced** → 「Edit base scopes」に
+  `queues.write workers-r2.write`（スペース区切り。Minimal のまま）→ Continue → 次の画面の許可が 3 から 5 に増えたことを確かめて Authorize。
+  次の画面の「Edit Permissions」には、最初の画面で要求した分しか出ないので、そこでは足せない。「Full access」は広すぎるので使わない。広げた認可を狭め直すかは、利用者が決める（R2 の write は広い。2026-10-25 は「また使うのでそのまま」と決めた。狭めるなら同じ手順の逆）。
+  スコープ名は、403 のメッセージの「Reconnect and grant one of: …」に出る名前をそのまま使う。
+- **実測した通知のメッセージ（2026-10-25、証拠等級 A）。** Cloudflare の API（`PUT /accounts/{id}/r2/buckets/{bucket}/objects/{key}`）で置いた約 6 秒後に、Queue（`http_pull`、`batch_size` 1）から 1 件取れた。
+  本文は JSON の**文字列**（`body` を `JSON.parse` する）で、キーは `account` `bucket` `eventTime` `action` `object`（`key` `size` `eTag`）。例（`account` は伏せた）:
+  `{"account":"<伏せた>","bucket":"docunavi-documents","eventTime":"2026-10-24T20:12:23.200Z","action":"PutObject","object":{"key":"ingest-probe-1.txt","size":15,"eTag":"…"}}`。
+  メタデータは `CF-Content-Type: json` だけ（`CF-sourceMessageSource` は無い。API で直接入れたメッセージにだけ付く）。`attempts` は 0 から。時刻は UTC。
+  設計への含意: キーは URL エンコードの扱いを実物で確かめてから使う（今回は ASCII のみ）。`eTag` と `size` は、突き合わせ（DB の登録済みの版との比較）に使える。
+- **通知は遅れることがあり、順番も保証されない（実測）。** wrangler の `r2 object put --remote` で置いた分（`eventTime` 20:07:05Z、6 バイト）は、約 3 分待った pull 4 回がすべて空で、**約 6 分 15 秒後（20:13:20Z ごろ）にようやく Queue に入った**。
+  その間に API で置いた分（20:12:23Z）は約 6 秒で届いていて、**後に置いた方が先に着いた**。wrangler の経路が通知の対象外ということではない（最初は「出なかった」と書いたが誤り）。
+  遅れた理由は未特定（規則の作成直後の初回だけか、配信の揺れか）。設計への含意: 反映が数分遅れても壊れないこと（突き合わせの 1 時間おきの Job が最後の砦）、到着順に頼らず `eTag` や `eventTime` で新旧を決めること。
+  ダッシュボードのアップロードは未試験。なお、Queue に直接入れたメッセージ（`POST .../messages`）の pull と ack は正常だった。
+
 ## 決めたこと
 
 2026-10-21、利用者の方針（Queue は後から・突き合わせから・埋め込みは取り込み成功時だけ）に沿って埋めた。
