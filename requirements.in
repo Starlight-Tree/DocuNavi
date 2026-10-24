@@ -1,5 +1,7 @@
 fastapi>=0.115
 uvicorn[standard]>=0.30
+# Cloud Run の --use-http2（h2c）でも切断を受け取るためのサーバー。uvicorn は h2c を話せない。docs/roadmap.md ⑥
+hypercorn>=0.17
 pydantic>=2.0
 langgraph>=0.2
 langchain-core>=0.3

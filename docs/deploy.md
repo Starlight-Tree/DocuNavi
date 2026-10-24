@@ -665,6 +665,67 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
 
 確認用の会話（21:37 と 21:41 の 2 件）は、画面から削除する（SQL では消さない。チェックポイントのテーブルが相互に関わるため）。
 
+## タグ push で 0% 配備する（Cloud Build トリガー）
+
+**状態: 設定ファイルだけ書いた（2026-10-24）。トリガーも専用のサービスアカウントも未作成で、一度も動かしていない。**
+`deploy/*` のタグを push したときだけ、Cloud Build がビルドして `--no-traffic --tag` で配備する（`cloudbuild-deploy.yaml`）。
+役割の分け方は、`main` への push は Vercel（`frontend-next`）とテストだけ、Cloud Run はタグ push だけ。**本番のトラフィックは自動では変えない**（100% への切り替えは `./scripts/preview.sh promote`、戻すのは `rollback`。あなたが実行）。
+
+- タグ名は `deploy/<Cloud Run のタグ名>`（例: `deploy/h2c-20261024` → タグ `h2c-20261024`）。形が違えば、ビルドの前に止まる（検査のシェルは、手元で 7 通りの入力を確認済み）。
+- 配備は `--set-env-vars` `--set-secrets` `--use-http2` を付けない。環境変数・Secret・ポート名（`http1` か `h2c`）は、サービスの最新の設定を引き継ぐ。
+  h2c にするのは、`--use-http2` を付けた手動の配備（`preview.sh` に口は無い）を 1 回通したあとで、以後はこの経路でも引き継がれる。
+- タグを切ったコミットがそのまま配備される。`main` にある・CI が通っていることは、トリガーは確かめない（0% なので本番には出ない）。
+- 料金は、タグを push した回数分の Cloud Build だけ。
+
+### 準備（あなた。一度だけ。書き込み）
+
+```bash
+# PROJECT_ID・REGION・SERVICE・RUN_SA・as_me は「準備」で定義したもの。リポジトリは REPO=cloud-run-source-deploy
+REPO=cloud-run-source-deploy
+BUILD_SA="docunavi-build@${PROJECT_ID}.iam.gserviceaccount.com"
+
+# 1. このトリガー専用のサービスアカウント（長期キーは作らない）
+as_me gcloud iam service-accounts create docunavi-build --display-name="DocuNavi tag deploy" --project "$PROJECT_ID"
+
+# 2. 最小の権限: イメージの push、Cloud Run サービスの更新、実行用 SA としての配備、ビルドのログ
+as_me gcloud artifacts repositories add-iam-policy-binding "$REPO" --location "$REGION" --project "$PROJECT_ID" \
+  --member="serviceAccount:${BUILD_SA}" --role=roles/artifactregistry.writer
+as_me gcloud run services add-iam-policy-binding "$SERVICE" --region "$REGION" --project "$PROJECT_ID" \
+  --member="serviceAccount:${BUILD_SA}" --role=roles/run.developer
+as_me gcloud iam service-accounts add-iam-policy-binding "${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" --project "$PROJECT_ID" \
+  --member="serviceAccount:${BUILD_SA}" --role=roles/iam.serviceAccountUser
+as_me gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${BUILD_SA}" --role=roles/logging.logWriter
+
+# 3. GitHub との接続は Console で 1 回（Cloud Build の「トリガー」→「リポジトリを接続」→ GitHub。Starlight-Grove/docunavi）。
+#    そのあと、タグ push のトリガーを作る。公開値は frontend/.env.local から読む（表示しない）
+SUPABASE_URL="$(grep -E '^VITE_SUPABASE_URL=' frontend/.env.local | tail -n 1 | cut -d= -f2- | tr -d "\"'")"
+SUPABASE_PUBLISHABLE_KEY="$(grep -E '^VITE_SUPABASE_PUBLISHABLE_KEY=' frontend/.env.local | tail -n 1 | cut -d= -f2- | tr -d "\"'")"
+as_me gcloud builds triggers create github --project "$PROJECT_ID" --name=docunavi-tag-deploy \
+  --repo-owner=Starlight-Grove --repo-name=docunavi --tag-pattern='^deploy/.*$' \
+  --build-config=cloudbuild-deploy.yaml --service-account="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA}" \
+  --substitutions "_SUPABASE_URL=${SUPABASE_URL},_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+# 誤タグが心配なら、--require-approval を足す（ビルドの開始前に Console で承認する）
+```
+
+### 使うとき
+
+```bash
+git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は承認を得てから
+```
+
+私は読み取りで確かめる: `gcloud builds list --billing-project=docunavi-app --project docunavi-app`（ビルドの成否）と、
+`gcloud run services describe docunavi … --format='yaml(status.traffic)'`（新しいリビジョンが 0% で、本番が 100% のまま）。
+
+### 限界と未確認
+
+- **0% が保証されるのは `cloudbuild-deploy.yaml` の中身による。IAM ではない。** `roles/run.developer` は `update-traffic` も含むので、権限だけでは配備と切り替えを分けられない。ファイルを変えるときは、`--no-traffic` が残ることを確かめる。
+- タグを push できる人（リポジトリの書き込み権限を持つ人）は、トリガーを起動できる。GitHub のタグ保護（ルールセット）は未設定。
+- 未確認（一度も動かしていない）: ビルドとトリガーの実行そのもの / タグの push で `SHORT_SHA` `TAG_NAME` が入ること / 上の最小権限で足りること
+  （足りなければ、エラーに出た権限を足す）/ `--tag` が `run.developer` で通ること / 1st gen のトリガーの作成コマンドが、いまの GitHub 接続の方式（2nd gen）で通るか /
+  イメージ `cloud-sdk:slim` の入手と、`$$` のエスケープ。
+- `agent-deployer`（この文書の別の節）とは別。ここでは使わない。
+
 ## 実際に通った記録（2026-10-20）
 
 上の節を、この順に `as_me`（あなた自身の権限）で実行して、公開まで通りました。ID（プロジェクト番号など）は書きません。
