@@ -18,6 +18,9 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
+目標構成（Vercel の Next.js + Cloudflare の Worker。決定済みだが未実装）と、Go・Django などを採用する条件は [docs/target-architecture.md](docs/target-architecture.md)。
+新しいサービス・言語・フレームワーク・DB・インフラを足す前に、それを読んで、ユーザーに確認する。
+
 - `app/api/routes.py`: `/chat` `/chat/stream` `/health`。LLM の失敗は固定メッセージの 429/504/500/502 に変換する。画面は SSE の `/chat/stream`（組み立ては `ui_stream.py`）を使う
 - `app/agents/`: LangGraph（`graph.py`）、検索ツール（`tools.py`）、ガードレール（`guardrails.py`。完成した回答の検査と、ストリーミング中の `StreamingOutputGuard`）、
   ヘッジ付き再試行・フォールバック・有料キー切り替え（`resilience.py`）
