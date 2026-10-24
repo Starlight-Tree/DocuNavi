@@ -134,7 +134,7 @@ Go は `.devcontainer/install-go.sh` で入れる（公式の SHA-256 を照合�
 ## Django の測定（学習用。2026-10-25。証拠等級 A）
 
 製品には入れていない。「SaaS 管理の土台（組織・メンバー・役割・プラン）」を Django で作ると何が楽で何が変わらないかを、開発コンテナの中だけで測った。
-コードと再現手順は `ops/django-saas/`（README）。依存は専用の仮想環境 `.venv-django/` だけで、`requirements*.txt` は変えていない。
+コードと再現手順は `ops/django-saas/`（README）。依存は専用の仮想環境 `.venv-django/` だけで、`requirements*.txt` は変えていない。`.venv-django` は `.dockerignore` に入れた（`2ec854f`。ローカルの `docker build` でビルドコンテキストに送られないようにするため）。CI の Docker ビルドと起動確認は、この変更の後も通った（2026-10-25、証拠等級 A）。ただし CI の checkout には `.venv-django/` が無いので、除外が効くことの確認にはなっていない（ビルドが壊れていないことだけ）。
 
 **条件:** Django 5.2.18（LTS）、PyJWT 2.15.1（アプリと同じ版）、psycopg 3.3.6。一時の Postgres 17（`scripts/test-postgres-up.sh`、ポート 55432）。
 JWT は使い捨ての鍵で署名した疑似のもの（Supabase の実鍵・実ログイン・外部通信なし）。`chatbot` スキーマは、本番の形を簡略にした身代わり（外部キー・索引・CHECK 制約つきの 2 表。実物の pgvector / pgroonga は一時 Postgres に無い）。
