@@ -211,3 +211,41 @@ CI（`backend` ジョブ）は、Postgres 17 のサービスコンテナを起�
 ただし、この自動テストが動くのは素の Postgres 17（ローカル・CI）です。Supabase の Shared pooler には、手動で一度、起動・往復・再起動をまたいだ続き・
 テーブルの所在を確かめました（2026-10-14、LLM はモック。結果は `docs/configuration.md`）。このテスト一式を Supabase に向けた実行と、Cloud SQL は、まだです。
 履歴の削除コマンド（`python -m app.history_admin`）のテストも、このファイルの末尾にあります。
+
+## ログイン済みの画面を Playwright MCP で確認する
+
+`AUTH_MODE=required` の環境（本番の Cloud Run、Vercel の本番）の質問・会話の一覧は、Supabase のセッションが要ります。
+Playwright が起動したブラウザーでは、Google が「安全でない可能性があります」とログインを拒否します（`playwright open` `codegen` も同じ）。
+そこで、ホストの Chrome で入ったセッションを、storage state のファイルとして Playwright MCP に渡します（2026-10-24 に eosin で通った）。
+
+1. ホストの Chrome の**シークレットウィンドウ**で、対象の URL にログインする（質問の入力欄が出るまで）。
+2. DevTools の Console（貼り付けが止められたら `allow pasting` と入力）で次を実行すると、`auth-eosin.json` がダウンロードされる。
+   その後、すぐウィンドウを閉じる。**アプリの「ログアウト」は押さない**（押すとこのセッションも失効する）。開いたままにすると、トークンの更新で写しが切れる。
+
+   ```js
+   (() => {
+     const items = Object.keys(localStorage)
+       .filter(k => /^sb-.*-auth-token$/.test(k))
+       .map(k => ({ name: k, value: localStorage.getItem(k) }));
+     const state = { cookies: [], origins: [{ origin: location.origin, localStorage: items }] };
+     const a = document.createElement('a');
+     a.href = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: 'application/json' }));
+     a.download = 'auth-eosin.json';
+     a.click();
+     console.log('keys:', items.map(i => i.name));
+   })()
+   ```
+
+3. ファイルを Git 管理外の `.playwright-mcp/` に置く（`mv ~/Downloads/auth-eosin.json <リポジトリ>/.playwright-mcp/auth-eosin.json`）。
+   ログインした URL が確認したい URL と違う場合は、`origin` を書き換える（同じ Supabase プロジェクトのセッションなので、どの URL でも使える）。
+4. `.mcp.json` の playwright の引数に `--isolated --storage-state .playwright-mcp/auth-eosin.json` を足し、`/mcp` で再接続する
+   （`--storage-state` は isolated 専用。`@playwright/mcp@0.0.83` の `--help` で確認）。**この変更はコミットしない。**
+5. 確認が終わったら、`.mcp.json` を元に戻し、アプリからサインアウトして（リフレッシュトークンが失効する）、ファイルを削除する。
+
+開発コンテナを作り直した後の扱い: `.playwright-mcp/` と `.mcp.json` はリポジトリ（ホストのフォルダー）にあるので、残る。
+ただし、`.mcp.json` に `--storage-state` を足したまま、ファイルを消した・置いていないと、Playwright MCP が起動しない可能性がある（未確認）。
+作り直した後で Playwright MCP が使えないときは、まず `git diff .mcp.json` を見て、5 のとおり元に戻す。セッションは約 1 時間でアクセストークンが切れ、
+更新に失敗したら 1 からやり直す。手順そのもの（この節）は、リポジトリと `~/.claude` のメモリ（ボリューム）の両方にあるので、作り直しでは消えない。
+
+ファイルはログインの認証情報（リフレッシュトークン）なので、表示・貼り付け・コミットをしない。
+ホストの Chrome の拡張につなぐ `--extension` は、MCP が開発コンテナの中にあり Chrome がホストにあるので、この構成では使えない。
