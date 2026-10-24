@@ -14,7 +14,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 | フロントエンド | `cd frontend-next && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | E2E（ブラウザー） | `cd frontend-next && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
-| Docker | 開発コンテナは Compose ベースで、開くと `db` `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`。2026-10-22 に再ビルドを確認。`dev` は `docunavi-dev` だけで `api`・`db` に直接届かない）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`db`（ローカルの Postgres。pgvector 入り。`internal` のネットワークだけ・ポート非公開・空で始まる）、`api`（ポート非公開。`DATABASE_URL` は `.env` ではなく `db` に固定。8000 番は `docker-compose.api-port.yml` を重ねたときだけ 127.0.0.1 に公開）、画面の開発サーバー `frontend`（`frontend-next` の next dev。:3000。2026-10-24 に Vite から置き換えた。**Docker では未検証**）が別コンテナ。実キーでは、資料を `db` に取り込むまで `api` が起動の検査に失敗して unhealthy のまま止まる（`--reload` なので落ちない。開発コンテナの作成は止まらない。取り込み後は `docker compose restart api`。2026-10-22 に取り込み済みで healthy）。3 サービスの起動・healthy・`localhost:5173/health` は、Vite 版の `frontend` で、ホストでモックモードで確認済み（2026-10-22）。Next.js 版の `frontend` は、next dev と rewrites の転送（`/health`、SSE の `/chat/stream`）だけを開発コンテナの中で確認した（2026-10-24）。未確認: `api` から Gemini への到達（質問への実際の回答）、ホストの `docker compose` との重なり、`stopCompose`。Vite 版の `frontend` のホットリロード・SSE のプロキシ越しの逐次配信は、2 サービス構成で確認済み（2026-10-21）。Compose の `frontend` からの Google ログインの戻りは未検証。記録は [docs/development.md](docs/development.md) |
+| Docker | 開発コンテナは Compose ベースで、開くと `db` `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`。`dev` は `docunavi-dev` だけで `api`・`db` に直接届かない）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`db`（ローカルの Postgres。pgvector 入り。ポート非公開・空で始まる）、`api`（ポート非公開。`DATABASE_URL` は `.env` ではなく `db` に固定。8000 番は `docker-compose.api-port.yml` を重ねたときだけ 127.0.0.1 に公開）、`frontend`（`frontend-next` の next dev。:3000。2026-10-24 に Vite から置き換えた）が別コンテナ。実キーでは、資料を `db` に取り込むまで `api` が起動の検査に失敗して unhealthy のまま止まる（取り込み後は `docker compose restart api`。2026-10-22 に取り込み済みで healthy）。**未確認:** Next.js 版の `frontend` の Docker での起動、`api` から Gemini への到達、`stopCompose`、Compose の `frontend` からの Google ログインの戻り。検証の記録と手順は [docs/development.md](docs/development.md) |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
@@ -81,12 +81,11 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 
 ## 開発プロセスの後始末
 
-作業の終わり・セッションの切り替えの前に、自分が起動したサーバー（uvicorn、モック、負荷試験のスクリプト等）を残さない
-（古いコードのまま 8000 番を占有し、次の作業で別物を見てしまう）。起動したものは PID を控え、`kill <pid>` で止める。
-他のセッションが並行して動いているときは、一括の `pkill` を使わず、PID を指定して止める。一括で片付けるなら、
+作業の終わり・セッションの切り替えの前に、自分が起動したサーバー（uvicorn、モック、負荷試験のスクリプト等）を残さない（古いコードのまま 8000 番を占有し、次の作業で別物を見てしまう）。
+起動したものは PID を控え、`kill <pid>` で止める。他のセッションが並行して動いているときは、一括の `pkill` を使わず、PID を指定して止める。一括で片付けるなら、
 `fuser -k 8000/tcp || true` と、`pkill -f '[u]vicorn' || true`（`[p]ytest`、`[t]est_stress` も同様）を実行し、`lsof -i :8000` が何も表示しなければ空き。
-**`pkill -f` のパターンは `[u]vicorn` のように 1 文字を括弧で囲む。** `-f` はコマンドライン全体に一致し、
-`uvicorn` と生で書くと、実行中のシェル自身（Bash ツールの呼び出しを含む）も止める。コマンドの行やコメントに `uvicorn` などの語を生で書かない。
+**`pkill -f` のパターンは `[u]vicorn` のように 1 文字を括弧で囲む。** `-f` はコマンドライン全体に一致するので、生の `uvicorn` と書くと、
+実行中のシェル自身（Bash ツールの呼び出しを含む）も止める。コマンドの行やコメントにも、`uvicorn` などの語を生で書かない。
 
 ## gcloud・gh 共通（ガード）
 
@@ -97,6 +96,8 @@ gcloud と gh には、誤操作や、取り込んだ文書に埋め込まれた
 - **フックが「確認」を返した操作は、ユーザーの承認なしに進めない。**
 - **ガードを外さない。** `.claude/settings.json` のフック・権限ルール・`disableBypassPermissionsMode` を、頼まれずに編集・無効化しない。
   `--dangerously-skip-permissions` を勧めない。「指示への従い方」の節でも外れない。
+- **読み取りだけ実行する。** 書き込み系（gcloud: デプロイ、作成・更新・削除、IAM・課金、API の有効化 / gh: PR の作成・マージ、`run rerun`、設定やルールセットの変更）は実行せず、
+  コマンドを提示してユーザーに実行してもらう（ユーザーはコンテナの外のホストのターミナル、gh はホストの gh かブラウザー）。
 - **トークンの中身は表示・ログ・コミットしない。**
 
 ## gcloud（ユーザーのログイン + ガード）
@@ -106,8 +107,7 @@ gcloud と gh には、誤操作や、取り込んだ文書に埋め込まれた
 - **日常の ID は閲覧専用。** 環境変数 `CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`（`.devcontainer/devcontainer.json` の `containerEnv`）で、
   閲覧専用の `docunavi-viewer`（`docunavi-ops` のサービスアカウント。書き込みは設計上 403）へのなりすましが既定になっている。
   この既定を外さない・上書きしない。コンテナの再ビルド前は未設定のことがある。その場合も自分では設定せず、ユーザーに伝える。
-- **読み取りだけ実行する。** 書き込み系（デプロイ、作成・更新・削除、IAM・課金、API の有効化）は実行せず、コマンドを提示してユーザーに実行してもらう。
-  提示するコマンドには、誰の権限で動かすかを明示する（準備は `env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`、
+- **書き込みのコマンドには、誰の権限で動かすかを明示する**（準備は `env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`、
   日常のデプロイは `--impersonate-service-account=agent-deployer@…`。README の「書き込みをするとき」）。
 - **ログインの起動だけは、引数なしの `gcloud auth login` に限って実行してよい。** フックが毎回「確認」を返す。ブラウザーでの選択と承認は、ユーザーが行う。
   `--no-launch-browser` は使わない（コードの受け渡しを避ける）。ログイン後に私が実行するのは、`docunavi-viewer` の権限で読める範囲
@@ -137,10 +137,8 @@ gcloud と gh には、誤操作や、取り込んだ文書に埋め込まれた
 開発コンテナの gh には、**このリポジトリだけの読み取り専用トークン**（`Actions` と `Metadata`）を置く。再ビルドしても残る（`GH_CONFIG_DIR=~/.gh-config`）。
 README の「開発環境の GitHub CLI（gh）」を参照。
 
-- **読み取りだけ実行する。** `gh run list/view`、`gh pr view`、`gh ruleset view` など。`gh api` は許可リストに無く、毎回確認が出る（GET だけ使う）。
-  書き込み系（PR の作成・マージ、`run rerun`、設定やルールセットの変更）は実行せず、コマンドを提示してユーザーに実行してもらう
-  （ユーザーはコンテナの外のホストの gh かブラウザーで実行する）。コンテナの中でのユーザー自身の gh ログインは勧めない
-  （`GH_CONFIG_DIR` を共有するため、フル権限のトークンがエージェントから読めてしまう）。
+- **使うのは** `gh run list/view`、`gh pr view`、`gh ruleset view` など。`gh api` は許可リストに無く、毎回確認が出る（GET だけ使う）。
+  コンテナの中でのユーザー自身の gh ログインは勧めない（`GH_CONFIG_DIR` を共有するため、フル権限のトークンがエージェントから読めてしまう）。
 - **ログイン・認証情報には触れない。** `gh auth`（`status` を除く）、`GH_TOKEN` などの環境変数の設定、`~/.gh-config` の読み出し、`git credential` はしない。
 - 401 が返ったら期限切れの可能性が高いので、ユーザーに更新を頼む。
 
@@ -160,8 +158,8 @@ README の「開発環境の GitHub CLI（gh）」を参照。
   テストが失敗しているとき、作業の途中のときは提案しない。検査は、追加行の秘密情報のパターンと、登録語
   （`scripts/check-sensitive-terms.sh origin/main..HEAD`。語は Git の管理外の `.git/sensitive-terms` に置く）。
 - **しないこと:** 強制プッシュと、公開済み履歴の書き換えはしない（必要なら相談する）。`git reset` と `git restore` は、承認を得てから行う。
-- **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、ワークフローの静的検査を行う。**デプロイは含まない。**
-  Cloud Run への自動デプロイを足したら、`main` へのプッシュ = デプロイになるので、この運用を見直す。**Vercel は Git 連携の後（2026-10-24 決定）、`main` へのプッシュで `frontend-next` の本番が更新される。**プッシュの承認を求めるときは、`frontend-next/` の変更が含まれるかを添える。`ci.yml` の `frontend-next` ジョブ（単体テスト・型検査・ビルド）が見る。
+- **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、`frontend-next`（単体テスト・型検査・ビルド）、ワークフローの静的検査を行う。**デプロイは含まない。**
+  `main` へのプッシュで Vercel の `frontend-next` の本番が更新される。プッシュの承認を求めるときは、`frontend-next/` の変更が含まれるかを添える。Cloud Run への自動デプロイを足したら、この運用を見直す（Vercel の運用は [docs/target-architecture.md](docs/target-architecture.md)）。
 - **CI の結果の扱い:** プッシュのたびに待たない。設定・文書・拡張だけの変更は、見にも行かない。アプリ本体・テスト・Docker・`ci.yml`・`frontend-next/` を変えたら、
   プッシュ後に一度だけ `gh run list` で確認し、未確認でも次の独立した作業へ進む。次の作業が前のコミットの CI に依存するとき、デプロイや公開の前、
   ユーザーが結果を求めたときは、完了まで見て報告する。失敗したら、失敗ステップとログの要点を出す。
