@@ -57,7 +57,7 @@
 	},
 
 	// claude-volume / gh-volume: 新規作成直後のボリュームは root 所有になるため、vscode ユーザーが書き込めるようにする。
-	// cli-tools: gh・Playwright・psql の導入だけを行う（ログインや接続情報は含まない。gcloud は Dockerfile）。失敗してもコンテナの作成は止まらない。
+	// cli-tools: gh・Playwright・psql・Vercel CLI の導入だけを行う（ログインや接続情報は含まない。gcloud は Dockerfile）。失敗してもコンテナの作成は止まらない。
 	// 並列に動く別エントリにすると apt のロックを取り合うので、順番に実行する。
 	// install-playwright.sh: Playwright MCP（.mcp.json）用の Chromium（~/.cache/ms-playwright のボリュームに入る。
 	// 所有者の修正もこのスクリプトが行う）と、Chromium に要るライブラリーの導入。README の「開発環境のブラウザー確認」
@@ -66,7 +66,7 @@
 		"gh-volume": "sudo chown -R vscode:vscode /home/vscode/.gh-config",
 		"pg-volume": "sudo chown -R vscode:vscode /home/vscode/.pg && chmod 700 /home/vscode/.pg",
 		"gcloud-volume": "sudo chown vscode:vscode /home/vscode/.config && sudo chown -R vscode:vscode /home/vscode/.config/gcloud && chmod 700 /home/vscode/.config/gcloud",
-		"cli-tools": "bash .devcontainer/install-gh.sh; bash .devcontainer/install-playwright.sh; bash .devcontainer/install-psql.sh"
+		"cli-tools": "bash .devcontainer/install-gh.sh; bash .devcontainer/install-playwright.sh; bash .devcontainer/install-psql.sh; bash .devcontainer/install-vercel.sh"
 	},
 
 	// 起動のたびに、書き込み可能な Supabase MCP（supabase-write。ローカル登録）を今の作業ディレクトリに登録し直す。
@@ -77,7 +77,8 @@
 	// REGISTER_SUPABASE_WAIT_TRIES=4: claude の実体（VS Code の拡張）が無いときの待ちを最大 20 秒にする（5 秒 × 4 回）。
 	// 失敗や見つからないときも、終了コード 0 でコンテナは起動する（`|| true`）。結果は /tmp/register-supabase-write.log
 	// （成功・登録済み・失敗のどれかが残る）。
-	"postStartCommand": "REGISTER_SUPABASE_WAIT_TRIES=4 bash .devcontainer/register-supabase-write.sh > /tmp/register-supabase-write.log 2>&1 || true",
+	// vercel（公式の Vercel MCP。.devcontainer/register-vercel-mcp.sh）も同じ形で登録する。ログは /tmp/register-vercel-mcp.log。
+	"postStartCommand": "REGISTER_SUPABASE_WAIT_TRIES=4 bash .devcontainer/register-supabase-write.sh > /tmp/register-supabase-write.log 2>&1 || true; REGISTER_VERCEL_MCP_WAIT_TRIES=4 bash .devcontainer/register-vercel-mcp.sh > /tmp/register-vercel-mcp.log 2>&1 || true",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
