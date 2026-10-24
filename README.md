@@ -7,13 +7,13 @@
 チャット（`/chat`・`/chat/stream`）は、DB（Supabase / pgvector）に取り込んだ資料を、質問の埋め込みとのコサイン類似度で検索します
 （検索の設計と、見直す条件は [docs/search-design.md](docs/search-design.md)）。本物の LLM には `DATABASE_URL` と `GEMINI_API_KEY` が要ります
 （[docs/configuration.md](docs/configuration.md)）。
-バックエンド（FastAPI）に加えて、チャット画面（Vite + React + TypeScript、`frontend/`）を同じサーバーから配信します。
+バックエンド（FastAPI）は API だけを持ちます。チャット画面（Next.js + React + TypeScript、`frontend-next/`）は Vercel が配信します。
 
 - **FastAPI**: HTTP API（`/chat`, `/chat/stream`, `/health`）
 - **LangGraph**: 入力ガード → エージェント（ツール呼び出しのループ）→ 出力ガード
 - **Gemini**（`gemini-3.1-flash-lite`）: 回答生成。Gemini API キーまたは Vertex AI（ADC）で認証し、どちらも未設定ならモックモードで動く
 - **RAG**: PDF を、ページの文字の位置から見出し・段落・表を組み立ててチャンクにし、DB に取り込んで埋め込む（`python -m app.ingestion`）。質問ごとに埋め込みを作り、類似度の高いチャンクを LLM に渡す
-- **画面**: `frontend/`（Vite + React + TypeScript）。ビルド成果物 `frontend/dist` を FastAPI が `/` で配信する
+- **画面**: `frontend-next/`（Next.js + React + TypeScript）。Vercel が配信し、ブラウザーが API（Cloud Run の FastAPI）を直接呼ぶ。FastAPI は画面を配信しない
 
 ## 起動
 
@@ -29,23 +29,22 @@ uvicorn app.main:app --reload
 ### Docker Compose
 
 Docker Compose を使う場合は、ホスト側で `docker compose up --build` を実行します（`.env` が無くても起動し、その場合はモックモードです）。
-画面の開発サーバー（Vite のホットリロード）は別のコンテナ `frontend` で動き、<http://localhost:5173> で開きます（`api` が healthy になってから起動し、初回は `npm install` で時間がかかります）。
-`api` はポートを公開せず、`frontend` のプロキシ経由で使います。検索の DB は compose の `db`（ローカルの Postgres。空で始まる）で、`.env` の `DATABASE_URL` は使いません。
+画面の開発サーバー（Next.js のホットリロード）は別のコンテナ `frontend` で動き、<http://localhost:3000> で開きます（`api` が healthy になってから起動し、初回は `npm install` で時間がかかります）。
+`api` はポートを公開せず、`frontend` のプロキシ（`next.config.ts` の rewrites）経由で使います。検索の DB は compose の `db`（ローカルの Postgres。空で始まる）で、`.env` の `DATABASE_URL` は使いません。
 実キーで動かすには資料の取り込みが要ります（[docs/development.md](docs/development.md) の「ローカルの db」）。
-ビルド済みの画面（<http://localhost:8000>）や `curl` を確かめるときは、`docker compose -f docker-compose.yml -f docker-compose.api-port.yml up -d` で 8000 番を `127.0.0.1` に公開します。
-片方だけ再起動するには `docker compose restart frontend`（または `api`）。ログは `docker compose logs -f frontend`。変更通知が届かずホットリロードが効かないときは、`docker-compose.yml` の `CHOKIDAR_USEPOLLING` のコメントを外します。
+`curl` で API を直接確かめるときは、`docker compose -f docker-compose.yml -f docker-compose.api-port.yml up -d` で 8000 番を `127.0.0.1` に公開します（`/` は 404 です。画面は配信しません）。
+片方だけ再起動するには `docker compose restart frontend`（または `api`）。ログは `docker compose logs -f frontend`。変更通知が届かずホットリロードが効かないときは、`docker-compose.yml` の `WATCHPACK_POLLING` のコメントを外します。
 
-### 画面を手元でビルド・開発する
+### 画面を手元で開発する
 
 ```bash
-cd frontend
+cd frontend-next
 npm ci
-npm run build        # frontend/dist を作る。FastAPI が / で配信する
-npm run dev          # 開発サーバー（http://localhost:5173）。/chat（/chat/stream を含む）・/health・/documents・/threads は localhost:8000 へ転送
+cp .env.example .env.local   # 初回だけ
+npm run dev                  # 開発サーバー（http://localhost:3000）。/chat（/chat/stream を含む）・/health・/documents・/threads は localhost:8000 へ転送
 ```
 
-`frontend/dist` は Git 管理外です。無い状態でも API は動き、`/` はビルド方法を示す 404 を返します（起動後にビルドしても再起動は不要）。
-画面の詳細は [frontend/README.md](frontend/README.md) を参照してください。
+画面の詳細は [frontend-next/README.md](frontend-next/README.md) を参照してください。
 
 ## 設定
 
@@ -79,7 +78,7 @@ curl -sN localhost:8000/chat/stream -H 'Content-Type: application/json' \
 ```bash
 pip install -r requirements-dev.txt
 pytest                          # モックモード固定。実 API は呼びません
-cd frontend && npm test         # フロントエンド（Vitest）
+cd frontend-next && npm test    # フロントエンド（Vitest）
 ```
 
 テストの方針、CI、依存の更新手順は [docs/development.md](docs/development.md) にあります。

@@ -1,4 +1,4 @@
-"""実 API 検証用のサーバー起動（frontend/e2e/real-api、`npm run test:e2e:real-api`）。**本物の Gemini を呼ぶ（課金）。**
+"""実 API 検証用のサーバー起動（frontend-next/e2e/real-api、`npm run test:e2e:real-api`）。**本物の Gemini を呼ぶ（課金）。**
 
     python tests/real_api_server.py     # 127.0.0.1:8102（E2E_REAL_API_PORT で変える）
 

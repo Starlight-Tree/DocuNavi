@@ -26,8 +26,11 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 ## 今の構成（実装済み）
 
 ```
-ブラウザー → Cloud Run（FastAPI。Vite のビルド成果物も配信）→ Supabase（Postgres + pgvector、Auth）
+ブラウザー → Vercel（frontend-next。Next.js の画面）
+         → Cloud Run（FastAPI。API だけ。画面は配信しない）→ Supabase（Postgres + pgvector、Auth）
                                                           → Cloudflare R2（PDF の原本）
+
+（2026-10-24 までは、Cloud Run が Vite のビルド成果物も配信していた。外した。下の「FastAPI の静的配信」）
 ```
 
 資料の取り込みは Cloud Run の Job（毎時）。LLM の遅延・失敗への対処（ヘッジ、フォールバック、有料キー）はアプリの中にある（[configuration.md](configuration.md)）。
@@ -107,12 +110,12 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 - API のつなぎ方: 移行の期間は、Vercel から Cloud Run を直接呼ぶ。Worker はドメインの取得後。切り替え時に `CORS_ORIGINS`（今の既定は `*`）を Vercel の URL に絞る。
 - Vercel のデプロイ（**2026-10-24 に変更。利用者の指示: 自動化を後回しにしない**）: 最初の 1 回だけ CLI で手動デプロイして URL を確定し（Supabase の Redirect URLs と Cloud Run の `CORS_ORIGINS` に入れるため）、**そのあと続けて Git 連携に移す**。`main` = 本番。Root Directory は `frontend-next`。以前の決定は「Git 連携は止め、手動のデプロイだけ。安定してから見直す」だった。
 - プレビューの API と DB: 本番の DB に接続させない。静的な確認か、ローカル・別の DB だけにする。実装は、Vercel の **Preview の環境変数に `NEXT_PUBLIC_API_BASE_URL` を入れない**こと（API を呼べない）と、Cloud Run の `CORS_ORIGINS` にプレビューの URL を入れないこと（入れても弾かれる）。Supabase の別プロジェクトは、Preview でログインまで確かめたくなってから。
-- FastAPI の静的配信: 当面残す（Cloud Run 単体の構成を、切り替えに失敗したときの退路にする）。Next.js 版を並行で確認してから判断する。
+- FastAPI の静的配信: **2026-10-24 に外した**（Vite の `frontend/` ごと削除。利用者が Vercel 上の `frontend-next` でログインと質問を確認した後、決定）。退路は git の履歴と、Vite 版のイメージを持つ Cloud Run の以前のリビジョンだけ。新しいイメージを配備して promote するまで、本番の Cloud Run の `/` は Vite の画面のまま。
 
 **まだ決まっていない・未確認:**
 
 - プレビュー環境の API と DB の分離（Vercel の環境変数だけでは DB を分けられない）。
-- Git 連携の後の運用: `main` へのプッシュで Vercel の本番が更新される。CLAUDE.md の「CI の結果の扱い」「プッシュ」の運用を見直す（`ci.yml` は `frontend-next` を見ていないので、テストとビルドの追加を先に検討する）。連携は Vercel の GitHub アプリをこのリポジトリに入れる外向きの設定で、利用者が行う。
+- Git 連携の後の運用: `main` へのプッシュで Vercel の本番が更新される。CLAUDE.md の「CI の結果の扱い」「プッシュ」の運用を見直す（`ci.yml` に `frontend-next` のジョブ〔単体テスト・型検査・ビルド〕を足した。2026-10-24）。連携は Vercel の GitHub アプリをこのリポジトリに入れる外向きの設定で、利用者が行う。
 - Worker が付ける秘密ヘッダーを FastAPI が検査し、`*.run.app` への直接のアクセスを防ぐ（`/health` は除く）。
 - クライアント IP は `CF-Connecting-IP` で受ける。CORS は `CORS_ORIGINS` / `allow_origin_regex`。
 - タイムアウトの鎖: LLM 60 秒 < Cloud Run 90 秒 < Cloudflare 125 秒。
