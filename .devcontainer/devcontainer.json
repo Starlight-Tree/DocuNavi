@@ -83,7 +83,8 @@
 	// "features": {},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
+	// 3100: frontend-next の next dev、8100: tests/e2e_server.py の偽 API（Next.js 版の画面をホストのブラウザーで確かめる用）
+	"forwardPorts": [3100, 8100],
 
 	// コンテナの作成・再ビルド時に自動でインストールする拡張機能。
 	// Python 系は features/python も入れるが、設定ファイルの python.analysis.* を使うので明示しておく
