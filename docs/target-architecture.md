@@ -89,7 +89,7 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 | Supabase Auth / Postgres + pgvector | 実装済み | 本番で稼働 | - |
 | Cloudflare R2（原本） | 実装済み | 本番で稼働 | - |
 | ローカル Supabase（開発環境） | 決定（方向のみ。未実装） | 利用者の指示（2026-10-25）。段階 0 の実測（A）: ES256 の JWKS、`vector`、`pgroonga` | Compose の `db` との関係は未決。段階 0 の検証環境は 2026-10-25 に削除済み（今は動いていない）。上の「開発環境: ローカル Supabase」 |
-| Next.js（Vercel） | 実装済み | 本番 URL `https://docunavi-eosin.vercel.app` で稼働（2026-10-24 にデプロイ）。Cloud Run は 2026-10-25 に API のみのリビジョンを promote 済み | 未確認の項目は roadmap の①。決めたこと: 下の「段階 7 の前に決めること」 |
+| Next.js（Vercel） | 実装済み | 本番 URL `https://docunavi-eosin.vercel.app` で稼働（2026-10-24 にデプロイ）。Cloud Run は 2026-10-25 に API のみのリビジョンを promote 済み | 確認の結果と未確認の点は roadmap の①。決めたこと: 下の「段階 7 の前に決めること」 |
 | Cloudflare Worker + プロキシ | 決定（未実装） | 利用者の決定。SSE の通過は測定済み（A、プローブ。下記） | 自分のドメインが要る（roadmap 段階 3） |
 | Cloud Run の `--use-http2` + h2c 対応サーバー（hypercorn） | 候補 | 切断の伝わりをプローブで測定（A）。**実アプリでは未確認** | 実アプリで切断の取り消しが効いていないと確かめられたとき |
 | Hono | 候補 | 不明 | Worker のルートが増えたとき。今のプローブは素の Worker |
