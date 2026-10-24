@@ -55,6 +55,7 @@ USER app
 ENV PORT=8000
 EXPOSE 8000
 
-# exec 形式のままでは $PORT が展開されないため sh -c を挟み、exec で uvicorn を PID 1 にして
-# SIGTERM（Cloud Run のスケールダウン）を直接受けられるようにする
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+# exec 形式のままでは $PORT が展開されないため sh -c を挟み、exec で hypercorn を PID 1 にして
+# SIGTERM（Cloud Run のスケールダウン）を直接受けられるようにする。
+# hypercorn は同じポートで HTTP/1.1 と h2c（HTTP/2 の平文）の両方を受ける。Cloud Run の --use-http2 を付けなければ、従来どおり HTTP/1.1 で届く
+CMD ["sh", "-c", "exec hypercorn app.main:app --bind 0.0.0.0:${PORT}"]
