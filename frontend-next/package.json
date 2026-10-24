@@ -13,7 +13,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build:e2e": "NEXT_DIST_DIR=.next-e2e NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8100 NEXT_TELEMETRY_DISABLED=1 next build",
-    "build:e2e:auth": "NEXT_DIST_DIR=.next-e2e-auth NEXT_PUBLIC_SUPABASE_URL=https://auth.e2e.invalid NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_e2e_dummy NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8100 NEXT_TELEMETRY_DISABLED=1 next build"
+    "build:e2e:auth": "NEXT_DIST_DIR=.next-e2e-auth NEXT_PUBLIC_SUPABASE_URL=https://auth.e2e.invalid NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_e2e_dummy NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8100 NEXT_TELEMETRY_DISABLED=1 next build",
+    "start:e2e": "NEXT_DIST_DIR=.next-e2e NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1 -p ${E2E_WEB_PORT:-3100}",
+    "start:e2e:auth": "NEXT_DIST_DIR=.next-e2e-auth NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1 -p ${E2E_AUTH_WEB_PORT:-3101}",
+    "test:e2e": "playwright test",
+    "test:e2e:real-api": "E2E_REAL_API=1 playwright test"
   },
   "dependencies": {
     "@ai-sdk/react": "4.0.132",
@@ -26,6 +30,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
