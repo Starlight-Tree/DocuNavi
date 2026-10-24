@@ -242,6 +242,24 @@ gcloud などが書けなくなるおそれがあるためです）。読み取�
   拒否した 19 件がツールの一覧から消えたことは確認しました。
 - **未確認:** 再ビルド後に自動で登録が戻ること、再ビルド後に再認証が要らないこと、「毎回確認」の項目で実際に確認が出ること。
 
+## 開発環境の Vercel プラグイン
+
+Claude Code 用の公式プラグイン `vercel/vercel-plugin`（2026-10-25 に利用者の決定で導入。経緯は `docs/roadmap.md` の⑦）。目的は **Vercel の知識の注入とスキルだけ**で、操作（デプロイ・環境変数・ログ）は上の Vercel MCP を使う。
+公式の文書は `vercel.com/docs/agent-resources/vercel-plugin`（証拠等級 B）。
+
+- **導入:** `devcontainer.json` の `postStartCommand` が、起動のたびに `.devcontainer/install-vercel-plugin.sh` を前景で呼ぶ（導入済みなら何もしない。ログは `/tmp/install-vercel-plugin.log`）。
+  中身は `claude plugin marketplace add vercel/vercel-plugin --scope project` と `claude plugin install vercel-plugin@vercel --scope project`。有効化の宣言（`extraKnownMarketplaces`・`enabledPlugins`）は `.claude/settings.json` に書かれて Git に残る。プラグインの本体は `~/.claude/plugins/`（永続ボリューム）。
+  導入後の確認（2026-10-25、証拠等級 A）: `claude plugin list` が `vercel-plugin@vercel`、版 0.54.1、scope project、enabled。`gitCommitSha` は審査したコミット `3c88cfc` と一致し、登録されたフックの 5 ファイル + `hooks.json` は、審査した版と SHA-256 が一致した。
+- **テレメトリ:** `.claude/settings.json` の `env` で `VERCEL_PLUGIN_TELEMETRY=off`（日次・スキルの送信の両方が止まることはコードで確認）。導入の直後、`~/.config/vercel-plugin/` は存在しない。**フックが動いたあとの確認は、次のセッションで行う（未確認）。**
+  `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1` も同じ場所にある（コンテナに GitHub の SSH 鍵が無く、セッション内の `/plugin` や更新は HTTPS に戻らないため）。
+- **版の固定:** 上流にタグが無く、固定できない。審査したのは v0.54.1、コミット `3c88cfc8de5d1e124d23b0ef23f32c5aa127c845`（`install-vercel-plugin.sh` に記載。導入後の版がずれたら警告だけ出す）。自動更新は Claude Code の既定でオフのまま使う。
+  **更新の手順:** 上流の差分（`hooks/` と `.mcp.json` と `plugin.json`）を読む → 問題なければ `claude plugin update vercel-plugin@vercel` → 審査した版とコミットをスクリプトと文書で書き換える。
+- **付属の MCP（`mcp.vercel.com`）:** プラグインの `.mcp.json` に入っていて、上の Vercel MCP と重複する。書き込みを含む強い権限なので無効にする方針だった。**ただし、再ビルド後の `/mcp`（2026-10-25）に、プラグイン由来のサーバーは出なかった（既存の `vercel` だけ）。別のサーバーとしては動いていないので、deny 規則は要らない。**
+- **使わないもの:** `/vercel-plugin:deploy prod`（本番は `main` へのプッシュの Git 連携だけ）。
+- **Bun:** 公式の前提は Bun だが、この環境に無い。`claude plugin list` が「パッケージは入っていない」と注記する。登録されたフックは Node の組み込みモジュールだけを import していて（読んだ範囲）、影響は無い見込み。スキルの再生成用で、使わない。
+- **確認済み（再ビルド後、2026-10-25）:** スキルとエージェントが読み込まれる。フックが動き、`~/.config/vercel-plugin/` は作られない。`CLAUDE_ENV_FILE` へは書かれない（Vercel の目印があるプロジェクトでだけ `export` を追記する作りで、このリポジトリのルートには目印が無い。一時ファイルで実行して空だった）。空の状態からの導入は、`CLAUDE_CONFIG_DIR` を分けて試し、1 回で入り、2 回目は何もしなかった。
+- **未確認:** ルートに `vercel.json` や `next.config` などを置いたときの `export` の追記（その場合は `VERCEL_PLUGIN_*` が数個、環境ファイルに入る見込み）。実際の再ビルドで `postStartCommand` が空のボリュームから入れること（上は同じスクリプトの別環境での実行）。
+
 ## 開発環境のブラウザー確認（Playwright MCP）
 
 開発コンテナには、エージェントが画面を開いて確認するための Playwright MCP が入ります。資料一覧や PDF の表示、チャットの出典、
