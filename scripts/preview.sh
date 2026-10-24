@@ -9,7 +9,7 @@
 # イメージの名前は <コミット> の短縮 SHA から決める（HEAD とのずれを防ぐ）。build はビルドの入力が作業ツリーなので、
 # <コミット> が HEAD と一致し、追跡中のファイルに未コミットの変更が無いときだけ動く。
 # deploy は --set-env-vars / --set-secrets を付けない（付けると、有料キーの Secret など、いまの設定が消える）。
-# Secret・トークンは書かない。ログイン画面の公開値（VITE_SUPABASE_*）は frontend/.env.local から読み、表示しない。
+# Secret・トークンは書かない。画面は Vercel の frontend-next が配信するので、イメージは API だけ（ビルドに渡す設定は無い）。
 #
 # 使い方:
 #   ./scripts/preview.sh build
@@ -83,13 +83,6 @@ confirm() {
   [[ "$ans" == y || "$ans" == Y ]] || die "中止しました"
 }
 
-public_value() {
-  local v
-  v="$(grep -E "^$1=" frontend/.env.local 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d "\"'" || true)"
-  [[ -n "$v" ]] || die "frontend/.env.local に $1 がありません"
-  printf '%s' "$v"
-}
-
 case "$cmd" in
   build)
     commit="${args[1]:-$(short_sha)}"
@@ -98,16 +91,9 @@ case "$cmd" in
     [[ "$head_sha" == "$commit"* || "$commit" == "$head_sha"* ]] || die "ビルドの入力は作業ツリー（HEAD = $head_sha）です。指定のコミット $commit と一致しません"
     git diff --quiet HEAD -- || die "追跡中のファイルに未コミットの変更があります。コミットしてからビルドしてください"
     image="$(image_for "$head_sha")"
-    supabase_url="$(public_value VITE_SUPABASE_URL)"
-    supabase_key="$(public_value VITE_SUPABASE_PUBLISHABLE_KEY)"
     echo "IMAGE=$image"
-    if [[ -n "$DRY_RUN" ]]; then
-      run gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
-        --substitutions "_IMAGE=${image},_SUPABASE_URL=***,_SUPABASE_PUBLISHABLE_KEY=***"
-    else
-      gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
-        --substitutions "_IMAGE=${image},_SUPABASE_URL=${supabase_url},_SUPABASE_PUBLISHABLE_KEY=${supabase_key}"
-    fi
+    run gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
+      --substitutions "_IMAGE=${image}"
     ;;
 
   deploy)

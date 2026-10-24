@@ -46,13 +46,12 @@ def test_pushes_the_image_before_deploying() -> None:
     assert ids[0] == "check-tag"
 
 
-def test_build_args_match_the_dockerfile_and_are_public_only() -> None:
+def test_builds_the_api_image_without_build_args() -> None:
+    # 画面は Vercel の frontend-next が配信する。イメージに画面の設定（ビルド引数）は要らず、秘密も渡さない
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-    dockerfile_args = set(re.findall(r"^ARG (VITE_\w+)", dockerfile, flags=re.MULTILINE))
-    args = _step("build")["args"]
-    passed = {a.split("=", 1)[0] for prev, a in zip(args, args[1:]) if prev == "--build-arg"}
-    assert passed == dockerfile_args == {"VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY"}
-    assert not re.search(r"secret|DATABASE_URL|GEMINI_API_KEY", _code(), flags=re.IGNORECASE)
+    assert not re.search(r"^ARG ", dockerfile, flags=re.MULTILINE)
+    assert "--build-arg" not in _step("build")["args"]
+    assert not re.search(r"secret|DATABASE_URL|GEMINI_API_KEY|SUPABASE", _code(), flags=re.IGNORECASE)
 
 
 def _run_tag_check(tmp_path: Path, tag_name: str) -> subprocess.CompletedProcess[str]:

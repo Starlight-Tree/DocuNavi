@@ -18,8 +18,6 @@ __pycache__/
 # Playwright MCP が作る画面確認の成果物（スクリーンショット・スナップショット・コンソールログ。コミットしない）
 .playwright-mcp/
 
-# Playwright E2E（frontend/e2e）の成果物。dist-e2e は E2E 用のビルド（npm run build:e2e）。コミットしない
+# Playwright E2E（frontend-next/e2e）の成果物。コミットしない（E2E 用のビルド .next-e2e* は frontend-next/.gitignore）
 test-results/
 playwright-report/
-frontend/dist-e2e/
-frontend/dist-e2e-auth/

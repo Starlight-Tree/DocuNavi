@@ -10,8 +10,8 @@
             "label": "docunavi-api",
             "onAutoForward": "silent"
         },
-        "5173": {
-            "label": "docunavi-ui (vite dev)",
+        "3000": {
+            "label": "docunavi-ui (next dev)",
             "onAutoForward": "silent"
         }
     }

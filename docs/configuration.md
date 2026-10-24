@@ -57,7 +57,7 @@
 ## ログイン（認証）
 
 `AUTH_MODE=required` にすると、`/chat`・`/chat/stream`・`/documents`（資料一覧。`docs/api.md`）が `Authorization: Bearer <アクセストークン>` を要求します
-（`/health` と画面の配信は認証なし）。トークンは Supabase Auth（Google ログイン）が発行する JWT で、バックエンド（`app/auth.py`）が検証します。
+（`/health` は認証なし）。トークンは Supabase Auth（Google ログイン）が発行する JWT で、バックエンド（`app/auth.py`）が検証します。
 `AUTH_MODE=off`（既定）では何も確かめず、従来どおり匿名で動きます。**公開する前に `required` にしてください。**
 
 - **検証すること:** 署名（`{SUPABASE_URL}/auth/v1/.well-known/jwks.json` の公開鍵。ES256 / RS256 だけ。`alg=none` と HS256 は受け付けない）、
@@ -74,25 +74,25 @@
   運用者が `python -m app.history_admin --thread-id` で消すときは、保存されているキー（`<利用者 ID>:<thread_id>`）を渡します。
 - ログにトークンは出しません。出すのは失敗の種類（例外のクラス名）だけです。
 
-ブラウザー側（Google ログイン）は、`frontend` のビルド時に `VITE_SUPABASE_URL` と `VITE_SUPABASE_PUBLISHABLE_KEY` を渡すと有効になります
-（[frontend/README.md](../frontend/README.md)）。どちらかが無ければログイン画面は出ず、従来どおり認証なしで動きます
+ブラウザー側（Google ログイン）は、`frontend-next` のビルド時に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を渡すと有効になります
+（Vercel の環境変数。[frontend-next/README.md](../frontend-next/README.md)）。どちらかが無ければログイン画面は出ず、従来どおり認証なしで動きます
 （その状態でバックエンドが `required` だと、チャットは 401 になります）。トークンの更新はブラウザー側の SDK が行い、期限切れだけではログイン画面に戻りません。
 
 **Supabase と Google 側の設定（コードとは別。利用者のコンソール操作）:**
 1. Google Cloud Console で OAuth クライアント（ウェブ アプリケーション）を作る。承認済みのリダイレクト URI は、Supabase の Google プロバイダの画面に出る `https://<ref>.supabase.co/auth/v1/callback`。
 2. Supabase の Authentication → Providers → Google を有効にして、クライアント ID とシークレットを入れる。
-3. Authentication → URL Configuration で、Site URL と Redirect URLs に画面の URL（開発は `http://localhost:5173`）を入れる。
+3. Authentication → URL Configuration で、Site URL と Redirect URLs に画面の URL（開発は `http://localhost:3000`。2026-10-24 までは Vite の `http://localhost:5173`）を入れる。
 4. Project Settings → JWT Keys で、署名鍵が非対称鍵（ECC P-256 / RSA）であることを確かめる。
 - Supabase でメール確認を切る設定は、メールとパスワードのログインを使うときの開発用の話で、Google ログインでは使いません。
 
 **確認の状況（2026-10-19）:** ローカル（バックエンド `AUTH_MODE=required`、画面は `npm run dev`）で、実際の Supabase・Google を使って確かめました。
 Supabase の JWKS は公開鍵 1 個（ES256）で、バックエンドの起動時の検査が通りました。トークンなしの `/chat` は 401 でした。ブラウザーでは、
 Google ログイン → 画面に戻る → 質問を送って回答が返る、までをユーザーが通しました（モックの返答と、本物の LLM・DB の回答の両方）。
-自動テスト（`tests/test_auth.py`、`frontend/src/AuthApp.test.tsx`・`frontend/src/auth/`）は、これまでどおり手元で作った鍵と偽の JWKS を使います。
+自動テスト（`tests/test_auth.py`、`frontend-next/src/AuthApp.test.tsx`・`frontend-next/src/auth/`）は、これまでどおり手元で作った鍵と偽の JWKS を使います。
 
 トークンの期限切れ後の更新（`supabase-js` の実際の動作）は、通ったと利用者が報告した（2026-10-20。以前の確認で、日付・環境・待った時間の詳細は記録がない）。
 
-**未確認:** Docker イメージ（`VITE_*` を渡す `cloudbuild.yaml` と Dockerfile の `ARG` は用意したが、Cloud Build でのビルドは未実行。`docs/deploy.md` の「F」）、
+**未確認:** Docker イメージ（画面の設定を外した、API だけの今のイメージを Cloud Build でビルドして配備した記録は無い。`docs/deploy.md` の「F」）、
 Cloud Run などの公開環境での動作。
 
 ## 会話履歴の保存先
