@@ -46,6 +46,8 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 
 ## 開発環境: ローカル Supabase（設計。2026-10-25。未実装）
 
+**現状（2026-10-25）:** 段階 0 の検証に使ったローカル Supabase（コンテナ、ボリューム、イメージ、ホストの `supabase` CLI）は削除済み。今動いているのは Compose の `db`（ローカルの Postgres）と本番の Supabase で、ローカル Supabase は動いていない。再開するときは `supabase init` と `supabase start` から。
+
 **方向（利用者の指示、2026-10-25）:** 開発環境の DB と Auth を、ローカルの Supabase（Supabase CLI の `supabase start`）にそろえる。本番は Supabase Platform のまま。
 **決めていないこと:** Compose の `db` との関係。**「置き換え候補」**であって、置き換えるか併用するかは、この文書のレビューのあとに利用者が決める。
 
@@ -86,8 +88,8 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 | Cloud Run の FastAPI | 実装済み | 本番で稼働 | - |
 | Supabase Auth / Postgres + pgvector | 実装済み | 本番で稼働 | - |
 | Cloudflare R2（原本） | 実装済み | 本番で稼働 | - |
-| ローカル Supabase（開発環境） | 決定（方向のみ。未実装） | 利用者の指示（2026-10-25）。段階 0 の実測（A）: ES256 の JWKS、`vector`、`pgroonga` | Compose の `db` との関係は未決。上の「開発環境: ローカル Supabase」 |
-| Next.js（Vercel） | 決定（未実装） | 利用者の決定 | 先に決めること: 下の「段階 7 の前に決めること」 |
+| ローカル Supabase（開発環境） | 決定（方向のみ。未実装） | 利用者の指示（2026-10-25）。段階 0 の実測（A）: ES256 の JWKS、`vector`、`pgroonga` | Compose の `db` との関係は未決。段階 0 の検証環境は 2026-10-25 に削除済み（今は動いていない）。上の「開発環境: ローカル Supabase」 |
+| Next.js（Vercel） | 実装済み | 本番 URL `https://docunavi-eosin.vercel.app` で稼働（2026-10-24 にデプロイ）。Cloud Run は 2026-10-25 に API のみのリビジョンを promote 済み | 未確認の項目は roadmap の①。決めたこと: 下の「段階 7 の前に決めること」 |
 | Cloudflare Worker + プロキシ | 決定（未実装） | 利用者の決定。SSE の通過は測定済み（A、プローブ。下記） | 自分のドメインが要る（roadmap 段階 3） |
 | Cloud Run の `--use-http2` + h2c 対応サーバー（hypercorn） | 候補 | 切断の伝わりをプローブで測定（A）。**実アプリでは未確認** | 実アプリで切断の取り消しが効いていないと確かめられたとき |
 | Hono | 候補 | 不明 | Worker のルートが増えたとき。今のプローブは素の Worker |
@@ -143,10 +145,10 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 
 **決定（2026-10-24、利用者）:**
 
-- API のつなぎ方: 移行の期間は、Vercel から Cloud Run を直接呼ぶ。Worker はドメインの取得後。切り替え時に `CORS_ORIGINS`（今の既定は `*`）を Vercel の URL に絞る。
+- API のつなぎ方: 移行の期間は、Vercel から Cloud Run を直接呼ぶ。Worker はドメインの取得後。切り替え時に `CORS_ORIGINS` を Vercel の URL に絞る（**済み**。2026-10-25 に読んだ本番の値は `https://docunavi-eosin.vercel.app` だけ。コードの既定は `*` のまま）。
 - Vercel のデプロイ（**2026-10-24 に変更。利用者の指示: 自動化を後回しにしない**）: 最初の 1 回だけ CLI で手動デプロイして URL を確定し（Supabase の Redirect URLs と Cloud Run の `CORS_ORIGINS` に入れるため）、**そのあと続けて Git 連携に移す**。`main` = 本番。Root Directory は `frontend-next`。以前の決定は「Git 連携は止め、手動のデプロイだけ。安定してから見直す」だった。
 - プレビューの API と DB: 本番の DB に接続させない。静的な確認か、ローカル・別の DB だけにする。実装は、Vercel の **Preview の環境変数に `NEXT_PUBLIC_API_BASE_URL` を入れない**こと（API を呼べない）と、Cloud Run の `CORS_ORIGINS` にプレビューの URL を入れないこと（入れても弾かれる）。Supabase の別プロジェクトは、Preview でログインまで確かめたくなってから。
-- FastAPI の静的配信: **2026-10-24 に外した**（Vite の `frontend/` ごと削除。利用者が Vercel 上の `frontend-next` でログインと質問を確認した後、決定）。退路は git の履歴と、Vite 版のイメージを持つ Cloud Run の以前のリビジョンだけ。新しいイメージを配備して promote するまで、本番の Cloud Run の `/` は Vite の画面のまま。
+- FastAPI の静的配信: **2026-10-24 に外した**（Vite の `frontend/` ごと削除。利用者が Vercel 上の `frontend-next` でログインと質問を確認した後、決定）。退路は git の履歴と、Vite 版のイメージを持つ Cloud Run の以前のリビジョンだけ。API のみのイメージ（`docunavi-00016-ces`）を 2026-10-25 に promote 済みで、本番の Cloud Run の `/` は 404（画面は配信しない）。
 
 **まだ決まっていない・未確認:**
 
