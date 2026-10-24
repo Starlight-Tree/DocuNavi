@@ -2,7 +2,7 @@
 
 ## 画面とバックエンドの起動
 
-フロントエンドで Supabase のログインを有効にする場合（`frontend/.env.local` に `VITE_SUPABASE_URL` などがある）、バックエンドも `AUTH_MODE=required`（と `SUPABASE_URL`）で起動します。
+フロントエンドで Supabase のログインを有効にする場合（`frontend-next/.env.local` に `NEXT_PUBLIC_SUPABASE_URL` などがある）、バックエンドも `AUTH_MODE=required`（と `SUPABASE_URL`）で起動します。
 `off` で起動すると、ログイン画面は出るのに、`/threads` などが 404 になります（匿名の会話には持ち主がいないため）。
 
 ## テスト
@@ -12,28 +12,28 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-フロントエンドは Vitest です（`cd frontend && npm test`）。
+フロントエンド（`frontend-next/`）は Vitest です（`cd frontend-next && npm test`。型検査は `npm run typecheck`）。CI の `frontend-next` ジョブが、単体テスト・型検査・ビルドを実行します。
 
 ### E2E（Playwright）
 
-`cd frontend && npm run test:e2e` は、実ブラウザー（Chromium）から、本物のアプリ（FastAPI が画面を配信し、`/chat/stream` を返す）に質問を送り、
-回答と出典が画面に出ることを確かめます（`frontend/e2e/chat.e2e.ts`）。確かめるのは、ブラウザー・配信・ストリームの**つなぎ目**で、回答の中身は pytest / Vitest の役目です。
-ログインまわりも 3 シナリオあります（`frontend/e2e/auth.e2e.ts`）: ログインして戻ると画面の状態が URL に戻る / チャットが 401 を返すとトークンを 1 回だけ更新して送り直す / 更新できないとログイン画面に戻り、繰り返さない。
+`cd frontend-next && npm run test:e2e` は、実ブラウザー（Chromium）から、画面（Next.js）と本物のアプリ（FastAPI。`/chat/stream` を返す）を**別のポート**で立てて、質問を送り、
+回答と出典が画面に出ることを確かめます（`frontend-next/e2e/chat.e2e.ts`）。本番（Vercel → Cloud Run）と同じ別オリジンで、確かめるのは、ブラウザー・CORS・ストリームの**つなぎ目**です。回答の中身は pytest / Vitest の役目です。
+ログインまわりも 3 シナリオあります（`frontend-next/e2e/auth.e2e.ts`）: ログインして戻ると画面の状態が URL に戻る / チャットが 401 を返すとトークンを 1 回だけ更新して送り直す / 更新できないとログイン画面に戻り、繰り返さない。
 
 - 実 API（Gemini・埋め込み・DB・Supabase・Google）は使いません。`tests/e2e_server.py` が、モックモード・メモリ履歴・`AUTH_MODE=off` に固定し、
   検索を `FakeSearch`、グラフの LLM を `SearchingMockLLM`（どちらも `tests/fakes.py`）に差し替えて、127.0.0.1:8100（`E2E_PORT` で変更）に立てます。`app/` は変えません。
-- 画面は 2 通りにビルドします。`frontend/dist-e2e`（`npm run build:e2e`。`VITE_SUPABASE_*` を空にして、ログイン画面が出ない構成。チャット用）と、
-  `frontend/dist-e2e-auth`（`npm run build:e2e:auth`。偽の Supabase の URL `https://auth.e2e.invalid` を入れた、ログイン画面が出る構成。認証用）です。`frontend/dist` は使いません
-  （`.env.local` の本物の Supabase の設定が入るため）。認証用のサーバーは 127.0.0.1:8101（`E2E_AUTH_PORT` で変更）で、`E2E_DIST=dist-e2e-auth` を渡して立てます。
-  `playwright.config.ts` の `webServer` が、ビルドとサーバーの起動・停止まで行います。
-- 認証のシナリオは、本物の supabase-js を、偽の Supabase（`frontend/e2e/support/supabase-mock.ts`。ブラウザー側の `page.route`）につなぎます。
+  画面は配信しません。CORS は、画面の 2 つのオリジン（`E2E_WEB_ORIGINS`）だけに許します（許していないオリジンのプリフライトは 400）。
+- 画面は 2 通りにビルドし、`next start` で別のポートに立てます。`frontend-next/.next-e2e`（`npm run build:e2e`。`NEXT_PUBLIC_SUPABASE_*` を空にして、ログイン画面が出ない構成。チャット用。127.0.0.1:3100）と、
+  `frontend-next/.next-e2e-auth`（`npm run build:e2e:auth`。偽の Supabase の URL `https://auth.e2e.invalid` を入れた、ログイン画面が出る構成。認証用。127.0.0.1:3101）です。どちらも API の向き先は `http://127.0.0.1:8100` に固定です。
+  `.next`（`.env.local` の本物の Supabase の設定が入る）は使いません。`playwright.config.ts` の `webServer` が、ビルド（2 つは同じフォルダーなので順に）とサーバーの起動・停止まで行います。
+- 認証のシナリオは、本物の supabase-js を、偽の Supabase（`frontend-next/e2e/support/supabase-mock.ts`。ブラウザー側の `page.route`）につなぎます。画面と API が別オリジンなので、`page.route` で返す偽の API の応答には CORS のヘッダーを付けます。
   `.invalid` のホストへの通信と、127.0.0.1 以外へのすべての通信は止めて記録し、テストの最後に空であることを確かめます（実 Supabase・実 Google には届きません）。
   更新の失敗の応答の形は SDK のソースに合わせた推定で、**本物の Supabase での更新・期限切れの挙動は、ここでは確かめていません**（本番に近い環境での 1 時間後の確認は別）。
-- 初回だけ、Playwright 用の Chromium を入れます: `cd frontend && npx playwright install chromium`（約 120MB。`~/.cache/ms-playwright` に入り、
+- 初回だけ、Playwright 用の Chromium を入れます: `cd frontend-next && npx playwright install chromium`（約 120MB。`~/.cache/ms-playwright` に入り、
   Playwright MCP 用の Chromium（`.devcontainer/install-playwright.sh`）とは別の版です。システムのライブラリーは MCP 用の導入で入っています）。
 - Python は、リポジトリ直下の `.venv` があればそれを、無ければ PATH の `python` を使います（`E2E_PYTHON` で指定できます）。
-- 失敗時の成果物（`frontend/test-results/`・`frontend/playwright-report/`）は Git 管理外です。
-- 今あるのは 4 シナリオ（チャット 1、認証 3）で、CI には入れていません。実 API のスモークテストも、まだありません。
+- 失敗時の成果物（`frontend-next/test-results/`・`frontend-next/playwright-report/`）は Git 管理外です。
+- 今あるのは 4 シナリオ（チャット 1、認証 3）で、CI には入れていません。Vite 版から 2026-10-24 に移しました（移した直後に、新旧とも 4 件通ることを確かめた）。実 API のスモークテストも、まだありません。
 
 #### 実 API の検証（フォールバック）: `npm run test:e2e:real-api`
 
@@ -44,7 +44,7 @@ pytest
 - 本物の 503 は狙って起こせないので、**失敗だけを偽物**にします。主モデルへの要求だけを 503 の応答に差し替え（`tests/real_api_faults.py`。本物と同じ SDK の経路を通ります）、フォールバック先は本物を呼びます。
   オフラインのテスト（`tests/test_real_api_faults.py`）で、差し替えた 503 が `ServerError` → `classify_failure` の経路を通ることと、アプリがフォールバックに切り替わることを確かめてあります。本物の 503 との差は、ネットワークを通らないこと（待ち時間がほぼ 0 で、ヘッダーが無い）です。
 - 1 つの会話で 3 ターン: ① 主モデル（検索のツール呼び出しを含む）→ ② 主モデルを 503 にして、同じ会話を続ける（フォールバックが履歴を引き継ぐ）→ ③ 主モデルに戻して続ける。
-  結果は `frontend/test-results/real-api-fallback.json` に残ります（各ターンのステータス、秒数、Gemini に出た要求のモデル・差し替えの有無・ステータス、エラー。API キーや本文の全体は残しません）。
+  結果は `frontend-next/test-results/real-api-fallback.json` に残ります（各ターンのステータス、秒数、Gemini に出た要求のモデル・差し替えの有無・ステータス、エラー。API キーや本文の全体は残しません）。
 - 呼び出しは 1 回の実行で通常 6 回前後、最悪で 18 回程度です（1 ターンに LLM を 2 回呼び、遅いと 8 秒でヘッジの追加が最大 3 本）。
 - 失敗した応答のヘッダーは、`retry-after` と `x-ratelimit-*` の 7 つだけを JSON に残します（レート制限か容量不足かの切り分け用。キー・Authorization・Cookie・本文は残しません）。
 - **確かめられたこと・まだのこと（2026-10-20、実行 2 回）:** 主モデルが本物の 503 を返し続けた回では、フォールバックのモデルが 200 で答えるところまでは確かめた
@@ -73,7 +73,7 @@ GitHub Actions（`.github/workflows/ci.yml`）が、`main` へのプッシュと
 docker compose up --build -d                       # .env が無ければモックモード
 docker compose ps                                  # docunavi-api が healthy になる（ヘルスチェック。数十秒かかることがある）
 curl -s localhost:8000/health                      # {"status":"ok",…}。.env に DATABASE_URL があれば "history":"postgres"
-curl -s -o /dev/null -w '%{http_code}\n' localhost:8000/    # 200（画面。frontend/dist はイメージのビルドで入る）
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8000/    # 404（API は画面を配信しない。画面は Vercel の frontend-next）
 curl -s -X POST localhost:8000/chat -H 'content-type: application/json' \
   -d '{"message":"こんにちは","thread_id":"00000000-0000-4000-8000-000000000001"}'   # 返答の JSON（モックなら固定の返答）
 docker compose logs --tail 30 api                  # Traceback や起動失敗が無い
@@ -81,17 +81,23 @@ touch app/main.py && sleep 3 && docker compose logs --tail 5 api   # --reload �
 docker compose down                                # 終わったら止める
 ```
 
-`frontend` サービス（Vite の開発サーバー。`api` が healthy になってから起動する。これは起動順の制御だけで、あとで `api` が落ちても `frontend` は再起動しない。`docker-compose.yml`）も、ホスト側で次のとおり確かめます。上の `api` の確認に加えて:
+`frontend` サービス（`frontend-next` の next dev。`api` が healthy になってから起動する。これは起動順の制御だけで、あとで `api` が落ちても `frontend` は再起動しない。`docker-compose.yml`）も、ホスト側で次のとおり確かめます。上の `api` の確認に加えて:
 
 ```bash
 docker compose config > /dev/null                  # 構文と変数の展開が通る
 docker compose up --build                          # frontend が起動する（初回は npm install。healthy まで数十秒〜1 分）
 docker compose ps                                  # docunavi-api と docunavi-frontend が healthy
-curl -s -o /dev/null -w '%{http_code}\n' localhost:5173/          # 200（Vite の画面）。up -d の直後は npm install 中で 000 になる
-curl -s localhost:5173/health                      # api の /health がそのまま返る（Vite のプロキシ → api:8000）
-touch frontend/src/main.tsx && docker compose logs --tail 5 frontend   # ホットリロードが反応する（効かなければ CHOKIDAR_USEPOLLING）
+curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/          # 200（Next.js の画面）。up -d の直後は npm install と最初のコンパイル中で、遅いか 000 になる
+curl -s localhost:3000/health                      # api の /health がそのまま返る（next.config.ts の rewrites → api:8000）
+touch frontend-next/src/Root.tsx && docker compose logs --tail 5 frontend   # ホットリロードが反応する（効かなければ WATCHPACK_POLLING）
 docker compose restart frontend && docker compose ps                  # frontend だけ再起動しても api は動き続ける
 ```
+
+**Next.js 版の `frontend` の状況（2026-10-24）:** Vite の開発サーバーから置き換えた。**Docker での起動は未検証**（開発コンテナには Docker エンジンが無い）。
+開発コンテナの中で確かめたのは、`next dev`（`API_PROXY_TARGET` 付き）が `/` で 200、`/health` を API へ転送、`/chat/stream` の SSE を転送する、までです（Compose のネットワーク・ボリューム・healthcheck・ホットリロードは含まない）。
+`frontend_node_modules` は `frontend_next_node_modules` に変えた（Vite 版のボリュームが残っていれば、`docker volume rm docunavi_frontend_node_modules` で消せる）。
+
+**以下の「検証の記録」（2026-10-21〜22）は、Vite 版の `frontend` のものです（当時の記録のまま。パスやポートは今と違う）。**
 
 **検証の記録（2026-10-21、ホスト側。OrbStack の `docker compose`）**
 
@@ -106,8 +112,8 @@ docker compose restart frontend && docker compose ps                  # frontend
   `frontend` の 10 秒は Compose の既定の停止猶予（10 秒）にちょうど当たるので、SIGTERM で終わらず、猶予のあとに SIGKILL で止まった可能性が高い（`sh -c` が SIGTERM を子の Vite へ渡さないため、と推測。未確認）。
   開発用なので実害は無く、今回の合格条件には含めない。直すなら `docker-compose.yml` の `frontend` に `init: true`（または `command` を `exec` にする）を足して、`down` が数秒で終わるかを確かめる。
 
-`frontend/package-lock.json` と `package.json` が合っていないと、`npm install` がロックを書き換えます（`git status` で確かめる）。
-`node_modules` は名前付きボリューム `frontend_node_modules` にあります。壊れたら `docker compose down -v` で消えます（`-v` は他のボリュームも消す）。
+`frontend-next/package-lock.json` と `package.json` が合っていないと、`npm install` がロックを書き換えます（`git status` で確かめる）。
+`node_modules` は名前付きボリューム `frontend_next_node_modules` に、`.next` は `frontend_next_cache` にあります。壊れたら `docker compose down -v` で消えます（`-v` は他のボリュームも消す）。
 
 `.env` に実キー（`GEMINI_API_KEY`）があると、compose の `api` は本物の LLM で動き、資料の検索には下の「ローカルの db」が要ります（資料が入っていなければ起動に失敗します）。
 モックモードだけで確かめるなら、`.env` を一時的に別名にするか、別のディレクトリで実行します。結果（`docker compose ps` と `/health` の出力）を教えてもらえれば、確認済みとして記録します。
@@ -115,8 +121,8 @@ docker compose restart frontend && docker compose ps                  # frontend
 **ローカルの db（2026-10-22 に構成を変更。モックモードの起動はホスト側で確認済み。資料の取り込みと実キーでの動作は未確認）**
 
 - 構成: `db`（`docunavi-db`。`pgvector/pgvector:0.8.7-pg17`）、`api`（`docunavi-api`）、`frontend`（`docunavi-frontend`）。ネットワークは `docunavi-frontend-net`（`frontend` と `api`）と
-  `docunavi-backend-net`（`api` と `db`。`internal: true` で、`db` は外へも出られず、ホストからも届かない）。ボリュームは `pg-data`（`db` のデータ）と `frontend_node_modules`。
-  `api` と `db` はホストにポートを公開せず、公開するのは `frontend` の 5173 番だけです。起動順は `db` → `api` → `frontend`（どれも `condition: service_healthy`）。
+  `docunavi-backend-net`（`api` と `db`。`internal: true` で、`db` は外へも出られず、ホストからも届かない）。ボリュームは `pg-data`（`db` のデータ）と `frontend_next_node_modules`・`frontend_next_cache`。
+  `api` と `db` はホストにポートを公開せず、公開するのは `frontend` の 3000 番だけです。起動順は `db` → `api` → `frontend`（どれも `condition: service_healthy`）。
 - **`api` の `DATABASE_URL` は、`.env` の値ではなく compose の `db` に固定されます**（`docker-compose.yml` の `environment` が `env_file` より優先される）。本番の DB には、compose からは届きません。
   パスワードは `LOCAL_DB_PASSWORD`（省略すると `docunavi-local`。ローカルだけの値で、`db` はポートを公開しない）。
 - `db` は空で始まります。`pg-data` が空の初回の起動で、`db/local-init/01-bootstrap.sh` が入れ物だけを作ります（`extensions` スキーマと `vector` 型、ロール `chatbot_app`、スキーマ `chatbot`）。テーブルと資料は作りません。
@@ -131,9 +137,9 @@ docker compose restart frontend && docker compose ps                  # frontend
   4. 埋め込み（実 API）: まず `docker compose run --rm api python -m app.ingestion.embed`（確認だけ。件数・費用の見積りを表示）、
      見積りを見てから `docker compose run --rm api python -m app.ingestion.embed --apply`。既定の上限（300 チャンク・10 回）に、80 チャンク（32 件ずつで 3 回）は収まる。
   3 の `psql` は `postgres` ロール（所有者の `chatbot_app` ではない）で実行するので、テーブルの所有者が違っても列は足せます。ただし、この順序と各 SQL がローカルで通ることは、まだ確かめていません。
-- **`docker compose down -v` は `pg-data` も消します**（埋め込みの作り直しは実 API を呼ぶ）。`node_modules` だけ消したいときは `docker volume rm docunavi_frontend_node_modules`（先に `docker compose down`）。
+- **`docker compose down -v` は `pg-data` も消します**（埋め込みの作り直しは実 API を呼ぶ）。`node_modules` だけ消したいときは `docker volume rm docunavi_frontend_next_node_modules`（先に `docker compose down`）。
 - `api` の 8000 番を確かめたいとき（ビルド済みの画面配信・`curl`）: `docker compose -f docker-compose.yml -f docker-compose.api-port.yml up -d`。8000 番は `127.0.0.1` にだけ公開されます。
-  上のコマンド例の `localhost:8000` は、この上書きを重ねたときの話です（`frontend` の 5173 番経由なら、`localhost:5173/health` などが `api` に届きます）。
+  上のコマンド例の `localhost:8000` は、この上書きを重ねたときの話です（`frontend` の 3000 番経由なら、`localhost:3000/health` などが `api` に届きます）。
 - **確認済み（2026-10-22、ホスト側。`.env` を別名にしたモックモード）:** `docker compose config` が通る / 空の `pg-data` からの初回の起動で、初期化スクリプトが通る
   （`CREATE SCHEMA`・`CREATE EXTENSION`・`CREATE ROLE`・`CREATE SCHEMA`・`ALTER ROLE`・`GRANT` がログに出る。Postgres 17.11）/ `db`・`api`・`frontend` の 3 つが healthy になる（`db` → `api` → `frontend` の順）/
   `api` が `internal` の `backend-net` 越しに `db` へ届く（起動ログに「会話履歴の保存先: Postgres」）/ `localhost:5173/health` が `{"status":"ok","mode":"mock","history":"postgres"}` を返す

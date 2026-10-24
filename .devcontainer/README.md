@@ -370,6 +370,8 @@ Container Tools の画面は、一覧が見える（検証 7）。未確認: コ
 開発コンテナは Dockerfile ベースから Compose ベースに替えた。`devcontainer.json` の `dockerComposeFile` が `../docker-compose.yml`（db・api・frontend）と
 `.devcontainer/docker-compose.yml`（dev）を重ねて読み、開発コンテナを開くと `db` `api` `frontend` も起動する（`runServices`）。
 
+**2026-10-24:** `frontend` サービスは、Vite の開発サーバー（:5173）から `frontend-next` の next dev（:3000）に置き換えた（サービス名・コンテナ名 `docunavi-frontend` は同じ）。以下の確認の記録は、Vite 版の `frontend`（5173 番）のもの。Next.js 版の Compose での起動は未検証。
+
 | 項目 | 内容 |
 |---|---|
 | コンテナ | 5 つ: `docunavi-devcontainer`（dev）、`docunavi-docker-proxy`（別の Compose プロジェクト）、`docunavi-db`・`docunavi-api`・`docunavi-frontend` |

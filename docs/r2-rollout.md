@@ -52,10 +52,9 @@
 ```bash
 PROJECT_ID=docunavi-app; REGION=asia-northeast1; SERVICE=docunavi
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERVICE}:$(git rev-parse --short HEAD)"
-# frontend/.env.local の公開値（VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY）を読む。画面には出さない
-set -a; . frontend/.env.local; set +a
+# （この手順を実行した時点では、Vite の画面の公開値を --substitutions に渡していた。2026-10-24 から、イメージは API だけで、渡す値は無い）
 env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
-  --substitutions "_IMAGE=${IMAGE},_SUPABASE_URL=${VITE_SUPABASE_URL},_SUPABASE_PUBLISHABLE_KEY=${VITE_SUPABASE_PUBLISHABLE_KEY}"
+  --substitutions "_IMAGE=${IMAGE}"
 env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE"
 ```
 

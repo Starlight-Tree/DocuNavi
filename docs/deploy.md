@@ -310,21 +310,22 @@ as_me gcloud billing budgets create --billing-account=<請求先アカウント 
 デプロイのコマンドの `--set-env-vars` に足す（`SUPABASE_URL` は公開してよい値だが、このリポジトリには書かない）:
 
 ```bash
-  AUTH_MODE=required,SUPABASE_URL=<https://<ref>.supabase.co>,CORS_ORIGINS=
+  AUTH_MODE=required,SUPABASE_URL=<https://<ref>.supabase.co>,CORS_ORIGINS=<画面（Vercel）のオリジン。例: https://….vercel.app>
 ```
 
 **未対応（公開の前に要る）:**
 
-- **画面のログインは、下の F のイメージで有効にする。** `--source .` のイメージでは `VITE_SUPABASE_*` が空で、`AUTH_MODE=required` では質問できない（`/chat/stream` が 401）。
+- **画面のログインは、画面側（Vercel の `frontend-next`）の環境変数 `NEXT_PUBLIC_SUPABASE_*` で有効にする。** Cloud Run のイメージに画面の設定は入らない（2026-10-24 から。画面は Cloud Run が配信しない）。画面にログイン設定が無いと、`AUTH_MODE=required` では質問できない（`/chat/stream` が 401）。
 - トークンの期限切れ後の更新は未確認（Cloud Run から Supabase の DB と JWKS に届くことは、2026-10-20 に確かめた）。
 - 課金の有効化は、このセッションでは確認できなかった（gcloud にログインしていない）。
 
-### F. ログイン付きのイメージ（`cloudbuild.yaml`）
+### F. イメージのビルド（`cloudbuild.yaml`）
 
-`--source .` は Dockerfile のビルド引数を渡せないので、画面のログイン設定（`VITE_SUPABASE_URL`・`VITE_SUPABASE_PUBLISHABLE_KEY`。どちらも公開してよい値）は、
-`cloudbuild.yaml` でイメージをビルドして埋め込みます。配備は、できたイメージを `--image` で行います。
-**Cloud Build での実行は確かめました（2026-10-20。約 1 分半で SUCCESS。このイメージで Google ログインと質問が通った）。**
-設定の名前が Dockerfile と合っていることは `tests/test_cloudbuild.py` が確かめます。開発コンテナには Docker が無く、`docker build` はローカルでは実行していません。
+イメージは API だけです（画面は Vercel の `frontend-next` が配信するので、ビルド引数も画面の設定もありません。2026-10-24 から）。
+`--source .` でも同じイメージができますが、Artifact Registry に置くイメージの名前（コミットの短縮 SHA）を決めるために、`cloudbuild.yaml` を使います（`scripts/preview.sh build` も同じ）。
+配備は、できたイメージを `--image` で行います。
+**Cloud Build での実行は確かめました（2026-10-20。約 1 分半で SUCCESS。この時点のイメージは、Vite の画面の設定を埋め込んでいた）。画面を外した今のイメージを Cloud Build でビルドして配備した記録は、まだありません（`cloudbuild.yaml` の内容は `tests/test_cloudbuild.py` が確かめる）。**
+開発コンテナには Docker が無く、`docker build` はローカルでは実行していません。
 
 ```bash
 REPO=cloud-run-source-deploy      # 初回の --source 配備で作られるリポジトリ。無ければ下で作る
@@ -334,17 +335,16 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:$(git rev-parse
 as_me gcloud artifacts repositories create "$REPO" --repository-format=docker \
   --location "$REGION" --project "$PROJECT_ID"
 
-# ビルドして push（書き込み。as_me）。SUPABASE_URL と SUPABASE_PUBLISHABLE_KEY は、画面用の公開値
+# ビルドして push（書き込み。as_me）
 as_me gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
-  --substitutions "_IMAGE=${IMAGE},_SUPABASE_URL=${SUPABASE_URL},_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+  --substitutions "_IMAGE=${IMAGE}"
 ```
 
 配備は、A のコマンドの `--source .` を `--image "$IMAGE"` に置き換えます（ほかのフラグはそのまま）。`agent-deployer` でできるかは未確認です
 （`roles/run.sourceDeveloper` はソースからの配備用で、`--image` の配備や、ビルドの権限が足りない可能性があります。エラーに出た権限を足します）。
 
 - イメージのタグはコミットごとに変えます（`:latest` にしない）。ロールバックで、前のイメージを指定できるようにするためです。
-- `.dockerignore` が `.env` を除いているので、ビルドコンテキストに秘密は入りません。`VITE_*` に入れる値を、secret key や `DATABASE_URL` にしないこと
-  （バンドルに入り、誰でも読めます）。
+- `.dockerignore` が `.env` を除いているので、ビルドコンテキストに秘密は入りません。
 
 ### G. 予算の自動停止（課金を紐づけるときに、デプロイより先に）
 
@@ -539,13 +539,12 @@ gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGIO
 
 ### 2. イメージをビルドする（あなた）
 
-「実際に通った記録」の F と同じ。公開してよい値（`VITE_SUPABASE_*`）だけを渡す。
+「実際に通った記録」の F と同じ（2026-10-24 から、画面の設定は渡さない）。
 **`as_me` を付ける。** 日常の ID（閲覧専用の `docunavi-viewer`）では、ソースを置くバケット `docunavi-app_cloudbuild` に書けず 403 になる（2026-10-21）。
 
 ```bash
-set -a; . frontend/.env.local; set +a
 as_me gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
-  --substitutions "_IMAGE=${IMAGE},_SUPABASE_URL=${VITE_SUPABASE_URL},_SUPABASE_PUBLISHABLE_KEY=${VITE_SUPABASE_PUBLISHABLE_KEY}"
+  --substitutions "_IMAGE=${IMAGE}"
 ```
 
 ### 3. 0% でデプロイし、タグを付ける（あなた）
@@ -583,7 +582,7 @@ Authentication → URL Configuration → Redirect URLs に、次を 1 行足す�
 https://*---docunavi-xe42miq4da-an.a.run.app/**
 ```
 
-- 画面は `redirectTo` に `window.location.origin` を渡す（`frontend/src/auth/supabase.ts`）ので、コードの変更は要らない。Google 側の設定も変えない（Google の戻り先は Supabase）。
+- 画面は `redirectTo` に `window.location.origin` を渡す（`frontend-next/src/auth/supabase.ts`）ので、コードの変更は要らない。Google 側の設定も変えない（Google の戻り先は Supabase）。
 - `*` は `.` と `/` を含まない文字列に一致する（Supabase の公式）。タグには `.` が入らないので、どのタグにも一致する。**実際の URL の形は、手順 4 の `describe` の出力で確かめる**（ハッシュ付きの URL の形で出る）。
 - **サービスの URL は 2 つの形がある。** `https://docunavi-xe42miq4da-an.a.run.app`（`gcloud` が出す形。タグ付き URL もこの形）と、
   `https://docunavi-114733761361.asia-northeast1.run.app`（プロジェクト番号の形。2026-10-21 に、本番の画面を開いていた URL）。どちらも同じサービスに届く。
@@ -698,13 +697,10 @@ as_me gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${BUILD_SA}" --role=roles/logging.logWriter
 
 # 3. GitHub との接続は Console で 1 回（Cloud Build の「トリガー」→「リポジトリを接続」→ GitHub。Starlight-Grove/docunavi）。
-#    そのあと、タグ push のトリガーを作る。公開値は frontend/.env.local から読む（表示しない）
-SUPABASE_URL="$(grep -E '^VITE_SUPABASE_URL=' frontend/.env.local | tail -n 1 | cut -d= -f2- | tr -d "\"'")"
-SUPABASE_PUBLISHABLE_KEY="$(grep -E '^VITE_SUPABASE_PUBLISHABLE_KEY=' frontend/.env.local | tail -n 1 | cut -d= -f2- | tr -d "\"'")"
+#    そのあと、タグ push のトリガーを作る。置換変数は渡さない（イメージは API だけ）
 as_me gcloud builds triggers create github --project "$PROJECT_ID" --name=docunavi-tag-deploy \
   --repo-owner=Starlight-Grove --repo-name=docunavi --tag-pattern='^deploy/.*$' \
-  --build-config=cloudbuild-deploy.yaml --service-account="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA}" \
-  --substitutions "_SUPABASE_URL=${SUPABASE_URL},_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+  --build-config=cloudbuild-deploy.yaml --service-account="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA}"
 # 誤タグが心配なら、--require-approval を足す（ビルドの開始前に Console で承認する）
 ```
 
@@ -738,7 +734,7 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 1. G の予算ガード（先に）。
 2. API の有効化（`run` `cloudbuild` `artifactregistry` `secretmanager`）と、実行用サービスアカウント。
 3. Secret を 2 つ: `gemini-api-key`（B）、`database-url`（C。プーラーの URL）。実行用サービスアカウントに `roles/secretmanager.secretAccessor`。
-4. F のイメージのビルド（`frontend/.env.local` の公開値を `--substitutions` に渡す）。
+4. F のイメージのビルド。
 5. 非公開でデプロイ。環境変数と Secret は次のとおり。
 
    ```bash
@@ -746,14 +742,14 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
      --image "$IMAGE" --service-account "${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
      --no-allow-unauthenticated --max-instances 2 --concurrency 20 --timeout 90 \
      --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,DATABASE_URL=database-url:latest" \
-     --set-env-vars "AUTH_MODE=required,SUPABASE_URL=${SUPABASE_URL},CORS_ORIGINS="
+     --set-env-vars "AUTH_MODE=required,SUPABASE_URL=${SUPABASE_URL},CORS_ORIGINS=${WEB_ORIGIN}"
    ```
 
-   `AUTH_MODE` と `SUPABASE_URL` は `.env` ではなく、このフラグで渡します。`CORS_ORIGINS` は空（同じオリジンで配信するため）。
+   `AUTH_MODE` と `SUPABASE_URL` は `.env` ではなく、このフラグで渡します。`CORS_ORIGINS` は画面（Vercel）のオリジン（`WEB_ORIGIN`。画面と API は別オリジンなので、空や `*` のままにしない。本番は設定済み）。
 6. 「確かめる」の `curl`（ID トークン付き）。
 7. 公開（「公開する・戻す」）。
 8. **Supabase の Redirect URLs に、サービスの URL を足す**（画面のみ。MCP と SQL では変えられない）。Authentication → URL Configuration → Redirect URLs に `<サービスの URL>/**`。
-   ローカル用の `http://localhost:5173` は残す。画面は `redirectTo` に `window.location.origin` を渡す（`frontend/src/auth/supabase.ts`）ので、Site URL が `localhost` のままでもログインは Cloud Run に戻る。
+   ローカル用の `http://localhost:3000` は残す（2026-10-24 までは Vite の `http://localhost:5173` だった）。画面は `redirectTo` に `window.location.origin` を渡す（`frontend-next/src/auth/supabase.ts`）ので、Site URL が `localhost` のままでもログインは Cloud Run に戻る。
    メールの確認リンクやパスワード再設定を使い始めるとき、または本番を主に使うときに、Site URL を本番の URL に変える（2026-10-20 に変えた。変更後、本番とローカル（`http://localhost:5173`）のログインと質問が通った。利用者の報告）。
 9. ブラウザーで Google ログインと質問を 1 つ。
    Google の OAuth クライアントを `docunavi-app` の新しいものに替えたあとも、同じ手順で通った（2026-10-20、利用者の報告）。

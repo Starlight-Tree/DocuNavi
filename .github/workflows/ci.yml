@@ -96,30 +96,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: zizmor --no-progress .
 
-  frontend:
-    name: Frontend tests and build (Node 24)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false  # 後続のステップで git の認証は使わない
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
-        with:
-          # Dockerfile のビルドステージ（node:24-slim）にそろえる
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install dependencies
-        run: npm ci
-      - name: Run unit tests
-        run: npm test
-      - name: Type-check and build
-        run: npm run build
-
   frontend-next:
     name: Frontend (Next.js) tests, type-check and build (Node 24)
     runs-on: ubuntu-latest
@@ -164,7 +140,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       # キーを渡さないので、アプリはモックモードで起動する。固定した依存で実際に動くことと、
-      # 画面（フロントエンドのビルド成果物）と /chat が、イメージの中で応答することを確かめる。
+      # /health と /chat が、イメージの中で応答することを確かめる（画面は Vercel の frontend-next が配信する）。
       - name: Start the image and check it responds
         run: |
           docker run -d --name docunavi -p 8000:8000 docunavi:ci
@@ -174,7 +150,6 @@ jobs:
           done
           cat health.json
           grep -q '"status": *"ok"' health.json
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/)" = "200"
           curl -fsS -X POST http://127.0.0.1:8000/chat \
             -H 'Content-Type: application/json' \
             -d '{"message": "ザーハードの大気について教えて"}' > chat.json

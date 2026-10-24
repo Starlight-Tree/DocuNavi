@@ -1,5 +1,5 @@
-# api の 8000 番を、このマシンの 127.0.0.1 にだけ公開する上書き（画面のビルド済み配信や curl を確かめるとき用）。
-# 普段の docker-compose.yml では api はポートを公開せず、frontend（:5173）のプロキシ経由でだけ使う。
+# api の 8000 番を、このマシンの 127.0.0.1 にだけ公開する上書き（curl で API を直接確かめるとき用）。
+# 普段の docker-compose.yml では api はポートを公開せず、frontend（:3000）のプロキシ経由でだけ使う。
 #
 #   docker compose -f docker-compose.yml -f docker-compose.api-port.yml up -d
 #   curl -s localhost:8000/health

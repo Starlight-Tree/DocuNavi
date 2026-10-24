@@ -18,7 +18,6 @@ from app.api.graph import router as graph_router  # noqa: E402
 from app.api.routes import router  # noqa: E402
 from app.api.threads import router as threads_router  # noqa: E402
 from app.auth import verify_auth_config  # noqa: E402
-from app.frontend import mount_frontend  # noqa: E402
 from app.history import history_store  # noqa: E402
 
 _APP_LOG_HANDLER = "app-log"
@@ -42,7 +41,7 @@ def _configure_app_logging() -> None:
     logger.addHandler(handler)
 
 
-_configure_app_logging()  # mount_frontend の起動ログより前に有効にする
+_configure_app_logging()
 
 
 @asynccontextmanager
@@ -83,8 +82,3 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     # 想定外の例外でも内部情報を返さず、他のエラーと同じ JSON 形式にそろえる。
     # Starlette はこの後も例外を再送出するので、ログは uvicorn 側に残る
     return JSONResponse(status_code=500, content={"detail": "サーバー内部でエラーが発生しました。"})
-
-
-# ビルド済みフロントエンド（frontend/dist）があれば配信する。無ければ API だけで動く。
-# どのルートにも当たらなかったリクエストだけを受けるので、API ルートが隠れることはない
-mount_frontend(app)

@@ -31,14 +31,13 @@ flowchart LR
 | `app/api/routes.py` | `/health`、`/chat`、`/chat/stream`、入力検証、LLM・履歴の保存先のエラーの分類、切断時の取り消し |
 | `app/api/ui_stream.py` | `/chat/stream` の応答（AI SDK の UI message stream）の組み立て |
 | `app/history.py` | 会話履歴の保存先（`DATABASE_URL` があれば Postgres、無ければメモリ）。接続プールの開閉 |
-| `app/frontend.py` | `frontend/dist` の配信と SPA フォールバック |
 | `app/agents/graph.py` | LangGraph のグラフ、`SYSTEM_PROMPT`、モック LLM |
 | `app/agents/guardrails.py` | 入出力ガードレール（[guardrails.md](guardrails.md)） |
 | `app/agents/resilience.py` | LLM 呼び出しのヘッジ付き再試行（完了を待つ `hedged_call` と、最初のチャンクを待つ `hedged_stream`） |
 | `app/agents/tools.py` | 資料の検索ツール（`search_documents`）。実体は `search_vector.py`（DB のベクトル検索。失敗しても別の経路に戻らない） |
 | `app/search_vector.py` | 質問の埋め込みと pgvector のコサイン類似度検索、起動時の DB の検査（設計: [search-design.md](search-design.md)） |
 | `app/ingestion/` | PDF の取り込み（`python -m app.ingestion`）と埋め込み（`python -m app.ingestion.embed`）。`corpus.py` は評価の BM25 基準線用 |
-| `frontend/` | チャット画面（Vite + React + TypeScript）。`dist/` がビルド成果物 |
+| `frontend-next/` | チャット画面（Next.js + React + TypeScript）。Vercel が配信する（FastAPI は配信しない）。E2E もここ |
 | `storage/pdf/<名前>/` | PDF の資料（取り込みの元。検索は DB を読む。ディレクトリ名は整理用。いまは zahard・cafe・guides） |
 | `scripts/` | 評価の道具。`bm25_baseline.py` は、以前アプリが使った BM25（評価の基準線。アプリは使わない） |
 | `tests/` | pytest（モックモード固定） |
@@ -58,7 +57,7 @@ flowchart TB
     subgraph host["ホスト PC"]
         envfile[".env（Git 管理外）<br/>GEMINI_API_KEY / DATABASE_URL など"]
         subgraph compose["docker compose（Docker 上の実行）"]
-            api["コンテナ docunavi-api :8000<br/>FastAPI + LangGraph + frontend/dist"]
+            api["コンテナ docunavi-api :8000<br/>FastAPI + LangGraph（API だけ）"]
         end
         subgraph devc["開発コンテナ（devcontainer）"]
             venv[".venv の uvicorn / pytest<br/>（開発中のサーバー :8000）"]
@@ -87,7 +86,7 @@ flowchart TB
     cloudrun -.-> pg
 ```
 
-- アプリの実行は 2 通りです。ホストでの `docker compose up`（`docunavi-api`。ローカルの `docunavi-db` につながり、ポートは公開せず、`docunavi-frontend` の 5173 番経由で使う。
+- アプリの実行は 2 通りです。ホストでの `docker compose up`（`docunavi-api`。ローカルの `docunavi-db` につながり、ポートは公開せず、`docunavi-frontend`（next dev）の 3000 番経由で使う。
   8000 番は `docker-compose.api-port.yml` を重ねたときだけ）と、開発コンテナの `.venv` での `uvicorn`（8000 番。`DATABASE_URL` は `.env` の値）。
   開発コンテナには Docker が無いので、compose はホスト側で実行します。
   開発コンテナ自体も Compose ベースで（2026-10-22。`.devcontainer/docker-compose.yml`。再ビルドは未実施）、開くと `db` `api` `frontend` も起動します
@@ -96,7 +95,7 @@ flowchart TB
   無いとモックモード（キー未設定）か、起動の失敗になります（[search-design.md](search-design.md)）。
 - 秘密情報の置き場所は、実行時の環境変数だけです。値は文書にも画像にも書きません。
   - `GEMINI_API_KEY`、`DATABASE_URL`: ホストのリポジトリ直下の `.env`（Git 管理外。雛形は `.env.example`）。compose が `env_file` で渡します。
-  - `VITE_SUPABASE_PUBLISHABLE_KEY`: 画面のビルド時に渡す公開用の値で、秘密ではありません。
+  - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: 画面（Vercel）のビルド時に渡す公開用の値で、秘密ではありません。Cloud Run のイメージには入りません。
   - gh の読み取り専用トークン: 開発コンテナの名前付きボリューム（`~/.gh-config`）。gcloud のログインは残しません（[.devcontainer/README.md](../.devcontainer/README.md)）。
 - Cloud Run と Vertex AI は、手順を書いただけで、実行も検証もしていません（[deploy.md](deploy.md)）。
 
@@ -129,9 +128,9 @@ sequenceDiagram
 
 ## 画面はどう配信されるか
 
-`app/frontend.py` が `frontend/dist` を配信します。どのルートにも当たらなかった `GET`/`HEAD` だけが画面側に回り、拡張子のないパスは
-`index.html`（SPA のルーティング）、無いファイル（`/assets` 配下や拡張子付き）は 404 になります。`/chat`・`/chat/stream`・`/health`・`/docs` などの API は
-影響を受けません。
+画面（`frontend-next/`、Next.js）は Vercel が配信します。FastAPI は画面を配信せず、API だけを持ちます（2026-10-24 に、Vite の画面の配信を外した）。
+ブラウザーは、Vercel の画面から Cloud Run の API を直接呼ぶ別オリジンの構成なので、API は `CORS_ORIGINS` に画面のオリジンを持ちます。
+Cloud Run の `/` は 404 です。ローカルの開発では、Next.js の開発サーバーが `next.config.ts` の rewrites で API を同じオリジンに見せます。構成の決定は [target-architecture.md](target-architecture.md) です。
 
 ## ガードレールはどう働くか
 

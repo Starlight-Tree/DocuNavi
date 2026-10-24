@@ -7,16 +7,13 @@
 #     設定はサービスの最新の設定を引き継ぐ
 #   - タグ名は deploy/<Cloud Run のタグ名>。<…> は小文字・数字・ハイフンで、先頭は英字（deploy/h2c-20261024 → タグ h2c-20261024）
 #
-# 置換変数（トリガーに設定する。ユーザー定義は _ で始まる）:
-#   _SUPABASE_URL                Supabase の URL（公開してよい値。このリポジトリには書かない）
-#   _SUPABASE_PUBLISHABLE_KEY    Supabase の publishable key（公開してよい値。secret key は渡さない）
+# 置換変数: ユーザー定義（_ で始まる）は下の既定のままでよく、トリガーで渡すものは無い。画面は Vercel の frontend-next が配信するので、
+# このイメージは API だけ（ビルド引数は無い）。
 # 組み込み: PROJECT_ID、SHORT_SHA、TAG_NAME（タグの push で起動したときに入る）
 substitutions:
   _SERVICE: docunavi
   _REGION: asia-northeast1
   _AR_REPO: cloud-run-source-deploy
-  _SUPABASE_URL: ""
-  _SUPABASE_PUBLISHABLE_KEY: ""
 
 steps:
   # タグの形を確かめ、Cloud Run のタグ名を /workspace/run-tag に控える。形が違えば、ビルドの前に止める
@@ -38,10 +35,6 @@ steps:
     name: gcr.io/cloud-builders/docker
     args:
       - build
-      - --build-arg
-      - VITE_SUPABASE_URL=${_SUPABASE_URL}
-      - --build-arg
-      - VITE_SUPABASE_PUBLISHABLE_KEY=${_SUPABASE_PUBLISHABLE_KEY}
       - --tag
       - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${SHORT_SHA}
       - .

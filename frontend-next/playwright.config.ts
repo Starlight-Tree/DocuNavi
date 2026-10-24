@@ -63,7 +63,7 @@ const mockConfig = defineConfig({
     {
       // API だけ（画面は配信しない）。CORS は 2 つの画面のオリジンだけに許す
       command: `${PYTHON} ../tests/e2e_server.py`,
-      env: { E2E_PORT: String(API_PORT), E2E_API_ONLY: '1', E2E_WEB_ORIGINS: `${WEB_URL},${AUTH_WEB_URL}` },
+      env: { E2E_PORT: String(API_PORT), E2E_WEB_ORIGINS: `${WEB_URL},${AUTH_WEB_URL}` },
       url: `${API_URL}/health`,
       reuseExistingServer: false, // 別物（古いコードのサーバー）を見ないよう、使い回さない
       timeout: 60_000,

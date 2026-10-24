@@ -35,7 +35,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: docunavi-api
-    # ポートは公開しない。画面は frontend（:5173）のプロキシ経由で使う。8000 番を確かめたいときは docker-compose.api-port.yml を重ねる
+    # ポートは公開しない。画面は frontend（:3000）のプロキシ経由で使う。8000 番を確かめたいときは docker-compose.api-port.yml を重ねる
     env_file:
       # .env が無くても起動できる（その場合は GEMINI_API_KEY 未設定 = モックモード）
       - path: .env
@@ -67,9 +67,10 @@ services:
       start_period: 5s
     restart: unless-stopped
 
-  # 画面の開発サーバー（Vite。http://localhost:5173）。api とは別のコンテナで、ホットリロードで動く。
-  # /chat /health /documents /threads は、サービス名 api（Compose 内の名前解決）へ転送する。
-  # api が healthy になってから起動する。api の画面配信（http://localhost:8000）は、これまでどおりイメージの中のビルド済み成果物。
+  # 画面の開発サーバー（frontend-next の next dev。http://localhost:3000）。api とは別のコンテナで、ホットリロードで動く。
+  # /chat /health /documents /threads は、next.config.ts の rewrites が、サービス名 api（Compose 内の名前解決）へ転送する
+  # （API_PROXY_TARGET。NEXT_PUBLIC_API_BASE_URL は空にして、ブラウザーからは同じオリジンに見せる）。
+  # api が healthy になってから起動する。本番の画面は Vercel が配信し、api（Cloud Run）は画面を配信しない。
   frontend:
     image: node:24-slim
     container_name: docunavi-frontend
@@ -78,29 +79,28 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "5173:5173"
+      - "3000:3000"
     networks:
       - frontend-net
     environment:
-      VITE_DEV_HOST: "0.0.0.0"
-      VITE_DEV_PROXY_TARGET: "http://api:8000"
+      API_PROXY_TARGET: "http://api:8000"
+      # 空にする（frontend-next/.env.local の値より、コンテナの環境変数が優先される）
+      NEXT_PUBLIC_API_BASE_URL: ""
       # ホスト↔コンテナの変更通知が届かず、ホットリロードが効かないときだけ、次の行の # を外す
       # （ポーリングは CPU を使う。Docker Desktop など、ファイル変更通知が届かない環境向け）
-      # CHOKIDAR_USEPOLLING: "true"
+      # WATCHPACK_POLLING: "true"
     volumes:
-      - ./frontend:/app
-      # node_modules はホストのものと分ける（ネイティブの依存が OS ごとに違うため）。依存を変えたら起動時の npm install が反映する
-      - frontend_node_modules:/app/node_modules
+      - ./frontend-next:/app
+      # node_modules と .next はホストのものと分ける（ネイティブの依存が OS ごとに違うため）。依存を変えたら起動時の npm install が反映する
+      - frontend_next_node_modules:/app/node_modules
+      - frontend_next_cache:/app/.next
     # package-lock.json のとおりに入れる。ボリュームが node_modules の場所なので、npm ci（ディレクトリごと消す）は使わない
-    command: sh -c "npm install --no-audit --no-fund && npm run dev"
+    command: sh -c "npm install --no-audit --no-fund && npm run dev -- --hostname 0.0.0.0 --port 3000"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
       interval: 5s
       timeout: 3s
       retries: 30
-      # 初回は npm install に時間がかかる
-      start_period: 60s
-    restart: unless-stopped
 
 # frontend-net: frontend と api（api は Gemini など外へも出る。frontend は npm install で外へ出る）。
 # backend-net: api と db だけ。internal なので、db は外へ出られず、ホストからも届かない。
@@ -112,5 +112,6 @@ networks:
     internal: true
 
 volumes:
-  frontend_node_modules:
+  frontend_next_node_modules:
+  frontend_next_cache:
   pg-data:
