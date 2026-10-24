@@ -216,6 +216,32 @@ gcloud などが書けなくなるおそれがあるためです）。読み取�
 | エージェントに PR の作成まで任せたい | 書き込み専用の短期トークンを、読み取り用とは別に持つ。実行は人間の承認を残す |
 | 90 日の更新も負担になった | GitHub App 化を検討する |
 
+## 開発環境の Vercel CLI
+
+開発コンテナには Vercel CLI が入ります（`.devcontainer/install-vercel.sh`。版は固定で、作成時に `npm install -g` します）。
+`frontend-next` を Vercel へ最初に 1 回デプロイするために使いました（`docs/target-architecture.md` の「段階 7」。そのあとは Git 連携に移す方針です）。
+
+- **ログイン情報はイメージにもボリュームにも残しません。** 再ビルドすると消えます。デプロイのたびに `vercel login`（ブラウザーでの承認）を行い、
+  終わったら `vercel logout` します。長期の `VERCEL_TOKEN` はコンテナに置きません。
+- ログイン中のトークン（`~/.local/share/com.vercel.cli`）は、コンテナの中のエージェントから読める経路が残ります（gcloud の「限界」と同じ）。
+  エージェントはこれを読まず、`vercel` の認証系のコマンドも実行しません。デプロイや環境変数の変更はあなたが実行します。
+- 版を上げるときは、公開日（2 週間以上前か）を `npm view vercel time` で確かめてから、スクリプトの `VERCEL_VERSION` を書き換えます。
+- 未確認: 再ビルド後にこのスクリプトが実際に導入すること（構文と、導入済みのときの分岐だけ確認）。
+
+## 開発環境の Vercel MCP
+
+公式の Vercel MCP（`https://mcp.vercel.com`。2026-10-24 に利用者の指示で導入。以前の「保留」を解除）を、プロジェクトの**ローカル登録**で使います。`.mcp.json` には入れません（リポジトリは変わりません）。
+公式の手順は `vercel.com/docs/agent-resources/vercel-mcp`（証拠等級 B）。
+
+- **登録:** `devcontainer.json` の `postStartCommand` が、起動のたびに `.devcontainer/register-vercel-mcp.sh` を前景で呼び、今のパスに登録し直します（登録だけで、認証はしません。ログは `/tmp/register-vercel-mcp.log`）。
+  手で入れるなら `claude mcp add --scope local --transport http vercel https://mcp.vercel.com`（`claude` の実体が PATH に無いときは、スクリプトが VS Code の拡張から探します）。
+- **認証:** OAuth。`/mcp` でブラウザーから承認します。個人アカウント（Hobby。チームは 0 件）は、初回に `authorize_team_access` の同意リンクを開いて承認する必要がありました（承認前は 403）。
+- **トークンの扱い（CLI と違う点）:** OAuth のトークンは `~/.claude` のボリュームに残る見込みです（Supabase MCP では再ビルド後も残った。Vercel では未確認）。CLI の「ログインを残さない」とは方針が異なります。
+  公式の文書では、接続すると AI が Vercel のアカウントと同じ権限を持ちます。読み取り専用の接続は文書に見当たりません。使わないときは、Vercel の連携の設定から接続を取り消せます。
+- **権限:** ツールは 200 以上あり、請求・ドメイン・DNS・鍵・ファイアウォール・デプロイ・環境変数の変更を含みます。書き込み系は、`.claude/settings.local.json`（Git の管理外）の規則で止めます（2026-10-24 に導入）。許可 = 読み取り 12 件、毎回確認 = `update_project`（保護の設定も変えられる）・`create_deployment`・環境変数の変更など 9 件、拒否 = 請求・ドメイン・DNS・鍵・ファイアウォールなど 19 件。
+  拒否した 19 件がツールの一覧から消えたことは確認しました。
+- **未確認:** 再ビルド後に自動で登録が戻ること、再ビルド後に再認証が要らないこと、「毎回確認」の項目で実際に確認が出ること。
+
 ## 開発環境のブラウザー確認（Playwright MCP）
 
 開発コンテナには、エージェントが画面を開いて確認するための Playwright MCP が入ります。資料一覧や PDF の表示、チャットの出典、
