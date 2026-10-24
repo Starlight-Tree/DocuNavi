@@ -1,0 +1,71 @@
+# `deploy/*` のタグを push したときだけ動く Cloud Build のトリガー用。ビルドして、本番のトラフィックを変えずに（0%）タグ付きで配備する。
+# 手順と権限は docs/deploy.md の「タグ push で 0% 配備する（Cloud Build トリガー）」。
+#
+# 守ること（変えるときは docs/deploy.md を直す）:
+#   - 配備は必ず --no-traffic。100% への切り替え（promote）はしない。ユーザーが ./scripts/preview.sh promote で行う
+#   - --set-env-vars / --set-secrets / --use-http2 は付けない（付けると、いまの設定や有料キーの Secret が変わる・消える）。
+#     設定はサービスの最新の設定を引き継ぐ
+#   - タグ名は deploy/<Cloud Run のタグ名>。<…> は小文字・数字・ハイフンで、先頭は英字（deploy/h2c-20261024 → タグ h2c-20261024）
+#
+# 置換変数（トリガーに設定する。ユーザー定義は _ で始まる）:
+#   _SUPABASE_URL                Supabase の URL（公開してよい値。このリポジトリには書かない）
+#   _SUPABASE_PUBLISHABLE_KEY    Supabase の publishable key（公開してよい値。secret key は渡さない）
+# 組み込み: PROJECT_ID、SHORT_SHA、TAG_NAME（タグの push で起動したときに入る）
+substitutions:
+  _SERVICE: docunavi
+  _REGION: asia-northeast1
+  _AR_REPO: cloud-run-source-deploy
+  _SUPABASE_URL: ""
+  _SUPABASE_PUBLISHABLE_KEY: ""
+
+steps:
+  # タグの形を確かめ、Cloud Run のタグ名を /workspace/run-tag に控える。形が違えば、ビルドの前に止める
+  - id: check-tag
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [[ ! "$${TAG_NAME:-}" =~ ^deploy/[a-z][a-z0-9-]{0,40}$$ ]]; then
+          echo "タグ名は deploy/<小文字・数字・ハイフン。先頭は英字> にしてください: '$${TAG_NAME:-}'" >&2
+          exit 1
+        fi
+        printf '%s' "$${TAG_NAME#deploy/}" > /workspace/run-tag
+        echo "Cloud Run のタグ: $$(cat /workspace/run-tag)"
+
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - VITE_SUPABASE_URL=${_SUPABASE_URL}
+      - --build-arg
+      - VITE_SUPABASE_PUBLISHABLE_KEY=${_SUPABASE_PUBLISHABLE_KEY}
+      - --tag
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${SHORT_SHA}
+      - .
+
+  # 配備の前にイメージが Artifact Registry に無いといけないので、`images:` ではなくここで push する
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${SHORT_SHA}
+
+  - id: deploy-no-traffic
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        gcloud run deploy "${_SERVICE}" --project "${PROJECT_ID}" --region "${_REGION}" \
+          --image "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${SHORT_SHA}" \
+          --no-traffic --tag "$$(cat /workspace/run-tag)"
+        echo "--- 配備後のトラフィック（新しいリビジョンが 0%、本番が 100% のままであること）"
+        gcloud run services describe "${_SERVICE}" --project "${PROJECT_ID}" --region "${_REGION}" \
+          --format='yaml(status.traffic)'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
