@@ -93,9 +93,12 @@ touch frontend-next/src/Root.tsx && docker compose logs --tail 5 frontend   # �
 docker compose restart frontend && docker compose ps                  # frontend だけ再起動しても api は動き続ける
 ```
 
-**Next.js 版の `frontend` の状況（2026-10-24）:** Vite の開発サーバーから置き換えた。**Docker での起動は未検証**（開発コンテナには Docker エンジンが無い）。
-開発コンテナの中で確かめたのは、`next dev`（`API_PROXY_TARGET` 付き）が `/` で 200、`/health` を API へ転送、`/chat/stream` の SSE を転送する、までです（Compose のネットワーク・ボリューム・healthcheck・ホットリロードは含まない）。
-`frontend_node_modules` は `frontend_next_node_modules` に変えた（Vite 版のボリュームが残っていれば、`docker volume rm docunavi_frontend_node_modules` で消せる）。
+**Next.js 版の `frontend` の状況（2026-10-25 更新）:** Vite の開発サーバーから置き換えた（2026-10-24）。
+**ホスト側（OrbStack）で、起動までは確認済み（2026-10-25）:** `docker compose up --build -d db api frontend` が通り、`ps` で `db`・`api`・`frontend` が healthy（`frontend` は作成の約 16 秒後）。
+`localhost:3000/health` が `{"status":"ok","mode":"gemini","history":"postgres"}`（rewrites → `api:8000` が通る）、`localhost:3000/` が 200。
+**未確認:** ホットリロード（`WATCHPACK_POLLING`）、`restart frontend` で `api` が動き続けること、`down` の所要時間、ブラウザーでの見た目と SSE の体感、Compose の `frontend` からの Google ログインの戻り。
+開発コンテナの中では、`next dev`（`API_PROXY_TARGET` 付き）が `/` で 200、`/health` を API へ転送、`/chat/stream` の SSE を転送する、までを確かめてある。
+`frontend_node_modules` は `frontend_next_node_modules` に変えた。Vite 版のボリューム `docunavi_frontend_node_modules` は、この確認の時点でホストに残っていなかった（消す必要は無い）。
 
 **以下の「検証の記録」（2026-10-21〜22）は、Vite 版の `frontend` のものです（当時の記録のまま。パスやポートは今と違う）。**
 
