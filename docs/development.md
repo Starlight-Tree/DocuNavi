@@ -138,10 +138,13 @@ docker compose restart frontend && docker compose ps                  # frontend
   1. `docker compose up -d db`
   2. テーブルと資料（課金なし）: `--input` が必須で、資料群ごとに実行する。`for c in zahard cafe guides; do docker compose run --rm api python -m app.ingestion --input storage/pdf/$c --apply; done`
      （`--apply` なしは確認だけ。2026-10-22 に、開発コンテナの `.venv` で確認だけを実行: zahard 3 文書 12 チャンク、cafe 1 文書 30、guides 2 文書 38、合計 80 チャンク）
-  3. 埋め込み用の列: `docker compose exec db psql -U postgres -d docunavi -f /migrations/0001_pgvector_embeddings.sql`、続けて `0002`・`0003`・`0005`（`0004` は pgroonga で、ローカルには入れない）
+  3. 埋め込み用の列と資料グループの表（`/migrations` は `supabase/migrations/` のマウント。本番に適用する SQL と同じファイル）。版の順に適用する。`20261018080137_pgroonga_chunks` は pgroonga で、ローカルには入れない:
+     `for f in 20261017184901_pgvector_embeddings 20261017185742_embedding_input_hash 20261018050236_document_title 20261018175020_document_collection 20261025205258_document_collections; do docker compose exec db psql -U postgres -d docunavi -v ON_ERROR_STOP=1 -f /migrations/$f.sql; done`
+     最後の `20261025205258_document_collections` が `document_collections` 表を作る。これを適用しないと、`GET /collections` が 503 の固定文を返す。
   4. 埋め込み（実 API）: まず `docker compose run --rm api python -m app.ingestion.embed`（確認だけ。件数・費用の見積りを表示）、
      見積りを見てから `docker compose run --rm api python -m app.ingestion.embed --apply`。既定の上限（300 チャンク・10 回）に、80 チャンク（32 件ずつで 3 回）は収まる。
   3 の `psql` は `postgres` ロール（所有者の `chatbot_app` ではない）で実行するので、テーブルの所有者が違っても列は足せます。ただし、この順序と各 SQL がローカルで通ることは、まだ確かめていません。
+  特に `20261025205258_document_collections` は先頭に `set role postgres;` がある（CLI での本番適用のために足した行。`postgres` が自分に切り替えるだけで、害はないはず）。空の一時 DB（`chatbot` スキーマだけ作った状態）への適用は、2026-10-26 にホストで確認済み（`SET`・`CREATE TABLE`・`CREATE FUNCTION`・`CREATE TRIGGER`・`INSERT 0 3` でエラーなし）。上の順序で `docunavi` の DB に通しで適用することは未確認。
 - **`docker compose down -v` は `pg-data` も消します**（埋め込みの作り直しは実 API を呼ぶ）。`node_modules` だけ消したいときは `docker volume rm docunavi_frontend_next_node_modules`（先に `docker compose down`）。
 - `api` の 8000 番を確かめたいとき（ビルド済みの画面配信・`curl`）: `docker compose -f docker-compose.yml -f docker-compose.api-port.yml up -d`。8000 番は `127.0.0.1` にだけ公開されます。
   上のコマンド例の `localhost:8000` は、この上書きを重ねたときの話です（`frontend` の 3000 番経由なら、`localhost:3000/health` などが `api` に届きます）。
@@ -151,7 +154,7 @@ docker compose restart frontend && docker compose ps                  # frontend
   （Vite のプロキシ → `api:8000` → `db`）/ `docker compose ps` で公開されているのは `frontend` の 5173 番だけ（`api` と `db` は `8000/tcp`・`5432/tcp` の表示だけで、ホストには出ない）/
   `docker compose down` なしの 2 回目の起動（`pg-data` が残る状態）でも、3 つが healthy になる（`docker compose up -d` のあと 20 秒）。
 - **確認済み（資料の取り込み。2026-10-22 JST、ホスト側。`.env` は実キーのまま）:** `docker compose up -d db` → 資料群ごとの `app.ingestion --input storage/pdf/<名前> --apply`（zahard 3 文書 12 チャンク、cafe 1 文書 30、guides 2 文書 38。取り込めなかった文書 0）→
-  `db/migrations` の 0001・0002・0003・0005 を `psql -U postgres -d docunavi -v ON_ERROR_STOP=1 -f /migrations/<名前>.sql` で適用（エラーなし。NOTICE は「すでに存在」だけ。0003・0005 の列は、取り込みの時点で作られている）→
+  当時別フォルダー（その後廃止し、`supabase/migrations/` に一本化）にあった 0001・0002・0003・0005 を `psql -U postgres -d docunavi -v ON_ERROR_STOP=1 -f /migrations/<名前>.sql` で適用（エラーなし。NOTICE は「すでに存在」だけ。0003・0005 の列は、取り込みの時点で作られている）→
   `app.ingestion.embed`（確認だけ: 80 件・3 回・約 $0.0023）→ `--apply`（呼び出し 3 回、保存 80 件）。続けて `docker compose restart api` で、`api` が healthy になった（起動ログに「会話履歴の保存先: Postgres」、`/health` が 200。起動の検査 `search_vector.verify()` を通った）。
   ホストの `docker compose` は、開発コンテナ `docunavi-devcontainer` を同じプロジェクト `docunavi` の「orphan」として警告する（開発コンテナ側の定義はこのリポジトリの `.devcontainer/docker-compose.yml`）。無害だが、**`--remove-orphans` は付けない**（開発コンテナが消える）。
 - 未確認: `api` が Gemini に届くこと（質問に実際に答えること。起動の検査は DB だけを見る）/ `db` が `internal` で外へ出られないこと（出られないことの実測はしていない）/

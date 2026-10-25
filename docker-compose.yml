@@ -19,7 +19,7 @@ services:
       # pg-data が空の初回の起動でだけ実行される（ロール・スキーマ・vector 型の「入れ物」だけ。テーブルは作らない）
       - ./db/local-init:/docker-entrypoint-initdb.d:ro
       # マイグレーションを db の中から psql で適用するため（手順は docs/development.md）。起動時には実行されない
-      - ./db/migrations:/migrations:ro
+      - ./supabase/migrations:/migrations:ro
     networks:
       - backend-net
     healthcheck:

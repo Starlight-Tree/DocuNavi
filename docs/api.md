@@ -217,7 +217,7 @@ data: [DONE]
 ```
 
 - **`name`:** 検索の絞り込みに渡す値（`POST /chat` の `collection`）。`documents.collection` と同じ形で、変わらない。
-- **`label` / `description` / `sort_order`:** `chatbot.document_collections`（`db/migrations/0006_document_collections.sql`）に登録した値。
+- **`label` / `description` / `sort_order`:** `chatbot.document_collections`（`supabase/migrations/20261025205258_document_collections.sql`）に登録した値。
   並びは `sort_order` の小さい順、同じなら名前順。
 - **未登録の名前:** `documents.collection` にあって表に無い名前（フォルダを置いて取り込んだだけのグループ）も返す。`registered: false`、
   `label` は名前そのもの、`description` は空、`sort_order` は `null`（登録済みの後ろ）。

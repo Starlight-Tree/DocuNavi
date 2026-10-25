@@ -1,6 +1,6 @@
 -- 本番 DB（Supabase）を読み取り専用で見るためのロール `readonly`（2026-10-21 に作成。適用は supabase-write の execute_sql）。
 --
--- ・アプリの移行（db/migrations/）ではなく、運用の記録。ロールはクラスター全体のもので、適用の履歴にパスワードを残さないため入れていない。
+-- ・アプリの移行（supabase/migrations/）ではなく、運用の記録。ロールはクラスター全体のもので、適用の履歴にパスワードを残さないため入れていない。
 -- ・見えるのは chatbot.documents と chatbot.chunks だけ。会話履歴（checkpoints など。発言の本文）は読めない。
 -- ・default_transaction_read_only は、セッション内で外せる。本当の防壁は「書き込みの権限を付けないこと」
 --   （外した状態でも insert / delete / update が permission denied になることを、2026-10-21 に確かめた）。

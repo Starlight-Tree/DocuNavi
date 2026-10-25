@@ -7,7 +7,7 @@
 #   chatbot_app ロール + chatbot スキーマ  本番と同じ。ロールの search_path が chatbot なので、テーブルは chatbot にできる
 #                                         （docs/configuration.md の「DB のロール」）
 #
-# 作るのは pgvector まで。db/migrations/0004（pgroonga）は、アプリが読まないので、ローカルには入れない。
+# 作るのは pgvector まで。supabase/migrations/20261018080137（pgroonga）は、アプリが読まないので、ローカルには入れない。
 # パスワードは compose の環境変数 APP_DB_PASSWORD（このコンテナはポートを公開せず、internal のネットワークだけにある）。
 set -eu
 

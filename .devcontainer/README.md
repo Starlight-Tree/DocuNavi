@@ -305,7 +305,7 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 - **認証は OAuth です。** トークンは設定ファイルに無く、初回は `/mcp` の画面でブラウザーからログインします。トークンは `~/.claude` のボリュームにあり、再ビルドのあとに再認証は要りませんでした（2026-10-18 に 2 回の再ビルドで確認。1 回の環境での結果です）。
 - **書き込みは、別名のローカル登録で行います**（共有の `supabase-read` と同じ名前にすると、ローカル登録が優先されて、共有側が隠れます）。
   `claude mcp add --scope local --transport http supabase-write "https://mcp.supabase.com/mcp?project_ref=<参照ID>&features=database,docs"`。
-  DDL は `db/migrations/` に SQL を残してから、`apply_migration` で適用します。参照 ID は、リポジトリにも会話の記録にも残しません。
+  **本番 DB の DDL は、この登録の `apply_migration` では適用しません**（`apply_migration` は `.claude/settings.json` で deny。2026-10-26 から Supabase CLI の `db push --linked` で、`supabase/migrations/` の SQL を適用する。手順は [docs/supabase-cli.md](../docs/supabase-cli.md)）。参照 ID は、リポジトリにも会話の記録にも残しません。
   ローカル登録は作業ディレクトリのパスがキーです。フォルダー名を変えると、設定が残っていても外れます（2026-10-20、chatbot → docunavi で `supabase-write` が一覧から消えた）。
   そのため、`devcontainer.json` の `postStartCommand` が、起動のたびに `.devcontainer/register-supabase-write.sh` を前景で呼び、今のパスに登録し直します（登録だけで、認証はしません。待ちは最大 20 秒。ログは `/tmp/register-supabase-write.log`）。
   バックグラウンドにしないのは、子プロセスが起動処理の終了で止められるためです。`( … &)` と `setsid nohup … &` の 2 通りとも、2026-10-20 の再ビルドでログができず、登録も戻りませんでした（診断用に起動の先頭へ目印のファイルを書いて、`postStartCommand` 自体は動いていると確かめた）。
