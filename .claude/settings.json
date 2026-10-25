@@ -57,13 +57,17 @@
       "Bash(docker compose config *)",
       "Bash(docker compose up *)",
       "Bash(docker compose down *)",
-      "Bash(docker compose restart *)"
+      "Bash(docker compose restart *)",
+      "mcp__supabase-write__apply_migration"
     ],
     "ask": [
       "Bash(git push)",
       "Bash(git push *)",
+      "Bash(git reset *)",
+      "Bash(git restore *)",
       "Bash(scripts/mcp-proxy.sh)",
-      "mcp__cloudflare__execute"
+      "mcp__cloudflare__execute",
+      "mcp__playwright__browser_run_code_unsafe"
     ],
     "defaultMode": "auto",
     "disableBypassPermissionsMode": "disable"
