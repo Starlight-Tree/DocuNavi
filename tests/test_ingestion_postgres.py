@@ -5,7 +5,10 @@
 """
 
 import os
+import threading
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import psycopg
 import pytest
@@ -326,3 +329,87 @@ def test_apply_adds_the_title_column_to_a_table_made_before_it_existed(db, tmp_p
         ("guide.pdf", "題名"),
         ("old.pdf", None),
     ]
+
+
+# --- 同じ PDF の同時保存（Queue の Job と毎時の突き合わせ、重複した通知が重なる場合）------------------------------------
+
+
+class HoldingRepository(PostgresRepository):
+    """文書の行ロックを取ったあと、トランザクションの中で hold 秒止まる。別の保存が重なる窓を、確実に作る。"""
+
+    def __init__(self, conn, *, hold, entered, fail=False):
+        super().__init__(conn, create_tables=False)
+        self._hold, self._entered, self._fail = hold, entered, fail
+
+    def _upsert_document(self, *args, **kwargs):
+        doc_id = super()._upsert_document(*args, **kwargs)
+        self._entered.set()
+        time.sleep(self._hold)
+        if self._fail:
+            raise RuntimeError("処理の途中で落ちた")
+        return doc_id
+
+
+def _chunks(*texts):
+    return [chunker.Chunk(i, 1, None, text, chunker.content_hash(text)) for i, text in enumerate(texts)]
+
+
+def _stored(conninfo):
+    return _rows(conninfo, "SELECT chunk_index, content_hash FROM chunks ORDER BY chunk_index")
+
+
+def _save_concurrently(conninfo, first, second, *, hold=0.5, first_fails=False):
+    """first を保存中（ロックを持ったまま）に second を始める。(second の待ち秒数, first の例外) を返す。"""
+    entered = threading.Event()
+
+    def run_first():
+        with psycopg.connect(conninfo, prepare_threshold=None) as conn:
+            repo = HoldingRepository(conn, hold=hold, entered=entered, fail=first_fails)
+            repo.save("guide.pdf", "hash-first", 1, first)
+
+    def run_second():
+        assert entered.wait(10)
+        with psycopg.connect(conninfo, prepare_threshold=None) as conn:
+            started = time.monotonic()
+            PostgresRepository(conn, create_tables=False).save("guide.pdf", "hash-second", 1, second)
+            return time.monotonic() - started
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        future_first, future_second = pool.submit(run_first), pool.submit(run_second)
+        error = future_first.exception(timeout=30)
+        return future_second.result(timeout=30), error
+
+
+@pytest.fixture
+def seeded(db):
+    """guide.pdf が 1 件（4 チャンク）保存済みの状態。"""
+    conninfo, _ = db
+    with psycopg.connect(conninfo, prepare_threshold=None) as conn:
+        PostgresRepository(conn, create_tables=True).save("guide.pdf", "hash-0", 1, _chunks("A", "B", "C", "D"))
+    return conninfo
+
+
+def test_two_saves_of_different_content_for_one_pdf_run_one_after_the_other(seeded):
+    # 先の保存が文書の行ロックを持つ間、あとの保存は待つ。混ざらず、あとに終わった方の内容がそのまま残る
+    waited, error = _save_concurrently(seeded, _chunks("A", "X", "C"), _chunks("D", "C", "B", "Y"))
+    assert error is None
+    assert waited >= 0.3  # 本当に待った（重なりが起きた）ことの確認
+    assert _stored(seeded) == [(i, chunker.content_hash(t)) for i, t in enumerate(("D", "C", "B", "Y"))]
+    assert _rows(seeded, "SELECT count(*) FROM documents")[0][0] == 1
+    assert _rows(seeded, "SELECT content_hash FROM documents")[0][0] == "hash-second"
+
+
+def test_two_saves_of_the_same_content_keep_one_row_per_chunk(seeded):
+    before = _rows(seeded, "SELECT id FROM chunks ORDER BY chunk_index")
+    waited, error = _save_concurrently(seeded, _chunks("A", "B", "C", "D"), _chunks("A", "B", "C", "D"))
+    assert error is None
+    assert waited >= 0.3
+    assert _rows(seeded, "SELECT id FROM chunks ORDER BY chunk_index") == before  # 行は増えず、入れ替わらない
+
+
+def test_a_save_that_dies_midway_leaves_the_previous_state_and_the_next_save_succeeds(seeded):
+    waited, error = _save_concurrently(seeded, _chunks("Z"), _chunks("A", "B", "C", "D", "E"), first_fails=True)
+    assert isinstance(error, RuntimeError)  # 先の保存は落ちた（ロールバックされる）
+    assert waited >= 0.3
+    # 先の保存の途中の状態（Z だけ）は残らず、あとの保存が正しく反映される
+    assert _stored(seeded) == [(i, chunker.content_hash(t)) for i, t in enumerate(("A", "B", "C", "D", "E"))]
