@@ -1495,3 +1495,236 @@ textarea {
   background: var(--danger-bg);
   color: var(--danger-text);
 }
+
+/* ---- 検索範囲（資料グループ） ---- */
+
+/* 入力欄。範囲の表示を枠の中に入れるため、枠線は textarea ではなく外側に付ける */
+.composer-field {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg);
+}
+
+.composer-field:focus-within {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.composer-field .composer-input {
+  border: 0;
+  border-radius: 0 0 0.5rem 0.5rem;
+  background: transparent;
+}
+
+.composer-field .composer-input:focus-visible {
+  outline: none;
+}
+
+.composer-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.6rem;
+  margin: 0;
+  padding: 0.35rem 0.7rem 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.composer-scope-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* 入力欄の上のチップ。上の枠線は、チップの帯が持つ（入力欄の枠線は外す） */
+.scope-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.4rem;
+  padding: 0.55rem 1rem 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.scope-chips + .composer {
+  padding-top: 0.5rem;
+  border-top: 0;
+}
+
+.scope-chips-label {
+  margin-right: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.scope-chip {
+  padding: 0.15rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.scope-chip:hover:not(:disabled) {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+/* 選択中も字幅は変えない（太字にすると、隣のチップが動く）。枠と面で示す */
+.scope-chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--surface-muted);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--text);
+}
+
+.scope-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.scope-chip-note {
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+}
+
+.scope-chips-failure {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.scope-warning {
+  margin: 0 1rem 0.5rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  font-size: 0.9rem;
+}
+
+/* 範囲を指定して 0 件だった回答の下の案内 */
+.scope-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.scope-empty p {
+  margin: 0;
+}
+
+/* 範囲を変えるときの確認の帯。ヘッダーの下に出し、チャットでも資料一覧でも見える */
+.scope-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  background: var(--surface-muted);
+}
+
+.scope-confirm-text {
+  flex: 1 1 28rem;
+}
+
+.scope-confirm-text p {
+  margin: 0;
+}
+
+.scope-confirm-title {
+  font-weight: 700;
+}
+
+.scope-confirm-body {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.scope-confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* 資料一覧の上の、資料グループのカード（選ぶと一覧を絞る。「このグループに質問」で、チャットの検索範囲を変える） */
+.collection-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+}
+
+.collection-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
+}
+
+.collection-card[data-active='true'] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.collection-card-main {
+  display: grid;
+  flex: 1;
+  align-content: start;
+  gap: 0.15rem;
+  padding: 0.65rem 0.8rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.collection-card-main:hover {
+  background: var(--surface-muted);
+}
+
+.collection-card-label {
+  font-weight: 700;
+}
+
+.collection-card-description,
+.collection-card-meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.collection-card-meta {
+  font-size: 0.8rem;
+}
+
+.collection-card-ask {
+  align-self: flex-start;
+  margin: 0 0.8rem 0.65rem;
+}
+
+/* 出典カードの、資料グループの名前 */
+.source-card-group {
+  flex: none;
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}

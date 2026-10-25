@@ -38,6 +38,8 @@ function threadsServer(
     failDelete?: boolean;
     failMessages?: boolean;
     messages?: Record<string, HistoryItem[]>;
+    /** 会話ごとの検索範囲（GET /threads/{id}/messages の collection）。無ければ送らない（古い API）。 */
+    collections?: Record<string, string | null>;
     gate?: Record<string, Promise<void>>;
   } = {},
 ) {
@@ -50,7 +52,11 @@ function threadsServer(
       const id = decodeURIComponent(history[1] ?? '');
       await options.gate?.[id];
       if (options.failMessages) return errorResponse(503, '会話履歴を操作できませんでした。しばらく待ってから再試行してください。');
-      return jsonResponse({ messages: options.messages?.[id] ?? [] });
+      const collection = options.collections?.[id];
+      return jsonResponse({
+        messages: options.messages?.[id] ?? [],
+        ...(collection !== undefined ? { collection } : {}),
+      });
     }
     if (method === 'DELETE') {
       if (options.failDelete) return errorResponse(503, '会話履歴を操作できませんでした。しばらく待ってから再試行してください。');

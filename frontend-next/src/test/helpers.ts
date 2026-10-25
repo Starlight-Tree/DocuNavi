@@ -33,6 +33,10 @@ export interface ReplySpec {
   context?: string;
   /** 出典ごとのページ（サーバーの messageMetadata.sources）。渡さなければ送らない（古いサーバー）。 */
   sources?: unknown;
+  /** この会話の検索範囲（messageMetadata.collection。null は「すべて」）。渡さなければ送らない（古いサーバー）。 */
+  collection?: string | null;
+  /** 今回の検索で拾ったチャンクの数（messageMetadata.hit_count）。渡さなければ送らない（古いサーバー）。 */
+  hit_count?: number | null;
 }
 
 /** サーバーが返す正常系のチャンクの並び（start → text → message-metadata → finish）。 */
@@ -47,7 +51,15 @@ export function replyChunks(spec: ReplySpec = {}): Chunk[] {
     { type: 'text-start', id: 'text-0' },
     ...deltas.map((delta) => ({ type: 'text-delta', id: 'text-0', delta })),
     { type: 'text-end', id: 'text-0' },
-    { type: 'message-metadata', messageMetadata: { context: spec.context ?? '', ...(spec.sources !== undefined ? { sources: spec.sources } : {}) } },
+    {
+      type: 'message-metadata',
+      messageMetadata: {
+        context: spec.context ?? '',
+        ...(spec.sources !== undefined ? { sources: spec.sources } : {}),
+        ...(spec.collection !== undefined ? { collection: spec.collection } : {}),
+        ...(spec.hit_count !== undefined ? { hit_count: spec.hit_count } : {}),
+      },
+    },
     { type: 'finish' },
   ];
 }
@@ -116,18 +128,40 @@ export interface FetchHarness {
 
 export type ThreadsHandler = (url: string, method: string, init: RequestInit) => Response | Promise<Response>;
 
+/** GET /collections への応答。既定は「サーバーが資料の DB を使っていない」（グループの機能が出ない）。 */
+export type CollectionsHandler = () => Response | Promise<Response>;
+
+/** GET /collections の正常な応答（4 つのグループ: 設定資料・店舗案内・規程・取扱説明書・準備中の資料・未登録の memo）。 */
+export const COLLECTIONS_BODY = {
+  configured: true,
+  collections: [
+    { name: 'zahard', label: '設定資料', description: 'ザーハードに関する設定資料です。', sort_order: 10, registered: true, document_count: 3, ready_count: 3 },
+    { name: 'cafe', label: '店舗案内', description: '店舗の案内や利用方法に関する資料です。', sort_order: 20, registered: true, document_count: 1, ready_count: 1 },
+    { name: 'draft', label: '準備中の資料', description: '', sort_order: 30, registered: true, document_count: 0, ready_count: 0 },
+    { name: 'memo', label: 'memo', description: '', sort_order: null, registered: false, document_count: 1, ready_count: 1 },
+  ],
+};
+
 /**
  * fetch を差し替える。/health は常に mode=mock を返し、/chat/stream は handler に渡す。
  * /threads 系は threads に渡す（渡さなければ、空の一覧を返す）。
  * handler の第 2 引数は /chat/stream の呼び出し回数（1 始まり）。
  */
-export function installFetch(handler: ChatHandler, threads?: ThreadsHandler): FetchHarness {
+export function installFetch(
+  handler: ChatHandler,
+  threads?: ThreadsHandler,
+  collections?: CollectionsHandler,
+): FetchHarness {
   const bodies: Array<Record<string, unknown>> = [];
   const inits: RequestInit[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith('/health')) {
       return jsonResponse({ status: 'ok', mode: 'mock' });
+    }
+    // 資料グループの一覧。チャットの呼び出し回数には数えない
+    if (/\/collections$/.test(url)) {
+      return collections ? collections() : jsonResponse({ configured: false, collections: [] });
     }
     // 会話の一覧と削除（ログイン中だけ呼ばれる）。チャットの呼び出し回数には数えない
     if (/\/threads(\/|$)/.test(url)) {

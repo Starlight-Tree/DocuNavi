@@ -35,7 +35,7 @@ export function useAuthedJsonFetch() {
 }
 
 /** load を実行して結果を状態にする。reload で取り直す。画面を離れる・取り直すときは前の取得を中断する。 */
-function useLoaded<T>(load: ((signal: AbortSignal) => Promise<T>) | null): [Loaded<T>, () => void] {
+export function useLoaded<T>(load: ((signal: AbortSignal) => Promise<T>) | null): [Loaded<T>, () => void] {
   const [state, setState] = useState<Loaded<T>>({ status: 'loading' });
   const [round, setRound] = useState(0);
 

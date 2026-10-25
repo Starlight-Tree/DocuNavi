@@ -2,6 +2,7 @@
  * 会話の一覧と削除（GET /threads、DELETE /threads/{id}）。ログイン中（AUTH_MODE=required）の本人の会話だけが対象。
  * 認証のために、fetch は呼び出し側から受け取る（createAuthedFetch で包んだもの）。
  */
+import { COLLECTION_NAME_PATTERN } from './collections';
 import { ChatApiError, MSG_BAD_BODY, endpoint, isRecord } from './chat';
 import type { chatFetch } from './chat';
 
@@ -44,12 +45,18 @@ export interface ThreadMessage {
   text: string;
 }
 
-/** 会話の発言を古い順に取得する（GET /threads/{id}/messages）。形が違えば MSG_BAD_BODY。 */
+export interface ThreadHistory {
+  messages: ThreadMessage[];
+  /** この会話の検索範囲（資料グループの名前）。null は「すべて」（範囲の項目が無い古い会話・古い API も同じ）。 */
+  collection: string | null;
+}
+
+/** 会話の発言を古い順に、この会話の検索範囲といっしょに取得する（GET /threads/{id}/messages）。形が違えば MSG_BAD_BODY。 */
 export async function fetchThreadMessages(
   fetcher: Fetcher,
   threadId: string,
   signal?: AbortSignal,
-): Promise<ThreadMessage[]> {
+): Promise<ThreadHistory> {
   const init: RequestInit = { headers: { Accept: 'application/json' } };
   if (signal) init.signal = signal;
   const response = await fetcher(endpoint(`/threads/${encodeURIComponent(threadId)}/messages`), init);
@@ -62,7 +69,12 @@ export async function fetchThreadMessages(
     }
     messages.push({ role: item.role, text: item.text });
   }
-  return messages;
+  // 範囲の形が合わない値は、主張しない（null）。送るときは省略になり、サーバーが会話の範囲を使う
+  const { collection } = body;
+  return {
+    messages,
+    collection: typeof collection === 'string' && COLLECTION_NAME_PATTERN.test(collection) ? collection : null,
+  };
 }
 
 /** 会話を削除する。すでに無い（404）ときは成功として扱う（目的の状態になっている）。 */

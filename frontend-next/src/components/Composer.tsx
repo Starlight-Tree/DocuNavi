@@ -8,9 +8,15 @@ interface ComposerProps {
   onSend: (text: string) => boolean;
   /** 回答の生成を止める。 */
   onStop: () => void;
+  /**
+   * いまの検索範囲の表示（「すべての資料」「設定資料」など）。入力欄の中に出す。渡さなければ（グループの機能を出さないとき）何も出さない。
+   */
+  scopeLabel?: string | undefined;
+  /** 範囲に添える一言（「この会話では固定」「資料はまだありません」など）。 */
+  scopeNote?: string | undefined;
 }
 
-export function Composer({ pending, onSend, onStop }: ComposerProps) {
+export function Composer({ pending, onSend, onStop, scopeLabel, scopeNote }: ComposerProps) {
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const canSend = !pending && draft.trim().length > 0;
@@ -40,18 +46,26 @@ export function Composer({ pending, onSend, onStop }: ComposerProps) {
       <label htmlFor="message-input" className="visually-hidden">
         メッセージ
       </label>
-      <textarea
-        ref={inputRef}
-        id="message-input"
-        className="composer-input"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={handleKeyDown}
-        maxLength={MAX_MESSAGE_LENGTH}
-        rows={2}
-        placeholder="メッセージを入力（Enter で送信 / Shift+Enter で改行）"
-        aria-describedby="message-counter"
-      />
+      <div className="composer-field">
+        {scopeLabel !== undefined && (
+          <p id="composer-scope" className="composer-scope">
+            <span className="composer-scope-name">検索範囲: {scopeLabel}</span>
+            {scopeNote && <span className="composer-scope-note">{scopeNote}</span>}
+          </p>
+        )}
+        <textarea
+          ref={inputRef}
+          id="message-input"
+          className="composer-input"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={handleKeyDown}
+          maxLength={MAX_MESSAGE_LENGTH}
+          rows={2}
+          placeholder="メッセージを入力（Enter で送信 / Shift+Enter で改行）"
+          aria-describedby={scopeLabel !== undefined ? 'composer-scope message-counter' : 'message-counter'}
+        />
+      </div>
       <div className="composer-footer">
         <span id="message-counter" className="counter">
           {draft.length} / {MAX_MESSAGE_LENGTH}
