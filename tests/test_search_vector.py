@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import json
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any
@@ -283,13 +284,26 @@ def test_cancellation_is_not_swallowed(vector_env):
         ainvoke("糸くずフィルターの掃除")  # クライアントの切断で取り消されたら、そのまま止まる
 
 
-@pytest.mark.parametrize("endpoint", ["/chat", "/chat/stream"])
-def test_a_search_failure_is_a_503_with_a_fixed_message(vector_env, searching_llm, client, endpoint):
+def test_a_search_failure_is_a_503_with_a_fixed_message(vector_env, searching_llm, client):
     _, embedder = vector_env
     embedder.error = RuntimeError(SECRET)
-    res = client.post(endpoint, json={"message": "糸くずフィルターの掃除", "thread_id": str(uuid.uuid4())})
+    res = client.post("/chat", json={"message": "糸くずフィルターの掃除", "thread_id": str(uuid.uuid4())})
     assert res.status_code == 503
     assert res.json() == {"detail": routes._DETAIL_SEARCH}
+    for leaked in ("AIzaSECRETKEY", "postgresql://", "example.com"):
+        assert leaked not in res.text
+
+
+def test_a_search_failure_on_the_stream_is_a_503_error_chunk_with_a_fixed_message(vector_env, searching_llm, client):
+    # /chat/stream は検索の前にレスポンスを始めているので、HTTP ではなく error チャンクで伝える
+    _, embedder = vector_env
+    embedder.error = RuntimeError(SECRET)
+    res = client.post("/chat/stream", json={"message": "糸くずフィルターの掃除", "thread_id": str(uuid.uuid4())})
+    assert res.status_code == 200
+    events = [json.loads(line[len("data: ") :]) for line in res.text.split("\n\n") if line.startswith("data: {")]
+    assert events[-2] == {"type": "data-failure", "data": {"status": 503}, "transient": True}
+    assert events[-1] == {"type": "error", "errorText": routes._DETAIL_SEARCH}
+    assert "searching" in [e["data"]["phase"] for e in events if e["type"] == "data-status"]
     for leaked in ("AIzaSECRETKEY", "postgresql://", "example.com"):
         assert leaked not in res.text
 

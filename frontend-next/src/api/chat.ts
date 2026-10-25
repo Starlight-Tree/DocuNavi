@@ -21,6 +21,41 @@ export interface ChatMetadata {
   sources?: unknown;
 }
 
+/** 回答を作る途中の段階（UI message stream の transient な data-status）。待機表示の文言に使う。 */
+export type ChatPhase = 'analyzing' | 'searching' | 'generating';
+
+const CHAT_PHASES: readonly string[] = ['analyzing', 'searching', 'generating'];
+
+/** data-status の data から段階を取り出す。サーバーの値なので、知っている段階だけを通す。 */
+export function parseChatPhase(data: unknown): ChatPhase | null {
+  const phase = isRecord(data) ? data.phase : undefined;
+  return typeof phase === 'string' && CHAT_PHASES.includes(phase) ? (phase as ChatPhase) : null;
+}
+
+/**
+ * 失敗の付帯情報（data-failure）。レスポンスを始めた後の失敗は error チャンクで届き、errorText しか運べないので、
+ * HTTP で返していたときのステータスと Retry-After（秒）は、直前のこのデータ部分で届く。
+ */
+export interface ChatFailureInfo {
+  status: number;
+  retryAfterSeconds?: number;
+}
+
+export function parseChatFailure(data: unknown): ChatFailureInfo | null {
+  if (!isRecord(data)) return null;
+  const { status, retryAfterSeconds } = data;
+  if (typeof status !== 'number' || !Number.isInteger(status) || status < 400 || status > 599) return null;
+  const info: ChatFailureInfo = { status };
+  if (
+    typeof retryAfterSeconds === 'number' &&
+    Number.isInteger(retryAfterSeconds) &&
+    retryAfterSeconds > 0
+  ) {
+    info.retryAfterSeconds = retryAfterSeconds;
+  }
+  return info;
+}
+
 export interface HealthResponse {
   status: string;
   mode: string;
@@ -161,7 +196,7 @@ async function request(url: string, init?: RequestInit): Promise<Response> {
  * AI SDK のトランスポートに渡す fetch。
  *
  * - ネットワーク失敗は、日本語の ChatApiError（status 0）にする
- * - HTTP エラー（本文を送り始める前の失敗）は、固定メッセージ・Retry-After つきの ChatApiError にする
+ * - HTTP エラー（レスポンスを始める前の失敗。入力検証・認証など）は、固定メッセージ・Retry-After つきの ChatApiError にする
  * - 成功なのに SSE ではない応答（プロキシの HTML など）は、想定外の応答として扱う
  * 中断（AbortSignal）は AbortError のまま伝える。
  */

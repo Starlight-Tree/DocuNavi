@@ -71,6 +71,9 @@
 
 ```text
 data: {"type":"start","messageId":"…","messageMetadata":{"thread_id":"…","mode":"gemini"}}
+data: {"type":"data-status","data":{"phase":"analyzing"},"transient":true}
+data: {"type":"data-status","data":{"phase":"searching"},"transient":true}
+data: {"type":"data-status","data":{"phase":"generating"},"transient":true}
 data: {"type":"text-start","id":"text-0"}
 data: {"type":"text-delta","id":"text-0","delta":"ザーハードの大気は…"}
 data: {"type":"text-end","id":"text-0"}
@@ -80,6 +83,9 @@ data: [DONE]
 ```
 
 - **`start` の `messageMetadata`**: `thread_id`（新規なら採番された値）と `mode`。
+- **`data-status`（`transient: true`）**: 本文より前に届く、いま何をしているかの合図。`phase` は `analyzing`（質問を読み、検索が要るかを LLM が決めている）、
+  `searching`（資料の検索）、`generating`（検索の結果を受けて、回答を作っている）。検索しない質問は `analyzing` だけ。入力ガードが拒否した質問には出ない。
+  transient なので、履歴にも会話の発言にも入らない。画面は、待機中の吹き出しの文言に使う。知らない `phase` は無視してよい。
 - **本文は「最後のテキスト部分」です。** ツール呼び出しの前置きがあれば、テキスト部分が複数になります。入力ガードが拒否したとき・出力ガードが
   回答を定型文に置き換えたときは、最後に正しい本文が新しいテキスト部分として届きます（先に届いた部分は無視してよい）。
   最後のテキスト部分は、`/chat` の `reply` と同じ文です。
@@ -95,12 +101,17 @@ data: [DONE]
   検知の前に届く本文は、漏洩とみなされる長さに達しません。
 - **無通信の間:** 10 秒ごとに SSE のコメント行（`: ping`）が届きます。クライアントは無視してください。
 
-エラーは、**最初の本文が届く前か後か**で伝え方が変わります。
+エラーは、**レスポンスを始める前か後か**で伝え方が変わります。レスポンスは、入力検証・認証・グラフの組み立てが済んだら、最初の本文を待たずに始めます
+（最初の本文までに 20 秒以上かかることがあり、その間に `data-status` で段階を見せるため）。
 
 | 時点 | 伝え方 |
 |---|---|
-| 最初の本文が届く前（LLM が最初のトークンを返す前、入力検証、履歴の保存先への接続など） | `/chat` と同じ HTTP ステータス（422・429・500・502・503・504）と固定の `detail`。429 には `Retry-After` が付く場合がある |
-| 本文を送り始めた後 | ステータスは 200 のまま、`{"type":"error","errorText":"…"}` を送って `[DONE]` で終わる。`errorText` は `/chat` の `detail` と同じ固定の日本語メッセージ（例外の内容は含まれない） |
+| レスポンスを始める前（入力検証の 422、認証の 401、LLM クライアントの設定の失敗の 500 など） | `/chat` と同じ HTTP ステータスと固定の `detail`。429 には `Retry-After` が付く場合がある |
+| レスポンスを始めた後（LLM の失敗・タイムアウト・資料の検索や履歴の保存先の失敗など。最初の本文の前後を問わない） | ステータスは 200 のまま、`{"type":"error","errorText":"…"}` を送って `[DONE]` で終わる。`errorText` は `/chat` の `detail` と同じ固定の日本語メッセージ（例外の内容は含まれない） |
+
+`error` チャンクは `errorText` しか運べない（AI SDK のクライアントも、これだけを読む）ので、`/chat` が HTTP で返す 429・504・503・502・500 のステータスと
+`Retry-After` は、`error` の直前の **`data-failure`**（`transient: true`）で伝えます。`data` は `{"status": 429, "retryAfterSeconds": 12}`
+（`retryAfterSeconds` は 429 で待ち時間が分かるときだけ）。画面は、これを HTTP のときと同じ案内（「約 12 秒待ってから…」）に使います。
 
 クライアントが切断した場合は、LLM 呼び出しを取り消して何も返しません（`/chat` と同じ。[configuration.md](configuration.md) の「クライアントの切断」）。
 

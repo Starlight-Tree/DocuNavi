@@ -629,6 +629,101 @@ describe('チャット UI: ストリーミング', () => {
     expect(alert).not.toHaveTextContent('boom');
   });
 
+  it('本文の前に届く段階（data-status）で、待機表示の文言が変わる。本文が届くと待機表示は消える', async () => {
+    const stream = controlledSse();
+    installFetch(() => stream.response);
+    const { user } = setup();
+
+    await sendMessage(user, '質問');
+    expect(await screen.findByText('回答を作成しています…')).toBeInTheDocument(); // 段階が届くまでは一般的な文言
+
+    act(() => {
+      stream.push(START);
+      stream.push({ type: 'data-status', data: { phase: 'analyzing' }, transient: true });
+    });
+    expect(await screen.findByText('質問を読み取っています…')).toBeInTheDocument();
+
+    act(() => stream.push({ type: 'data-status', data: { phase: 'searching' }, transient: true }));
+    expect(await screen.findByText('資料を検索しています…')).toBeInTheDocument();
+
+    act(() => stream.push({ type: 'data-status', data: { phase: 'generating' }, transient: true }));
+    expect(await screen.findByText('回答を生成しています…')).toBeInTheDocument();
+
+    act(() => {
+      stream.push({ type: 'text-start', id: 't0' });
+      stream.push({ type: 'text-delta', id: 't0', delta: '大気は二酸化炭素です。' });
+      stream.push({ type: 'text-end', id: 't0' });
+      stream.push({ type: 'finish' });
+      stream.finish();
+    });
+    await screen.findByText('大気は二酸化炭素です。');
+    expect(screen.queryByText('回答を生成しています…')).not.toBeInTheDocument();
+    // transient なので、会話の発言としては残らない
+    expect(screen.getAllByRole('article')).toHaveLength(2);
+  });
+
+  it('知らない段階や形の悪い data-status は無視して、一般的な文言のままにする', async () => {
+    const stream = controlledSse();
+    installFetch(() => stream.response);
+    const { user } = setup();
+
+    await sendMessage(user, '質問');
+    act(() => {
+      stream.push(START);
+      stream.push({ type: 'data-status', data: { phase: '<img src=x>' }, transient: true });
+      stream.push({ type: 'data-status', data: 'analyzing', transient: true });
+    });
+
+    expect(await screen.findByText('回答を作成しています…')).toBeInTheDocument();
+    act(() => stream.finish());
+  });
+
+  it('本文の前の失敗は error チャンクで届く。data-failure のステータスと待ち時間を、HTTP のときと同じに案内する', async () => {
+    const detail = 'リクエストが集中しています。しばらく待ってから再試行してください。';
+    const { chatBodies } = installFetch((_body, call) =>
+      call === 1
+        ? sseResponse([
+            START,
+            { type: 'data-status', data: { phase: 'analyzing' }, transient: true },
+            { type: 'data-failure', data: { status: 429, retryAfterSeconds: 30 }, transient: true },
+            { type: 'error', errorText: detail },
+          ])
+        : replyResponse({ reply: '再試行で届きました', thread_id: 'th-r' }),
+    );
+    const { user } = setup();
+
+    await sendMessage(user, '質問');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(detail);
+    expect(alert).toHaveTextContent('約 30 秒');
+    expect(screen.queryByText('質問を読み取っています…')).not.toBeInTheDocument(); // 失敗したら待機表示は消える
+
+    await user.click(within(alert).getByRole('button', { name: '再試行' }));
+
+    await screen.findByText('再試行で届きました');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(chatBodies()).toHaveLength(2);
+  });
+
+  it('data-failure が無い・壊れているときは、ステータスと待ち時間なしで固定メッセージだけを出す', async () => {
+    const detail = 'LLM 呼び出しに失敗しました。しばらく待ってから再試行してください。';
+    installFetch(() =>
+      sseResponse([
+        START,
+        { type: 'data-failure', data: { status: 'x', retryAfterSeconds: -5 }, transient: true },
+        { type: 'error', errorText: detail },
+      ]),
+    );
+    const { user } = setup();
+
+    await sendMessage(user, '質問');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(detail);
+    expect(alert).not.toHaveTextContent('秒待って');
+  });
+
   it('SSE ではない成功応答（旧 API の JSON など）は、想定外の応答として知らせる', async () => {
     installFetch(() => new Response('{"reply":"x"}', { headers: { 'Content-Type': 'application/json' } }));
     const { user } = setup();

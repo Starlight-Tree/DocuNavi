@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ChatPhase } from '../api/chat';
 import { MSG_HISTORY_FAILED } from '../hooks/useChat';
 import type { ChatMessage, HistoryStatus } from '../hooks/useChat';
 import { followUpQuestions } from '../lib/followUps';
@@ -10,6 +11,8 @@ interface MessageListProps {
   messages: ChatMessage[];
   /** 回答の本文がまだ 1 文字も届いていない間。待機表示を出す。 */
   waiting: boolean;
+  /** waiting の間の、サーバーが知らせた段階。無ければ（まだ届いていない・古いサーバー）一般的な文言を出す。 */
+  phase?: ChatPhase | null;
   /** 送信から回答の完了までの間。生成中の吹き出しは、コピーを出さず、読み上げも完了まで待たせる。 */
   busy?: boolean;
   /** 再読み込み後など、thread_id は引き継いでいるが、画面に履歴が無い状態。 */
@@ -28,6 +31,13 @@ export const EXAMPLE_QUESTIONS = [
   '犬を連れて店に入りたいのですが、店内の席に座れますか。',
 ] as const;
 
+const WAITING_LABEL = '回答を作成しています…';
+const PHASE_LABELS: Record<ChatPhase, string> = {
+  analyzing: '質問を読み取っています…',
+  searching: '資料を検索しています…',
+  generating: '回答を生成しています…',
+};
+
 // 末尾からこの距離（px）以内にいるときだけ、新しい本文に合わせて自動でスクロールする
 const STICK_TO_BOTTOM_PX = 80;
 const COPIED_LABEL_MS = 2000;
@@ -37,6 +47,7 @@ type CopyState = { id: string; ok: boolean } | null;
 export function MessageList({
   messages,
   waiting,
+  phase = null,
   busy = false,
   resumed = false,
   history = 'idle',
@@ -184,7 +195,7 @@ export function MessageList({
             <span />
             <span />
           </span>
-          <span>回答を作成しています…</span>
+          <span>{phase ? PHASE_LABELS[phase] : WAITING_LABEL}</span>
         </div>
       )}
     </div>
