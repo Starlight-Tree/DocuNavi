@@ -8,7 +8,7 @@ import {
   MAX_MESSAGE_LENGTH,
   MAX_THREAD_ID_LENGTH,
   THREAD_ID_PATTERN,
-  endpoint,
+  streamEndpoint,
   isJapaneseMessage,
   parseChatFailure,
   parseChatPhase,
@@ -163,7 +163,7 @@ export function useChat(): UseChat {
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatUIMessage>({
-        api: endpoint(CHAT_STREAM_PATH),
+        api: streamEndpoint(CHAT_STREAM_PATH),
         fetch: createAuthedFetch(
           () => authClientRef.current,
           () => expireRef.current(),
