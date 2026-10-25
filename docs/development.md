@@ -162,6 +162,28 @@ docker compose restart frontend && docker compose ps                  # frontend
 - `docker compose down`（2026-10-22、ホスト側。`-v` なし）: 3 つのコンテナと 2 つのネットワークが消え、`pg-data` は残る。`db` は 0.2 秒、`api` は 0.4 秒、`frontend` は 10.2 秒。
   `frontend` が Compose の既定の停止猶予（10 秒）にちょうど当たるのは 2026-10-21 の記録と同じで、SIGTERM で終わっていない可能性が高い（未確認。実害はなく、直すなら `init: true` か `exec`）。
 
+**本番相当の起動の確認（2026-10-26 に追加。ホストで、設定・プロファイル・ビルド・起動・healthy・`/health` まで確認済み）**
+
+`api` は `uvicorn --reload` とコードのマウントで動く開発用です。本番（Cloud Run）と同じ作りで起動できるかは、`api-prod`（`docker-compose.yml`。profile `prod`）で確かめます。
+
+- 違い: マウントなし・`--reload` なし（イメージに `COPY` したコードを、`Dockerfile` の `CMD`＝hypercorn でそのまま動かす）/ ポートは公開しない / 再起動しない（`restart: "no"`）/ `frontend` は付けない。
+  `DATABASE_URL` は `api` と同じく compose の `db` に固定。`.env` の実キーがあれば、`db` に資料が入るまで（上の取り込み）、`api` と同じく起動の検査で失敗する。
+- profile `prod` のサービスは、普段の `docker compose up` にも、開発コンテナの `runServices`（`db` `api` `frontend`）にも含まれない。`api-prod` は名前を指定して起動する。
+- 手順（ホストで）:
+  1. 起動: `docker compose up -d --build --wait db api-prod`（`api` は起動しない。`--wait` は、`api-prod` が healthy になるまで戻らない。起動の検査に失敗して終了すると、エラーで戻る）
+     `--wait` を付けずに続けて `exec` すると、起動の検査の途中で「Connection refused」になる（2026-10-26 にホストで起きた）。付けないなら、先に `docker compose ps api-prod` が `healthy` になるのを待つ。
+  2. 状態: `docker compose ps api-prod`
+  3. `/health`（ポートを公開していないので、コンテナの中から）: `docker compose exec api-prod python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').read().decode())"`
+     → `{"status":"ok","mode":…,"history":"postgres"}`。実キーなら `mode` は mock 以外（2026-10-26 にホストで `{"status":"ok","mode":"gemini","history":"postgres"}` を確認）。
+  4. 後片付け: `docker compose rm -sf api-prod`（`db` は止めない）。ログは片付ける前に `docker compose logs api-prod`。
+- 127.0.0.1 への公開は、あえて付けていない。外から直接叩きたくなったら、`docker-compose.api-port.yml` のような別の上書きを足す（`api-prod` は 8000 番を使うので、`api` の上書きとは同時に使えない）。
+- **確認済み（2026-10-26 JST、ホスト側）:** `docker compose config` が通る / `config --services` は `db` `api` `frontend`、`--profile prod` 付きは `db` `api` `api-prod` `frontend` / `docker compose up -d` は `db` `api` `frontend` だけ（`api-prod` は起動しない）/
+  `up -d --build db api-prod` で、名前の指定だけで profile が有効になり、イメージ `docunavi-api-prod` がビルドされ（`Dockerfile` の `CMD` = `sh -c 'exec hypercorn …'`）、`db` が healthy になってから `api-prod` が起動した（`ps` は `8000/tcp` の表示だけで、ホストにポートは出ない）/
+  `rm -sf api-prod` でコンテナが止まって消えた（`db` `api` `frontend` は残った）。
+  `up -d --build --wait db api-prod` は約 6 秒で戻り、`api-prod` は `healthy`。`/health` は `{"status":"ok","mode":"gemini","history":"postgres"}`。ログは認証 off・履歴 Postgres・hypercorn が 0.0.0.0:8000 で待受（ログにキーは出ていない）。
+  先に `--wait` なしの `exec` が Connection refused になったのは、起動の検査の途中で実行したため（失敗ではない）。
+- **未確認:** `api` と `api-prod` を同時に動かしたときの干渉（ポートは公開していないので、無いはず）/ `stopCompose` が起動中の `api-prod` も止めるか。
+
 アクションのコミット SHA 固定は、Dependabot（`.github/dependabot.yml`）が週次で更新の PR を出します（公開から 7 日待ちます）。手動実行もできます（`workflow_dispatch`）。
 
 依存のバージョンは `requirements.txt` と `requirements-dev.txt` に固定しています（Python 3.12、全プラットフォーム向け）。

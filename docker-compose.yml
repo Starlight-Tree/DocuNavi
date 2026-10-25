@@ -67,6 +67,37 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # 本番相当の起動の確認用（profile `prod`。普段の `docker compose up` や開発コンテナの runServices には含まれない）。
+  # `api` との違い: マウントなし・--reload なし（イメージに COPY したコードを、Dockerfile の CMD = hypercorn でそのまま動かす）、ポート非公開、再起動しない。
+  # 本番（Cloud Run）と同じイメージの作りと起動コマンドが、ローカルの db に対して起動検査を通るかを見るためのもの。画面（frontend）は付けない。
+  # 起動と確認: docker compose up -d --build db api-prod → docker compose exec api-prod …（docs/development.md の「本番相当の起動の確認」）
+  api-prod:
+    profiles: ["prod"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: docunavi-api-prod
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # api と同じく、.env の DATABASE_URL は使わず、compose の db に向ける
+      DATABASE_URL: "postgresql://chatbot_app:${LOCAL_DB_PASSWORD:-docunavi-local}@db:5432/docunavi"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - frontend-net
+      - backend-net
+    # command・volumes・ports は置かない（Dockerfile の CMD がそのまま動く。$PORT は未指定なので 8000）
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: "no"
+
   # 画面の開発サーバー（frontend-next の next dev。http://localhost:3000）。api とは別のコンテナで、ホットリロードで動く。
   # /chat /health /documents /threads は、next.config.ts の rewrites が、サービス名 api（Compose 内の名前解決）へ転送する
   # （API_PROXY_TARGET。NEXT_PUBLIC_API_BASE_URL は空にして、ブラウザーからは同じオリジンに見せる）。
