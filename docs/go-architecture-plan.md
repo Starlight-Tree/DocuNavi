@@ -81,7 +81,7 @@ flowchart LR
 | 11 | PDF の取り込み | `app/ingestion/pdf_parser.py` 281（pypdf）、`chunker.py` 433、`service.py`、`repository.py` | なし | `documents` `chunks` | `database-url` | 約 130 | Job（下の 13） |
 | 12 | 埋め込みの生成と保存 | `app/ingestion/embedding.py` 248、`embed.py` 101 | Gemini（埋め込み、課金あり） | `chunks` | Gemini キー、`database-url` | 約 30 | Job |
 | 13 | 取り込みの制御（毎時の突き合わせ） | `app/ingestion/sync.py` 129（資料群を巡り、取り込み → 埋め込みの順に呼ぶ。終了コードの判断） | R2 | 11・12 経由 | `database-url` `gemini-api-key` `r2-app-read` | 15 | Cloud Run Job `docunavi-ingest-sync`（イメージ `docunavi-ingest:a983807`） |
-| 14 | 取り込みの制御（Queue） | `app/ingestion/queue_worker.py` 418（Queue から pull、メッセージの検査、ack/retry の判断） | Cloudflare Queues の REST、R2 | 11・12 経由 | 上の 3 つ + `ingest-queue-token` | 36 | **未配備**（B4 でイメージ、B5 で Job） |
+| 14 | 取り込みの制御（Queue） | `app/ingestion/queue_worker.py` 418（Queue から pull、メッセージの検査、ack/retry の判断） | Cloudflare Queues の REST、R2 | 11・12 経由 | 上の 3 つ + `ingest-queue-token` | 36 関数（展開後 65 件） | **配備済み（2026-10-26）**。Cloud Run Job `docunavi-ingest-queue`（イメージ `docunavi-ingest:8a9ba33`）を Cloud Scheduler `docunavi-ingest-queue-every-5min` が 5 分おきに起動する（[r2-ingest-design.md](r2-ingest-design.md) の「本番への切り替え」） |
 | 15 | 運用の Job | `ops/r2_key_issuer`（664 行）、`ops/r2_wire`（429 行）、`ops/budget_guard`（72 行） | Cloudflare / Cloud Run / Billing の API | なし | 各々 | `test_r2_key_issuer` `test_r2_wire` `test_budget_guard` | Cloud Run Job、Cloud Run functions |
 | 16 | 検索の MCP サーバー | `ops/mcp_search/main.py` 150（`app.search_vector` を使う） | Gemini | `chunks`（読み取り専用ロール） | `database-url-readonly` `gemini-api-key` | 13 | Cloud Run `docunavi-mcp`（非公開） |
 | 17 | 画面 | `frontend-next/`（Next.js） | API | なし | 公開用の値のみ | 単体 + E2E | Vercel |
@@ -212,8 +212,8 @@ flowchart LR
 |---|---|---|---|---|
 | 0 | この計画の作成（済み） | — | 利用者のレビュー | 文書を消す |
 | 1 | 中継の改善（§4 の P1 → P2 → P3 の順に、1 項目ずつ） | 各項目で承認 | §4 の確認方法。本番では 0% の新リビジョンを作って疎通を見てから切り替える | Cloud Run の前のリビジョンへ |
-| 2 | B4・B5（Python の `queue_worker`）を予定どおり配備 | 利用者の承認（B4 のビルド待ち） | [r2-ingest-design.md](r2-ingest-design.md)、手動 1 回の実行 | Job の削除 |
-| 3 | Queue 制御の Go 版を**比較用に**作る（本番の Job は変えない） | 2 の安定（手動実行・失敗系・hourly sync との関係を観察） | 同じメッセージ（`tests/test_ingestion_queue_worker.py` の 36 件が仕様）を両方に流し、ack / retry / 破棄の判断と終了の挙動が一致すること。Go 版は ack せず判断だけ出す「ドライラン」から | Go 版を消すだけ（本番に載せていない） |
+| 2 | B4・B5（Python の `queue_worker`）を予定どおり配備（**済み、2026-10-26**。Scheduler も含めて本番に切り替えた） | 利用者の承認（済み） | [r2-ingest-design.md](r2-ingest-design.md)、手動の実行（設定確認・空の Queue・不正なキーの通知・PDF 1 件の通し） | Scheduler の一時停止 → 通知の規則の削除 → Job の削除 |
+| 3 | Queue 制御の Go 版を**比較用に**作る（本番の Job は変えない） | 2 の安定（手動実行・失敗系・hourly sync との関係を観察） | 同じメッセージ（`tests/test_ingestion_queue_worker.py` のテスト〔36 関数、展開後 65 件〕が仕様）を両方に流し、ack / retry / 破棄の判断と終了の挙動が一致すること。Go 版は ack せず判断だけ出す「ドライラン」から | Go 版を消すだけ（本番に載せていない） |
 | 4 | 履歴の保守 CLI の Go 版（7）を比較用に作る | 3 と独立 | 同じ DB（テスト用の Postgres）で、削除対象の件数が一致 | 同上 |
 | 5 | 入口の役割の決定（§5） | 1 の成果、ドメインの有無 | 決定の記録 | — |
 | 6 | 5 の決定に基づき、載せる経路を 1 つずつ増やす | 5 | 経路ごとに旧経路と比較 | `NEXT_PUBLIC_*_BASE_URL` を外す（今のところ、外す操作は私からはしない） |
@@ -224,7 +224,7 @@ flowchart LR
 
 Python のまま進める。次を守ると、段階 3 が楽になる。**どれも新しいコードを足さない（いまある形の確認と文書化）。**
 
-- **契約を固定する。** メッセージの入力（バケット・action・キーの形・大きさ）、処理結果 → ack / retry / 破棄の対応、終了コード（0・3 = 完了、1 = 一時的な失敗、2 = 設定の誤り）、環境変数（`INGEST_QUEUE_ID` `INGEST_QUEUE_TOKEN` ほか）。`queue_worker.py` の説明文とテスト 36 件がすでに仕様になっている。
+- **契約を固定する。** メッセージの入力（バケット・action・キーの形・大きさ）、処理結果 → ack / retry / 破棄の対応、終了コード（0・3 = 完了、1 = 一時的な失敗、2 = 設定の誤り）、環境変数（`INGEST_QUEUE_ID` `INGEST_QUEUE_TOKEN` ほか）。`queue_worker.py` の説明文とテスト（36 関数、展開後 65 件）がすでに仕様になっている。
 - **Job の設計は、処理を呼ぶ側と処理する側を分けたまま。** `queue_worker` は取り込み（`python -m app.ingestion`）と埋め込みを**呼ぶだけ**で、本体を持たない。Go 版に替えるなら、制御だけを Go にし、処理は `python -m app.ingestion …` の呼び出し（同じイメージの中）で残せる。
 - **Job の定義を、実装に依存させない。** B5 では Job の引数・SA・タイムアウトを、`docunavi-ingest-queue` という名前と、固定の引数で作る（実行時の上書きは使わない）。Go 版を載せるときは、イメージとコマンドの差し替えだけで済むようにする。
 - **状態は DB に置き、Queue に持たせない。** 今の設計どおり（通知は合図で、冪等）。Go 版も同じ前提でよい。
