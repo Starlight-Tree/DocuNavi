@@ -17,8 +17,12 @@ export interface ChatMetadata {
   mode?: string;
   /** 回答の根拠として検索された設定資料。未検索なら空文字。完了の直前に届く。 */
   context?: string;
-  /** context の出典と同じ順の {name, page, page_end}。完了の直前に届く。サーバーの値なので、使う前に `parseSourceRefs` で確かめる。 */
+  /** context の出典と同じ順の {name, page, page_end, weak, collection}。完了の直前に届く。サーバーの値なので、使う前に `parseSourceRefs` で確かめる。 */
   sources?: unknown;
+  /** この会話の検索範囲（資料グループの名前。null は「すべて」）。完了の直前に届く。古いサーバーは送らない。サーバーの値なので、使う前に確かめる。 */
+  collection?: unknown;
+  /** 今回の検索で拾ったチャンクの数（null は検索していない）。完了の直前に届く。古いサーバーは送らない。 */
+  hit_count?: unknown;
 }
 
 /** 回答を作る途中の段階（UI message stream の transient な data-status）。待機表示の文言に使う。 */
@@ -70,6 +74,9 @@ const MSG_EMPTY = 'メッセージを入力してください。';
 const MSG_BAD_THREAD =
   '会話 ID が正しくありません。「新しい会話」を押して、最初からやり直してください。';
 const MSG_INVALID_INPUT = '入力内容に問題があります。内容を確認して、もう一度お試しください。';
+/** 続きの会話に、会話の検索範囲と違う範囲を送ったとき（409）。サーバーの文は使わず、この固定文を見せる。 */
+export const MSG_SCOPE_CONFLICT =
+  'この会話の検索範囲は、会話の途中では変えられません。範囲を変えるときは、新しい会話にしてください。';
 export const MSG_BAD_BODY = 'サーバーから想定外の応答が返りました。しばらく待ってから再試行してください。';
 
 /** API が返したエラー。message は利用者にそのまま見せられる日本語。 */
@@ -183,6 +190,9 @@ async function toApiError(response: Response): Promise<ChatApiError> {
 
   if (status === 422) {
     return new ChatApiError(status, validationMessage(detail));
+  }
+  if (status === 409) {
+    return new ChatApiError(status, MSG_SCOPE_CONFLICT);
   }
   const message = serverDetailMessage(status, detail) ?? genericMessage(status);
   return new ChatApiError(

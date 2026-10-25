@@ -16,6 +16,7 @@ import {
 import type { ChatFailureInfo, ChatMetadata, ChatPhase } from '../api/chat';
 import { useAuth } from '../auth/AuthContext';
 import { createAuthedFetch } from '../auth/authFetch';
+import { COLLECTION_NAME_PATTERN } from '../api/collections';
 import { parseSourceRefs } from '../lib/sources';
 import type { SourceRef } from '../lib/sources';
 import { loadThreadId, saveThreadId } from '../lib/storage';
@@ -32,6 +33,10 @@ export interface ChatMessage {
   context?: string;
   /** assistant のみ。context の出典と同じ順のページ。届かなかった（古いサーバー）・形が違うときは無い。 */
   sources?: SourceRef[];
+  /** assistant のみ。この会話の検索範囲（資料グループの名前。null は「すべて」）。届かなかった（古いサーバー）ときは無い。 */
+  collection?: string | null;
+  /** assistant のみ。そのターンの検索で拾ったチャンクの数（null は検索していない）。届かなかったときは無い。 */
+  hitCount?: number | null;
 }
 
 export interface ChatError {
@@ -76,6 +81,17 @@ function assistantText(message: ChatUIMessage): string {
   return '';
 }
 
+/** サーバーの検索範囲（信用しない入力）。資料グループの名前か null（すべて）。それ以外・届いていないときは undefined。 */
+function parseCollection(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return typeof value === 'string' && COLLECTION_NAME_PATTERN.test(value) ? value : undefined;
+}
+
+function parseHitCount(value: unknown): number | null | undefined {
+  if (value === null) return null;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
 function toChatMessages(messages: ChatUIMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
   for (const message of messages) {
@@ -89,6 +105,10 @@ function toChatMessages(messages: ChatUIMessage[]): ChatMessage[] {
       if (message.metadata?.context !== undefined) item.context = message.metadata.context;
       const sources = parseSourceRefs(message.metadata?.sources);
       if (sources) item.sources = sources;
+      const collection = parseCollection(message.metadata?.collection);
+      if (collection !== undefined) item.collection = collection;
+      const hitCount = parseHitCount(message.metadata?.hit_count);
+      if (hitCount !== undefined) item.hitCount = hitCount;
       result.push(item);
     }
   }
@@ -127,14 +147,34 @@ export interface UseChat {
   threadId: string | null;
   /** 直近の応答で分かったバックエンドのモード。まだ応答が無ければ null。 */
   mode: string | null;
+  /**
+   * この会話の検索範囲（資料グループの名前。null は「すべて」）。会話ごとに固定で、最初の発言を送ると変えられない。
+   * 再読み込み・URL・localStorage には残さない（保存済みの会話は、サーバーから復元する）。
+   */
+  scope: string | null;
+  /** 保存済みの会話を開いたが、検索範囲をまだ（または取得に失敗して）知らないとき true。範囲を送らず、サーバーの会話の範囲に任せる。 */
+  scopeUnknown: boolean;
+  /** 発言か会話 ID がある（検索範囲を、いまの会話では変えられない）。 */
+  hasConversation: boolean;
+  /**
+   * 検索範囲が、サーバーに反映されなかった可能性があるとき true（直近の回答の messageMetadata が、送った範囲と合わない・
+   * 範囲を返さない旧 API）。回答が最後まで届いていないとき・範囲を指定していないときは false。
+   */
+  scopeMismatch: boolean;
+  /** 新しい会話の検索範囲を選ぶ。発言や会話 ID があるときは何もしない（false）。会話が変わるときは `startNew` を使う。 */
+  setScope: (collection: string | null) => boolean;
   /** 送信を受け付けたら true。送信中・空文字・長すぎる場合は何もせず false。 */
   send: (text: string) => boolean;
+  /** 直近の質問を、検索範囲「すべて」の新しい会話で送り直す（範囲は会話ごとに固定なので、会話を分ける）。 */
+  askAgainInAll: () => boolean;
   /** 直近のエラーになった発言を、吹き出しを増やさずに再送する。 */
   retry: () => void;
   /** 生成を止める。それまでに届いた本文は残る。 */
   stop: () => void;
-  /** 会話（表示と thread_id）を破棄して最初から始める。 */
+  /** 会話（表示と thread_id）を破棄して最初から始める。検索範囲は「すべて」に戻る。 */
   reset: () => void;
+  /** 会話を破棄して、指定した検索範囲（null は「すべて」）で最初から始める。 */
+  startNew: (collection: string | null) => void;
   /** 保存済みの会話を開く。以前のやり取りを取得して画面に出し、続きを送れるようにする。 */
   resume: (threadId: string) => void;
   /** resume で以前のやり取りを取得している間（loading）と、取得に失敗したとき（error）。 */
@@ -147,6 +187,15 @@ export function useChat(): UseChat {
   // state は次の描画まで古いままなので、同じ tick 内の二重送信や最新の thread_id は ref で守る
   const threadIdRef = useRef<string | null>(threadId);
   const pendingRef = useRef(false);
+  // 検索範囲。送信の本文を作る関数が読むので ref でも持つ。null は「すべて」（本文には載せない）
+  const [scope, setScopeState] = useState<string | null>(null);
+  const [scopeUnknown, setScopeUnknown] = useState<boolean>(() => loadThreadId() !== null);
+  const scopeRef = useRef<string | null>(null);
+  const applyScope = useCallback((next: string | null, unknown: boolean) => {
+    scopeRef.current = next;
+    setScopeState(next);
+    setScopeUnknown(unknown);
+  }, []);
   // 送信・再試行・リセットのたびに進める。リセット前の送信の完了が、新しい送信の pending を落とさないようにする
   const jobRef = useRef(0);
   const [history, setHistory] = useState<HistoryStatus>('idle');
@@ -171,8 +220,12 @@ export function useChat(): UseChat {
         headers: { Accept: 'text/event-stream' },
         // 履歴はサーバーが thread_id ごとに持つので、最後の発言だけを送る（最初の送信は thread_id も送らない）
         prepareSendMessagesRequest: ({ messages }) => {
-          const body: { message: string; thread_id?: string } = { message: lastUserText(messages) };
+          const body: { message: string; thread_id?: string; collection?: string } = {
+            message: lastUserText(messages),
+          };
           if (threadIdRef.current) body.thread_id = threadIdRef.current;
+          // 範囲を知っているときだけ送る（「すべて」と、範囲を知らない会話は省略。省略は何も主張せず、会話の範囲がそのまま使われる）
+          if (scopeRef.current) body.collection = scopeRef.current;
           return { body };
         },
       }),
@@ -221,6 +274,29 @@ export function useChat(): UseChat {
     return null;
   }, [chat.messages]);
 
+  const hasConversation = threadId !== null || chat.messages.length > 0;
+
+  // 直近の回答の messageMetadata（会話の検索範囲）。完了の直前に届く（context が先に届いているときだけ「届き終えた」とみなす）
+  const lastMeta = useMemo(() => {
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
+      const message = chat.messages[i];
+      if (message?.role !== 'assistant') continue;
+      const metadata = message.metadata;
+      if (metadata?.context === undefined) return null;
+      return { collection: parseCollection(metadata.collection) };
+    }
+    return null;
+  }, [chat.messages]);
+
+  const scopeMismatch =
+    scope !== null && !pending && lastMeta !== null && lastMeta.collection !== scope;
+
+  // 保存済みの会話の範囲が分からないまま回答が届いたら、サーバーが返した会話の範囲を取り込む
+  useEffect(() => {
+    if (!scopeUnknown || pending || lastMeta === null || lastMeta.collection === undefined) return;
+    applyScope(lastMeta.collection, false);
+  }, [scopeUnknown, pending, lastMeta, applyScope]);
+
   // 画面を閉じるとき（アンマウント）は、実行中の送信を止める。サーバーは切断を見て LLM 呼び出しを取り消す
   const stopOnUnmount = chat.stop;
   useEffect(
@@ -255,6 +331,15 @@ export function useChat(): UseChat {
     [begin, sendMessage],
   );
 
+  const setScope = useCallback(
+    (collection: string | null): boolean => {
+      if (pendingRef.current || threadIdRef.current !== null || chat.messages.length > 0) return false;
+      applyScope(collection, false);
+      return true;
+    },
+    [applyScope, chat.messages.length],
+  );
+
   const retry = useCallback(() => {
     if (pendingRef.current || !chat.messages.some((message) => message.role === 'user')) return;
     // 末尾が assistant（途中まで届いた本文）なら、それを捨てて、同じ発言を送り直す
@@ -265,18 +350,33 @@ export function useChat(): UseChat {
     void stopChat();
   }, [stopChat]);
 
-  const reset = useCallback(() => {
-    jobRef.current += 1;
-    historyAbortRef.current?.abort();
-    setHistory('idle');
-    pendingRef.current = false;
-    void stopChat();
-    setMessages([]);
-    clearError();
-    threadIdRef.current = null;
-    saveThreadId(null);
-    setThreadId(null);
-  }, [clearError, setMessages, stopChat]);
+  const startNew = useCallback(
+    (collection: string | null) => {
+      jobRef.current += 1;
+      historyAbortRef.current?.abort();
+      setHistory('idle');
+      pendingRef.current = false;
+      void stopChat();
+      setMessages([]);
+      clearError();
+      threadIdRef.current = null;
+      saveThreadId(null);
+      setThreadId(null);
+      applyScope(collection, false);
+    },
+    [applyScope, clearError, setMessages, stopChat],
+  );
+
+  const reset = useCallback(() => startNew(null), [startNew]);
+
+  const askAgainInAll = useCallback((): boolean => {
+    if (pendingRef.current) return false;
+    const text = lastUserText(chat.messages).trim();
+    if (!text || text.length > MAX_MESSAGE_LENGTH) return false;
+    startNew(null);
+    begin(sendMessage({ text }));
+    return true;
+  }, [begin, chat.messages, sendMessage, startNew]);
 
   const resume = useCallback(
     (id: string) => {
@@ -289,6 +389,8 @@ export function useChat(): UseChat {
       threadIdRef.current = id;
       saveThreadId(id);
       setThreadId(id);
+      // 会話の検索範囲は、取得できるまで分からない（分からない間は範囲を送らない）
+      applyScope(null, true);
 
       // 以前のやり取りを取得して並べる。取得の間に別の会話へ移った・新しい会話にした・送信を始めた
       // （どれも jobRef が進む）なら、遅れて届いた結果は捨てる
@@ -297,10 +399,11 @@ export function useChat(): UseChat {
       historyAbortRef.current = controller;
       setHistory('loading');
       fetchThreadMessages(fetchJson, id, controller.signal).then(
-        (items) => {
+        (thread) => {
           if (jobRef.current !== token) return;
+          applyScope(thread.collection, false);
           setMessages(
-            items.map((item, index) => ({
+            thread.messages.map((item, index) => ({
               id: `history-${id}-${index}`,
               role: item.role,
               parts: [{ type: 'text', text: item.text }],
@@ -313,7 +416,7 @@ export function useChat(): UseChat {
         },
       );
     },
-    [clearError, fetchJson, setMessages, stopChat],
+    [applyScope, clearError, fetchJson, setMessages, stopChat],
   );
 
   return {
@@ -324,10 +427,17 @@ export function useChat(): UseChat {
     error: chat.error ? toChatError(chat.error, failure) : null,
     threadId,
     mode,
+    scope,
+    scopeUnknown,
+    hasConversation,
+    scopeMismatch,
+    setScope,
     send,
+    askAgainInAll,
     retry,
     stop,
     reset,
+    startNew,
     resume,
     history,
   };

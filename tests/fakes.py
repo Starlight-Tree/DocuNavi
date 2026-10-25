@@ -74,3 +74,20 @@ class FakeSearch:
             Hit(name, text, page) for keywords, name, text, page in self.CHUNKS if any(k in query for k in keywords)
         ]
         return hits[:top_k]
+
+
+class ScopedFakeSearch(FakeSearch):
+    """検索範囲（資料のグループ）を見る偽の検索。E2E の偽サーバー（tests/e2e_server.py）だけが使う。
+
+    FakeSearch の資料に、グループ（zahard）を付ける。`collection` が渡されたら、そのグループの資料だけを返す
+    （グループが違えば 0 件になるので、画面の「該当する資料がありません」の案内を確かめられる）。
+    FakeSearch そのものは変えない（ほかのテストは、出典の collection が None であることを前提にしている）。
+    """
+
+    COLLECTION = "zahard"
+
+    async def __call__(self, query: str, top_k: int = 2, collection: str | None = None) -> list[Hit]:
+        hits = await super().__call__(query, top_k)
+        if collection is not None and collection != self.COLLECTION:
+            return []
+        return [hit._replace(collection=self.COLLECTION) for hit in hits]

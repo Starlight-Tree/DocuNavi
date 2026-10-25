@@ -31,11 +31,13 @@
 [search-design.md](search-design.md)、測定は [evals/README.md](../evals/README.md) にあります。
 
 - **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元。質問ごとに API を 1 回呼ぶ）、`chunks.embedding` との
-  コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。対象は DB の `status = 'ready'` の文書の全チャンクで、ローカルの PDF は読みません。
+  コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。対象は DB の `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループの文書のチャンクだけ。下の「検索の範囲」）で、ローカルの PDF は読みません。
   返す形は `[ファイル名]\n見出し\n本文` です。
 - **必要なもの。** 本物の LLM では `DATABASE_URL`（履歴と同じ接続プールを借りる。`DATABASE_POOL_MAX_SIZE` は共有）と `GEMINI_API_KEY`（質問の埋め込み用。
   Vertex AI で LLM を使う場合も、埋め込みは API キーで呼ぶ）。DB には、`python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で、
-  `storage/pdf/<資料群の名前>/` の PDF を取り込み・埋め込み済みであること。ディレクトリ名は取り込みの整理用で、検索の範囲は絞れません（DB の全資料）。
+  `storage/pdf/<資料群の名前>/` の PDF を取り込み・埋め込み済みであること。ディレクトリ名は `documents.collection`（資料のグループ）になります。
+- **検索の範囲。** `/chat` と `/chat/stream` は、任意の `collection`（グループの識別名）を受け付けます。会話ごとに検索の範囲は固定され（最初の発言で決まる）、
+  同じ会話に違う範囲を送ると 409 になります。`collection` を省略した場合は、従来どおり DB の全資料が対象です。仕様は [api.md](api.md) の「検索対象（`collection`）」。
 - **モックモード。** `GEMINI_API_KEY` が未設定なら、資料の検索も回答もしない固定の返答を返します（DB も API も要らない。画面と API の動作確認用）。
 - **起動の検査。** 本物の LLM のとき、`DATABASE_URL` が無い、`GEMINI_API_KEY` が無い、DB に検索できる資料（`ready`）が無い、
   `ready` の文書に埋め込みが無い・古い（モデル・次元・入力のハッシュが違う）チャンクがある、のどれかなら、起動を失敗させます。

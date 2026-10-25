@@ -207,6 +207,26 @@ data: [DONE]
 - **エラー:** DB を読めないときは固定メッセージの 503（例外の内容・接続先は含まない）。`/chunks` で DB が未設定のときも 503。
 - 応答には `Cache-Control: no-store` が付きます。書き込みの API はありません（POST などは 405）。
 
+## `GET /collections`
+
+資料グループ（`documents.collection` の値）の一覧。画面が、グループの表示名・説明・資料の数を出すために読む（読み取り専用）。
+
+```json
+{"configured": true, "collections": [{"name": "zahard", "label": "設定資料", "description": "ザーハードに関する設定資料です。",
+  "sort_order": 10, "registered": true, "document_count": 3, "ready_count": 3}]}
+```
+
+- **`name`:** 検索の絞り込みに渡す値（`POST /chat` の `collection`）。`documents.collection` と同じ形で、変わらない。
+- **`label` / `description` / `sort_order`:** `chatbot.document_collections`（`db/migrations/0006_document_collections.sql`）に登録した値。
+  並びは `sort_order` の小さい順、同じなら名前順。
+- **未登録の名前:** `documents.collection` にあって表に無い名前（フォルダを置いて取り込んだだけのグループ）も返す。`registered: false`、
+  `label` は名前そのもの、`description` は空、`sort_order` は `null`（登録済みの後ろ）。
+- **`document_count` / `ready_count`:** 全ての文書の数と、検索の対象になる文書（`status = 'ready'`）の数。登録済みで資料が無いグループは 0 / 0。
+- **`configured`:** `false` のときは `DATABASE_URL` が空（エラーではなく 200、`collections` は空）。
+- **エラー:** 表が無い（マイグレーション 0006 の前）ときは、固定メッセージ「資料グループの情報がまだ用意されていません。」の 503。
+  そのほかの DB の失敗は、固定メッセージの 503（例外の内容・接続先は含まない）。表が空なのはエラーではない。
+- **認証:** `/documents` と同じ（`AUTH_MODE=required` では Bearer が要る）。`Cache-Control: no-store`。書き込みの API はない（POST などは 405）。
+
 ## `GET /documents/{id}/graph`、`GET /documents/{id}/impact`
 
 入寮規程（`tsubasa_dorm_rules.pdf`）の条文の関係（実験）。**対象はこの 1 資料だけ**で、他の資料は 404（`この資料は、関係図の対象ではありません。`）。
