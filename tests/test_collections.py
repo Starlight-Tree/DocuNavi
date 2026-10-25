@@ -18,7 +18,9 @@ from app import auth
 from app.api import collections
 
 SECRET = "postgresql://user:pw@db.example.com/x AIzaSECRETKEY"
-MIGRATION = Path(__file__).resolve().parent.parent / "db" / "migrations" / "0006_document_collections.sql"
+MIGRATION = (
+    Path(__file__).resolve().parent.parent / "supabase" / "migrations" / "20261025205258_document_collections.sql"
+)
 
 
 def row(

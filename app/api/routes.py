@@ -44,7 +44,7 @@ _DETAIL_CONFIG = "サーバー側の LLM 設定に問題があります。管理
 _DETAIL_UPSTREAM = "LLM 呼び出しに失敗しました。しばらく待ってから再試行してください。"
 _DETAIL_HISTORY_STORE = "会話履歴の保存先に接続できませんでした。しばらく待ってから再試行してください。"
 _DETAIL_SEARCH = "資料の検索に失敗しました。しばらく待ってから再試行してください。"
-# 検索対象（資料のグループ）の識別名。documents.collection と同じ形（db/migrations/0005）
+# 検索対象（資料のグループ）の識別名。documents.collection と同じ形（supabase/migrations/20261018175020）
 COLLECTION_PATTERN = r"^[A-Za-z0-9_-]{1,40}$"
 _SCOPE_ALL = "すべて"
 
