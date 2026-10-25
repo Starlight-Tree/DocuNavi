@@ -11,7 +11,7 @@
                                                    # しきい値をこの実行の中だけ差し替える（付けなければ、アプリの MIN_SIMILARITY）。DB の接続は .env の DATABASE_URL
 
     python -m scripts.eval_answers --run --wording before ...
-                                                   # 検索が空のときの文面を、変更前（2026-10-19 の e8f82c0 より前）に戻して測る（比較の基準線）
+                                                   # 検索が空のときの文面を、変更前（2026-10-19 の 66fe9d7 より前）に戻して測る（比較の基準線）
 
 質問は、評価セットの id で引くか（質問の本文と正解は承認済みのものを使う）、一覧の中に `question` と `answer` を直接書く（新しく固定した質問）。
 
@@ -49,7 +49,7 @@ ROLES = ("absent_spill", "on_topic_absent", "off_topic", "answerable")
 DEFAULT_MAX_CALLS = 30
 DEFAULT_PER_QUESTION = 3
 
-# 検索が空のときの文面の「変更前」。e8f82c0（検索し直しを促す文面）より前の値で、効果を比べる基準線にだけ使う（アプリは今の文面）
+# 検索が空のときの文面の「変更前」。66fe9d7（検索し直しを促す文面）より前の値で、効果を比べる基準線にだけ使う（アプリは今の文面）
 WORDINGS = ("current", "before")
 _BEFORE_NOT_FOUND = "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
 _BEFORE_SYSTEM_PROMPT = (
