@@ -2,7 +2,7 @@
 # Go を公式の配布物から入れる（手動で実行する。学習用の ops/sse-relay/ のため。docs/target-architecture.md の「Go の SSE 中継」）。
 #
 # 版は固定し、公式が公開している SHA-256 と照合する（go.dev/dl の一覧にある値）。上げるときは、公開日を確かめてから書き換える。
-# 置き場所は /usr/local/go。コンテナを作り直すと消える（恒久化するかは、ops/sse-relay/ の測定結果を見てから決める）。
+# 置き場所は /usr/local/go。devcontainer.json の cli-tools から呼ぶので、コンテナを作り直しても入る（2026-10-25 に足した。未確認: 実際の再ビルド）。
 # 戻し方: sudo rm -rf /usr/local/go /usr/local/bin/go /usr/local/bin/gofmt
 set -uo pipefail
 
