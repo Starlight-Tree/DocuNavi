@@ -57,13 +57,17 @@
       "Bash(docker compose config *)",
       "Bash(docker compose up *)",
       "Bash(docker compose down *)",
-      "Bash(docker compose restart *)"
+      "Bash(docker compose restart *)",
+      "mcp__supabase-write__apply_migration"
     ],
     "ask": [
       "Bash(git push)",
       "Bash(git push *)",
+      "Bash(git reset *)",
+      "Bash(git restore *)",
       "Bash(scripts/mcp-proxy.sh)",
-      "mcp__cloudflare__execute"
+      "mcp__cloudflare__execute",
+      "mcp__playwright__browser_run_code_unsafe"
     ],
     "defaultMode": "auto",
     "disableBypassPermissionsMode": "disable"
@@ -81,6 +85,94 @@
             ],
             "timeout": 10,
             "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/hook-log.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/hook-log.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/hook-log.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/hook-log.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/hook-log.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-rules.py"
+            ],
+            "timeout": 5
           }
         ]
       }
