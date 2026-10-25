@@ -67,6 +67,10 @@ class ThreadMessage(BaseModel):
 
 class MessageList(BaseModel):
     messages: list[ThreadMessage]
+    collection: str | None = Field(
+        default=None,
+        description="この会話の検索対象の資料のグループ。null は「すべて」（この項目が無い古い会話も null）",
+    )
 
 
 def visible_messages(messages: list[Any]) -> list[ThreadMessage]:
@@ -192,7 +196,8 @@ async def get_thread_messages(
         raise _unavailable(exc) from None
     if latest is None:
         raise HTTPException(status_code=404, detail=_DETAIL_NOT_FOUND)
-    return MessageList(messages=visible_messages(latest.checkpoint.get("channel_values", {}).get("messages", [])))
+    values = latest.checkpoint.get("channel_values", {})
+    return MessageList(messages=visible_messages(values.get("messages", [])), collection=values.get("collection"))
 
 
 @router.delete("/{thread_id}", status_code=204)

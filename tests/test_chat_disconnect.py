@@ -278,7 +278,14 @@ def test_a_normal_request_is_unaffected_and_leaves_no_tasks(serve, caplog):
         conn = asyncio.run(scenario())
 
     assert conn.status == 200
-    assert conn.json() == {"reply": "こんにちは。", "thread_id": "ok-1", "context": "", "mode": "mock"}
+    assert conn.json() == {
+        "reply": "こんにちは。",
+        "thread_id": "ok-1",
+        "context": "",
+        "mode": "mock",
+        "collection": None,
+        "hit_count": None,
+    }
     assert (llm.calls, llm.cancelled, llm.finished) == (1, 0, 1)
     assert not any("切断" in r.getMessage() for r in caplog.records)
 

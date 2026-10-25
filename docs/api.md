@@ -23,6 +23,19 @@
 |---|---|
 | `message` | 必須。前後の空白を除いて 1〜2000 文字 |
 | `thread_id` | 省略可。`[A-Za-z0-9_-]` で 128 文字以内。省略すると UUID が採番される。同じ値を送ると会話が続く（`AUTH_MODE=required` では、同じ利用者の中だけ） |
+| `collection` | 省略可。検索対象の資料のグループ（`documents.collection` の識別名。`[A-Za-z0-9_-]` で 1〜40 文字）。空文字は 422。下の「検索対象」を参照 |
+
+### 検索対象（`collection`）
+
+- **省略:** 新しい会話は「すべて」の資料を探す（従来と同じ）。続きの会話は、その会話の検索対象のまま。
+- **会話ごとに固定:** 検索対象は会話の最初の発言で決まり、会話の状態（チェックポイント）に残る。続きの会話に違う `collection` を送ると **409** になる
+  （検索も LLM も動かない）。`detail` は、会話の検索対象と送られた検索対象の両方を含む固定文
+  （例: 「この会話の検索対象は「zahard」です。送られた検索対象は「cafe」で、会話の途中では変えられません。…」）。
+  「すべて」は `collection` が `null`（省略）の状態で、`detail` では「すべて」と表示する。
+- **古い会話:** 検索対象の項目が無い会話（この機能より前のもの）は「すべて」として扱う。省略すれば全資料を探し、`collection` を送ると 409。
+- **既存の会話を開いたとき:** 検索対象は履歴の状態から復元される。`GET /threads/{thread_id}/messages` の `collection` で分かる。
+- **識別名の検証:** 形（上の条件）が合わなければ 422。登録の有無は見ない（資料の無いグループは、エラーではなく 0 件になる）。
+- **LLM は変えられない:** 検索対象は、LLM が渡すツールの引数ではなく、会話の状態から検索へ渡す（LLM に見えるツールの引数は `query` だけ）。
 
 `AUTH_MODE=required` のときは `Authorization: Bearer <アクセストークン>` が必要です（`/chat/stream` も同じ。[configuration.md](configuration.md) の「ログイン（認証）」）。
 トークンが無い・不正・期限切れなら `401`（`{"detail": "ログインが必要です。ログインし直してください。"}`、`WWW-Authenticate: Bearer`）、
@@ -35,9 +48,15 @@
   "reply": "…",
   "thread_id": "…",
   "context": "[ザーハード1.pdf]\n…",
-  "mode": "mock"
+  "mode": "mock",
+  "collection": null,
+  "hit_count": 2
 }
 ```
+
+`collection` はこの会話の検索対象（`null` は「すべて」）、`hit_count` は今回のターンの検索で（類似度のしきい値を超えて）拾ったチャンクの数です。
+検索しなかったターン（モックモード・入力ガードの拒否・検索が要らない質問）は `null` で、検索して 0 件だった `0` とは別です。画面は「該当する資料がありません」を、
+`collection` の指定があって `hit_count` が `0` のときだけ出します（検索の失敗は `hit_count` ではなく、下のエラーで伝わります）。
 
 `context` は今回のターンで検索された設定資料（検索しなかった・該当なしの場合は空）です。`mode` が `mock` のとき（`GEMINI_API_KEY` 未設定）は、
 資料を検索せず、`reply` は固定の返答で、`context` は空です。
@@ -46,7 +65,8 @@
 
 | ステータス | 原因 |
 |---|---|
-| 422 | 入力検証エラー（空のメッセージ、長すぎる `message`、不正な `thread_id` など） |
+| 422 | 入力検証エラー（空のメッセージ、長すぎる `message`、不正な `thread_id`・`collection` など） |
+| 409 | 続きの会話に、会話の検索対象と違う `collection` を送った（検索対象は会話ごとに固定）。`detail` に両方の検索対象を載せる |
 | 429 | LLM のレート制限。上流が待ち時間を返した場合は `Retry-After` ヘッダ付き |
 | 504 | LLM の応答がタイムアウト |
 | 500 | API キー・モデル設定の誤り、想定外の例外 |
@@ -63,7 +83,7 @@
 {"message": "ザーハードの大気について教えて", "thread_id": "optional-conversation-id"}
 ```
 
-入力の条件（`message`・`thread_id`）と、422 を含む入力検証は `/chat` と同じです。
+入力の条件（`message`・`thread_id`・`collection`）と、422・409 を含む入力検証は `/chat` と同じです。409 は、レスポンスを始める前に HTTP で返します。
 
 レスポンスは `text/event-stream` で、[AI SDK の UI message stream](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol)
 （ヘッダー `x-vercel-ai-ui-message-stream: v1`）です。1 チャンクは `data: <JSON>` の行と空行で、最後に `data: [DONE]` が来ます。
@@ -77,7 +97,7 @@ data: {"type":"data-status","data":{"phase":"generating"},"transient":true}
 data: {"type":"text-start","id":"text-0"}
 data: {"type":"text-delta","id":"text-0","delta":"ザーハードの大気は…"}
 data: {"type":"text-end","id":"text-0"}
-data: {"type":"message-metadata","messageMetadata":{"context":"[ザーハード1.pdf]\n…","sources":[{"name":"ザーハード1.pdf","page":1,"page_end":null}]}}
+data: {"type":"message-metadata","messageMetadata":{"context":"[ザーハード1.pdf]\n…","sources":[{"name":"ザーハード1.pdf","page":1,"page_end":null,"weak":false,"collection":"zahard"}],"collection":null,"hit_count":1}}
 data: {"type":"finish"}
 data: [DONE]
 ```
@@ -90,7 +110,8 @@ data: [DONE]
   回答を定型文に置き換えたときは、最後に正しい本文が新しいテキスト部分として届きます（先に届いた部分は無視してよい）。
   最後のテキスト部分は、`/chat` の `reply` と同じ文です。
 - **`message-metadata` の `context`**: `/chat` の `context` と同じ（今回のターンで検索された設定資料。完了の直前に届く）。
-- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, weak}`。`page` は DB の `chunks.page`（PDF の 1 始まりのページ）、
+- **`message-metadata` の `collection` と `hit_count`**: `/chat` と同じ意味（この会話の検索対象と、今回のターンの検索で拾ったチャンクの数。検索していなければ `hit_count` は `null`）。
+- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, weak, collection}`。`collection` はその資料のグループ（未設定なら `null`）。`page` は DB の `chunks.page`（PDF の 1 始まりのページ）、
   `page_end` はページをまたぐ表の最終ページ（またがなければ `null`）。値が不正なとき（1 未満・整数でない・`page_end` が `page` 以下）は `null`。
   各要素の `weak` は、同じ検索の 1 位との類似度の差が 0.05（`app/agents/tools.py` の `WEAK_GAP`）を超える 2 件目以降で `true`。画面は出典カードに出さない
   （LLM が受け取った抜粋は変えず、折りたたみの一覧には残る）。類似度が無いときと 1 件目は `false`。
@@ -131,8 +152,10 @@ data: [DONE]
   本文が空のものは除く。履歴に無い会話は 404（required では他人の会話も同じ 404）。
 
   ```json
-  {"messages": [{"role": "user", "text": "ザーハードの大気は？"}, {"role": "assistant", "text": "…"}]}
+  {"messages": [{"role": "user", "text": "ザーハードの大気は？"}, {"role": "assistant", "text": "…"}], "collection": "zahard"}
   ```
+
+  `collection` はこの会話の検索対象（`null` は「すべて」。検索対象の項目が無い古い会話も `null`）。続きの会話で `/chat` に送る値は、これと同じか省略にする（違うと 409）。
 
   回答の出典（`sources`）は、会話の状態に直近の 1 回分しか無い（毎ターン作り直す）ので返さない。
 - **`DELETE /threads/{thread_id}`:** 会話を 1 件消す。成功は 204（本文なし）。`thread_id` の形式は `/chat` と同じ（`:` を含むと 422）。

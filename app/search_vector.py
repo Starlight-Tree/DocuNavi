@@ -35,10 +35,12 @@ EMBED_TIMEOUT_SECONDS = 10.0
 _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
 
 _SEARCH_SQL = (
-    "SELECT d.source AS source, c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end, "
+    "SELECT d.source AS source, d.collection AS collection, c.heading AS heading, c.content AS content, "
+    "c.page AS page, c.page_end AS page_end, "
     "1 - (c.embedding OPERATOR(extensions.<=>) %(q)s::extensions.vector(768)) AS sim "
     "FROM chunks c JOIN documents d ON d.id = c.document_id "
     "WHERE d.status = 'ready' AND c.embedding IS NOT NULL "
+    "AND (%(collection)s::text IS NULL OR d.collection = %(collection)s::text) "
     "AND c.embedding_model = %(model)s AND c.embedding_dimensions = %(dims)s "
     "ORDER BY c.embedding OPERATOR(extensions.<=>) %(q)s::extensions.vector(768), d.source, c.chunk_index "
     "LIMIT %(k)s"
@@ -56,6 +58,7 @@ class Hit(NamedTuple):
     """検索で拾った 1 チャンク。`page` は PDF の 1 始まりのページ、`page_end` はページをまたぐ表の最終ページ（またがなければ None）。
 
     `similarity` はコサイン類似度。画面の出典カードを絞る判断（`app/agents/tools.py` の `WEAK_GAP`）だけに使い、LLM には渡さない。
+    `collection` は資料のグループ（`documents.collection`。未設定なら None）。画面の出典に添えるだけで、LLM には渡さない。
     """
 
     source: str
@@ -63,6 +66,7 @@ class Hit(NamedTuple):
     page: int | None = None
     page_end: int | None = None
     similarity: float | None = None
+    collection: str | None = None
 
 
 class VectorSearchError(RuntimeError):
@@ -155,15 +159,25 @@ def _chunk_text(heading: str | None, content: str) -> str:
     return f"{heading}\n{content}" if heading else content
 
 
-async def search(query: str, top_k: int) -> list[Hit]:
-    """類似度がしきい値以上のチャンクを、近い順に上位 top_k 件、`Hit`（ファイル名・本文・ページ）で返す。"""
+async def search(query: str, top_k: int, collection: str | None = None) -> list[Hit]:
+    """類似度がしきい値以上のチャンクを、近い順に上位 top_k 件、`Hit`（ファイル名・本文・ページ）で返す。
+
+    `collection` を渡すと、その資料のグループ（`documents.collection`）の資料だけを探す。None（既定）は全資料で、
+    渡さない呼び出し（`ops/mcp_search`）の挙動は変わらない。存在しないグループは、エラーではなく空の結果になる。
+    """
     if top_k <= 0 or not query.strip():
         return []
     pool = get_pool()
     if pool is None:
         raise VectorSearchError("DB の接続プールが開いていません")
     literal = embedding.vector_literal(await embed_query(query))
-    params = {"q": literal, "model": embedding.MODEL, "dims": embedding.DIMENSIONS, "k": top_k}
+    params = {
+        "q": literal,
+        "model": embedding.MODEL,
+        "dims": embedding.DIMENSIONS,
+        "k": top_k,
+        "collection": collection,
+    }
     async with pool.connection() as conn:
         cursor = await conn.execute(_SEARCH_SQL, params)
         rows = await cursor.fetchall()
@@ -174,6 +188,7 @@ async def search(query: str, top_k: int) -> list[Hit]:
             row.get("page"),
             row.get("page_end"),
             float(row["sim"]),
+            row.get("collection"),
         )
         for row in rows
         if float(row["sim"]) >= MIN_SIMILARITY
