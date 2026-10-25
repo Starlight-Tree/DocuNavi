@@ -4,6 +4,7 @@ import {
   ChatApiError,
   chatFetch,
   endpoint,
+  streamEndpoint,
   fetchHealth,
   isJapaneseMessage,
   parseChatFailure,
@@ -40,6 +41,26 @@ describe('endpoint', () => {
   it('NEXT_PUBLIC_API_BASE_URL があればその先を呼ぶ（末尾のスラッシュは無視）', () => {
     vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', 'https://api.example.test/');
     expect(endpoint(CHAT_STREAM_PATH)).toBe('https://api.example.test/chat/stream');
+  });
+});
+
+describe('streamEndpoint', () => {
+  it('NEXT_PUBLIC_STREAM_BASE_URL が空なら endpoint() と同じ（既定の動きは変わらない）', () => {
+    expect(streamEndpoint(CHAT_STREAM_PATH)).toBe('/chat/stream');
+    vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', 'https://api.example.test/');
+    expect(streamEndpoint(CHAT_STREAM_PATH)).toBe('https://api.example.test/chat/stream');
+  });
+
+  it('NEXT_PUBLIC_STREAM_BASE_URL があれば /chat/stream だけそちらを呼ぶ（ほかは API のまま）', () => {
+    vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', 'https://api.example.test');
+    vi.stubEnv('NEXT_PUBLIC_STREAM_BASE_URL', 'https://relay.example.test/');
+    expect(streamEndpoint(CHAT_STREAM_PATH)).toBe('https://relay.example.test/chat/stream');
+    expect(endpoint('/threads')).toBe('https://api.example.test/threads');
+  });
+
+  it('空白だけなら未設定として扱う', () => {
+    vi.stubEnv('NEXT_PUBLIC_STREAM_BASE_URL', '  ');
+    expect(streamEndpoint(CHAT_STREAM_PATH)).toBe('/chat/stream');
   });
 });
 

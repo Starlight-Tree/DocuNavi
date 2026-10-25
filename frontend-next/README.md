@@ -58,6 +58,7 @@ Compose の `frontend` サービスも、この形（`API_PROXY_TARGET=http://ap
 | 変数 | 既定値 | 用途 |
 |---|---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | 空（相対 URL） | API のベース URL。**ビルド時に埋め込まれる**。本番（Vercel）では Cloud Run の URL を設定し、バックエンドの `CORS_ORIGINS` に Vercel のオリジンを入れる |
+| `NEXT_PUBLIC_STREAM_BASE_URL` | 空（`NEXT_PUBLIC_API_BASE_URL` を使う） | `/chat/stream` だけの接続先（Go の SSE 中継 [ops/sse-relay](../ops/sse-relay/README.md)）。**ビルド時に埋め込まれる**ので、変えるには再ビルド（再デプロイ）が要る。空に戻すと中継を通さない。ほかのエンドポイントは変わらない |
 | `API_PROXY_TARGET` | 未設定（転送しない） | 開発サーバーが API のパスを転送する先。**ビルド時に決まる**。`NEXT_PUBLIC_API_BASE_URL` を空にするときに使う |
 | `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 空 | 両方そろっていると Google ログイン（Supabase Auth）を使う。**ビルド時に埋め込まれる**。publishable key は公開してよい鍵で、`service_role` は絶対に入れない。どちらかが空なら、ログイン画面は出ず認証なしで動く。バックエンドの `AUTH_MODE` と Supabase・Google 側の設定は [docs/configuration.md](../docs/configuration.md) の「ログイン（認証）」 |
 | `NEXT_DIST_DIR` | `.next` | ビルドの出力先。E2E が、認証なし・認証ありの 2 つのビルドを別のフォルダーに作るための切り替え |
