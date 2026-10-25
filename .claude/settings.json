@@ -87,6 +87,94 @@
             "onFailure": "block"
           }
         ]
+      },
+      {
+        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/hook-log.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/hook-log.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/hook-log.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/hook-log.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/hook-log.py"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-rules.py"
+            ],
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Elicitation": [
