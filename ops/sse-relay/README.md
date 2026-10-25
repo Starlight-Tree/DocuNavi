@@ -1,6 +1,8 @@
 # SSE 中継
 
-Go（標準ライブラリだけ）で作った、FastAPI の前に置く SSE の中継。**本番・Cloud Run・Compose・CI には、まだ入れていない**（導入は段階ごとに利用者の承認を取る）。
+Go（標準ライブラリだけ）で作った、FastAPI の前に置く SSE の中継。**Cloud Run（`docunavi-sse-relay`）に配備済みで、本番の画面（Vercel）の `/chat/stream` はこの中継を通る**（2026-10-25 から。環境変数 `NEXT_PUBLIC_STREAM_BASE_URL`）。Compose・CI には、まだ入れていない。
+本番で確かめたのは、実質問 1 回の `POST /chat/stream` が 200（約 3.0 秒）、CORS の `OPTIONS` が 200、回答と引用の表示まで。
+**未確認:** 切断で上流の実行が止まること、長い質問での `: ping`、同時接続の負荷、本文サイズの上限（付けていない）、レート制限（無い）。
 目的と測定の結果: [docs/target-architecture.md](../../docs/target-architecture.md) の「Go の SSE 中継の測定」。目的は 22〜31 秒の短縮ではない
 （原因は検索と Gemini の初期処理で、中継では縮まらない）。長い接続の安定、切断時の上流の取り消し、同時接続が増えたときの備え。
 
