@@ -363,6 +363,8 @@ def test_chat_api_keeps_response_shape_when_blocked(client):
         "thread_id": thread_id,
         "context": "",
         "mode": "mock",
+        "collection": None,
+        "hit_count": None,
     }
 
 
@@ -374,6 +376,6 @@ def test_chat_api_normal_question_still_returns_lore(client, searching_llm):
 
     assert res.status_code == 200
     body = res.json()
-    assert set(body) == {"reply", "thread_id", "context", "mode"}
+    assert set(body) == {"reply", "thread_id", "context", "mode", "collection", "hit_count"}
     assert body["reply"] != INPUT_REFUSAL_REPLY
     assert body["context"]

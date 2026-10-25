@@ -93,3 +93,30 @@ def test_list_is_capped_against_postgres(db, required, signer, monkeypatch):  # 
         items = client.get("/threads", headers=headers).json()["threads"]
 
     assert [item["title"] for item in items] == ["三番目", "二番目"]
+
+
+def test_the_scope_of_a_conversation_survives_the_postgres_checkpointer(db, required, signer):  # noqa: F811
+    # 検索対象（collection）は会話の状態としてチェックポイントに残る。続きの会話の復元・409・履歴の取得が、本物の DB でも成り立つ
+    a = _bearer(signer, str(uuid.uuid4()))
+
+    with TestClient(app) as client:
+        first = client.post("/chat", json={"message": "最初の質問です", "collection": "zahard"}, headers=a)
+        assert first.status_code == 200 and first.json()["collection"] == "zahard"
+        thread = first.json()["thread_id"]
+
+        # 省略なら復元される。違う値は 409（両方の検索対象を載せた固定文）
+        assert client.post("/chat", json={"message": "続き", "thread_id": thread}, headers=a).json()["collection"] == (
+            "zahard"
+        )
+        conflict = client.post("/chat", json={"message": "別", "thread_id": thread, "collection": "cafe"}, headers=a)
+        assert conflict.status_code == 409
+        assert "「zahard」" in conflict.json()["detail"] and "「cafe」" in conflict.json()["detail"]
+        streamed = client.post(
+            "/chat/stream", json={"message": "別", "thread_id": thread, "collection": "cafe"}, headers=a
+        )
+        assert streamed.status_code == 409
+
+        # 既存の会話を開いたとき（履歴の取得）にも分かる。検索対象の無い会話は null
+        assert client.get(f"/threads/{thread}/messages", headers=a).json()["collection"] == "zahard"
+        plain = client.post("/chat", json={"message": "検索対象なし"}, headers=a).json()["thread_id"]
+        assert client.get(f"/threads/{plain}/messages", headers=a).json()["collection"] is None

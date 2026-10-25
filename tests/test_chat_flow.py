@@ -52,7 +52,7 @@ def test_chat_returns_expected_shape_in_mock_mode(client):
 
     assert res.status_code == 200
     body = res.json()
-    assert set(body) == {"reply", "thread_id", "context", "mode"}
+    assert set(body) == {"reply", "thread_id", "context", "mode", "collection", "hit_count"}
     assert body["mode"] == "mock"
     assert body["thread_id"] == thread_id
     assert isinstance(body["reply"], str) and body["reply"].strip()

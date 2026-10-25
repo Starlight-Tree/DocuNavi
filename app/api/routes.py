@@ -44,6 +44,9 @@ _DETAIL_CONFIG = "サーバー側の LLM 設定に問題があります。管理
 _DETAIL_UPSTREAM = "LLM 呼び出しに失敗しました。しばらく待ってから再試行してください。"
 _DETAIL_HISTORY_STORE = "会話履歴の保存先に接続できませんでした。しばらく待ってから再試行してください。"
 _DETAIL_SEARCH = "資料の検索に失敗しました。しばらく待ってから再試行してください。"
+# 検索対象（資料のグループ）の識別名。documents.collection と同じ形（db/migrations/0005）
+COLLECTION_PATTERN = r"^[A-Za-z0-9_-]{1,40}$"
+_SCOPE_ALL = "すべて"
 
 
 def _optional_classes(*specs: tuple[str, str]) -> tuple[type[BaseException], ...]:
@@ -95,6 +98,15 @@ class ChatRequest(BaseModel):
         description="会話ID。同じ値を送ると会話が継続する",
     )
 
+    collection: str | None = Field(
+        default=None,
+        pattern=COLLECTION_PATTERN,
+        description=(
+            "検索対象の資料のグループ（documents.collection の識別名）。省略は、新しい会話なら「すべて」、"
+            "続きの会話ならその会話の検索対象のまま。会話ごとに固定で、続きの会話で違う値を送ると 409"
+        ),
+    )
+
     @field_validator("thread_id", mode="before")
     @classmethod
     def _empty_thread_id_is_none(cls, value: object) -> object:
@@ -107,6 +119,10 @@ class ChatResponse(BaseModel):
     thread_id: str
     context: str = Field(description="回答の根拠として検索された設定資料（未検索なら空）")
     mode: str = Field(description="実行モード。mock = ダミー応答 / gemini = 本物の LLM")
+    collection: str | None = Field(default=None, description="この会話の検索対象の資料のグループ。null は「すべて」")
+    hit_count: int | None = Field(
+        default=None, description="今ターンの検索で拾ったチャンクの数。検索していなければ null（0 件とは別）"
+    )
 
 
 def get_graph(mock: bool):
@@ -213,6 +229,55 @@ def classify_llm_error(exc: BaseException) -> HTTPException:
     return HTTPException(status_code=502, detail=_DETAIL_UPSTREAM)
 
 
+def _scope_label(collection: str | None) -> str:
+    return f"「{collection}」" if collection else f"「{_SCOPE_ALL}」"
+
+
+async def _check_scope(graph: Any, config: dict, requested: str | None) -> None:
+    """続きの会話に、会話の検索対象と違う collection が送られたら 409（固定文。両方の検索対象を載せる）。
+
+    検索対象は会話ごとに固定で、最初の発言でグラフの状態（チェックポイント）に残る。省略（None）は何も主張しないので、
+    読まずに通す（検索対象は tools ノードが状態から復元する）。この項目が無い古い会話は「すべて」として扱う。
+    履歴の保存先の失敗は、`classify_llm_error` と同じ固定文の HTTPException にする。
+    """
+    if requested is None:
+        return
+    try:
+        snapshot = await graph.aget_state(config)
+    except Exception as exc:  # noqa: BLE001 - 履歴の保存先の失敗。例外の文字列は応答に含めない
+        failure = classify_llm_error(exc)
+        logger.error("会話の検索対象を読めませんでした (status=%s, %s)", failure.status_code, type(exc).__name__)
+        raise failure from None
+    values = snapshot.values or {}
+    if not values.get("messages"):
+        return  # 新しい会話（まだ何も保存されていない）
+    current = values.get("collection")
+    if current != requested:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"この会話の検索対象は{_scope_label(current)}です。送られた検索対象は{_scope_label(requested)}で、"
+                "会話の途中では変えられません。検索対象を変えるときは、新しい会話を始めてください。"
+            ),
+        )
+
+
+def _turn_inputs(message: str, collection: str | None) -> dict:
+    """1 ターンの入力。context・sources・hit_count は直近のターンの検索結果だけを返したいので、毎ターン空に戻す。
+
+    collection は、送られたときだけ入れる（省略なら入れない。続きの会話の検索対象は、状態に残っているものを使う）。
+    """
+    inputs: dict[str, Any] = {
+        "messages": [HumanMessage(content=message)],
+        "context": "",
+        "sources": [],
+        "hit_count": None,
+    }
+    if collection is not None:
+        inputs["collection"] = collection
+    return inputs
+
+
 @router.get("/health")
 async def health() -> dict:
     return {"status": "ok", "mode": current_mode(), "history": history_backend()}
@@ -277,13 +342,9 @@ async def chat(
     work: asyncio.Future | None = None
     gone: asyncio.Future | None = None
     try:
-        # context は直近のターンの検索結果だけを返したいので、毎ターン空に戻す
-        work = asyncio.ensure_future(
-            get_graph(mode == "mock").ainvoke(
-                {"messages": [HumanMessage(content=req.message)], "context": "", "sources": []},
-                config,
-            )
-        )
+        graph = get_graph(mode == "mock")
+        await _check_scope(graph, config, req.collection)
+        work = asyncio.ensure_future(graph.ainvoke(_turn_inputs(req.message, req.collection), config))
         # 本文は読み終えているので、ここから切断を監視できる。切断が先に来たら、待っても受け取る相手が
         # いない LLM 呼び出し（ヘッジの追加試行を含む）を取り消す
         gone = asyncio.ensure_future(_until_disconnect(request))
@@ -300,6 +361,8 @@ async def chat(
             return Response(status_code=499)  # 届く相手はいない（uvicorn は書き込まず、アクセスログにも出さない）
         else:
             raise TimeoutError
+    except HTTPException:
+        raise  # 検索対象の不一致（409）など、すでに固定文になっているもの
     except Exception as exc:  # Gemini 側のエラー・タイムアウト等
         failure = classify_llm_error(exc)
         # 詳細（例外本体・スタックトレース）はログにだけ残す。thread_id はパターン検証済み
@@ -313,6 +376,8 @@ async def chat(
         thread_id=thread_id,
         context=result.get("context", ""),
         mode=mode,
+        collection=result.get("collection"),
+        hit_count=result.get("hit_count"),
     )
 
 
@@ -441,17 +506,19 @@ async def chat_stream(
     mode = current_mode()
     thread_id = req.thread_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": conversation_key(user_id, thread_id), STREAM_TOKENS_KEY: True}}
-    # context は直近のターンの検索結果だけを返したいので、毎ターン空に戻す
-    inputs = {"messages": [HumanMessage(content=req.message)], "context": "", "sources": []}
+    inputs = _turn_inputs(req.message, req.collection)
     started = time.monotonic()
     try:
-        run = _GraphRun(get_graph(mode == "mock"), inputs, config, request, llm_timeout_seconds())
+        graph = get_graph(mode == "mock")
     except (
         Exception
     ) as exc:  # グラフの組み立て（LLM クライアントの設定）の失敗。まだレスポンスを始めていないので、HTTP で返せる
         failure = classify_llm_error(exc)
         _log_stream_failure(exc, failure, thread_id)
         raise failure from exc
+    # 検索対象の不一致は、レスポンスを始める前に HTTP の 409 で返す（422・401 と同じ）
+    await _check_scope(graph, config, req.collection)
+    run = _GraphRun(graph, inputs, config, request, llm_timeout_seconds())
 
     return StreamingResponse(
         _stream_body(run, UIMessageStream(str(uuid.uuid4()), thread_id, mode), thread_id, started),

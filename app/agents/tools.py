@@ -7,6 +7,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 
 from app import search_vector
@@ -20,6 +21,9 @@ TOP_K = 2
 # の差は 0〜0.04 で、0.05 はそれを隠さない最小の丸めた値。標本が小さい（資料 6 冊・80 チャンク）ので、資料が増えたら測り直す
 WEAK_GAP = 0.05
 
+# グラフの tools ノードが、会話の検索対象を `config["configurable"]` に入れて渡すキー（LLM が渡す引数ではない）
+COLLECTION_KEY = "collection"
+
 _NOT_FOUND_TEXT = "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
 # 検索が使えなかったときに、呼び出し側（API）へ出す固定文。例外の文字列には接続先・URL・本文が入りうるので載せない
 _SEARCH_FAILED_TEXT = "資料の検索に失敗しました。"
@@ -30,13 +34,15 @@ _SEARCH_DESCRIPTION = (
 )
 
 
-async def search_chunks_async(query: str, top_k: int = TOP_K) -> list[Hit]:
+async def search_chunks_async(query: str, top_k: int = TOP_K, collection: str | None = None) -> list[Hit]:
     """クエリに近い資料の箇所を、`Hit`（ファイル名・本文・ページ）で最大 top_k 件返す（DB のベクトル検索。しきい値未満は返さない）。
+
+    `collection` を渡すと、その資料のグループだけを探す（None は全資料）。
 
     失敗しても BM25 などには戻らない（どちらで答えたかが曖昧になるため）。`VectorSearchError` を投げ、API が 503 の固定文にする。
     """
     try:
-        return await search_vector.search(query, top_k)
+        return await search_vector.search(query, top_k, collection)
     except search_vector.VectorSearchError:
         raise
     except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・URL・本文が入りうる。型の名前だけを残す
@@ -55,6 +61,7 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
     """画面に渡す出典の一覧（`_format_hits` の見出しと同じ順）。ツールの artifact で、LLM には渡らない。
 
     `page` は 1 以上の整数だけ、`page_end` は `page` より大きいときだけ入れる（不正な値は None にして、画面が表示しない）。
+    `collection` は資料のグループ（未設定なら None）。画面の出典に、どのグループの資料かを添えるためのもの。
     `weak` は、1 位との類似度の差が `WEAK_GAP` を超える 2 件目以降（画面の出典カードに出さない）。類似度が無ければ False。
     """
     sources: list[dict[str, Any]] = []
@@ -65,12 +72,20 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
         weak = (
             index > 0 and top is not None and hit.similarity is not None and round(top - hit.similarity, 4) > WEAK_GAP
         )
-        sources.append({"name": hit.source, "page": page, "page_end": page_end, "weak": weak})
+        sources.append(
+            {"name": hit.source, "page": page, "page_end": page_end, "weak": weak, "collection": hit.collection}
+        )
     return sources
 
 
-async def _asearch_documents(query: str) -> tuple[str, list[dict[str, Any]]]:
-    hits = await search_chunks_async(query)
+async def _asearch_documents(query: str, config: RunnableConfig) -> tuple[str, list[dict[str, Any]]]:
+    # 検索対象は LLM の引数ではなく、グラフの状態（会話ごとに固定）から tools ノードが config で渡す。LLM が変えられるのは query だけ
+    # （`config` は LangChain が注入する引数で、LLM に見せるツールの定義には載らない）
+    collection = (config.get("configurable") or {}).get(COLLECTION_KEY)
+    if collection is None:
+        hits = await search_chunks_async(query)  # 指定なし（全資料）の呼び出しは、従来と同じ形のまま
+    else:
+        hits = await search_chunks_async(query, collection=collection)
     return _format_hits(hits), _sources(hits)
 
 

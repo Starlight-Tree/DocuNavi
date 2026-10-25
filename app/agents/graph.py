@@ -49,7 +49,7 @@ from app.agents.resilience import (
     stream_with_key_switch,
 )
 from app.agents.state import AgentState
-from app.agents.tools import TOOLS
+from app.agents.tools import COLLECTION_KEY, TOOLS
 
 logger = logging.getLogger(__name__)
 
@@ -589,7 +589,12 @@ def build_graph(
 
     async def tools(state: AgentState, config: RunnableConfig) -> dict:
         emit_status(config, PHASE_SEARCHING)
-        result = await tool_node.ainvoke(state)
+        # 検索対象は、会話の状態（最初の発言で決まり、チェックポイントに残る）から取る。既存の会話を開いたときも、ここで復元される
+        tool_config = {
+            **config,
+            "configurable": {**(config.get("configurable") or {}), COLLECTION_KEY: state.get("collection")},
+        }
+        result = await tool_node.ainvoke(state, tool_config)
         retrieved = "\n\n".join(str(m.content) for m in result["messages"])
         # 出典のページは、ツールが artifact で返したものを、context と同じ順に並べる（LLM は content だけを見る）
         sources = [
@@ -599,7 +604,7 @@ def build_graph(
             for source in m.artifact
             if isinstance(source, dict)
         ]
-        return {**result, "context": retrieved, "sources": sources}
+        return {**result, "context": retrieved, "sources": sources, "hit_count": len(sources)}
 
     async def guard_output(state: AgentState) -> dict:
         last = state["messages"][-1]
