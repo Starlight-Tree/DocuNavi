@@ -126,7 +126,9 @@ def test_the_page_goes_to_the_artifact_and_never_into_the_text_the_model_sees(ve
     message = call_tool("糸くずフィルターの掃除")
 
     assert message.content == "[aoba_aw820_manual.pdf]\nお手入れ\n糸くずフィルターは、洗濯のたびに掃除する。"
-    assert message.artifact == [{"name": "aoba_aw820_manual.pdf", "page": 3, "page_end": 4, "weak": False}]
+    assert message.artifact == [
+        {"name": "aoba_aw820_manual.pdf", "page": 3, "page_end": 4, "weak": False, "collection": None}
+    ]
     # ページの値は、どの形でも文面に混ざらない
     assert "3" not in message.content and "p." not in message.content
 
@@ -154,7 +156,13 @@ def test_invalid_pages_become_none_so_the_screen_shows_nothing(vector_env, page,
     pool, _ = vector_env
     pool.rows = [{**aoba_row(0.81), "page": page, "page_end": page_end}]
     assert call_tool("糸くずフィルターの掃除").artifact == [
-        {"name": "aoba_aw820_manual.pdf", "page": expected[0], "page_end": expected[1], "weak": False}
+        {
+            "name": "aoba_aw820_manual.pdf",
+            "page": expected[0],
+            "page_end": expected[1],
+            "weak": False,
+            "collection": None,
+        }
     ]
 
 

@@ -204,7 +204,14 @@ def test_success_passes_stripped_message_and_keeps_response_shape(client, use_gr
     res = client.post("/chat", json={"message": "  ザーハードとは？ \n", "thread_id": "abc-1"})
 
     assert res.status_code == 200
-    assert res.json() == {"reply": "ok", "thread_id": "abc-1", "context": "ctx", "mode": "mock"}
+    assert res.json() == {
+        "reply": "ok",
+        "thread_id": "abc-1",
+        "context": "ctx",
+        "mode": "mock",
+        "collection": None,
+        "hit_count": None,
+    }
     assert graph.calls[0]["state"]["messages"][0].content == "ザーハードとは？"
     assert graph.calls[0]["config"] == {"configurable": {"thread_id": "abc-1"}}
 
