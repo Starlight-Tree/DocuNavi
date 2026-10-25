@@ -94,6 +94,15 @@ export function endpoint(path: string): string {
   return `${base}${path}`;
 }
 
+/**
+ * /chat/stream だけの接続先。NEXT_PUBLIC_STREAM_BASE_URL（SSE の中継）があればそれを、空なら endpoint() と同じ
+ * （NEXT_PUBLIC_API_BASE_URL）を使う。ほかのエンドポイントは中継を通さない。
+ */
+export function streamEndpoint(path: string): string {
+  const base = (process.env.NEXT_PUBLIC_STREAM_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  return base ? `${base}${path}` : endpoint(path);
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
