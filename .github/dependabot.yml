@@ -1,4 +1,4 @@
-# GitHub Actions の SHA 固定（.github/workflows/ci.yml）を最新に保つ。
+# GitHub Actions の SHA 固定（.github/workflows/ci.yml）と、Docker のベースイメージ、Go のモジュールを最新に保つ。
 # pip / npm は、依存の固定（requirements*.in → uv pip compile）が落ち着いてから足す。
 version: 2
 updates:
@@ -12,3 +12,35 @@ updates:
     # このリポジトリのコミット規約（Conventional Commits）に合わせる
     commit-message:
       prefix: ci
+
+  # Dockerfile のベースイメージ（FROM）を最新に保つ。Dockerfile は置き場所ごとに別のディレクトリ。
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /.devcontainer
+      - /ops/mcp_probe
+      - /ops/mcp_search
+      - /ops/r2_key_issuer
+      - /ops/r2_wire
+      - /ops/sse-relay
+      - /ops/sse-fake-upstream
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+
+  # go.mod は Go の中継と疑似上流にだけある（今は外部の依存なし）。
+  - package-ecosystem: gomod
+    directories:
+      - /ops/sse-relay
+      - /ops/sse-fake-upstream
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
