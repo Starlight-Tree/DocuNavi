@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents")
 
 # bigint の上限。これを超える id は、DB に渡す前に 422 にする（桁あふれの例外を 503 にしないため）
-# 資料群の名前の形。取り込み（app/ingestion/service.py）と DB の制約（db/migrations/0005_document_collection.sql）と同じ
+# 資料群の名前の形。取り込み（app/ingestion/service.py）と DB の制約（supabase/migrations/20261018175020_document_collection.sql）と同じ
 _COLLECTION_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,40}")
 _MAX_ID = 9_223_372_036_854_775_807
 # 暴走した件数を返さないための上限（いまの資料は 3 文書・68 チャンク）

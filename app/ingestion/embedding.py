@@ -196,7 +196,7 @@ def vector_literal(values: Sequence[float]) -> str:
 
 
 class PostgresEmbeddingStore:
-    """chunks の埋め込みの列（db/migrations/0001・0002）を読み書きする。接続は呼び出し側が開閉する。
+    """chunks の埋め込みの列（supabase/migrations/20261017184901・20261017185742）を読み書きする。接続は呼び出し側が開閉する。
 
     作り直しの判定は、送る入力全体のハッシュ（Python 側の `input_hash`）で行うので、全行を読んで比べる（数百〜数千行の想定。
     行が数万を超えたら、ハッシュを SQL 側で計算する形に変える）。

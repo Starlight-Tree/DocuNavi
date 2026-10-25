@@ -2,7 +2,7 @@
 
     bm25            現行の BM25（アプリの採点を、チャンク単位の順位にしたもの。scripts/eval_vector.py と同じ）
     vector          pgvector のコサイン類似度
-    pgroonga        pgroonga の全文検索（Groonga のスコア。BM25 そのものではない）。db/migrations/0004_pgroonga_chunks.sql が要る
+    pgroonga        pgroonga の全文検索（Groonga のスコア。BM25 そのものではない）。supabase/migrations/20261018080137_pgroonga_chunks.sql が要る
     bm25_vector     bm25 と vector の RRF
     pgroonga_vector pgroonga と vector の RRF
 
@@ -302,7 +302,9 @@ def cmd_check(questions: list[Question]) -> int:
     print(
         f"DB のチャンク {len(chunks)} 件、資料 {len({c.source for c in chunks})} 冊、埋め込み済み（すべて現在のモデル・本文と一致）"
     )
-    print(f"pgroonga: {'有効' if installed else '未有効（db/migrations/0004_pgroonga_chunks.sql が要る）'}")
+    print(
+        f"pgroonga: {'有効' if installed else '未有効（supabase/migrations/20261018080137_pgroonga_chunks.sql が要る）'}"
+    )
     print(
         f"質問の埋め込み: キャッシュ済み {len(questions) - len(missing)} 件、足りない {len(missing)} 件"
         + (f" {missing}" if missing else "")
@@ -367,7 +369,7 @@ def measure(questions: list[Question], plan: dict[str, Any]) -> dict[str, Any]:
     with connect() as conn:
         if not pgroonga_installed(conn):
             raise EvalError(
-                "pgroonga が有効ではありません（db/migrations/0004_pgroonga_chunks.sql を適用してください）"
+                "pgroonga が有効ではありません（supabase/migrations/20261018080137_pgroonga_chunks.sql を適用してください）"
             )
         chunks = load_chunks(conn)
         if corpus_fingerprint(chunks) != plan["corpus_fingerprint"]:
