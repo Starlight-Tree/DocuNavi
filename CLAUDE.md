@@ -60,8 +60,9 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - **切断は失敗ではない。** `/chat` はグラフの実行と `request.receive()`（`http.disconnect` まで待つ監視）を `asyncio.wait` で競わせ、
   切断が先なら LLM 呼び出しを取り消して 499 を返す。この分岐は `except Exception` の外に置き、ログは INFO・固定文・`thread_id`・経過秒だけにする
   （例外にすると 502 と ERROR ログになる）。`request.is_disconnected()` のポーリングは使わない（外側の取り消しを飲み込み、遅れる）。
-  本文の解析前には `receive()` を呼ばない。`/chat/stream` も同じ方針で、レスポンスは最初の本文が届くまで始めない
-  （その前の失敗は `/chat` と同じ HTTP ステータス、後の失敗は `error` チャンクの固定メッセージ）。生成が始まる前に切断されても
+  本文の解析前には `receive()` を呼ばない。`/chat/stream` も同じ方針で、レスポンスは検証と認証の後すぐ始め
+  （422・401 は HTTP のまま）、その後の失敗は `error` チャンクの固定メッセージで伝える（直前の transient な `data-failure` にステータスと
+  Retry-After）。生成が始まる前に切断されても
   実行を取り残さないよう、後始末は `BackgroundTask` にも置く。
 - **ストリーミングでも出力ガードを外さない。** 漏洩の判定は「正規化後の連続一致 24 文字以上」で、`StreamingOutputGuard` は末尾の正規化後 31 文字を
   送らずに残して、閾値に届く前に止める。検知したら、そのターンのメッセージを定型文に置き換え、ツール呼び出しも捨てる。

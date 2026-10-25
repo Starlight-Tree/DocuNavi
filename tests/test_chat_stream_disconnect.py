@@ -69,12 +69,16 @@ def test_disconnect_before_the_first_text_cancels_every_hedged_attempt(serve, ca
         conn = asyncio.run(scenario())
 
     assert (llm.started, llm.cancelled) == (3, 3)
-    assert conn.sent == []  # レスポンスは始めていない。切断済みのクライアントには何も届かない
+    # レスポンスは最初の本文を待たずに始まる（進み具合を見せるため）ので、start と status までは届いている。本文は届いていない
+    assert not streamed_text(conn)
+    assert not any(b"finish" in m.get("body", b"") for m in conn.sent if m["type"] == "http.response.body")
     assert [r for r in caplog.records if r.levelno >= logging.ERROR] == []
     assert all(r.exc_info is None for r in caplog.records)
     lines = [r for r in caplog.records if r.name == "app.api.routes"]
     assert len(lines) == 1 and lines[0].levelno == logging.INFO
-    assert "gone-1" in lines[0].getMessage() and "切断" in lines[0].getMessage()
+    # レスポンスを始めた後なので、本体の取り消し（ストリームを中断し…）か、切断の検知（クライアントが切断したため…）のどちらか 1 行
+    message = lines[0].getMessage()
+    assert "gone-1" in message and ("切断" in message or "中断" in message)
     logged = "\n".join(r.getMessage() for r in caplog.records)
     assert secret not in logged and "127.0.0.1" not in logged
 

@@ -10,8 +10,10 @@ import {
   THREAD_ID_PATTERN,
   endpoint,
   isJapaneseMessage,
+  parseChatFailure,
+  parseChatPhase,
 } from '../api/chat';
-import type { ChatMetadata } from '../api/chat';
+import type { ChatFailureInfo, ChatMetadata, ChatPhase } from '../api/chat';
 import { useAuth } from '../auth/AuthContext';
 import { createAuthedFetch } from '../auth/authFetch';
 import { parseSourceRefs } from '../lib/sources';
@@ -42,7 +44,7 @@ export const MSG_HISTORY_FAILED =
   '過去のやり取りを読み込めませんでした。左の一覧からもう一度選ぶか、そのまま続きを送れます。';
 const MSG_UNEXPECTED = '予期しないエラーが発生しました。もう一度お試しください。';
 
-function toChatError(error: unknown): ChatError {
+function toChatError(error: unknown, failure: ChatFailureInfo | null): ChatError {
   if (error instanceof ChatApiError) {
     const result: ChatError = { status: error.status, message: error.message };
     if (error.retryAfterSeconds !== undefined) {
@@ -50,10 +52,13 @@ function toChatError(error: unknown): ChatError {
     }
     return result;
   }
-  // 本文を送り始めた後の失敗は、サーバーが error チャンクで固定の日本語メッセージを送ってくる。
+  // レスポンスを始めた後の失敗は、サーバーが error チャンクで固定の日本語メッセージを送ってくる。
+  // HTTP で返していたときのステータスと Retry-After は、直前の data-failure で届く。
   // それ以外（パースの失敗など）の英語の文言は、利用者に見せない
   if (error instanceof Error && isJapaneseMessage(error.message)) {
-    return { status: 0, message: error.message };
+    const result: ChatError = { status: failure?.status ?? 0, message: error.message };
+    if (failure?.retryAfterSeconds !== undefined) result.retryAfterSeconds = failure.retryAfterSeconds;
+    return result;
   }
   return { status: 0, message: MSG_UNEXPECTED };
 }
@@ -116,6 +121,8 @@ export interface UseChat {
   pending: boolean;
   /** pending のうち、回答の本文がまだ 1 文字も届いていない間。待機表示に使う。 */
   waiting: boolean;
+  /** waiting の間の、サーバーが知らせた段階。まだ何も届いていなければ null。 */
+  phase: ChatPhase | null;
   error: ChatError | null;
   threadId: string | null;
   /** 直近の応答で分かったバックエンドのモード。まだ応答が無ければ null。 */
@@ -171,7 +178,20 @@ export function useChat(): UseChat {
       }),
     [],
   );
-  const chat = useAiChat<ChatUIMessage>({ transport });
+  // サーバーが transient なデータ部分で知らせる、いまの段階と、失敗の付帯情報（履歴には入らない）
+  const [phase, setPhase] = useState<ChatPhase | null>(null);
+  const [failure, setFailure] = useState<ChatFailureInfo | null>(null);
+  const chat = useAiChat<ChatUIMessage>({
+    transport,
+    onData: (part) => {
+      if (part.type === 'data-status') {
+        const next = parseChatPhase(part.data);
+        if (next) setPhase(next);
+      } else if (part.type === 'data-failure') {
+        setFailure(parseChatFailure(part.data));
+      }
+    },
+  });
 
   // サーバーが start チャンクで返した thread_id を、以降の送信と再読み込み後の再開に使う
   useEffect(() => {
@@ -212,6 +232,8 @@ export function useChat(): UseChat {
   );
 
   const begin = useCallback((job: Promise<unknown>) => {
+    setPhase(null);
+    setFailure(null);
     const token = ++jobRef.current;
     pendingRef.current = true;
     void job
@@ -298,7 +320,8 @@ export function useChat(): UseChat {
     messages,
     pending,
     waiting,
-    error: chat.error ? toChatError(chat.error) : null,
+    phase: waiting ? phase : null,
+    error: chat.error ? toChatError(chat.error, failure) : null,
     threadId,
     mode,
     send,

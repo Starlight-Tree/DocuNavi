@@ -6,6 +6,8 @@ import {
   endpoint,
   fetchHealth,
   isJapaneseMessage,
+  parseChatFailure,
+  parseChatPhase,
 } from './chat';
 import { errorResponse, jsonResponse, replyResponse } from '../test/helpers';
 
@@ -243,4 +245,45 @@ describe('fetchHealth', () => {
     stubFetch(() => new Response('', { status: 503 }));
     await failure(fetchHealth());
   });
+});
+
+describe('parseChatPhase', () => {
+  it('知っている段階だけを通す', () => {
+    expect(parseChatPhase({ phase: 'analyzing' })).toBe('analyzing');
+    expect(parseChatPhase({ phase: 'searching' })).toBe('searching');
+    expect(parseChatPhase({ phase: 'generating' })).toBe('generating');
+  });
+
+  it.each([null, undefined, 'analyzing', 3, [], {}, { phase: 'done' }, { phase: 1 }, { phase: '__proto__' }])(
+    '%j は null',
+    (value) => {
+      expect(parseChatPhase(value)).toBeNull();
+    },
+  );
+});
+
+describe('parseChatFailure', () => {
+  it('ステータスと待ち時間（秒）を取り出す', () => {
+    expect(parseChatFailure({ status: 429, retryAfterSeconds: 12 })).toEqual({
+      status: 429,
+      retryAfterSeconds: 12,
+    });
+    expect(parseChatFailure({ status: 504 })).toEqual({ status: 504 });
+  });
+
+  it.each([
+    [{ status: 429, retryAfterSeconds: 0 }, { status: 429 }],
+    [{ status: 429, retryAfterSeconds: -3 }, { status: 429 }],
+    [{ status: 429, retryAfterSeconds: 1.5 }, { status: 429 }],
+    [{ status: 429, retryAfterSeconds: '12' }, { status: 429 }],
+  ])('%j は待ち時間を捨てる', (value, expected) => {
+    expect(parseChatFailure(value)).toEqual(expected);
+  });
+
+  it.each([null, 'x', [], {}, { status: '429' }, { status: 200 }, { status: 99 }, { status: 600 }, { status: 429.5 }])(
+    '%j は null',
+    (value) => {
+      expect(parseChatFailure(value)).toBeNull();
+    },
+  );
 });

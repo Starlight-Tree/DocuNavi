@@ -62,6 +62,7 @@ function ChatScreen() {
           <MessageList
             messages={chat.messages}
             waiting={chat.waiting}
+            phase={chat.phase}
             busy={chat.pending}
             resumed={chat.threadId !== null && chat.messages.length === 0}
             history={chat.history}

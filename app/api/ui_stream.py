@@ -7,6 +7,7 @@
 1 回の応答のチャンクの並び（正常時）:
 
     start（messageId、messageMetadata = {thread_id, mode}）
+    [本文の前と途中に] data-status（transient。data = {phase: analyzing | searching | generating}。履歴に入らない）
     text-start → text-delta … → text-end      （LLM の応答ごと。ツール呼び出しの前置きがあれば複数）
     [最終回答が直前の部分と違うときだけ] text-start → text-delta → text-end
     message-metadata（messageMetadata = {context, sources}。sources は context の出典と同じ順の {name, page, page_end}）
@@ -16,12 +17,22 @@
 「メッセージの本文は、最後のテキスト部分」と決めてある。入力ガードの拒否や、出力ガードによる
 定型文への置き換えのとき、サーバーは最後に正しい本文を新しいテキスト部分として送る。
 先に届いた部分（ガードが止めるまでの前半など）は、クライアントが無視してよい。
+
+失敗のときは、`data-failure`（transient。data = {status, retryAfterSeconds?}）のあとに `error`（errorText）を送る。
+`error` チャンクは errorText しか運べないので、HTTP で返していたときのステータスと Retry-After は、この `data-failure` で伝える。
 """
 
 import json
 from typing import Any
 
-from app.agents.graph import EVENT_TEXT, EVENT_TURN_END
+from app.agents.graph import (
+    EVENT_STATUS,
+    EVENT_TEXT,
+    EVENT_TURN_END,
+    PHASE_ANALYZING,
+    PHASE_GENERATING,
+    PHASE_SEARCHING,
+)
 
 UI_STREAM_HEADERS = {
     "x-vercel-ai-ui-message-stream": "v1",
@@ -30,6 +41,7 @@ UI_STREAM_HEADERS = {
     "x-accel-buffering": "no",
 }
 DONE = b"data: [DONE]\n\n"
+PHASES = frozenset({PHASE_ANALYZING, PHASE_SEARCHING, PHASE_GENERATING})
 # SSE のコメント行。クライアントは無視する。送ることで、無通信の間もプロキシに切られず、切断も検知できる
 KEEPALIVE = b": ping\n\n"
 
@@ -38,12 +50,6 @@ def encode(chunk: dict[str, Any]) -> bytes:
     """チャンクを SSE の 1 イベントにする。JSON は改行を含まないので、1 行の data: になる。"""
     payload = json.dumps(chunk, ensure_ascii=False, separators=(",", ":"))
     return f"data: {payload}\n\n".encode()
-
-
-def is_text_event(item: tuple[str, Any]) -> bool:
-    """graph.astream(stream_mode=["custom", "values"]) の 1 件が、利用者へ送る本文の断片か。"""
-    mode, data = item
-    return mode == "custom" and isinstance(data, dict) and data.get("type") == EVENT_TEXT
 
 
 class UIMessageStream:
@@ -89,6 +95,8 @@ class UIMessageStream:
             return []
         if data.get("type") == EVENT_TURN_END:
             return self._close()
+        if data.get("type") == EVENT_STATUS and data.get("phase") in PHASES:
+            return [{"type": "data-status", "data": {"phase": data["phase"]}, "transient": True}]
         if data.get("type") == EVENT_TEXT and (text := data.get("text")):
             chunks = [] if self._open_id is not None else self._open()
             self._last_part_text += text
@@ -120,6 +128,18 @@ class UIMessageStream:
         chunks.append({"type": "finish"})
         return chunks
 
-    def error(self, text: str) -> list[dict[str, Any]]:
-        """本文を送り始めた後の失敗。HTTP ステータスは変えられないので、error チャンクで伝える。"""
-        return [*self._close(), {"type": "error", "errorText": text}]
+    def error(self, text: str, status: int | None = None, retry_after: int | None = None) -> list[dict[str, Any]]:
+        """レスポンスを始めた後の失敗。HTTP ステータスは変えられないので、error チャンクで伝える。
+
+        `status`（/chat と同じ 429・504 など）と `retry_after`（秒）は、error チャンクに載せられないので、
+        直前の transient なデータ部分（data-failure）で伝える。"""
+        chunks = self._close()
+        info: dict[str, Any] = {}
+        if status is not None:
+            info["status"] = status
+        if retry_after is not None:
+            info["retryAfterSeconds"] = retry_after
+        if info:
+            chunks.append({"type": "data-failure", "data": info, "transient": True})
+        chunks.append({"type": "error", "errorText": text})
+        return chunks
