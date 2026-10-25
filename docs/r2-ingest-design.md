@@ -56,6 +56,7 @@ Cloud Scheduler（間隔は長めでよい）──▶ Cloud Run Job docunavi-in
 
 遅延を減らしたくなったとき、または学習としてイベント駆動を試したいときに足す。第 1 版の Job は残し、通知の取りこぼしを拾う定期の突き合わせとして使い続ける。
 以降の節は、Queue を足す場合の設計。
+**第 2 版は 2026-10-26 に本番へ切り替えた**（下の「本番への切り替え（2026-10-26）」）。
 
 ## 方式: pull を第一候補にする
 
@@ -162,6 +163,61 @@ Cloud Scheduler（数分おき）──▶ Cloud Run Job docunavi-ingest-poll（
   遅れた理由は未特定（規則の作成直後の初回だけか、配信の揺れか）。設計への含意: 反映が数分遅れても壊れないこと（突き合わせの 1 時間おきの Job が最後の砦）、到着順に頼らず `eTag` や `eventTime` で新旧を決めること。
   ダッシュボードのアップロードは未試験。なお、Queue に直接入れたメッセージ（`POST .../messages`）の pull と ack は正常だった。
 
+### 本番への切り替え（2026-10-26）
+
+第 2 版を本番に切り替えた。時刻はすべて JST。確認は 1 回ずつの実測（証拠等級 A）。
+
+**目標の言い方:** 「通常は数分。通知が遅れたときは最大 10 分前後。取りこぼした分は、毎時の突き合わせが拾う」。「常に数分以内」とは書かない（通知の遅れは、段 5 で約 6 分 15 秒を一度測った）。
+
+**流れ:**
+
+```text
+R2 `docunavi-documents` → 通知の規則 → Queue `docunavi-ingest` → Cloud Scheduler（5 分おき）→ Cloud Run Job `docunavi-ingest-queue` → 取り込み → 埋め込み → DB
+```
+
+毎時の `docunavi-ingest-sync-hourly`（毎時 0 分）は、最後の砦としてそのまま残す。
+
+**構成の記録:**
+
+| 部品 | 内容 |
+|---|---|
+| 通知の規則 | id `5db36367-…`。接尾辞 `.pdf`。対象は PutObject / CopyObject / CompleteMultipartUpload。**DeleteObject は入れない**（消えた PDF は DB から消さない方針〔決めたこと 6〕のため）。作る前に、検証用の規則（接頭辞 `ingest-probe`）を先に削除した（重なる規則は拒否される、という公式の API 仕様〔証拠等級 B〕による） |
+| Queue | `docunavi-ingest`。保持 86400 秒、配信の遅延 0 |
+| consumer（http_pull） | `max_retries` 3、**DLQ なし**、`retry_delay` 0、`visibility_timeout_ms` 900000、`batch_size` 1。worker は呼び出しごとに、batch 5・可視時間 900 秒・再試行の待ち 60 秒を指定する |
+| Job | `docunavi-ingest-queue`（asia-northeast1）。イメージ `docunavi-ingest:8a9ba33`。SA `docunavi-ingester`。コマンド `python -m app.ingestion.queue_worker --apply --max-chunks 60`。タスク 1、並列 1、`maxRetries` 0、タイムアウト 840 秒（可視時間 900 秒より短い）、CPU 1 / 512Mi |
+| Job の Secret | `database-url`、`gemini-api-key`、`r2-app-read`（ファイルとして）、`ingest-queue-token`（**バージョン 2 に固定**。バージョン 1 は無効化） |
+| Scheduler | `docunavi-ingest-queue-every-5min`（`*/5 * * * *`、Asia/Tokyo）。Cloud Run の Jobs API の `:run` を、SA `ingest-queue-scheduler` の **OAuth アクセストークン認証**で呼ぶ（OIDC ID トークンは `run.googleapis.com` の Jobs API では拒否された）。この SA に付けた権限は、Job への `roles/run.invoker` だけ（これだけで足りた。`actAs` の 403 は出なかった） |
+| 権限 | `docunavi-ingester` は 4 つの Secret に対してだけ `secretAccessor`（有料キーは付けない）。SA の JSON キーは作らない |
+| トークン | Queues の Read + Write、この口座全体。期限は **2027-01-19 23:59 JST**。それまでに作り直し、Secret のバージョンを増やして Job の固定を付け替える |
+
+**確認した内容（手動の順に）:**
+
+| 段 | 時刻 | 結果 |
+|---|---|---|
+| C1 | 00:18 | `--apply` なしで Job を実行。設定の確認が通り、終了コード 0（イメージに `queue_worker` があり、Secret を読めた） |
+| C2 | 00:19 | 空の Queue で実行。取り込み 0 件、ack 0 件、終了コード 0（トークンと Queue に届く） |
+| C3 | 00:21 | 9 バイトの `.txt` を置いた約 19 秒後に Job が pull。キーが不正として取り込まずに捨て、ack 1 件、終了コード 0。置いたオブジェクトは削除した |
+| D1 | 00:26 | 本番の規則を作成（上の記録）。読み戻して、規則が 1 件だけであることを確かめた |
+| C4 | 00:26〜 | 合成の PDF（英語 1 ページ、2 チャンク）を `ingest-probe/ingest-probe-c4-20261026.pdf` に置いた。キュー経由で取り込まれ、検索（`search_documents`）で合言葉が見つかった。**Job は計 3 回実行した。最初の通知は消えていた**（最初に置いたときのメッセージが届かなかった。原因は未特定。「起きたこと」は等級 A、理由の説明は等級 C）ので、1 回余計に実行した。後始末として、R2 のオブジェクトと DB の文書 1 件を、利用者の承認のうえで削除した |
+| D2 | 01:15 | Scheduler が 01:15:00 に Job を起動。実行 `docunavi-ingest-queue-47ggh` が上の SA で動き、1/1 完了。空の実行は 10〜12 秒。01:20 の回は読んでいない |
+
+**決めたこと（2026-10-26）:**
+
+- DLQ は置かない。毎時の突き合わせが、失敗した PDF を毎回やり直すことを前提にする（`sync.py` を読んで確認した）。
+- 毎時の突き合わせは残す。Queue 経路は、反映を早めるための追加であって、置き換えではない。
+- 同時実行は許容する（利用者の判断）。15 分の可視時間は、**同じ Queue メッセージの二重処理を防ぐ**。ただし、毎時の突き合わせと Queue の worker の同時実行では、別の経路からの重複処理が起こりうる（許容）。Scheduler の実行どうしも、1 回が最長 14 分続くので重なりうる。保存の段階は documents の行ロックで直列になる（テストで確認）。埋め込みは直列にしていないので、同じチャンクで API を二重に呼びうる（費用だけの問題。`content_hash` で守られ、壊れない）。
+
+**費用:** Cloud Scheduler の費用はジョブ数ベースで、実行回数には依存しない（利用者が貼った情報。公式の料金表は未確認）。Job の空の実行が Cloud Run の無料枠に収まるかは**未確認**。
+
+**未確認:**
+
+- worker が指定する再試行の待ち・batch・可視時間が、実際に効くか（C3 は再試行も batch の複数件も通っていない）。
+- `max_retries` を超えたメッセージの扱い（DLQ なしだと破棄される、という貼り付けの情報は等級 C）。
+- 可視時間切れによる再配信が `max_retries` に数えられるか。
+- 通知が遅れたとき、何回の実行で拾えるか。
+- 最初の通知が消えた原因。
+- 埋め込みの同時実行は、実際には走らせていない。
+
 ## 決めたこと
 
 2026-10-21、利用者の方針（Queue は後から・突き合わせから・埋め込みは取り込み成功時だけ）に沿って埋めた。
@@ -172,7 +228,7 @@ Cloud Scheduler（数分おき）──▶ Cloud Run Job docunavi-ingest-poll（
 | 1 | 方式 | 第 1 版は突き合わせ方式。Queue は必要になってから足す。**着手するか自体は未決**（必要は小さい） | 方式は確定、着手は未決 |
 | 2 | 実行間隔 | 1 時間おきから。突き合わせ方式では遅延が実害にならず、Scheduler の最短間隔の問題も出ない。資料を足した直後に反映したければ、Job を手動で実行する | 仮承認 |
 | 3 | R2 の鍵 | 読み取りだけで足りる。`r2-app-read` を共用する（Job の SA に Secret 単位で `secretAccessor`）。`r2-ingest-rw` は使わない。共用で困るのは、アプリ用の鍵に問題があると取り込みも止まること。取り込み専用の権限分離は、将来の検討 | 仮承認 |
-| 4 | Cloudflare の pull トークン | 第 1 版では**要らない**（Queue を使わない）。第 2 版に進むときに、作り方（画面で作る / 発行 Job に足す）と期限を決める | 確定（第 2 版に先送り） |
+| 4 | Cloudflare の pull トークン | 第 1 版では**要らない**（Queue を使わない）。第 2 版では、利用者が画面で作った（`docunavi-ingest-queue-pull`。Queues の Read + Write、この口座全体、期限 2027-01-19 23:59 JST）。Secret `ingest-queue-token` のバージョン 2 を Job が参照する（「本番への切り替え（2026-10-26）」） | 確定・実施済み（期限前に更新が要る） |
 | 5 | 埋め込みの自動実行 | 取り込みが成功したときだけ。**終了コード 0 に加えて 3 でも実行する**（理由は「第 1 版」の節。1・2 では実行しない）。上限は `--max-chunks` | 確定（0 と 3 で埋め込み、1 と 2 では埋め込まない。承認済み） |
 | 6 | 削除の扱い | R2 から消えた PDF は、DB から消さず、ログで知らせるだけ。自動で消さない | 仮承認 |
 
