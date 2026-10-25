@@ -1,0 +1,10 @@
+# SSE 中継のイメージを Cloud Build でビルドして Artifact Registry に置く。配備はしない（できたイメージを `gcloud run deploy --image` で出す）。
+# ビルドの文脈は ops/sse-relay/（`gcloud builds submit ops/sse-relay --config ops/sse-relay/cloudbuild.yaml`）。
+#
+# 置換変数: _IMAGE  ビルドしたイメージの名前（例: <REGION>-docker.pkg.dev/<PROJECT_ID>/<リポジトリ>/docunavi-sse-relay:<タグ>）
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: [build, --tag, "${_IMAGE}", .]
+
+images:
+  - ${_IMAGE}

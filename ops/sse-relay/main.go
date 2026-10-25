@@ -45,8 +45,9 @@ func newRelay(upstream *url.URL, h2c bool, heartbeat time.Duration) http.Handler
 	}
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
+			// Host は上流の URL のものを使う（SetURL が Out.Host を空にする）。Cloud Run は Host で配送先を決めるので、
+			// 中継の Host のまま渡すと、上流の Cloud Run のサービスに届かず 404 になる
 			r.SetURL(upstream)
-			r.Out.Host = r.In.Host
 		},
 		Transport:     transport,
 		FlushInterval: -1,
