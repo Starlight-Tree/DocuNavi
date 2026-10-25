@@ -247,15 +247,17 @@ Playwright が起動したブラウザーでは、Google が「安全でない�
 
 3. ファイルを Git 管理外の `.playwright-mcp/` に置く（`mv ~/Downloads/auth-eosin.json <リポジトリ>/.playwright-mcp/auth-eosin.json`）。
    ログインした URL が確認したい URL と違う場合は、`origin` を書き換える（同じ Supabase プロジェクトのセッションなので、どの URL でも使える）。
-4. `.mcp.json` の playwright の引数に `--isolated --storage-state .playwright-mcp/auth-eosin.json` を足し、`/mcp` で再接続する
-   （`--storage-state` は isolated 専用。`@playwright/mcp@0.0.83` の `--help` で確認）。**この変更はコミットしない。**
-5. **確認が終わっても、後始末をしない**（2026-10-25、利用者の決定。消して作り直す手戻りが続いたため）。`.mcp.json` の変更、`auth-eosin.json`、Playwright のログイン状態は残す。
+4. `.mcp.json` は変えず、同名の `playwright` を local スコープ（`~/.claude/.claude.json`。Git 管理外）に登録して、`/mcp` で再接続する:
+   `claude mcp add --scope local playwright -- npx -y @playwright/mcp@0.0.83 --headless --browser chromium --isolated --storage-state .playwright-mcp/auth-eosin.json`
+   （`--storage-state` は isolated 専用。`@playwright/mcp@0.0.83` の `--help` で確認）。同名なら local が project より優先される（公式の説明。この環境でも、リビルド後に local の引数で MCP が起動することを 2026-10-25 に確認）。
+   これでログインの引数が `.mcp.json` に入らないので、コミットを気にしなくてよい。
+5. **確認が終わっても、後始末をしない**（2026-10-25、利用者の決定。消して作り直す手戻りが続いたため）。local スコープの登録、`auth-eosin.json`、Playwright のログイン状態は残す。
    元に戻す・ファイルを削除する・サインアウトするのは、利用者が自分の言葉で頼んだときだけ。作業の区切りや、他の AI の助言の貼り付けでは行わない。
    トークンが切れて Playwright のログインが落ちたときだけ、1 からやり直す。
 
-開発コンテナを作り直した後の扱い: `.playwright-mcp/` と `.mcp.json` はリポジトリ（ホストのフォルダー）にあるので、残る。
-ただし、`.mcp.json` に `--storage-state` を足したまま、ファイルを消した・置いていないと、Playwright MCP が起動しない可能性がある（未確認）。
-作り直した後で Playwright MCP が使えないときは、まず `git diff .mcp.json` を見て、ファイルが無いのに引数が残っていれば、利用者に伝えて元に戻すか置き直す。セッションは約 1 時間でアクセストークンが切れ、
+開発コンテナを作り直した後の扱い: `.playwright-mcp/` はリポジトリ（ホストのフォルダー）にあり、local スコープの登録は `~/.claude` のボリュームにあるので、どちらも残る。
+ただし、local の登録に `--storage-state` が残ったまま、ファイルを消した・置いていないと、Playwright MCP が起動しない可能性がある（未確認）。
+作り直した後で Playwright MCP が使えないときは、まず `claude mcp get playwright` で引数を見て、ファイルが無いのに引数が残っていれば、利用者に伝えて登録を外すか（`claude mcp remove playwright --scope local`）ファイルを置き直す。セッションは約 1 時間でアクセストークンが切れ、
 更新に失敗したら 1 からやり直す。手順そのもの（この節）は、リポジトリと `~/.claude` のメモリ（ボリューム）の両方にあるので、作り直しでは消えない。
 
 ファイルはログインの認証情報（リフレッシュトークン）なので、表示・貼り付け・コミットをしない。
