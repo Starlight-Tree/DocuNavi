@@ -93,6 +93,10 @@ STREAM_TOKENS_KEY = "stream_tokens"
 # カスタムストリームへ流すイベント（dict の "type"）
 EVENT_TEXT = "text"  # {"type": "text", "text": 利用者へ送ってよい本文の断片}
 EVENT_TURN_END = "turn_end"  # {"type": "turn_end"} LLM の 1 回の応答の本文の終わり
+EVENT_STATUS = "status"  # {"type": "status", "phase": PHASE_*} いま何をしているか（画面の待機表示用。履歴には入らない）
+PHASE_ANALYZING = "analyzing"  # 質問を読み、検索が要るかを LLM が決めている（最初の LLM 呼び出し）
+PHASE_SEARCHING = "searching"  # 資料を検索している（ツールの実行）
+PHASE_GENERATING = "generating"  # 検索の結果を受けて、回答を LLM が作っている（2 回目の LLM 呼び出し）
 
 
 def use_vertex_ai() -> bool:
@@ -515,7 +519,15 @@ def build_graph(
     def route_after_guard(state: AgentState) -> str:
         return END if state.get("guard_reason") else "agent"
 
+    def emit_status(config: RunnableConfig, phase: str) -> None:
+        # 画面の待機表示のための合図。/chat（ストリームを受けない呼び出し）には流さない
+        if (config.get("configurable") or {}).get(STREAM_TOKENS_KEY):
+            get_stream_writer()({"type": EVENT_STATUS, "phase": phase})
+
     async def agent(state: AgentState, config: RunnableConfig) -> dict:
+        # 直前がツールの結果なら、検索を受けて回答を作る呼び出し。それ以外は、検索が要るかを決める呼び出し
+        after_search = bool(state["messages"]) and isinstance(state["messages"][-1], ToolMessage)
+        emit_status(config, PHASE_GENERATING if after_search else PHASE_ANALYZING)
         messages = [SystemMessage(content=SYSTEM_PROMPT), *state["messages"]]
         # 同じ質問の中で先の呼び出しがフォールバックに切り替わっていたら、落ちている主モデルを待たずに始める
         sticky = bool(state.get("fallback_used"))
@@ -575,7 +587,8 @@ def build_graph(
             return {"messages": [reply]}
         return {"messages": [reply], "fallback_used": served_by_fallback}
 
-    async def tools(state: AgentState) -> dict:
+    async def tools(state: AgentState, config: RunnableConfig) -> dict:
+        emit_status(config, PHASE_SEARCHING)
         result = await tool_node.ainvoke(state)
         retrieved = "\n\n".join(str(m.content) for m in result["messages"])
         # 出典のページは、ツールが artifact で返したものを、context と同じ順に並べる（LLM は content だけを見る）

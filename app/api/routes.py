@@ -6,7 +6,6 @@ import os
 import re
 import time
 import uuid
-from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import aclosing
 from functools import lru_cache
@@ -19,7 +18,7 @@ from pydantic import BaseModel, Field, StringConstraints, field_validator
 from starlette.background import BackgroundTask
 
 from app.agents.graph import STREAM_TOKENS_KEY, build_graph, is_mock_mode
-from app.api.ui_stream import DONE, KEEPALIVE, UI_STREAM_HEADERS, UIMessageStream, encode, is_text_event
+from app.api.ui_stream import DONE, KEEPALIVE, UI_STREAM_HEADERS, UIMessageStream, encode
 from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, history_backend
 from app.search_vector import VectorSearchError
@@ -376,23 +375,13 @@ def _log_stream_failure(exc: BaseException, failure: HTTPException, thread_id: s
     )
 
 
-async def _stream_body(
-    run: _GraphRun,
-    ui: UIMessageStream,
-    buffered: list[tuple[str, Any]],
-    thread_id: str,
-    started: float,
-) -> AsyncIterator[bytes]:
-    """レスポンスの本体（SSE）。最初のイベントまでは、呼び出し側が待って buffered に溜めてある。"""
+async def _stream_body(run: _GraphRun, ui: UIMessageStream, thread_id: str, started: float) -> AsyncIterator[bytes]:
+    """レスポンスの本体（SSE）。始めてすぐ start を送り、グラフの進み具合（status）と本文を、届いた順に流す。"""
     try:
         for chunk in ui.start():
             yield encode(chunk)
-        pending = deque(buffered)
         while True:
-            if pending:
-                kind, payload = pending.popleft()
-            else:
-                kind, payload = await run.next(idle=STREAM_KEEPALIVE_SECONDS)
+            kind, payload = await run.next(idle=STREAM_KEEPALIVE_SECONDS)
 
             if kind == "event":
                 for chunk in ui.feed(payload):
@@ -411,10 +400,15 @@ async def _stream_body(
                     time.monotonic() - started,
                 )
                 return
-            else:  # error: 本文を送り始めた後の失敗。固定メッセージだけをクライアントへ送る
+            else:  # error: レスポンスを始めた後の失敗。固定メッセージだけをクライアントへ送る
                 failure = classify_llm_error(payload)
                 _log_stream_failure(payload, failure, thread_id)
-                for chunk in ui.error(str(failure.detail)):
+                retry_after = (failure.headers or {}).get("Retry-After", "")
+                for chunk in ui.error(
+                    str(failure.detail),
+                    status=failure.status_code,
+                    retry_after=int(retry_after) if retry_after.isdigit() else None,
+                ):
                     yield encode(chunk)
                 yield DONE
                 return
@@ -440,8 +434,9 @@ async def chat_stream(
 ) -> Response:
     """/chat と同じ入力で、回答を SSE で少しずつ返す。
 
-    最初の本文が届くまで（または最後まで）は、レスポンスを始めない。その間の失敗は /chat と同じ
-    HTTP ステータス（固定メッセージ）で返せる。本文を送り始めた後の失敗は、error チャンクで伝える。
+    入力検証・認証・グラフの組み立てが済んだら、すぐレスポンスを始める（最初の本文までに 20 秒以上かかることがあり、
+    その間、画面に段階を見せるため）。その後の失敗は HTTP ステータスを変えられないので、error チャンクで伝える
+    （ステータスと Retry-After は、直前の data-failure で伝える）。
     """
     mode = current_mode()
     thread_id = req.thread_id or str(uuid.uuid4())
@@ -449,44 +444,19 @@ async def chat_stream(
     # context は直近のターンの検索結果だけを返したいので、毎ターン空に戻す
     inputs = {"messages": [HumanMessage(content=req.message)], "context": "", "sources": []}
     started = time.monotonic()
-    run: _GraphRun | None = None
-    handed_off = False
     try:
-        try:
-            run = _GraphRun(get_graph(mode == "mock"), inputs, config, request, llm_timeout_seconds())
-        except Exception as exc:  # グラフの組み立て（LLM クライアントの設定）の失敗
-            failure = classify_llm_error(exc)
-            _log_stream_failure(exc, failure, thread_id)
-            raise failure from exc
+        run = _GraphRun(get_graph(mode == "mock"), inputs, config, request, llm_timeout_seconds())
+    except (
+        Exception
+    ) as exc:  # グラフの組み立て（LLM クライアントの設定）の失敗。まだレスポンスを始めていないので、HTTP で返せる
+        failure = classify_llm_error(exc)
+        _log_stream_failure(exc, failure, thread_id)
+        raise failure from exc
 
-        buffered: list[tuple[str, Any]] = []
-        while True:
-            kind, payload = await run.next()
-            if kind == "gone":
-                # 切断はエラーではない。ログも INFO・固定文・thread_id だけにする
-                logger.info(
-                    "クライアントが切断したため LLM 呼び出しを取り消しました (thread_id=%s, elapsed=%.1fs)",
-                    thread_id,
-                    time.monotonic() - started,
-                )
-                return Response(status_code=499)  # 届く相手はいない
-            if kind == "error":
-                failure = classify_llm_error(payload)
-                _log_stream_failure(payload, failure, thread_id)
-                raise failure from payload
-            buffered.append((kind, payload))
-            # 本文の最初の断片、または（入力ガードの拒否など）本文が無いまま終わったら、レスポンスを始める
-            if kind == "done" or is_text_event(payload):
-                break
-
-        handed_off = True
-        return StreamingResponse(
-            _stream_body(run, UIMessageStream(str(uuid.uuid4()), thread_id, mode), buffered, thread_id, started),
-            media_type="text/event-stream",
-            headers=UI_STREAM_HEADERS,
-            # 本体の生成が始まる前に切断されても、実行を取り残さない（_stream_body の finally は、始まらないと動かない）
-            background=BackgroundTask(run.close),
-        )
-    finally:
-        if not handed_off and run is not None:
-            await run.close()
+    return StreamingResponse(
+        _stream_body(run, UIMessageStream(str(uuid.uuid4()), thread_id, mode), thread_id, started),
+        media_type="text/event-stream",
+        headers=UI_STREAM_HEADERS,
+        # 本体の生成が始まる前に切断されても、実行を取り残さない（_stream_body の finally は、始まらないと動かない）
+        background=BackgroundTask(run.close),
+    )
