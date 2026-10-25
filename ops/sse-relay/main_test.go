@@ -398,3 +398,29 @@ func TestRelayDoesNotAbortWhenUpstreamRespondsEarly(t *testing.T) {
 		}
 	}
 }
+
+// 上流へ渡す Host は、中継の Host ではなく上流の URL のもの（Cloud Run は Host で配送先を決める）。
+func TestRelaySendsUpstreamHostNotRelayHost(t *testing.T) {
+	gotHost := make(chan string, 1)
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHost <- r.Host
+		sseHeaders(w)
+		w.Write([]byte("data: 1\n\n"))
+	}))
+	t.Cleanup(up.Close)
+	u, _ := url.Parse(up.URL)
+	relay := httptest.NewServer(newRelay(u, false, 0))
+	t.Cleanup(relay.Close)
+
+	req, _ := http.NewRequest("POST", relay.URL+"/chat/stream", strings.NewReader("{}"))
+	req.Host = "relay.example.test"
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	if got := <-gotHost; got != u.Host {
+		t.Fatalf("上流が受けた Host = %q, 想定 %q", got, u.Host)
+	}
+}
