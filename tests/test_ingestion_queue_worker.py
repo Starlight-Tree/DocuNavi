@@ -114,6 +114,55 @@ def test_classify_drops_malformed_bodies(raw):
     assert isinstance(qw.classify(raw, BUCKET), qw.Drop)
 
 
+def test_classify_accepts_the_measured_wire_shape_with_raw_utf8_keys():
+    # 実測（docs/r2-ingest-design.md）: body は JSON の文字列で、object.key は生の UTF-8 の文字列（パーセントエンコード無し）
+    message = {
+        "account": "x",
+        "bucket": BUCKET,
+        "eventTime": "2026-10-25T06:00:00.000Z",
+        "action": "PutObject",
+        "object": {"key": "zahard/ザーハード1.pdf", "size": 15, "eTag": "e"},
+    }
+    raw = json.dumps(message, ensure_ascii=False, separators=(",", ":"))
+    assert "ザーハード" in raw  # body() は \u エスケープ。生の UTF-8 の本文でも同じ結果になることを確かめる
+    assert qw.classify(raw, BUCKET) == qw.Target("zahard", "ザーハード1.pdf")
+
+
+def test_classify_keeps_the_key_byte_for_byte_without_normalizing_or_decoding():
+    # R2 のキーはバイト列。NFC と NFD は別の物なので、勝手に正規化・デコードすると別のキーを見に行く
+    import unicodedata
+
+    nfc = "ザーハード1.pdf"
+    nfd = unicodedata.normalize("NFD", nfc)
+    assert nfc != nfd
+    assert qw.classify(body(f"zahard/{nfd}"), BUCKET) == qw.Target("zahard", nfd)
+    assert qw.classify(body(f"zahard/{nfc}"), BUCKET).key == f"zahard/{nfc}"
+    assert qw.classify(body("zahard/%E3%82%B6.pdf"), BUCKET) == qw.Target("zahard", "%E3%82%B6.pdf")
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "ザーハード/menu.pdf",  # 資料群は ASCII だけ（DB の制約と同じ）
+        "zahard/ザーハード/menu.pdf",  # 日本語を含む余分な階層
+        "ザーハード1.pdf",  # 資料群が無い（バケットの直下）
+        "ingest-probe-ザーハード.txt",  # 実測で置いたプローブ。直下で .txt
+        "zahard/ザーハード1.txt",
+    ],
+)
+def test_classify_drops_japanese_keys_that_do_not_fit_the_collection_shape(key):
+    assert qw.classify(body(key), BUCKET) == qw.Drop("key")
+
+
+def test_japanese_key_reaches_exists_and_ingest_unchanged():
+    commands = Commands()
+    acks, retries, outcome = batch([msg(1, key="zahard/ザーハード1.pdf")], commands)
+    assert acks == ["l1"]
+    assert ("exists", "zahard/ザーハード1.pdf") in commands.log
+    assert ("ingest", ["--input", "r2://zahard/ザーハード1.pdf", "--apply"]) in commands.log
+    assert outcome.exit_code() == 0
+
+
 def test_classify_accepts_a_missing_size():
     message = {"bucket": BUCKET, "action": "PutObject", "object": {"key": "cafe/menu.pdf"}}
     assert qw.classify(message, BUCKET) == qw.Target("cafe", "menu.pdf")
