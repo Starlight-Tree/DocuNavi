@@ -1,5 +1,7 @@
 # 開発
 
+Supabase CLI での本番 DB 変更と migration の運用は [supabase-cli.md](supabase-cli.md) を参照。
+
 ## 画面とバックエンドの起動
 
 フロントエンドで Supabase のログインを有効にする場合（`frontend-next/.env.local` に `NEXT_PUBLIC_SUPABASE_URL` などがある）、バックエンドも `AUTH_MODE=required`（と `SUPABASE_URL`）で起動します。
