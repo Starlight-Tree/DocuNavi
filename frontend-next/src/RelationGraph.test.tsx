@@ -128,6 +128,8 @@ function install(route: Route, originalPdf = true) {
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'mock' });
+      // 資料グループの一覧（このテストの対象ではない。呼び出しの回数には数えない）
+      if (url.endsWith('/collections')) return jsonResponse({ configured: false, collections: [] });
       calls.push(url);
       if (url === '/documents') return jsonResponse(LIST);
       if (url === '/documents/3/chunks') return jsonResponse(chunks(LIST.documents[0]!, originalPdf));

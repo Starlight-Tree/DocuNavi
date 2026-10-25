@@ -45,12 +45,16 @@ const LIST = {
 
 type Route = (url: string, init: RequestInit, call: number) => Response | Promise<Response>;
 
-/** /health と /documents 系を差し替える。/chat/stream には何も返さない（呼ばれたら失敗させる）。 */
-function installDocsFetch(route: Route) {
+/**
+ * /health と /documents 系を差し替える。/chat/stream には何も返さない（呼ばれたら失敗させる）。
+ * 資料グループの一覧（/collections）は、渡さなければ「DB を使っていない」を返す（呼び出しの回数には数えない）。
+ */
+function installDocsFetch(route: Route, collections?: () => Response | Promise<Response>) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'mock' });
+    if (url.endsWith('/collections')) return collections ? collections() : jsonResponse({ configured: false, collections: [] });
     if (url.endsWith('/threads')) return jsonResponse({ threads: [] }); // 会話の一覧（ログイン中だけ）。資料の呼び出しには数えない
     calls.push({ url, init: init ?? {} });
     return route(url, init ?? {}, calls.length);
@@ -681,11 +685,23 @@ describe('資料一覧: 種別（資料群）', () => {
       summary(5, 'loose.pdf', 1, 1, { collection: null }),
     ],
   };
+  // GET /collections の応答（表示名・説明・並び順は、サーバーが持つ）
+  const GROUP_CATALOG = {
+    configured: true,
+    collections: [
+      { name: 'zahard', label: '設定資料', description: 'ザーハードに関する設定資料です。', sort_order: 10, registered: true, document_count: 1, ready_count: 1 },
+      { name: 'cafe', label: '店舗案内', description: '', sort_order: 20, registered: true, document_count: 1, ready_count: 1 },
+      { name: 'guides', label: '規程・取扱説明書', description: '', sort_order: 30, registered: true, document_count: 2, ready_count: 2 },
+    ],
+  };
   const filter = () => screen.getByRole('group', { name: '種別で絞り込み' });
   const names = () => screen.getAllByRole('row').slice(1).map((row) => row.textContent ?? '');
 
-  it('カードに種別の表示名を出し、未設定の資料には出さない', async () => {
-    installDocsFetch(() => jsonResponse(GROUPED));
+  it('カードに種別の表示名（グループの一覧の label）を出し、未設定の資料には出さない', async () => {
+    installDocsFetch(
+      () => jsonResponse(GROUPED),
+      () => jsonResponse(GROUP_CATALOG),
+    );
     const { user } = setup();
     await openDocuments(user);
 
@@ -697,27 +713,23 @@ describe('資料一覧: 種別（資料群）', () => {
     expect(loose.querySelector('td[data-label="種別"]')?.textContent).toBe('');
   });
 
-  it('絞り込みは、一覧にある資料群だけを決めた並びで出し、押すとその資料群だけを残す。URL にも載る', async () => {
+  it('グループの一覧を使えない（未設定）ときの絞り込みは、一覧にある資料群を名前順で出し、押すとその資料群だけを残す。URL にも載る', async () => {
     installDocsFetch(() => jsonResponse(GROUPED));
     const { user } = setup();
     await openDocuments(user);
     await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
 
-    expect(within(filter()).getAllByRole('button').map((b) => b.textContent)).toEqual([
-      'すべて',
-      '設定資料',
-      '店舗案内',
-      '規程・取扱説明書',
-    ]);
+    // 固定の表示名は持たない。グループの一覧が無いときは、識別名のまま出す
+    expect(within(filter()).getAllByRole('button').map((b) => b.textContent)).toEqual(['すべて', 'cafe', 'guides', 'zahard']);
     expect(within(filter()).getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true');
     expect(names()).toHaveLength(5);
 
-    await user.click(within(filter()).getByRole('button', { name: '規程・取扱説明書' }));
+    await user.click(within(filter()).getByRole('button', { name: 'guides' }));
 
     expect(names().join('|')).toMatch(/tsubasa_dorm_rules\.pdf.*\|.*aoba_aw820_manual\.pdf/);
     expect(names()).toHaveLength(2);
     expect(window.location.search).toBe('?tab=documents&collection=guides');
-    expect(within(filter()).getByRole('button', { name: '規程・取扱説明書' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(filter()).getByRole('button', { name: 'guides' })).toHaveAttribute('aria-pressed', 'true');
 
     await user.click(within(filter()).getByRole('button', { name: 'すべて' }));
     expect(names()).toHaveLength(5);
@@ -753,7 +765,7 @@ describe('資料一覧: 種別（資料群）', () => {
     );
     const { user } = setup();
     await openDocuments(user);
-    await user.click(await within(await screen.findByRole('group', { name: '種別で絞り込み' })).findByRole('button', { name: '店舗案内' }));
+    await user.click(await within(await screen.findByRole('group', { name: '種別で絞り込み' })).findByRole('button', { name: 'cafe' }));
 
     await user.click(screen.getByRole('button', { name: /cafe_store_guide\.pdf を開く/ }));
     await screen.findByRole('heading', { level: 2 });

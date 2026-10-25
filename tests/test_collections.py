@@ -245,7 +245,7 @@ def test_the_migration_is_rerunnable_and_has_no_foreign_key():
     assert "alter table chatbot.documents" not in code and "chatbot.chunks" not in code
 
 
-def test_the_seeded_groups_are_the_three_existing_ones_with_the_screen_labels():
+def test_the_seeded_groups_are_the_three_existing_ones_with_their_labels():
     sql = MIGRATION.read_text(encoding="utf-8")
     seeded = re.findall(r"\('([A-Za-z0-9_-]+)', '([^']+)', '([^']*)', (\d+)\)", sql)
     assert [(n, label) for n, label, _, _ in seeded] == [
@@ -253,9 +253,3 @@ def test_the_seeded_groups_are_the_three_existing_ones_with_the_screen_labels():
         ("cafe", "店舗案内"),
         ("guides", "規程・取扱説明書"),
     ]
-    # 画面（frontend-next/src/lib/collections.ts）の表示名と一致している
-    ts = (MIGRATION.parent.parent.parent / "frontend-next" / "src" / "lib" / "collections.ts").read_text(
-        encoding="utf-8"
-    )
-    for name, label, _, _ in seeded:
-        assert f"{name}: '{label}'" in ts

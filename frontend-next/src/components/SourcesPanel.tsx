@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useCollectionCatalog } from '../hooks/useCollections';
 import { useOpenSource } from '../hooks/useDocuments';
+import { collectionLabel } from '../lib/collections';
 import type { OpenSourceResult } from '../hooks/useDocuments';
 import { formatPages, parseSources, withPages } from '../lib/sources';
 import type { SourceRef } from '../lib/sources';
@@ -20,6 +22,8 @@ const MSG_ERROR = '資料を開けませんでした。しばらく待ってか�
 export function SourcesPanel({ context, sources: refs }: SourcesPanelProps) {
   const sources = withPages(parseSources(context), refs);
   const openSource = useOpenSource();
+  const { state: catalog } = useCollectionCatalog();
+  const groups = catalog.status === 'ready' ? catalog.data.collections : undefined;
   const [opening, setOpening] = useState<number | null>(null);
   const [failure, setFailure] = useState<Exclude<OpenSourceResult, 'opened'> | null>(null);
   if (sources.length === 0) return null;
@@ -53,6 +57,7 @@ export function SourcesPanel({ context, sources: refs }: SourcesPanelProps) {
                 {index + 1}
               </span>
               <span className="source-card-name">{source.name}</span>
+              {source.collection && <span className="source-card-group">{collectionLabel(source.collection, groups)}</span>}
               {formatPages(source.page, source.pageEnd) && (
                 <span className="source-card-page">{formatPages(source.page, source.pageEnd)}</span>
               )}

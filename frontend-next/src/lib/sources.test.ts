@@ -65,13 +65,25 @@ describe('parseSourceRefs', () => {
         { name: 'f.pdf', page: 1.5, page_end: null },
       ]),
     ).toEqual([
-      { name: 'a.pdf', page: 2, pageEnd: 3, weak: false },
-      { name: 'b.pdf', page: 1, pageEnd: null, weak: false },
-      { name: 'c.pdf', page: null, pageEnd: null, weak: false },
-      { name: 'd.pdf', page: null, pageEnd: null, weak: false },
-      { name: 'e.pdf', page: 2, pageEnd: null, weak: false },
-      { name: 'f.pdf', page: null, pageEnd: null, weak: false },
+      { name: 'a.pdf', page: 2, pageEnd: 3, weak: false, collection: null },
+      { name: 'b.pdf', page: 1, pageEnd: null, weak: false, collection: null },
+      { name: 'c.pdf', page: null, pageEnd: null, weak: false, collection: null },
+      { name: 'd.pdf', page: null, pageEnd: null, weak: false, collection: null },
+      { name: 'e.pdf', page: 2, pageEnd: null, weak: false, collection: null },
+      { name: 'f.pdf', page: null, pageEnd: null, weak: false, collection: null },
     ]);
+  });
+
+  it('collection は、資料グループの名前の形のときだけ読む。それ以外・無いときは null', () => {
+    expect(
+      parseSourceRefs([
+        { name: 'a.pdf', page: 1, page_end: null, collection: 'zahard' },
+        { name: 'b.pdf', page: 1, page_end: null, collection: null },
+        { name: 'c.pdf', page: 1, page_end: null },
+        { name: 'd.pdf', page: 1, page_end: null, collection: 'a b' },
+        { name: 'e.pdf', page: 1, page_end: null, collection: 3 },
+      ])?.map((ref) => ref.collection),
+    ).toEqual(['zahard', null, null, null, null]);
   });
 
   it('weak は true のときだけ弱い（文字列の "true" などは弱くしない）', () => {
@@ -101,18 +113,27 @@ describe('withPages', () => {
 
   it('件数とファイル名が合えば、weak も付ける。合わなければ付けない', () => {
     const weakRefs = [
-      { name: 'a.pdf', page: null, pageEnd: null, weak: false },
-      { name: 'b.pdf', page: null, pageEnd: null, weak: true },
+      { name: 'a.pdf', page: null, pageEnd: null, weak: false, collection: null },
+      { name: 'b.pdf', page: null, pageEnd: null, weak: true, collection: null },
     ];
     expect(withPages(docs, weakRefs)).toEqual([docs[0], { ...docs[1], weak: true }]);
     expect(withPages(docs, weakRefs.slice(1))).toEqual(docs);
   });
 
+  it('出典に資料グループがあれば、その名前も付ける（無ければ付けない）', () => {
+    expect(
+      withPages(docs, [
+        { name: 'a.pdf', page: null, pageEnd: null, weak: false, collection: 'zahard' },
+        { name: 'b.pdf', page: null, pageEnd: null, weak: false, collection: null },
+      ]),
+    ).toEqual([{ ...docs[0], collection: 'zahard' }, docs[1]]);
+  });
+
   it('件数とファイル名が合えば、出典ごとにページを付ける', () => {
     expect(
       withPages(docs, [
-        { name: 'a.pdf', page: 2, pageEnd: 3, weak: false },
-        { name: 'b.pdf', page: null, pageEnd: null, weak: false },
+        { name: 'a.pdf', page: 2, pageEnd: 3, weak: false, collection: null },
+        { name: 'b.pdf', page: null, pageEnd: null, weak: false, collection: null },
       ]),
     ).toEqual([
       { name: 'a.pdf', text: 'A', page: 2, pageEnd: 3 },
@@ -121,11 +142,11 @@ describe('withPages', () => {
   });
 
   it('件数かファイル名が合わなければ、ずれを避けて何も付けない', () => {
-    expect(withPages(docs, [{ name: 'a.pdf', page: 2, pageEnd: null, weak: false }])).toEqual(docs);
+    expect(withPages(docs, [{ name: 'a.pdf', page: 2, pageEnd: null, weak: false, collection: null }])).toEqual(docs);
     expect(
       withPages(docs, [
-        { name: 'a.pdf', page: 2, pageEnd: null, weak: false },
-        { name: 'x.pdf', page: 1, pageEnd: null, weak: false },
+        { name: 'a.pdf', page: 2, pageEnd: null, weak: false, collection: null },
+        { name: 'x.pdf', page: 1, pageEnd: null, weak: false, collection: null },
       ]),
     ).toEqual(docs);
     expect(withPages(docs, undefined)).toEqual(docs);

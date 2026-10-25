@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react';
 import { MSG_PDF_UNAVAILABLE } from '../api/documents';
 import type { ChunkItem, DocumentList, DocumentSummary } from '../api/documents';
 import { GRAPH_SOURCE } from '../api/graph';
+import { usableCollections, useCollectionCatalog } from '../hooks/useCollections';
 import { useDocumentChunks, useDocumentList, useDocumentPdf } from '../hooks/useDocuments';
 import { collectionLabel, collectionOptions } from '../lib/collections';
 import type { Loaded } from '../hooks/useDocuments';
 import type { DetailView } from '../lib/urlState';
 import { useUrlState } from '../lib/urlState';
+import { CollectionCards } from './CollectionCards';
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
 
 export const MSG_NOT_CONFIGURED = '資料のデータベースが設定されていません。';
 export const MSG_NO_GRAPH = '関係図は、入寮規程だけで見られます（ほかの資料は、まだ対応していません）。';
 export const MSG_NO_DOCUMENTS = '登録された資料はありません。資料を取り込むと、ここに表示され、チャットで検索できます。';
+export const MSG_NO_DOCUMENTS_IN_GROUP = 'このグループには、まだ資料がありません。';
 
 const STATUS_LABELS: Record<string, string> = { ready: '取り込み済み', failed: '取り込み失敗' };
 
@@ -62,50 +65,67 @@ interface DocumentTableProps {
   /** URL で指定された絞り込み（資料群の名前）。一覧に無い名前は、絞り込みなしと同じに扱う。 */
   collection: string | null;
   onCollectionChange: (collection: string | null) => void;
+  /** 「このグループに質問」。検索範囲を変える。渡さなければ、ボタンは出さない。 */
+  onAskGroup?: ((collection: string, trigger: HTMLElement) => void) | undefined;
   onRetry: () => void;
   onOpen: (document: DocumentSummary) => void;
 }
 
-function DocumentTable({ state, collection, onCollectionChange, onRetry, onOpen }: DocumentTableProps) {
+function DocumentTable({ state, collection, onCollectionChange, onAskGroup, onRetry, onOpen }: DocumentTableProps) {
+  const { state: catalogState } = useCollectionCatalog();
   if (state.status !== 'ready') return <Status state={state} onRetry={onRetry} />;
   if (!state.data.configured) return <p>{MSG_NOT_CONFIGURED}</p>;
   if (state.data.documents.length === 0) return <p>{MSG_NO_DOCUMENTS}</p>;
 
-  const options = collectionOptions(state.data.documents.map((d) => d.collection));
+  // グループの一覧（GET /collections）を読めたときは、カードで絞り込む。読めなかったときは、資料にある名前の絞り込みボタンにする
+  const groups = usableCollections(catalogState);
+  const options = groups ? groups.map((g) => g.name) : collectionOptions(state.data.documents.map((d) => d.collection));
   const active = collection !== null && options.includes(collection) ? collection : null;
   const documents = active === null ? state.data.documents : state.data.documents.filter((d) => d.collection === active);
 
   return (
     <>
-      {options.length > 0 && (
-        <div className="view-switch collection-filter" role="group" aria-label="種別で絞り込み">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            aria-pressed={active === null}
-            onClick={() => onCollectionChange(null)}
-          >
-            すべて
-          </button>
-          {options.map((name) => (
+      {groups ? (
+        <CollectionCards
+          collections={groups}
+          active={active}
+          totalCount={state.data.documents.length}
+          onFilter={onCollectionChange}
+          onAsk={onAskGroup}
+        />
+      ) : (
+        options.length > 0 && (
+          <div className="view-switch collection-filter" role="group" aria-label="種別で絞り込み">
             <button
-              key={name}
               type="button"
               className="btn btn-secondary"
-              aria-pressed={active === name}
-              onClick={() => onCollectionChange(name)}
+              aria-pressed={active === null}
+              onClick={() => onCollectionChange(null)}
             >
-              {collectionLabel(name)}
+              すべて
             </button>
-          ))}
-        </div>
+            {options.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className="btn btn-secondary"
+                aria-pressed={active === name}
+                onClick={() => onCollectionChange(name)}
+              >
+                {collectionLabel(name)}
+              </button>
+            ))}
+          </div>
+        )
       )}
-      <DocumentCards documents={documents} onOpen={onOpen} />
+      {documents.length === 0 ? <p>{MSG_NO_DOCUMENTS_IN_GROUP}</p> : <DocumentCards documents={documents} onOpen={onOpen} />}
     </>
   );
 }
 
 function DocumentCards({ documents, onOpen }: { documents: DocumentSummary[]; onOpen: (document: DocumentSummary) => void }) {
+  const { state: catalogState } = useCollectionCatalog();
+  const groups = catalogState.status === 'ready' ? catalogState.data.collections : undefined;
   return (
     <div className="documents-table-wrap">
       <table className="documents-table">
@@ -137,7 +157,7 @@ function DocumentCards({ documents, onOpen }: { documents: DocumentSummary[]; on
                 </button>
               </th>
               <td data-label="種別" data-collection={document.collection ?? undefined}>
-                {document.collection ? collectionLabel(document.collection) : null}
+                {document.collection ? collectionLabel(document.collection, groups) : null}
               </td>
               <td data-label="状態" data-status={document.status}>
                 {statusLabel(document)}
@@ -293,7 +313,7 @@ function DocumentChunks({ document, view, page, onViewChange, onBack }: Document
  * 資料一覧（読み取り専用）。DB に保存された資料を、文書ごとに、チャンクの全文まで見せる。
  * 開いている資料・表示・関係図の項は、URL が決める（戻る・再読み込み・共有で戻れる）。
  */
-export function DocumentsView() {
+export function DocumentsView({ onAskGroup }: { onAskGroup?: ((collection: string, trigger: HTMLElement) => void) | undefined } = {}) {
   const { doc, view, page, collection, navigate } = useUrlState();
   const [state, reload] = useDocumentList();
   const selected =
@@ -320,6 +340,7 @@ export function DocumentsView() {
           state={state}
           collection={collection}
           onCollectionChange={(next) => navigate({ collection: next })}
+          onAskGroup={onAskGroup}
           onRetry={reload}
           onOpen={(d) => navigate({ doc: d.id })}
         />
