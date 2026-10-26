@@ -1,0 +1,11 @@
+# ロール別の資料グループ制御の管理画面（ops/access_admin）の依存。アプリ本体（requirements.in）とは別。
+# .txt は直接編集せず、ここを直して再生成する:
+#   uv pip compile ops/access_admin/requirements.in --universal --python-version 3.12 -o ops/access_admin/requirements.txt
+django~=5.2.0
+# TOTP は django-otp 本体に含まれる（django_otp.plugins.otp_totp）。別パッケージは要らない
+django-otp>=1.7,<2
+# 設定用の QR コード（サーバー側で SVG にする。外部のサービスにシークレットを送らない）
+segno>=1.6,<2
+whitenoise>=6.9,<7
+gunicorn>=23,<27
+psycopg[binary]>=3.2,<4

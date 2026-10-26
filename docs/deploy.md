@@ -784,6 +784,11 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 **ロールバック:** 前のリビジョンに戻すのは、上の「公開する・戻す」の `update-traffic`。この記録の通りには実行していない（コマンドの確認のみ）。
 イメージのタグがコミットごとに違うので、前のリビジョンのイメージが残る。
 
+## 管理画面（`docunavi-admin`。ロードマップ ⑧ のフェーズ 4a）
+
+ロール別の資料グループの割り当て画面（Django Admin）は、別の非公開の Cloud Run サービスにする。手順（R3〜R9）・環境変数・Secret・戻し方は
+[access-admin.md](access-admin.md)。**まだ何も配備していない**（ローカルで実装・テスト済み）。
+
 ## 続き
 
 次の段階（DB）は [roadmap.md](roadmap.md) を参照してください。
