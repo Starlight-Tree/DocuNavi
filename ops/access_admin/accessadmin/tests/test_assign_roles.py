@@ -4,6 +4,8 @@ from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test import Client
+from django_otp import DEVICE_ID_SESSION_KEY
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from .base import CAFE_STAFF, STUDENT_A, STUDENT_B, AccessDbTestCase
 
@@ -65,9 +67,13 @@ class SelectScreenTests(AssignRolesTestCase):
         self.assertEqual(self.client.get(url(str(uuid.uuid4()))).status_code, 404)
 
     def test_only_a_superuser_may_use_it(self):
-        staff = get_user_model().objects.create_user("staff", "s@example.com", "pw", is_staff=True)
+        staff = self.make_operator("staff", superuser=False)
         client = Client()
         client.force_login(staff)
+        device = TOTPDevice.objects.create(user=staff, name="test", confirmed=True)
+        session = client.session
+        session[DEVICE_ID_SESSION_KEY] = device.persistent_id
+        session.save()
         self.assertEqual(client.get(url(STUDENT_A)).status_code, 403)
         self.assertEqual(client.post(url(STUDENT_A), {"action": "apply", "roles": ["cafeonly"]}).status_code, 403)
         self.assertEqual(roles_of(STUDENT_A), set())
@@ -185,6 +191,9 @@ class ApplyTests(AssignRolesTestCase):
         user = get_user_model().objects.get(username="operator")
         client = Client(enforce_csrf_checks=True)
         client.force_login(user)
+        session = client.session
+        session[DEVICE_ID_SESSION_KEY] = TOTPDevice.objects.get(user=user).persistent_id
+        session.save()
         response = client.post(url(STUDENT_A), {"action": "apply", "roles": ["cafeonly"], "confirm_shrink": "1"})
         self.assertEqual(response.status_code, 403)
         self.assertEqual(roles_of(STUDENT_A), set())

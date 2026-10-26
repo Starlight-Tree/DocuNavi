@@ -3,6 +3,9 @@ from contextlib import contextmanager
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test import Client, TestCase
+from django_otp import DEVICE_ID_SESSION_KEY
+from django_otp.oath import TOTP
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
 OPERATOR = "11111111-1111-4111-8111-111111111111"
 STUDENT_A = "22222222-2222-4222-8222-222222222222"
@@ -54,9 +57,33 @@ class AccessDbTestCase(TestCase):
             )
             cursor.execute("INSERT INTO chatbot.user_roles (user_id, role) VALUES (%s, 'cafeonly')", (CAFE_STAFF,))
 
-    def staff_client(self) -> Client:
-        """ログイン済みの運用者（Django のスーパーユーザー）のクライアント。"""
-        user = get_user_model().objects.create_superuser("operator", "operator@example.com", "pw-for-tests-only")
+    def make_operator(self, username: str = "operator", *, superuser: bool = True):
+        user_model = get_user_model()
+        existing = user_model.objects.filter(username=username).first()
+        if existing is not None:
+            return existing
+        if superuser:
+            return user_model.objects.create_superuser(username, f"{username}@example.com", "pw-for-tests-only")
+        return user_model.objects.create_user(username, f"{username}@example.com", "pw-for-tests-only", is_staff=True)
+
+    def password_only_client(self, user=None) -> Client:
+        """パスワードでログインしただけ（TOTP は未確認）のクライアント。"""
         client = Client()
-        client.force_login(user)
+        client.force_login(user or self.make_operator())
         return client
+
+    def staff_client(self) -> Client:
+        """パスワードに加えて TOTP も確認済みの運用者（Django のスーパーユーザー）のクライアント。"""
+        user = self.make_operator()
+        client = self.password_only_client(user)
+        device = TOTPDevice.objects.create(user=user, name="test", confirmed=True)
+        session = client.session
+        session[DEVICE_ID_SESSION_KEY] = device.persistent_id
+        session.save()
+        return client
+
+
+def current_token(device: TOTPDevice) -> str:
+    """その機器の、いま有効なコード（認証アプリが出すものと同じ）。"""
+    totp = TOTP(device.bin_key, device.step, device.t0, device.digits, device.drift)
+    return str(totp.token()).zfill(device.digits)

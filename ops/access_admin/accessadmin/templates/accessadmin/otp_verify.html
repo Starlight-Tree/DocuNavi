@@ -1,0 +1,17 @@
+{% extends "admin/base_site.html" %}
+{% block nav-sidebar %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+{% block usertools %}{% endblock %}
+{% block content %}
+<div id="content-main">
+  <h1>ワンタイムコードの入力</h1>
+  <p>ユーザー <strong>{{ username }}</strong>。認証アプリに表示されている 6 桁のコードを入力してください。</p>
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <p><label for="token">6 桁のコード</label>
+    <input type="text" name="token" id="token" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="8" required autofocus></p>
+    <div class="submit-row"><input type="submit" class="default" value="確認する"></div>
+  </form>
+  <form method="post" action="{% url 'otp:sign_out' %}">{% csrf_token %}<div class="submit-row"><input type="submit" value="ログアウト"></div></form>
+</div>
+{% endblock %}

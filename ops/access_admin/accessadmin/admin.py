@@ -12,12 +12,15 @@ from django.db.models.expressions import RawSQL
 from django.http import HttpRequest
 from django.urls import path, reverse
 from django.utils.html import format_html
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from . import db, services, views
 from .models import AccessAudit, AdminUser, Role
 
 # このサービスでは使わない標準の画面。入れておくと操作の対象が増える
 admin.site.unregister(Group)
+# TOTP の機器の管理画面は、シークレット（QR）を表示できるので出さない。登録は otp_views.setup、初期化は管理コマンド totp_reset
+admin.site.unregister(TOTPDevice)
 
 
 class ReadOnlyAdmin(admin.ModelAdmin):
