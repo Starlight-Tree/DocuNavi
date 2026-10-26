@@ -31,6 +31,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - `app/auth.py`: `AUTH_MODE=off`（既定）は匿名、`required` は `/chat` と `/chat/stream` に Supabase の JWT（JWKS の ES256/RS256 だけ。`exp` `iss` `aud` `sub` 必須）を要求し、
   履歴のキーを `<sub>:<thread_id>` にする（`sub` 以外から利用者 ID を取らない）。公開鍵が無ければ共有秘密には切り替えず、起動を失敗させる。
   ローカルでの実ログインは確認済み。トークン期限切れ後の更新、Docker、公開環境は未確認（`docs/configuration.md` の「ログイン（認証）」）
+- `app/access.py` / `app/scope.py`: ロール別の資料グループ制御（`ACCESS_MODE=off`（既定）/`shadow`/`enforce`）。検索は `scope` が必須（`Scope.ALL` は明示。MCP は運用者専用で全グループ）。本番は未適用（`docs/configuration.md` の「資料グループのアクセス制御」）
 - `app/api/threads.py`（会話の一覧・発言・削除。`required` では本人の分だけ、`off` は一覧が 404）、`app/api/documents.py`（資料一覧。読み取り専用）、
   `app/api/graph.py`（入寮規程の関係図。`app/relations/` が規則ベースで PDF から都度計算する実験。DB に保存しない）。仕様は `docs/api.md`
 - 画面: `frontend-next/`（Next.js）。Vercel が配信し、FastAPI は画面を配信しない（`/` は 404）。API は別オリジンなので `CORS_ORIGINS` が要る。README は `frontend-next/README.md`

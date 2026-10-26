@@ -126,7 +126,7 @@ def test_lists_documents_with_counts(client, use_pool):
     assert body["documents"][0]["pages"] == 3
     assert body["documents"][0]["status"] == "ready"
     assert len(pool.calls) == 1
-    assert pool.calls[0][1] == {"limit": documents._MAX_DOCUMENTS}
+    assert pool.calls[0][1] == {"limit": documents._MAX_DOCUMENTS, "allowed": None}
 
 
 def test_titles_are_returned_and_a_missing_or_blank_title_is_null(client, use_pool):

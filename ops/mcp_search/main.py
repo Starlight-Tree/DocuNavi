@@ -18,6 +18,7 @@ from typing import Annotated, Any
 from pydantic import Field
 
 from app import history, search_vector
+from app.scope import Scope
 from app.search_vector import Hit
 
 logger = logging.getLogger(__name__)
@@ -115,7 +116,8 @@ async def search_documents(
 ) -> str:
     try:
         await _ensure_pool()
-        hits = await search_vector.search(query, top_k)
+        # 運用者専用の MCP は、利用者のロールを持たない。全グループを検索することを明示する（資料グループの制限は API 側）
+        hits = await search_vector.search(query, top_k, scope=Scope.ALL)
     except search_vector.VectorSearchError as exc:
         # この型のメッセージは固定文（app/search_vector.py）
         logger.warning("資料の検索を使えません: %s", exc)

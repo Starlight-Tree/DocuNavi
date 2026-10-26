@@ -35,6 +35,7 @@ flowchart LR
 | `app/agents/guardrails.py` | 入出力ガードレール（[guardrails.md](guardrails.md)） |
 | `app/agents/resilience.py` | LLM 呼び出しのヘッジ付き再試行（完了を待つ `hedged_call` と、最初のチャンクを待つ `hedged_stream`） |
 | `app/agents/tools.py` | 資料の検索ツール（`search_documents`）。実体は `search_vector.py`（DB のベクトル検索。失敗しても別の経路に戻らない） |
+| `app/access.py`・`app/scope.py` | ロール別の資料グループ制御（`ACCESS_MODE`。[configuration.md](configuration.md) の「資料グループのアクセス制御」）。`Scope` は検索できるグループの範囲で、検索は渡し忘れを許さない |
 | `app/search_vector.py` | 質問の埋め込みと pgvector のコサイン類似度検索、起動時の DB の検査（設計: [search-design.md](search-design.md)） |
 | `app/ingestion/` | PDF の取り込み（`python -m app.ingestion`）と埋め込み（`python -m app.ingestion.embed`）。`corpus.py` は評価の BM25 基準線用 |
 | `frontend-next/` | チャット画面（Next.js + React + TypeScript）。Vercel が配信する（FastAPI は配信しない）。E2E もここ |

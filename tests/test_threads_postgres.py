@@ -104,13 +104,13 @@ def test_the_scope_of_a_conversation_survives_the_postgres_checkpointer(db, requ
         assert first.status_code == 200 and first.json()["collection"] == "zahard"
         thread = first.json()["thread_id"]
 
-        # 省略なら復元される。違う値は 409（両方の検索対象を載せた固定文）
+        # 省略なら復元される。違う値は 409（検索対象の名前を載せない固定文）
         assert client.post("/chat", json={"message": "続き", "thread_id": thread}, headers=a).json()["collection"] == (
             "zahard"
         )
         conflict = client.post("/chat", json={"message": "別", "thread_id": thread, "collection": "cafe"}, headers=a)
         assert conflict.status_code == 409
-        assert "「zahard」" in conflict.json()["detail"] and "「cafe」" in conflict.json()["detail"]
+        assert "zahard" not in conflict.json()["detail"] and "cafe" not in conflict.json()["detail"]
         streamed = client.post(
             "/chat/stream", json={"message": "別", "thread_id": thread, "collection": "cafe"}, headers=a
         )

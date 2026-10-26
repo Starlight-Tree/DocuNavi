@@ -144,8 +144,8 @@ class RecordingSearch:
         self._inner = inner
         self.searches: list[dict[str, Any]] = []
 
-    async def __call__(self, query: str, top_k: int = 2) -> list[Any]:
-        hits = await self._inner(query, top_k)
+    async def __call__(self, query: str, top_k: int = 2, **kwargs: Any) -> list[Any]:
+        hits = await self._inner(query, top_k, **kwargs)
         self.searches.append(
             {
                 "seq": len(self.searches) + 1,

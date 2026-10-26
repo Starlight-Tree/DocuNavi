@@ -17,10 +17,12 @@ from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 from starlette.background import BackgroundTask
 
+from app.access import Access, request_access
 from app.agents.graph import STREAM_TOKENS_KEY, build_graph, is_mock_mode
 from app.api.ui_stream import DONE, KEEPALIVE, UI_STREAM_HEADERS, UIMessageStream, encode
 from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, history_backend
+from app.scope import ACCESS_SCOPE_KEY
 from app.search_vector import VectorSearchError
 
 logger = logging.getLogger(__name__)
@@ -44,9 +46,13 @@ _DETAIL_CONFIG = "サーバー側の LLM 設定に問題があります。管理
 _DETAIL_UPSTREAM = "LLM 呼び出しに失敗しました。しばらく待ってから再試行してください。"
 _DETAIL_HISTORY_STORE = "会話履歴の保存先に接続できませんでした。しばらく待ってから再試行してください。"
 _DETAIL_SEARCH = "資料の検索に失敗しました。しばらく待ってから再試行してください。"
+# 検索対象が会話の途中で変えられたとき。グループ名は載せない（見えないグループの名前を、固定文から漏らさないため）
+_DETAIL_SCOPE_CHANGED = (
+    "この会話の検索対象と違う検索対象が送られました。会話の途中では変えられません。"
+    "検索対象を変えるときは、新しい会話を始めてください。"
+)
 # 検索対象（資料のグループ）の識別名。documents.collection と同じ形（supabase/migrations/20261018175020）
 COLLECTION_PATTERN = r"^[A-Za-z0-9_-]{1,40}$"
-_SCOPE_ALL = "すべて"
 
 
 def _optional_classes(*specs: tuple[str, str]) -> tuple[type[BaseException], ...]:
@@ -229,18 +235,17 @@ def classify_llm_error(exc: BaseException) -> HTTPException:
     return HTTPException(status_code=502, detail=_DETAIL_UPSTREAM)
 
 
-def _scope_label(collection: str | None) -> str:
-    return f"「{collection}」" if collection else f"「{_SCOPE_ALL}」"
+async def _check_scope(graph: Any, config: dict, requested: str | None, access: Access) -> None:
+    """続きの会話の検索対象を確かめる。
 
-
-async def _check_scope(graph: Any, config: dict, requested: str | None) -> None:
-    """続きの会話に、会話の検索対象と違う collection が送られたら 409（固定文。両方の検索対象を載せる）。
+    - 会話に保存された検索対象が、いま見えないグループなら 403（固定文。グループ名は載せない）。
+    - 送られた collection が会話の検索対象と違えば 409（固定文。グループ名は載せない）。
 
     検索対象は会話ごとに固定で、最初の発言でグラフの状態（チェックポイント）に残る。省略（None）は何も主張しないので、
-    読まずに通す（検索対象は tools ノードが状態から復元する）。この項目が無い古い会話は「すべて」として扱う。
-    履歴の保存先の失敗は、`classify_llm_error` と同じ固定文の HTTPException にする。
+    アクセス制御で範囲を絞っていないときは、読まずに通す（検索対象は tools ノードが状態から復元する）。
+    この項目が無い古い会話は「すべて」として扱う。履歴の保存先の失敗は、`classify_llm_error` と同じ固定文の HTTPException にする。
     """
-    if requested is None:
+    if requested is None and not access.restricts and access.scope.shadow is None:
         return
     try:
         snapshot = await graph.aget_state(config)
@@ -252,14 +257,9 @@ async def _check_scope(graph: Any, config: dict, requested: str | None) -> None:
     if not values.get("messages"):
         return  # 新しい会話（まだ何も保存されていない）
     current = values.get("collection")
-    if current != requested:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"この会話の検索対象は{_scope_label(current)}です。送られた検索対象は{_scope_label(requested)}で、"
-                "会話の途中では変えられません。検索対象を変えるときは、新しい会話を始めてください。"
-            ),
-        )
+    access.check_collection(current, "会話の検索対象")
+    if requested is not None and current != requested:
+        raise HTTPException(status_code=409, detail=_DETAIL_SCOPE_CHANGED)
 
 
 def _turn_inputs(message: str, collection: str | None) -> dict:
@@ -332,18 +332,24 @@ async def _cancel_and_wait(*tasks: "asyncio.Future[object] | None") -> None:
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
-    req: ChatRequest, request: Request, user_id: Annotated[str | None, Depends(current_user)]
+    req: ChatRequest,
+    request: Request,
+    user_id: Annotated[str | None, Depends(current_user)],
+    access: Annotated[Access, Depends(request_access)],
 ) -> ChatResponse | Response:
     mode = current_mode()
     thread_id = req.thread_id or str(uuid.uuid4())
-    # 履歴のキーは、ログイン中なら利用者 ID つき。クライアントに返す thread_id は接頭辞なしのまま
-    config = {"configurable": {"thread_id": conversation_key(user_id, thread_id)}}
+    access.require_any()
+    access.check_collection(req.collection, "チャット")
+    # 履歴のキーは、ログイン中なら利用者 ID つき。クライアントに返す thread_id は接頭辞なしのまま。
+    # 検索できる範囲（ACCESS_SCOPE_KEY）は、会話の状態ではなく config で渡す（チェックポイントに残さない）
+    config = {"configurable": {"thread_id": conversation_key(user_id, thread_id), ACCESS_SCOPE_KEY: access.scope}}
     started = time.monotonic()
     work: asyncio.Future | None = None
     gone: asyncio.Future | None = None
     try:
         graph = get_graph(mode == "mock")
-        await _check_scope(graph, config, req.collection)
+        await _check_scope(graph, config, req.collection, access)
         work = asyncio.ensure_future(graph.ainvoke(_turn_inputs(req.message, req.collection), config))
         # 本文は読み終えているので、ここから切断を監視できる。切断が先に来たら、待っても受け取る相手が
         # いない LLM 呼び出し（ヘッジの追加試行を含む）を取り消す
@@ -495,7 +501,10 @@ async def _stream_body(run: _GraphRun, ui: UIMessageStream, thread_id: str, star
     responses={200: {"description": "AI SDK の UI message stream（SSE）", "content": {"text/event-stream": {}}}},
 )
 async def chat_stream(
-    req: ChatRequest, request: Request, user_id: Annotated[str | None, Depends(current_user)]
+    req: ChatRequest,
+    request: Request,
+    user_id: Annotated[str | None, Depends(current_user)],
+    access: Annotated[Access, Depends(request_access)],
 ) -> Response:
     """/chat と同じ入力で、回答を SSE で少しずつ返す。
 
@@ -505,7 +514,15 @@ async def chat_stream(
     """
     mode = current_mode()
     thread_id = req.thread_id or str(uuid.uuid4())
-    config = {"configurable": {"thread_id": conversation_key(user_id, thread_id), STREAM_TOKENS_KEY: True}}
+    access.require_any()
+    access.check_collection(req.collection, "チャット")
+    config = {
+        "configurable": {
+            "thread_id": conversation_key(user_id, thread_id),
+            STREAM_TOKENS_KEY: True,
+            ACCESS_SCOPE_KEY: access.scope,
+        }
+    }
     inputs = _turn_inputs(req.message, req.collection)
     started = time.monotonic()
     try:
@@ -516,8 +533,8 @@ async def chat_stream(
         failure = classify_llm_error(exc)
         _log_stream_failure(exc, failure, thread_id)
         raise failure from exc
-    # 検索対象の不一致は、レスポンスを始める前に HTTP の 409 で返す（422・401 と同じ）
-    await _check_scope(graph, config, req.collection)
+    # 検索対象の不一致（409）と見えないグループ（403）は、レスポンスを始める前に HTTP で返す（422・401 と同じ）
+    await _check_scope(graph, config, req.collection, access)
     run = _GraphRun(graph, inputs, config, request, llm_timeout_seconds())
 
     return StreamingResponse(

@@ -18,6 +18,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from app.agents import tools
 from app.agents.tools import search_documents
 from app.api import routes
+from app.scope import Scope
 from app.search_vector import Hit
 
 SECRET = "postgresql://user:pw@db.example.com/x"
@@ -35,7 +36,9 @@ class ScopedSearch:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str | None]] = []
 
-    async def __call__(self, query: str, top_k: int = 2, collection: str | None = None) -> list[Hit]:
+    async def __call__(
+        self, query: str, top_k: int = 2, collection: str | None = None, *, scope: Scope | None = None
+    ) -> list[Hit]:
         self.calls.append((query, collection))
         hits = [Hit(name, text, 1, None, 0.8, group) for group, name, text in self.DOCS if "大気" in query]
         if collection is not None:
@@ -162,7 +165,7 @@ def test_the_same_collection_again_is_accepted(client, search):
     assert chat(client, thread, "zahard").status_code == 200
 
 
-def test_a_different_collection_is_409_and_names_both_scopes(client, search):
+def test_a_different_collection_is_409_and_names_no_scope(client, search):
     thread = str(uuid.uuid4())
     chat(client, thread, "zahard")
     calls_before = len(search.calls)
@@ -171,8 +174,9 @@ def test_a_different_collection_is_409_and_names_both_scopes(client, search):
 
     assert res.status_code == 409
     detail = res.json()["detail"]
-    assert "「zahard」" in detail and "「cafe」" in detail  # 会話の検索対象と、送られた検索対象の両方
-    assert "新しい会話" in detail
+    # グループ名は載せない（見えないグループの名前を、固定文から漏らさないため）
+    assert "zahard" not in detail and "cafe" not in detail
+    assert detail == routes._DETAIL_SCOPE_CHANGED and "新しい会話" in detail
     assert len(search.calls) == calls_before  # 検索も LLM も動かない
 
 
@@ -183,7 +187,7 @@ def test_a_conversation_without_a_scope_is_all_so_a_collection_is_409(client, se
     res = chat(client, thread, "zahard")
 
     assert res.status_code == 409
-    assert "「すべて」" in res.json()["detail"] and "「zahard」" in res.json()["detail"]
+    assert res.json()["detail"] == routes._DETAIL_SCOPE_CHANGED
 
 
 def test_a_conversation_from_before_the_feature_is_all(client, search):
@@ -228,7 +232,7 @@ def test_stream_returns_409_as_http_before_the_response_starts(client, search):
 
     assert res.status_code == 409
     assert res.headers["content-type"].startswith("application/json")
-    assert "「zahard」" in res.json()["detail"] and "「cafe」" in res.json()["detail"]
+    assert res.json()["detail"] == routes._DETAIL_SCOPE_CHANGED
 
 
 def test_stream_metadata_carries_the_scope_and_the_hit_count(client, search):
