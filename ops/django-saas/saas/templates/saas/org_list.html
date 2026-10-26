@@ -1,0 +1,15 @@
+{% extends "saas/base.html" %}
+{% block title %}所属組織{% endblock %}
+{% block content %}
+<h1>所属組織</h1>
+{% if cards %}
+  {% for c in cards %}
+  <section class="card" aria-labelledby="org-{{ c.org.id }}">
+    <h2 id="org-{{ c.org.id }}"><a href="{% url 'org_detail' c.org.id %}">{{ c.org.name }}</a></h2>
+    {% include "saas/_org_summary.html" %}
+  </section>
+  {% endfor %}
+{% else %}
+  {% include "saas/_empty_orgs.html" %}
+{% endif %}
+{% endblock %}

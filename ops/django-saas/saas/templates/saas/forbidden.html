@@ -1,0 +1,10 @@
+{% extends "saas/base.html" %}
+{% block title %}権限がありません{% endblock %}
+{% block content %}
+<p><a href="{% url 'org_detail' org.id %}">&larr; {{ org.name }}</a></p>
+<h1>この操作をする権限がありません</h1>
+<section class="card empty">
+  <p><strong>理由:</strong> メンバーの管理は、管理者またはオーナーだけが行えます。</p>
+  <p><strong>次にやること:</strong> 必要なら、この組織のオーナーまたは管理者に頼んでください。</p>
+</section>
+{% endblock %}

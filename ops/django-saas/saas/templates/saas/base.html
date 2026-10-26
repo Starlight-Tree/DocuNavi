@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}ダッシュボード{% endblock %} | SaaS 試作</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --card: #f4f6f8; --fg: #1b1f23; --muted: #57606a; --border: #c9d1d9;
+    --link: #0b5f8a; --btn: #2a7ba3; --btn-fg: #ffffff;
+    --track: #d8dee4; --ok: #1a7f37; --near: #8a5a00; --reached: #b3261e;
+    --fill-ok: #2e8b4a; --fill-near: #946000; --fill-reached: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212; --card: #1e1e1e; --fg: #e8e8e8; --muted: #a8a8a8; --border: #3d3d3d;
+      --link: #6cb6e0; --btn: #2a7ba3; --btn-fg: #ffffff;
+      --track: #3a3a3a; --ok: #56d364; --near: #e3b341; --reached: #ff8b84;
+      --fill-ok: #3fb950; --fill-near: #d29922; --fill-reached: #f85149;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  a { color: var(--link); }
+  header { border-bottom: 1px solid var(--border); background: var(--card); }
+  nav { max-width: 960px; margin: 0 auto; padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+  nav a, nav button { color: var(--link); font: inherit; background: none; border: 0; padding: 4px 0; cursor: pointer; text-decoration: none; }
+  nav a[aria-current="page"] { color: var(--fg); font-weight: 700; text-decoration: underline; }
+  nav .spacer { flex: 1 1 auto; }
+  nav .who { color: var(--muted); font-size: 14px; }
+  nav form { margin: 0; }
+  main { max-width: 960px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 22px; margin: 8px 0 16px; }
+  h2 { font-size: 18px; margin: 0 0 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 0 0 16px; }
+  .muted { color: var(--muted); }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+  .tag { border: 1px solid var(--border); border-radius: 999px; padding: 0 10px; font-size: 14px; }
+  .meters { display: grid; gap: 12px; margin: 12px 0 0; }
+  .meter-head { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
+  .bar { height: 10px; background: var(--track); border-radius: 5px; overflow: hidden; margin: 4px 0; }
+  .bar span { display: block; height: 100%; }
+  .meter[data-state="ok"] .bar span { background: var(--fill-ok); }
+  .meter[data-state="near"] .bar span { background: var(--fill-near); }
+  .meter[data-state="reached"] .bar span { background: var(--fill-reached); }
+  .meter .state { margin: 0; font-size: 14px; }
+  .meter[data-state="ok"] .state { color: var(--ok); }
+  .meter[data-state="near"] .state { color: var(--near); }
+  .meter[data-state="reached"] .state { color: var(--reached); }
+  .button { display: inline-block; background: var(--btn); color: var(--btn-fg); border: 0; border-radius: 6px; padding: 8px 16px; font: inherit; text-decoration: none; cursor: pointer; }
+  .button:hover, .button:focus-visible { filter: brightness(1.12); }
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+  .empty { border-style: dashed; }
+  .empty p { margin: 4px 0; }
+  .members { list-style: none; margin: 0; padding: 0; }
+  .members li { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+  .members li:first-child { border-top: 0; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; word-break: break-all; }
+  label { display: block; margin: 12px 0 4px; }
+  input[type="text"], select { width: 100%; max-width: 520px; font: inherit; padding: 8px; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+  .error { color: var(--reached); font-weight: 700; }
+  dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+</style>
+</head>
+<body>
+<header>
+  <nav aria-label="メニュー">
+    {% if sub %}
+      <a href="{% url 'dashboard' %}"{% if nav == "dashboard" %} aria-current="page"{% endif %}>ダッシュボード</a>
+      <a href="{% url 'org_list' %}"{% if nav == "orgs" %} aria-current="page"{% endif %}>所属組織</a>
+      <span class="spacer"></span>
+      <span class="who" title="{{ sub }}">{{ sub_short }}</span>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">ログアウト</button></form>
+    {% else %}
+      <span>SaaS 試作（ローカル専用）</span>
+    {% endif %}
+  </nav>
+</header>
+<main>
+  {% block content %}{% endblock %}
+  <p class="muted">学習用の試作です。数値は架空で、本番のデータや検索・決済にはつながっていません。</p>
+</main>
+</body>
+</html>

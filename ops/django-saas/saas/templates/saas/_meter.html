@@ -1,0 +1,5 @@
+<div class="meter" data-state="{{ m.state }}">
+  <div class="meter-head"><span>{{ m.label }}</span><span>{{ m.used }} / {{ m.limit }}{{ m.unit }}</span></div>
+  <div class="bar" role="progressbar" aria-label="{{ m.label }}" aria-valuemin="0" aria-valuemax="{{ m.limit }}" aria-valuenow="{{ m.used }}"><span style="width: {{ m.percent }}%"></span></div>
+  <p class="state"><strong>{{ m.state_label }}</strong>: {{ m.text }}</p>
+</div>
