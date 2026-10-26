@@ -48,19 +48,24 @@ SECRET_CHUNK = "zahard の本文: 漏れてはいけない"
 
 @pytest.fixture
 def set_access(monkeypatch: pytest.MonkeyPatch):
-    """ACCESS_MODE と、利用者が見えるグループ（DB の代わり）を決める。引いた回数を返す。"""
+    """ACCESS_MODE と、利用者が見えるグループ・いま存在する全グループ（DB の代わり）を決める。引いた回数を返す。"""
 
-    def install(mode: str, visible: frozenset[str] = DEFAULT_ROLE_SET, error: Exception | None = None) -> list[Any]:
+    def install(
+        mode: str,
+        visible: frozenset[str] = DEFAULT_ROLE_SET,
+        error: Exception | None = None,
+        known: frozenset[str] = DEFAULT_ROLE_SET,
+    ) -> list[Any]:
         calls: list[Any] = []
 
-        async def fake_visible(user_id: str | None) -> frozenset[str]:
+        async def fake_visible(user_id: str | None) -> tuple[frozenset[str], bool]:
             calls.append(user_id)
             if error is not None:
                 raise error
-            return visible
+            return visible, bool(visible) and known <= visible
 
         monkeypatch.setenv("ACCESS_MODE", mode)
-        monkeypatch.setattr(access, "visible_collections", fake_visible)
+        monkeypatch.setattr(access, "visible_with_completeness", fake_visible)
         return calls
 
     return install
@@ -665,3 +670,167 @@ def test_an_answer_without_a_search_is_never_masked():
     messages = [HumanMessage(content="こんにちは"), AIMessage(content="こんにちは")]
     masked, count = access.mask_hidden_turns(messages, Scope.NONE)
     assert count == 0 and [m.content for m in masked] == ["こんにちは", "こんにちは"]
+
+
+# ---- 古い会話（collection の項目が無い出典）の扱い --------------------------------------------------------------
+
+COMPLETE_SCOPE = Scope(DEFAULT_ROLE_SET, complete=True)
+
+
+def test_mask_shows_a_legacy_source_without_the_key_only_when_the_scope_is_complete():
+    # 項目そのものが無い古い出典（2026-10-26 より前の会話）。全グループが見える利用者には見せる
+    shown, count = access.mask_hidden_turns(_turn(None, with_key=False), COMPLETE_SCOPE)
+    assert count == 0 and shown[2].content == "[x.pdf]\n本文" and shown[3].content == "回答（出典: x.pdf）"
+    # 限定ロールや、全グループを持たない範囲では、今までどおり伏せる
+    for scope in (Scope.only(["cafe"]), Scope.only(DEFAULT_ROLE_SET), Scope(frozenset(), complete=False)):
+        _, hidden = access.mask_hidden_turns(_turn(None, with_key=False), scope)
+        assert hidden == 2, scope
+
+
+def test_mask_still_hides_a_null_value_and_a_group_outside_the_names_even_when_complete():
+    _, null_value = access.mask_hidden_turns(_turn(None, with_key=True), COMPLETE_SCOPE)
+    assert null_value == 2  # 項目はあるが値が null（グループの無い資料）は伏せる
+    _, other = access.mask_hidden_turns(_turn("newgroup"), COMPLETE_SCOPE)
+    assert other == 2  # 範囲に無いグループは伏せる
+    _, known = access.mask_hidden_turns(_turn("zahard"), COMPLETE_SCOPE)
+    assert known == 0
+
+
+def test_the_complete_flag_does_not_change_what_allows_lets_through():
+    assert COMPLETE_SCOPE.allows("cafe") and not COMPLETE_SCOPE.allows(None) and not COMPLETE_SCOPE.allows("newgroup")
+    assert Scope.only(DEFAULT_ROLE_SET).allows(None) is False
+    assert COMPLETE_SCOPE.sql_names() == sorted(DEFAULT_ROLE_SET)  # SQL の絞り込みも同じ
+
+
+class CompletenessPool:
+    """見えるグループ・存在する全グループを順に返す偽の接続。全グループの SQL だけを失敗させることもできる。"""
+
+    def __init__(self, visible: list[str], known: list[str], known_error: Exception | None = None) -> None:
+        self.visible, self.known, self.known_error = visible, known, known_error
+        self.connections = 0
+        self.sqls: list[str] = []
+
+    @asynccontextmanager
+    async def connection(self):
+        pool = self
+        pool.connections += 1
+
+        class Conn:
+            async def execute(self, sql: str, params: dict[str, Any] | None = None) -> CollectionsCursor:
+                pool.sqls.append(sql)
+                if sql == access._KNOWN_SQL:
+                    if pool.known_error is not None:
+                        raise pool.known_error
+                    return CollectionsCursor([{"collection": n} for n in pool.known])
+                return CollectionsCursor([{"collection": n} for n in pool.visible])
+
+        yield Conn()
+
+
+@pytest.mark.parametrize(
+    ("visible", "known", "complete"),
+    [
+        (["zahard", "cafe", "guides"], ["zahard", "cafe", "guides"], True),  # default が全グループを持つ
+        (["cafe"], ["zahard", "cafe", "guides"], False),  # 一部だけ
+        (
+            ["zahard", "cafe", "guides"],
+            ["zahard", "cafe", "guides", "newgroup"],
+            False,
+        ),  # 資料にだけあるグループを持たない
+        ([], ["zahard"], False),  # 見えるグループが 0 件
+        ([], [], False),  # 何も無いときも、空の範囲は全部とは言わない
+        (["cafe"], [], True),  # 存在するグループが 0 件なら、見えるものは全部
+    ],
+)
+def test_completeness_compares_the_visible_groups_with_every_existing_group(monkeypatch, visible, known, complete):
+    pool = CompletenessPool(visible, known)
+    monkeypatch.setattr(access, "get_pool", lambda: pool)
+    got_visible, got_complete = asyncio.run(access.visible_with_completeness(None))
+    assert got_visible == frozenset(visible) and got_complete is complete
+    assert pool.connections == 1  # 同じ接続で引く
+    assert pool.sqls[-1] == access._KNOWN_SQL
+    assert "document_collections" in access._KNOWN_SQL and "documents" in access._KNOWN_SQL  # 登録済み + 資料にあるもの
+
+
+def test_completeness_is_false_when_the_existing_groups_cannot_be_read(monkeypatch, caplog):
+    pool = CompletenessPool(["zahard", "cafe", "guides"], [], known_error=RuntimeError("postgresql://u:pw@h/x"))
+    monkeypatch.setattr(access, "get_pool", lambda: pool)
+    got_visible, got_complete = asyncio.run(access.visible_with_completeness(None))
+    assert got_visible == DEFAULT_ROLE_SET and got_complete is False  # 検索の範囲は変わらず、会話を伏せる側に倒れる
+    assert "postgresql://" not in caplog.text and "RuntimeError" in caplog.text
+
+
+def test_completeness_raises_like_visible_collections_without_a_pool(monkeypatch):
+    monkeypatch.setattr(access, "get_pool", lambda: None)
+    with pytest.raises(access.AccessUnavailable):
+        asyncio.run(access.visible_with_completeness(None))
+
+
+def _legacy_thread(thread_id: str, *, with_key: bool = False) -> None:
+    """collection の項目が無い出典の、古い形の会話を保存する（検索結果に基づく回答 1 回）。"""
+    config = {"configurable": {"thread_id": thread_id}}
+    routes.get_graph(True).update_state(config, {"messages": _turn(None, with_key=with_key)}, as_node="agent")
+
+
+def test_an_old_conversation_is_shown_to_a_complete_scope_and_hidden_from_a_restricted_one(client, set_access):
+    thread = str(uuid.uuid4())
+    _legacy_thread(thread)
+
+    set_access("enforce", DEFAULT_ROLE_SET)  # default ロール（全グループ）
+    shown = client.get(f"/threads/{thread}/messages").json()["messages"]
+    assert [m["text"] for m in shown] == ["質問", "回答（出典: x.pdf）"]
+
+    set_access("enforce", CAFE_ONLY)  # 限定ロール
+    hidden = client.get(f"/threads/{thread}/messages").json()["messages"]
+    assert [m["text"] for m in hidden] == ["質問", access.MASKED_ANSWER_TEXT]
+
+    set_access(
+        "enforce", DEFAULT_ROLE_SET, known=DEFAULT_ROLE_SET | {"newgroup"}
+    )  # 新しいグループが default に未割り当て
+    assert client.get(f"/threads/{thread}/messages").json()["messages"][1]["text"] == access.MASKED_ANSWER_TEXT
+
+
+def test_an_old_conversation_with_a_null_collection_stays_hidden_even_for_the_default_role(client, set_access):
+    thread = str(uuid.uuid4())
+    _legacy_thread(thread, with_key=True)  # 項目はあるが値が null
+    set_access("enforce", DEFAULT_ROLE_SET)
+    assert client.get(f"/threads/{thread}/messages").json()["messages"][1]["text"] == access.MASKED_ANSWER_TEXT
+
+
+def test_shadow_counts_old_conversations_the_same_way_enforce_would_mask_them(client, set_access, caplog):
+    caplog.set_level(logging.INFO, logger="app.access")
+    thread = str(uuid.uuid4())
+    _legacy_thread(thread)
+
+    def shadow_count() -> str:
+        caplog.clear()
+        res = client.get(f"/threads/{thread}/messages")
+        assert [m["text"] for m in res.json()["messages"]] == ["質問", "回答（出典: x.pdf）"]  # shadow は伏せない
+        return next(r.getMessage() for r in caplog.records if "会話の" in r.getMessage())
+
+    set_access("shadow", DEFAULT_ROLE_SET)
+    assert "会話の 0 件が enforce では伏せられる" in shadow_count()  # enforce でも伏せない
+    set_access("shadow", CAFE_ONLY)
+    assert "会話の 2 件が enforce では伏せられる" in shadow_count()  # enforce なら伏せる
+
+
+def test_the_llm_receives_an_old_conversation_for_a_complete_scope_and_not_for_a_restricted_one(
+    client, set_access, grouped_search, monkeypatch
+):
+    monkeypatch.setattr(graph_module, "create_llm", lambda: RecordingLLM())
+    routes._graph_for.cache_clear()
+    thread = str(uuid.uuid4())
+    _legacy_thread(thread)
+
+    RecordingLLM.seen = []
+    set_access("enforce", DEFAULT_ROLE_SET)
+    assert _chat(client, "営業時間を教えて", thread_id=thread).status_code == 200
+    sent = "\n".join(str(m.content) for call in RecordingLLM.seen for m in call)
+    assert "回答（出典: x.pdf）" in sent and access.MASKED_ANSWER_TEXT not in sent
+
+    RecordingLLM.seen = []
+    set_access("enforce", CAFE_ONLY)
+    assert _chat(client, "営業時間を教えて", thread_id=thread).status_code == 200
+    sent = "\n".join(str(m.content) for call in RecordingLLM.seen for m in call)
+    assert "回答（出典: x.pdf）" not in sent and access.MASKED_ANSWER_TEXT in sent
+    routes._graph_for.cache_clear()

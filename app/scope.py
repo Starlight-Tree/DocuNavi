@@ -4,6 +4,8 @@
   渡し忘れ・`None`・`Scope` 以外は `TypeError`、空の範囲（`Scope.NONE`）は何も返さない（漏れる方向には倒れない）。
 - 範囲は `config["configurable"]` で検索ツールまで渡す。会話の状態（チェックポイント）には保存しない。
 - `shadow`: `ACCESS_MODE=shadow` のときだけ入る「enforce なら見える範囲」。制限には使わず、絞り込みになる件数をログに出すためだけに持つ。
+- `complete`: 範囲が、いま存在する全グループを含むか。過去の会話のうち、出典のグループを記録していない古い検索結果を伏せるかどうかだけに使う
+  （`app/access.py` の `mask_hidden_turns`）。検索・一覧・本文の絞り込み（`allows`）は変えない。
   設計は docs/configuration.md の「資料グループのアクセス制御」。
 """
 
@@ -28,6 +30,8 @@ class Scope:
 
     names: frozenset[str] | None
     shadow: frozenset[str] | None = None
+    # いま存在する全グループ（登録済み + 資料にあるもの）を `names` が含む。会話の伏せ方だけに使い、`allows` には効かない
+    complete: bool = False
 
     ALL: ClassVar["Scope"]
     NONE: ClassVar["Scope"]
