@@ -201,9 +201,9 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
 - プロキシ経由（ホストのブラウザー、開発コンテナの curl の両方）でのログイン。パスワード → TOTP の登録（Google Authenticator）→ 再ログインでコードを要求 → 誤コードの拒否。
 - R9: 限定ロール `cafe-staff`（`cafe` だけ）の作成、運用者本人への一時的な割り当て、`/collections` と `/documents` が `cafe` だけになること、過去の会話の伏せ字、解除、`default`（3 グループ）への復帰。割り当てと解除は SQL で行った（監査の `actor` は `postgres`）。
 - 再デプロイ（`docunavi-admin-00003-cvr`）。コード入力画面の CSS にダークモードの主ボタンの規則が載っていること、ダークモードの見え方（利用者の報告）。
+- `totp_reset`（Cloud Run Job。機器 1 台を削除。実行後に Job は削除）と再登録（同日 18:45 JST）。ダークモードの登録画面で、QR が白地に黒で出ること、「登録する」が見分けられること（利用者のスクリーンショット）。白背景に直した QR を、Google Authenticator で読み取れたこと（利用者の報告）。登録後、確認済みの機器が 1 台になったこと（読み取り）。
 
 **未確認:**
-- 実際の認証アプリで、白背景に直した QR を読み取れること。R8 の登録は、QR が黒地に黒で見えなかったため、DevTools で背景を白にして読み取った（その QR は読めた）。本番の登録済みの機器を消さない限り、登録の画面は見えないので、`totp_reset` のあとに確かめる。
 - Django の画面から割り当て・解除をしたときの `access_audit` の `actor`（`access_admin`）と、Django の操作履歴。本番の割り当てと解除は SQL で行った。
 - Django の画面の「見えるグループ」の表示と、`admin_users` 経由の利用者一覧・`last_sign_in_at` の値。
 - 割り当て後に、検索が `cafe` 以外のグループを返さないこと（実際の Gemini の埋め込みが要る）。
