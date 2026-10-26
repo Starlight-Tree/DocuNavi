@@ -1,4 +1,5 @@
 {% extends "admin/base_site.html" %}
+{% block extrastyle %}{{ block.super }}{% include "accessadmin/_dark_primary_button.html" %}{% endblock %}
 {% block nav-sidebar %}{% endblock %}
 {% block breadcrumbs %}{% endblock %}
 {% block usertools %}{% endblock %}
