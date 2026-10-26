@@ -1,0 +1,5 @@
+{# ダークモードで主ボタン（.default）が背景に溶ける（2.15:1）ので、背景色だけ #2a7ba3 にする（白文字 4.71:1、背景 #121212 との差 3.98:1）。hover・focus は Django 標準のまま。 #}
+<style>
+  @media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { --default-button-bg: #2a7ba3; } }
+  html[data-theme="dark"] { --default-button-bg: #2a7ba3; }
+</style>

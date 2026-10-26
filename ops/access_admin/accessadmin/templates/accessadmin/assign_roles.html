@@ -1,0 +1,79 @@
+{% extends "admin/base_site.html" %}
+{% block extrastyle %}{{ block.super }}{% include "accessadmin/_dark_primary_button.html" %}{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">ホーム</a> &rsaquo;
+  <a href="{{ list_url }}">利用者</a> &rsaquo;
+  ロールの割り当て
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p><strong>利用者:</strong> {{ target.email|default:"（メールなし）" }} <span class="help">（ID: {{ target.pk }}）</span></p>
+
+  {% if step == "select" %}
+    <p><strong>見えるグループ（いま）:</strong> {{ current_groups }}</p>
+    <p class="help">
+      ロールが 1 つも割り当てられていない利用者は <code>default</code> ロールとして扱われます。
+      ほかのロールを 1 つでも割り当てると <code>default</code> は使われません（足したいときは、<code>default</code> も選びます）。
+    </p>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="preview">
+      {% for b in base %}<input type="hidden" name="base" value="{{ b }}">{% endfor %}
+      <table>
+        <thead><tr><th>割り当て</th><th>ロール</th><th>表示名</th><th>見られるグループ</th></tr></thead>
+        <tbody>
+        {% for r in roles %}
+          <tr>
+            <td><input type="checkbox" name="roles" value="{{ r.name }}" id="role-{{ r.name }}"{% if r.checked %} checked{% endif %}></td>
+            <td><label for="role-{{ r.name }}">{{ r.name }}</label></td>
+            <td>{{ r.label }}</td>
+            <td>{{ r.groups }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p>
+        <label><input type="checkbox" name="with_default" value="1"> <code>default</code> も同時に割り当てる（いま見えているグループを保ったまま、選んだロールを足す）</label>
+      </p>
+      <div class="submit-row"><input type="submit" class="default" value="変更内容を確認"></div>
+    </form>
+
+  {% else %}
+    {% if error %}
+      <ul class="messagelist"><li class="error">見えるグループが減る変更は、確認のチェックが必要です。保存していません。</li></ul>
+    {% endif %}
+    <h2>変更の内容</h2>
+    <table>
+      <tr><th>追加するロール</th><td>{% for r in add %}{{ r }}{% if not forloop.last %}, {% endif %}{% empty %}なし{% endfor %}</td></tr>
+      <tr><th>解除するロール</th><td>{% for r in remove %}{{ r }}{% if not forloop.last %}, {% endif %}{% empty %}なし{% endfor %}</td></tr>
+      <tr><th>見えるグループ（変更前）</th><td>{{ before }}</td></tr>
+      <tr><th>見えるグループ（変更後）</th><td><strong>{{ after }}</strong></td></tr>
+      <tr><th>見えなくなるグループ</th><td>{{ lost }}</td></tr>
+      <tr><th>新しく見えるグループ</th><td>{{ gained }}</td></tr>
+    </table>
+    {% if change.leaves_default_fallback %}
+      <ul class="messagelist"><li class="warning">この利用者は、ロールが未割り当ての <code>default</code> 扱いです。選んだロールだけを割り当てると、<code>default</code> のグループは見えなくなります。</li></ul>
+    {% endif %}
+    {% if change.returns_to_default_fallback %}
+      <ul class="messagelist"><li class="warning">割り当てをすべて外すと、<code>default</code> ロールとして扱われます。</li></ul>
+    {% endif %}
+    {% if change.loses_everything %}
+      <ul class="messagelist"><li class="error">変更後は、見えるグループが 1 つもありません。この利用者は「利用できる資料がありません」になります。</li></ul>
+    {% endif %}
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="apply">
+      {% for b in base %}<input type="hidden" name="base" value="{{ b }}">{% endfor %}
+      {% for r in desired %}<input type="hidden" name="roles" value="{{ r }}">{% endfor %}
+      {% if needs_confirm %}
+        <p><label><input type="checkbox" name="confirm_shrink" value="1"> 見えるグループが減ることを確認しました（{{ lost }}）</label></p>
+      {% endif %}
+      <div class="submit-row">
+        <input type="submit" class="default" value="この内容で保存">
+        <a href="{{ request.path }}" class="closelink">戻る</a>
+      </div>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

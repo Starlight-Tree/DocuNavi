@@ -1,0 +1,14 @@
+# 管理画面のイメージを Cloud Build でビルドして Artifact Registry に置く（手順は docs/access-admin.md）。
+# 文脈は ops/access_admin。配備はしない（できたイメージを、運用者が `gcloud run deploy --image` で出す）。
+#
+# 置換変数: _IMAGE  ビルドしたイメージの名前（例: <REGION>-docker.pkg.dev/<PROJECT_ID>/<リポジトリ>/docunavi-admin:<タグ>）
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --tag
+      - ${_IMAGE}
+      - ops/access_admin
+
+images:
+  - ${_IMAGE}

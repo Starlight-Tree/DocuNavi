@@ -23,3 +23,6 @@ __pycache__/
 # Playwright E2E（frontend-next/e2e）の成果物。コミットしない（E2E 用のビルド .next-e2e* は frontend-next/.gitignore）
 test-results/
 playwright-report/
+
+# ops/access_admin（管理画面）の collectstatic の出力
+/ops/access_admin/staticfiles/

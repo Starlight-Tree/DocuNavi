@@ -1,0 +1,24 @@
+{% extends "admin/base_site.html" %}
+{% block extrastyle %}{{ block.super }}{% include "accessadmin/_dark_primary_button.html" %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+{% block usertools %}{% endblock %}
+{% block content %}
+<div id="content-main">
+  <h1>認証アプリの登録</h1>
+  <p>ユーザー <strong>{{ username }}</strong> は、まだ認証アプリを登録していません。管理画面に入るには、パスワードのあとにワンタイムコードが必要です。</p>
+  <ol>
+    <li>スマートフォンの認証アプリ（Google Authenticator、1Password など）で、下の QR コードを読み取ります。</li>
+    <li>アプリに表示された 6 桁のコードを入力して、登録を完了します。</li>
+  </ol>
+  <p class="help">この QR コードはこの画面でだけ表示します。読み取れなかったときは、運用者が <code>totp_reset</code> で初期化します。</p>
+  <div style="margin: 1em 0;">{{ qr }}</div>
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <p><label for="token">6 桁のコード</label>
+    <input type="text" name="token" id="token" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="8" required autofocus></p>
+    <div class="submit-row"><input type="submit" class="default" value="登録する"></div>
+  </form>
+  <form method="post" action="{% url 'otp:sign_out' %}">{% csrf_token %}<div class="submit-row"><input type="submit" value="ログアウト"></div></form>
+</div>
+{% endblock %}
