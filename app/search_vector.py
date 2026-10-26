@@ -24,6 +24,7 @@ from typing import Any, NamedTuple
 from app.agents.resilience import KeySwitch, call_with_key_switch, key_switch_hold_seconds, paid_api_key
 from app.history import get_pool
 from app.ingestion import embedding
+from app.scope import ALLOWED_FILTER_SQL, Scope, require_scope
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ _SEARCH_SQL = (
     "FROM chunks c JOIN documents d ON d.id = c.document_id "
     "WHERE d.status = 'ready' AND c.embedding IS NOT NULL "
     "AND (%(collection)s::text IS NULL OR d.collection = %(collection)s::text) "
+    f"AND {ALLOWED_FILTER_SQL} "
     "AND c.embedding_model = %(model)s AND c.embedding_dimensions = %(dims)s "
     "ORDER BY c.embedding OPERATOR(extensions.<=>) %(q)s::extensions.vector(768), d.source, c.chunk_index "
     "LIMIT %(k)s"
@@ -159,13 +161,19 @@ def _chunk_text(heading: str | None, content: str) -> str:
     return f"{heading}\n{content}" if heading else content
 
 
-async def search(query: str, top_k: int, collection: str | None = None) -> list[Hit]:
+async def search(query: str, top_k: int, collection: str | None = None, *, scope: Scope) -> list[Hit]:
     """類似度がしきい値以上のチャンクを、近い順に上位 top_k 件、`Hit`（ファイル名・本文・ページ）で返す。
 
-    `collection` を渡すと、その資料のグループ（`documents.collection`）の資料だけを探す。None（既定）は全資料で、
-    渡さない呼び出し（`ops/mcp_search`）の挙動は変わらない。存在しないグループは、エラーではなく空の結果になる。
+    `scope` は必須（キーワード専用）。検索できるグループの範囲で、`Scope.ALL` を明示したときだけ全資料を探す。渡し忘れ・`None`・
+    `Scope` 以外は TypeError、空の範囲は DB を呼ばずに空の結果（漏れる方向には倒れない）。範囲は SQL で絞り、返ってきた行も
+    もう一度確かめる（SQL の条件を誤っても、範囲外のグループの本文は返さない）。
+    `collection` を渡すと、さらにそのグループ（`documents.collection`）の資料だけを探す（範囲の外のグループなら空）。None は範囲の全資料。
+    存在しないグループは、エラーではなく空の結果になる。
     """
+    scope = require_scope(scope)
     if top_k <= 0 or not query.strip():
+        return []
+    if scope.is_empty or (collection is not None and not scope.allows(collection)):
         return []
     pool = get_pool()
     if pool is None:
@@ -177,11 +185,12 @@ async def search(query: str, top_k: int, collection: str | None = None) -> list[
         "dims": embedding.DIMENSIONS,
         "k": top_k,
         "collection": collection,
+        "allowed": scope.sql_names(),
     }
     async with pool.connection() as conn:
         cursor = await conn.execute(_SEARCH_SQL, params)
         rows = await cursor.fetchall()
-    return [
+    hits = [
         Hit(
             row["source"],
             _chunk_text(row["heading"], row["content"]),
@@ -193,6 +202,8 @@ async def search(query: str, top_k: int, collection: str | None = None) -> list[
         for row in rows
         if float(row["sim"]) >= MIN_SIMILARITY
     ]
+    scope.log_shadow("検索", (hit.collection for hit in hits))
+    return [hit for hit in hits if scope.allows(hit.collection)]
 
 
 async def verify() -> None:

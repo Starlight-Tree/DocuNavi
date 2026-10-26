@@ -6,6 +6,8 @@
   required では本人の会話だけ（他人の ID は存在しないのと同じ 404）。off では `thread_id` を知っていることが権限
 - `DELETE /threads/{thread_id}`: 会話を 1 件消す。required では本人の会話だけ（他人の ID は存在しないのと同じ 404）。
   off では `/chat` と同じく、`thread_id` を知っていることが権限
+- `ACCESS_MODE=enforce` のとき、会話の発言は本人のものでも、いま見えないグループの検索結果に基づく回答は固定文に置き換える
+  （`app/access.py` の `mask_hidden_turns`）。会話に保存された検索対象がいま見えないグループなら、`collection` は null で返す
 - 題名は、会話の最初のユーザー発言の先頭（新しい列も LLM 呼び出しも使わない）。履歴のチェックポイントから読む
 - 履歴の保存先は Postgres かメモリ（`app/history.py`）。どちらも LangGraph の checkpointer を通して読み書きする
 - 例外の文字列は応答に含めない（固定メッセージ）
@@ -22,6 +24,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
 
+from app.access import Access, request_access
 from app.api import routes
 from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, get_pool
@@ -188,6 +191,7 @@ async def list_threads(user_id: Annotated[str | None, Depends(current_user)]) ->
 async def get_thread_messages(
     thread_id: Annotated[str, Path(max_length=routes.MAX_THREAD_ID_LENGTH, pattern=r"^[A-Za-z0-9_-]+$")],
     user_id: Annotated[str | None, Depends(current_user)],
+    access: Annotated[Access, Depends(request_access)],
 ) -> MessageList:
     key = conversation_key(user_id, thread_id)
     try:
@@ -197,7 +201,10 @@ async def get_thread_messages(
     if latest is None:
         raise HTTPException(status_code=404, detail=_DETAIL_NOT_FOUND)
     values = latest.checkpoint.get("channel_values", {})
-    return MessageList(messages=visible_messages(values.get("messages", [])), collection=values.get("collection"))
+    # 会話は表示するが、いま見えないグループの検索結果に基づく回答は伏せる。保存された検索対象が見えないグループなら、名前も返さない
+    shown = access.mask(values.get("messages", []), "会話の表示")
+    saved = values.get("collection")
+    return MessageList(messages=visible_messages(shown), collection=saved if access.allows(saved) else None)
 
 
 @router.delete("/{thread_id}", status_code=204)

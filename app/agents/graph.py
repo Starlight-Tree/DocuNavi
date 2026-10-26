@@ -25,6 +25,7 @@ from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
+from app.access import mask_hidden_turns
 from app.agents.guardrails import (
     INPUT_REFUSAL_REPLY,
     OUTPUT_FALLBACK_REPLY,
@@ -50,6 +51,7 @@ from app.agents.resilience import (
 )
 from app.agents.state import AgentState
 from app.agents.tools import COLLECTION_KEY, TOOLS
+from app.scope import ACCESS_SCOPE_KEY, Scope
 
 logger = logging.getLogger(__name__)
 
@@ -528,7 +530,10 @@ def build_graph(
         # 直前がツールの結果なら、検索を受けて回答を作る呼び出し。それ以外は、検索が要るかを決める呼び出し
         after_search = bool(state["messages"]) and isinstance(state["messages"][-1], ToolMessage)
         emit_status(config, PHASE_GENERATING if after_search else PHASE_ANALYZING)
-        messages = [SystemMessage(content=SYSTEM_PROMPT), *state["messages"]]
+        # 過去の質問のうち、いま見えないグループの検索結果に基づく部分は、LLM にも渡さない（範囲が渡されていなければ何も見えない扱い）
+        scope = (config.get("configurable") or {}).get(ACCESS_SCOPE_KEY)
+        history, _ = mask_hidden_turns(state["messages"], scope if isinstance(scope, Scope) else Scope.NONE)
+        messages = [SystemMessage(content=SYSTEM_PROMPT), *history]
         # 同じ質問の中で先の呼び出しがフォールバックに切り替わっていたら、落ちている主モデルを待たずに始める
         sticky = bool(state.get("fallback_used"))
         served_by_fallback = False

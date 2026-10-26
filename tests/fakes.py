@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from app.agents.graph import MockChatModel
+from app.scope import Scope
 from app.search_vector import Hit
 
 # search_documents の出力 "[ファイル名.pdf]\n本文" の、ファイル名の行
@@ -69,7 +70,10 @@ class FakeSearch:
     )
     FILE_NAMES = frozenset(name for _, name, _, _ in CHUNKS)
 
-    async def __call__(self, query: str, top_k: int = 2) -> list[Hit]:
+    async def __call__(
+        self, query: str, top_k: int = 2, collection: str | None = None, *, scope: Scope | None = None
+    ) -> list[Hit]:
+        # scope は受け取るだけで見ない（範囲を見る偽物は GroupedFakeSearch）。collection も従来どおり見ない
         hits = [
             Hit(name, text, page) for keywords, name, text, page in self.CHUNKS if any(k in query for k in keywords)
         ]
@@ -86,8 +90,42 @@ class ScopedFakeSearch(FakeSearch):
 
     COLLECTION = "zahard"
 
-    async def __call__(self, query: str, top_k: int = 2, collection: str | None = None) -> list[Hit]:
+    async def __call__(
+        self, query: str, top_k: int = 2, collection: str | None = None, *, scope: Scope | None = None
+    ) -> list[Hit]:
         hits = await super().__call__(query, top_k)
         if collection is not None and collection != self.COLLECTION:
             return []
         return [hit._replace(collection=self.COLLECTION) for hit in hits]
+
+
+class GroupedFakeSearch:
+    """資料のグループと、検索できる範囲（`scope`）の両方を見る偽の検索。アクセス制御のテスト（tests/test_access*.py）が使う。
+
+    本物の `search_vector.search` と同じ規則: scope は必須、範囲の外のグループは返さない、グループの無い資料は全グループのときだけ。
+    呼ばれた範囲は `calls` に残す（渡し忘れがないことを確かめる）。
+    """
+
+    # (キーワード, ファイル名, 本文, グループ)
+    CHUNKS: tuple[tuple[str, str, str, str | None], ...] = (
+        ("大気", "zahard_atmosphere.pdf", "ザーハードの大気は薄く、二酸化炭素が主成分である。", "zahard"),
+        ("営業", "cafe_hours.pdf", "みなとコーヒーの営業時間は朝8時から夜8時までです。", "cafe"),
+        ("申し込み", "dorm_apply.pdf", "入寮の申し込み期限は毎年3月末日です。", "guides"),
+        ("未分類", "orphan.pdf", "どのグループにも属さない資料の本文です。", None),
+    )
+    SECRET = "ザーハードの大気は薄く"
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str | None, Scope]] = []
+
+    async def __call__(
+        self, query: str, top_k: int = 2, collection: str | None = None, *, scope: Scope | None = None
+    ) -> list[Hit]:
+        assert isinstance(scope, Scope), "scope が渡されていない"
+        self.calls.append((query, collection, scope))
+        hits = [
+            Hit(name, text, 1, None, 0.9, group)
+            for keyword, name, text, group in self.CHUNKS
+            if keyword in query and scope.allows(group) and (collection is None or group == collection)
+        ]
+        return hits[:top_k]
