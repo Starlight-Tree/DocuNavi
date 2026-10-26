@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Vercel CLI を npm で入れる（コンテナの作成時に postCreateCommand から呼ぶ）。
 #
-# frontend-next を Vercel へ手動でデプロイするために使う（docs/target-architecture.md の「段階 7」）。
+# frontend を Vercel へ手動でデプロイするために使う（docs/target-architecture.md の「段階 7」）。
 # 版は固定する（公開から 2 週間以上たった版。上げるときは、公開日を確かめてからここを書き換える）。
 # ログイン情報（~/.local/share/com.vercel.cli）は入れず、ボリュームにも残さない。ログインはデプロイのたびに
 # `vercel login` で行い、終わったら `vercel logout`（.devcontainer/README.md の「開発環境の Vercel CLI」）。

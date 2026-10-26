@@ -315,13 +315,13 @@ as_me gcloud billing budgets create --billing-account=<請求先アカウント 
 
 **未対応（公開の前に要る）:**
 
-- **画面のログインは、画面側（Vercel の `frontend-next`）の環境変数 `NEXT_PUBLIC_SUPABASE_*` で有効にする。** Cloud Run のイメージに画面の設定は入らない（2026-10-24 から。画面は Cloud Run が配信しない）。画面にログイン設定が無いと、`AUTH_MODE=required` では質問できない（`/chat/stream` が 401）。
+- **画面のログインは、画面側（Vercel の `frontend`）の環境変数 `NEXT_PUBLIC_SUPABASE_*` で有効にする。** Cloud Run のイメージに画面の設定は入らない（2026-10-24 から。画面は Cloud Run が配信しない）。画面にログイン設定が無いと、`AUTH_MODE=required` では質問できない（`/chat/stream` が 401）。
 - トークンの期限切れ後の更新は未確認（Cloud Run から Supabase の DB と JWKS に届くことは、2026-10-20 に確かめた）。
 - 課金の有効化は、このセッションでは確認できなかった（gcloud にログインしていない）。
 
 ### F. イメージのビルド（`cloudbuild.yaml`）
 
-イメージは API だけです（画面は Vercel の `frontend-next` が配信するので、ビルド引数も画面の設定もありません。2026-10-24 から）。
+イメージは API だけです（画面は Vercel の `frontend` が配信するので、ビルド引数も画面の設定もありません。2026-10-24 から）。
 `--source .` でも同じイメージができますが、Artifact Registry に置くイメージの名前（コミットの短縮 SHA）を決めるために、`cloudbuild.yaml` を使います（`scripts/preview.sh build` も同じ）。
 配備は、できたイメージを `--image` で行います。
 **Cloud Build での実行は確かめました（2026-10-20。約 1 分半で SUCCESS。この時点のイメージは、Vite の画面の設定を埋め込んでいた）。画面を外した今のイメージを Cloud Build でビルドして配備した記録は、まだありません（`cloudbuild.yaml` の内容は `tests/test_cloudbuild.py` が確かめる）。**
@@ -582,7 +582,7 @@ Authentication → URL Configuration → Redirect URLs に、次を 1 行足す�
 https://*---docunavi-xe42miq4da-an.a.run.app/**
 ```
 
-- 画面は `redirectTo` に `window.location.origin` を渡す（`frontend-next/src/auth/supabase.ts`）ので、コードの変更は要らない。Google 側の設定も変えない（Google の戻り先は Supabase）。
+- 画面は `redirectTo` に `window.location.origin` を渡す（`frontend/src/auth/supabase.ts`）ので、コードの変更は要らない。Google 側の設定も変えない（Google の戻り先は Supabase）。
 - `*` は `.` と `/` を含まない文字列に一致する（Supabase の公式）。タグには `.` が入らないので、どのタグにも一致する。**実際の URL の形は、手順 4 の `describe` の出力で確かめる**（ハッシュ付きの URL の形で出る）。
 - **サービスの URL は 2 つの形がある。** `https://docunavi-xe42miq4da-an.a.run.app`（`gcloud` が出す形。タグ付き URL もこの形）と、
   `https://docunavi-<PROJECT_NUMBER>.asia-northeast1.run.app`（プロジェクト番号の形。2026-10-21 に、本番の画面を開いていた URL）。どちらも同じサービスに届く。
@@ -668,7 +668,7 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
 
 **状態: 設定ファイルだけ書いた（2026-10-24）。トリガーも専用のサービスアカウントも未作成で、一度も動かしていない。**
 `deploy/*` のタグを push したときだけ、Cloud Build がビルドして `--no-traffic --tag` で配備する（`cloudbuild-deploy.yaml`）。
-役割の分け方は、`main` への push は Vercel（`frontend-next`）とテストだけ、Cloud Run はタグ push だけ。**本番のトラフィックは自動では変えない**（100% への切り替えは `./scripts/preview.sh promote`、戻すのは `rollback`。あなたが実行）。
+役割の分け方は、`main` への push は Vercel（`frontend`）とテストだけ、Cloud Run はタグ push だけ。**本番のトラフィックは自動では変えない**（100% への切り替えは `./scripts/preview.sh promote`、戻すのは `rollback`。あなたが実行）。
 
 - タグ名は `deploy/<Cloud Run のタグ名>`（例: `deploy/h2c-20261024` → タグ `h2c-20261024`）。形が違えば、ビルドの前に止まる（検査のシェルは、手元で 7 通りの入力を確認済み）。
 - 配備は `--set-env-vars` `--set-secrets` `--use-http2` を付けない。環境変数・Secret・ポート名（`http1` か `h2c`）は、サービスの最新の設定を引き継ぐ。
@@ -749,7 +749,7 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 6. 「確かめる」の `curl`（ID トークン付き）。
 7. 公開（「公開する・戻す」）。
 8. **Supabase の Redirect URLs に、サービスの URL を足す**（画面のみ。MCP と SQL では変えられない）。Authentication → URL Configuration → Redirect URLs に `<サービスの URL>/**`。
-   ローカル用の `http://localhost:3000` は残す（2026-10-24 までは Vite の `http://localhost:5173` だった）。画面は `redirectTo` に `window.location.origin` を渡す（`frontend-next/src/auth/supabase.ts`）ので、Site URL が `localhost` のままでもログインは Cloud Run に戻る。
+   ローカル用の `http://localhost:3000` は残す（2026-10-24 までは Vite の `http://localhost:5173` だった）。画面は `redirectTo` に `window.location.origin` を渡す（`frontend/src/auth/supabase.ts`）ので、Site URL が `localhost` のままでもログインは Cloud Run に戻る。
    メールの確認リンクやパスワード再設定を使い始めるとき、または本番を主に使うときに、Site URL を本番の URL に変える（2026-10-20 に変えた。変更後、本番とローカル（`http://localhost:5173`）のログインと質問が通った。利用者の報告）。
 9. ブラウザーで Google ログインと質問を 1 つ。
    Google の OAuth クライアントを `docunavi-app` の新しいものに替えたあとも、同じ手順で通った（2026-10-20、利用者の報告）。

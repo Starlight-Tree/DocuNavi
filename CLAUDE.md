@@ -11,10 +11,10 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 | バックエンド起動 | `uvicorn app.main:app --reload`（`.env` が無い・キー未設定ならモックモード） |
 | バックエンドのテスト | `pytest`（`tests/conftest.py` がモックモードに固定し、検索も偽物に差し替える。実 API・DB は呼ばない）。Postgres のテストは `TEST_DATABASE_URL` が無いとスキップ |
 | Postgres 込みのテスト | `make test-db`（一時的な Postgres 17 を起動 → `pytest` 全体 → 停止。ポート 55432、初回だけ約 20MB を取得。他のセッションが使っていたら失敗して止まる〔止めない〕）。個別手順は [docs/development.md](docs/development.md) |
-| フロントエンド | `cd frontend-next && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
-| E2E（ブラウザー） | `cd frontend-next && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
+| フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
+| E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
-| Docker | 開発コンテナは Compose ベースで、開くと `db` `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`。`dev` は `docunavi-dev` だけで `api`・`db` に直接届かない）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`db`（ローカルの Postgres。pgvector 入り。ポート非公開・空で始まる）、`api`（ポート非公開。`DATABASE_URL` は `.env` ではなく `db` に固定。8000 番は `docker-compose.api-port.yml` を重ねたときだけ 127.0.0.1 に公開）、`frontend`（`frontend-next` の next dev。:3000。2026-10-24 に Vite から置き換えた）が別コンテナ。実キーでは、資料を `db` に取り込むまで `api` が起動の検査に失敗して unhealthy のまま止まる（取り込み後は `docker compose restart api`。2026-10-22 に取り込み済みで healthy）。**未確認:** `api` から Gemini への到達、`stopCompose`、Compose の `frontend` からの Google ログインの戻り、`frontend` のホットリロード。Next.js 版の `frontend` の Docker での起動は 2026-10-25 にホストで確認済み（healthy、`/health` と `/` が通る）。検証の記録と手順は [docs/development.md](docs/development.md) |
+| Docker | 開発コンテナは Compose ベースで、開くと `db` `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`。`dev` は `docunavi-dev` だけで `api`・`db` に直接届かない）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`db`（ローカルの Postgres。pgvector 入り。ポート非公開・空で始まる）、`api`（ポート非公開。`DATABASE_URL` は `.env` ではなく `db` に固定。8000 番は `docker-compose.api-port.yml` を重ねたときだけ 127.0.0.1 に公開）、`frontend`（`frontend/` の next dev。:3000。2026-10-24 に Vite から置き換えた）が別コンテナ。実キーでは、資料を `db` に取り込むまで `api` が起動の検査に失敗して unhealthy のまま止まる（取り込み後は `docker compose restart api`。2026-10-22 に取り込み済みで healthy）。**未確認:** `api` から Gemini への到達、`stopCompose`、Compose の `frontend` からの Google ログインの戻り、`frontend` のホットリロード。Next.js 版の `frontend` の Docker での起動は 2026-10-25 にホストで確認済み（healthy、`/health` と `/` が通る）。検証の記録と手順は [docs/development.md](docs/development.md) |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
@@ -37,11 +37,11 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   変更したら `manage.py check`・`makemigrations --check`・Django のテストを実行する。`services.py` の「見えるグループ」は `tests/test_access_admin_contract.py` が `app/access.py` と照合する
 - `app/api/threads.py`（会話の一覧・発言・削除。`required` では本人の分だけ、`off` は一覧が 404）、`app/api/documents.py`（資料一覧。読み取り専用）、
   `app/api/graph.py`（入寮規程の関係図。`app/relations/` が規則ベースで PDF から都度計算する実験。DB に保存しない）。仕様は `docs/api.md`
-- 画面: `frontend-next/`（Next.js）。Vercel が配信し、FastAPI は画面を配信しない（`/` は 404）。API は別オリジンなので `CORS_ORIGINS` が要る。README は `frontend-next/README.md`
+- 画面: `frontend/`（Next.js。2026-10-26 に `frontend-next/` から改名）。Vercel が配信し、FastAPI は画面を配信しない（`/` は 404）。API は別オリジンなので `CORS_ORIGINS` が要る。README は `frontend/README.md`
 - `storage/pdf/<名前>/`: PDF の資料（`cafe` `guides` `zahard`）。検索は DB を読むので、PDF を足しても `python -m app.ingestion` と
   `python -m app.ingestion.embed` をするまで検索には出ない。`cafe` `guides` は `evals/corpora/<同じ名前>/` の写し（作り直したら両方を更新）、`zahard` は .txt から作った PDF（`docs/configuration.md` の「評価用の PDF の写し」）。
   2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は実物で確かめるまでアプリには置かない
-- `storage/chunk/` は空でアプリは読まない。`scripts/bm25_baseline.py` は評価の基準線で、アプリは import しない。`frontend-next/` の `.next*/` と `node_modules/` は Git 管理外
+- `storage/chunk/` は空でアプリは読まない。`scripts/bm25_baseline.py` は評価の基準線で、アプリは import しない。`frontend/` の `.next*/` と `node_modules/` は Git 管理外
 
 ## 守ること（コードを書く前に）
 
@@ -49,7 +49,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   `Read(./.env)` の拒否ルールの対象で、Bash でも開かない。拒否されたら回避せず（別の書き方・スクリプト経由で同じことをしない）、
   ユーザーに伝える。実キーの値の照合はせず、`AIza…` 形式のパターンで検査する。
 - **エラー本文は固定メッセージ。** 例外の文字列やサーバーのパスを API の応答に含めない。
-- **API に画面を配信させない。** 画面は Vercel の `frontend-next`。`/{path}` のような全捕捉ルートも足さない（API の 405 やリダイレクトが壊れる）。
+- **API に画面を配信させない。** 画面は Vercel の `frontend`。`/{path}` のような全捕捉ルートも足さない（API の 405 やリダイレクトが壊れる）。
 - **LLM の呼び出しは不安定になりうる。** 遅い呼び出しは待たずに追加の試行を投げ（ヘッジ）、最初の成功を採る。追加の試行はトークンを増やし、
   モデルの変更も料金と品質に響くので、変える前に確認する。`/chat/stream` は「最初のチャンクが届いた試行」を採り、採った後は別の試行へ切り替えない
   （送った本文と食い違うため）。数値と環境変数は `docs/configuration.md` の「LLM の遅延・失敗への対処」。
@@ -78,7 +78,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - **`SECURITY.md` は置かない**（非公開・個人開発）。公開する段階で、GitHub の Private Vulnerability Reporting と一緒に検討する。
 - **画面に渡してよいのは公開用の値だけ。** `NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。入れてよいのは Supabase の URL と publishable key だけ。
   secret key・`DATABASE_URL`・`GEMINI_API_KEY` は入れない。
-- **設定は環境変数で渡す。** 認証・DB・LLM の値をコード・文書・コミットに書かない。`.env` と `frontend-next/.env.local` は Git 管理外。
+- **設定は環境変数で渡す。** 認証・DB・LLM の値をコード・文書・コミットに書かない。`.env` と `frontend/.env.local` は Git 管理外。
 - **他の人が届く環境（Cloud Run など）は `AUTH_MODE=required`。** `off`（既定）は、自分だけが使うローカル開発用。
 - **キーを誤ってコミット・公開したら、失効させて作り直す。** 履歴から消すだけでは足りない。
 - **ガードレールはルールベースで、プロンプトインジェクションを完全には防がない**（`docs/guardrails.md`）。
@@ -163,9 +163,9 @@ README の「開発環境の GitHub CLI（gh）」を参照。
   テストが失敗しているとき、作業の途中のときは提案しない。検査は、追加行の秘密情報のパターンと、登録語
   （`scripts/check-sensitive-terms.sh origin/main..HEAD`。語は Git の管理外の `.git/sensitive-terms` に置く）。
 - **しないこと:** 強制プッシュと、公開済み履歴の書き換えはしない（必要なら相談する）。`git reset` と `git restore` は、承認を得てから行う。
-- **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、`frontend-next`（単体テスト・型検査・ビルド）、ワークフローの静的検査を行う。**デプロイは含まない。**
-  `main` へのプッシュで Vercel の `frontend-next` の本番が更新される。プッシュの承認を求めるときは、`frontend-next/` の変更が含まれるかを添える。Cloud Run への自動デプロイを足したら、この運用を見直す（Vercel の運用は [docs/target-architecture.md](docs/target-architecture.md)）。
-- **CI の結果の扱い:** プッシュのたびに待たない。設定・文書・拡張だけの変更は、見にも行かない。アプリ本体・テスト・Docker・`ci.yml`・`frontend-next/` を変えたら、
+- **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、`frontend`（単体テスト・型検査・ビルド）、ワークフローの静的検査を行う。**デプロイは含まない。**
+  `main` へのプッシュで Vercel の `frontend` の本番が更新される。プッシュの承認を求めるときは、`frontend/` の変更が含まれるかを添える。Cloud Run への自動デプロイを足したら、この運用を見直す（Vercel の運用は [docs/target-architecture.md](docs/target-architecture.md)）。
+- **CI の結果の扱い:** プッシュのたびに待たない。設定・文書・拡張だけの変更は、見にも行かない。アプリ本体・テスト・Docker・`ci.yml`・`frontend/` を変えたら、
   プッシュ後に一度だけ `gh run list` で確認し、未確認でも次の独立した作業へ進む。次の作業が前のコミットの CI に依存するとき、デプロイや公開の前、
   ユーザーが結果を求めたときは、完了まで見て報告する。失敗したら、失敗ステップとログの要点を出す。
 

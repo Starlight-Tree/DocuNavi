@@ -7,13 +7,13 @@
 チャット（`/chat`・`/chat/stream`）は、DB（Supabase / pgvector）に取り込んだ資料を、質問の埋め込みとのコサイン類似度で検索します
 （検索の設計と、見直す条件は [docs/search-design.md](docs/search-design.md)）。本物の LLM には `DATABASE_URL` と `GEMINI_API_KEY` が要ります
 （[docs/configuration.md](docs/configuration.md)）。
-バックエンド（FastAPI）は API だけを持ちます。チャット画面（Next.js + React + TypeScript、`frontend-next/`）は Vercel が配信します。
+バックエンド（FastAPI）は API だけを持ちます。チャット画面（Next.js + React + TypeScript、`frontend/`）は Vercel が配信します。
 
 - **FastAPI**: HTTP API（`/chat`, `/chat/stream`, `/health`）
 - **LangGraph**: 入力ガード → エージェント（ツール呼び出しのループ）→ 出力ガード
 - **Gemini**（`gemini-3.1-flash-lite`）: 回答生成。Gemini API キーまたは Vertex AI（ADC）で認証し、どちらも未設定ならモックモードで動く
 - **RAG**: PDF を、ページの文字の位置から見出し・段落・表を組み立ててチャンクにし、DB に取り込んで埋め込む（`python -m app.ingestion`）。質問ごとに埋め込みを作り、類似度の高いチャンクを LLM に渡す
-- **画面**: `frontend-next/`（Next.js + React + TypeScript）。Vercel が配信し、ブラウザーが API（Cloud Run の FastAPI）を直接呼ぶ。FastAPI は画面を配信しない
+- **画面**: `frontend/`（Next.js + React + TypeScript）。Vercel が配信し、ブラウザーが API（Cloud Run の FastAPI）を直接呼ぶ。FastAPI は画面を配信しない
 
 ## 起動
 
@@ -38,13 +38,13 @@ Docker Compose を使う場合は、ホスト側で `docker compose up --build` 
 ### 画面を手元で開発する
 
 ```bash
-cd frontend-next
+cd frontend
 npm ci
 cp .env.example .env.local   # 初回だけ
 npm run dev                  # 開発サーバー（http://localhost:3000）。/chat（/chat/stream を含む）・/health・/documents・/threads は localhost:8000 へ転送
 ```
 
-画面の詳細は [frontend-next/README.md](frontend-next/README.md) を参照してください。
+画面の詳細は [frontend/README.md](frontend/README.md) を参照してください。
 
 ## 設定
 
@@ -78,7 +78,7 @@ curl -sN localhost:8000/chat/stream -H 'Content-Type: application/json' \
 ```bash
 pip install -r requirements-dev.txt
 pytest                          # モックモード固定。実 API は呼びません
-cd frontend-next && npm test    # フロントエンド（Vitest）
+cd frontend && npm test    # フロントエンド（Vitest）
 ```
 
 テストの方針、CI、依存の更新手順は [docs/development.md](docs/development.md) にあります。

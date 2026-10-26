@@ -77,8 +77,8 @@
   運用者が `python -m app.history_admin --thread-id` で消すときは、保存されているキー（`<利用者 ID>:<thread_id>`）を渡します。
 - ログにトークンは出しません。出すのは失敗の種類（例外のクラス名）だけです。
 
-ブラウザー側（Google ログイン）は、`frontend-next` のビルド時に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を渡すと有効になります
-（Vercel の環境変数。[frontend-next/README.md](../frontend-next/README.md)）。どちらかが無ければログイン画面は出ず、従来どおり認証なしで動きます
+ブラウザー側（Google ログイン）は、`frontend` のビルド時に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を渡すと有効になります
+（Vercel の環境変数。[frontend/README.md](../frontend/README.md)）。どちらかが無ければログイン画面は出ず、従来どおり認証なしで動きます
 （その状態でバックエンドが `required` だと、チャットは 401 になります）。トークンの更新はブラウザー側の SDK が行い、期限切れだけではログイン画面に戻りません。
 
 **Supabase と Google 側の設定（コードとは別。利用者のコンソール操作）:**
@@ -91,7 +91,7 @@
 **確認の状況（2026-10-19）:** ローカル（バックエンド `AUTH_MODE=required`、画面は `npm run dev`）で、実際の Supabase・Google を使って確かめました。
 Supabase の JWKS は公開鍵 1 個（ES256）で、バックエンドの起動時の検査が通りました。トークンなしの `/chat` は 401 でした。ブラウザーでは、
 Google ログイン → 画面に戻る → 質問を送って回答が返る、までをユーザーが通しました（モックの返答と、本物の LLM・DB の回答の両方）。
-自動テスト（`tests/test_auth.py`、`frontend-next/src/AuthApp.test.tsx`・`frontend-next/src/auth/`）は、これまでどおり手元で作った鍵と偽の JWKS を使います。
+自動テスト（`tests/test_auth.py`、`frontend/src/AuthApp.test.tsx`・`frontend/src/auth/`）は、これまでどおり手元で作った鍵と偽の JWKS を使います。
 
 トークンの期限切れ後の更新（`supabase-js` の実際の動作）は、通ったと利用者が報告した（2026-10-20。以前の確認で、日付・環境・待った時間の詳細は記録がない）。
 

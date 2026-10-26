@@ -219,7 +219,7 @@ gcloud などが書けなくなるおそれがあるためです）。読み取�
 ## 開発環境の Vercel CLI
 
 開発コンテナには Vercel CLI が入ります（`.devcontainer/install-vercel.sh`。版は固定で、作成時に `npm install -g` します）。
-`frontend-next` を Vercel へ最初に 1 回デプロイするために使いました（`docs/target-architecture.md` の「段階 7」。そのあとは Git 連携に移す方針です）。
+`frontend` を Vercel へ最初に 1 回デプロイするために使いました（`docs/target-architecture.md` の「段階 7」。そのあとは Git 連携に移す方針です）。
 
 - **ログイン情報はイメージにもボリュームにも残しません。** 再ビルドすると消えます。デプロイのたびに `vercel login`（ブラウザーでの承認）を行い、
   終わったら `vercel logout` します。長期の `VERCEL_TOKEN` はコンテナに置きません。
@@ -391,7 +391,7 @@ Container Tools の画面は、一覧が見える（検証 7）。未確認: コ
 **`api-prod`（profile `prod`、2026-10-26）は `runServices` に含めない。** 本番相当の起動の確認用で、開発コンテナを開いても起動しない（`stopCompose` が、起動中の `api-prod` も止めるかは未確認）。
 使うときはホストで名前を指定して起動する（手順は [docs/development.md](../docs/development.md) の「本番相当の起動の確認」）。
 
-**2026-10-24:** `frontend` サービスは、Vite の開発サーバー（:5173）から `frontend-next` の next dev（:3000）に置き換えた（サービス名・コンテナ名 `docunavi-frontend` は同じ）。以下の確認の記録は、Vite 版の `frontend`（5173 番）のもの。Next.js 版の Compose での起動は未検証。
+**2026-10-24:** `frontend` サービスは、Vite の開発サーバー（:5173）から `frontend/` の next dev（:3000）に置き換えた（サービス名・コンテナ名 `docunavi-frontend` は同じ）。以下の確認の記録は、Vite 版の `frontend`（5173 番。現在の `frontend/` とは別物）のもの。Next.js 版の Compose での起動は未検証。
 
 | 項目 | 内容 |
 |---|---|
