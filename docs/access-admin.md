@@ -3,8 +3,9 @@
 運用者だけが使う管理画面。利用者へのロールの割り当て（`chatbot.user_roles`）を、SQL ではなく画面で行う。実装は [ops/access_admin/](../ops/access_admin/)。
 アクセス制御そのものの仕様（`ACCESS_MODE`、10 経路、`default` ロール）は [configuration.md](configuration.md) の「資料グループのアクセス制御」。
 
-**状態（2026-10-26）:** ローカルで実装・テスト済み（ステージ R0）。**本番にも Supabase にも Cloud Run にも、何も適用していない**（R1 以降は承認ごと）。
-画面は、ローカルの一時 Postgres で、本番と同じ設定・DB ロール・gunicorn で通しの操作を確かめた（下の「確かめたこと」）。
+**状態（2026-10-26）:** ステージ R0〜R9 まで完了。Supabase に migration を適用し、非公開の Cloud Run `docunavi-admin`（リビジョン `docunavi-admin-00003-cvr`、イメージ `docunavi-admin:799de59`）に配備済み。
+運用者 1 人が、プロキシ経由でパスワードと TOTP でログインできる。最初の限定ロール（`cafe-staff`）の作成、一時的な割り当て、解除、`default` への復帰も確かめた。
+ローカルの一時 Postgres での確認と、本番で確かめたこと・未確認は、下の「確かめたこと / 未確認」。
 
 ## 何をするか（4a の範囲）
 
@@ -78,9 +79,10 @@
 （一時 Postgres が要る。`chatbot` / `auth` の身代わりと実際の migration の SQL を入れたテンプレート DB から作り、各テストは `SET LOCAL ROLE access_admin` で動く）。
 契約テストは `tests/test_access_admin_contract.py`（アプリ本体の `visible_collections` の SQL と、管理画面の計算を、ロールのあらゆる組み合わせで突き合わせる）。
 
-## 本番への手順（すべて未実行。各ステージは、承認を取ってから）
+## 本番への手順（R0〜R9 は 2026-10-26 に実施済み。再現・復旧の参照用。各ステージは、承認を取ってから）
 
 書き込みはユーザーが実行する（[deploy.md](deploy.md) の `as_me` の書き方）。`<…>` は実際の値に置き換える。
+実際に通した手順から変えた点は、コードブロックのあとの「実施で分かったこと」に書いた。
 
 | ステージ | 内容 | 誰が |
 |---|---|---|
@@ -123,30 +125,56 @@ as_me gcloud builds submit --config ops/access_admin/cloudbuild.yaml --substitut
 ```
 
 ```bash
-# R5: 初回のデプロイ（認証必須。最小 0・最大 1。ホスト名とオリジンは、プロキシ経由の localhost から始める）
+# R5: 初回のデプロイ（認証必須。最小 0・最大 1）。<run.app ホスト> は、プロキシが Host に書き換える値（下の「実施で分かったこと」）
 as_me gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
   --service-account "docunavi-admin-run@${PROJECT_ID}.iam.gserviceaccount.com" \
   --no-allow-unauthenticated --min-instances 0 --max-instances 1 \
   --set-secrets "ADMIN_DATABASE_URL=admin-database-url:latest,ADMIN_SECRET_KEY=admin-secret-key:latest" \
-  --set-env-vars "^@^ADMIN_ALLOWED_HOSTS=localhost,127.0.0.1@ADMIN_CSRF_TRUSTED_ORIGINS=http://localhost:8080@ADMIN_SECURE_COOKIES=0"
+  --set-env-vars "^@^ADMIN_ALLOWED_HOSTS=localhost,127.0.0.1,<run.app ホスト>@ADMIN_CSRF_TRUSTED_ORIGINS=http://localhost:8080@ADMIN_SECURE_COOKIES=0"
 
 # R6: migrate（同じイメージの Job。saas に Django の表だけを作る。実行後に実行結果とログを確かめる）
 as_me gcloud run jobs create docunavi-admin-migrate --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
   --service-account "docunavi-admin-run@${PROJECT_ID}.iam.gserviceaccount.com" \
   --set-secrets "ADMIN_DATABASE_URL=admin-database-url:latest,ADMIN_SECRET_KEY=admin-secret-key:latest" \
-  --set-env-vars "^@^ADMIN_ALLOWED_HOSTS=localhost@DJANGO_SETTINGS_MODULE=config.settings.prod" \
-  --command python --args "manage.py,migrate"
+  --set-env-vars "^@^ADMIN_ALLOWED_HOSTS=localhost,127.0.0.1,<run.app ホスト>@ADMIN_CSRF_TRUSTED_ORIGINS=http://localhost:8080@ADMIN_SECURE_COOKIES=0" \
+  --max-retries 0 --task-timeout 300s --command python --args "manage.py,migrate,--noinput"
 as_me gcloud run jobs execute docunavi-admin-migrate --project "$PROJECT_ID" --region "$REGION" --wait
 
-# R8: つなぐ（運用者の権限。ブラウザーで http://localhost:8080/admin/）。到達できるかは未確認
+# R8: つなぐ（運用者の権限。ブラウザーで http://localhost:8080/admin/）。要 cloud-run-proxy コンポーネント
+as_me gcloud components install cloud-run-proxy      # 初回だけ（ホストの Mac）
 as_me gcloud run services proxy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --port 8080
 ```
 
 R7（スーパーユーザー）は、R6 の Job の `--args` を `manage.py,createsuperuser,--noinput,--username,<名前>,--email,<メール>` にして、
 `DJANGO_SUPERUSER_PASSWORD` を Secret（`--set-secrets`）で渡す。パスワードはコマンドに書かない。実行したら、その Secret と Job を消す。
-`totp_reset` も同じ形（`--args manage.py,totp_reset,<名前>`）。
+`totp_reset` も同じ形（`--args manage.py,totp_reset,<名前>`。実行したら Job を消す）。
 
-**R9 の流れ:**
+イメージだけを差し替える再デプロイ（2026-10-26 に QR とボタンの修正で実施）。環境変数・Secret・サービスアカウント・非公開の設定は変わらない。`migrate` は、DB の変更が無ければ要らない:
+
+```bash
+as_me gcloud builds submit --config ops/access_admin/cloudbuild.yaml --substitutions "_IMAGE=${IMAGE}" --project "$PROJECT_ID" --billing-project "$PROJECT_ID" .
+as_me gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE"
+# 戻す: 直前のリビジョンへ
+as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --to-revisions <直前のリビジョン>=100
+```
+
+ビルドは作業ツリーをそのまま送る。コミット済みで `git status` が空であることを確かめてから行う。
+
+**実施で分かったこと（2026-10-26）:**
+- Cloud Run は、新しいサービスを `--no-traffic` では作れない（最初のリビジョンが 100% を受ける）。非公開なので、この形で安全だった。
+- `gcloud run services proxy` は、`Host` をサービスの `run.app` ホスト（`<サービス名>-<識別子>-an.a.run.app`）に書き換える。`ADMIN_ALLOWED_HOSTS` にそのホストが要る（`localhost` だけでは受け付けない）。
+  ブラウザーのオリジンは `http://localhost:8080` のままなので、`ADMIN_CSRF_TRUSTED_ORIGINS` はそれでよい（ログインの POST が通ることを確かめた）。
+  開発コンテナからは、ホストのプロキシに `host.docker.internal:8080` で届く（`Origin` ヘッダーは `http://localhost:8080` にする）。
+- `--set-env-vars` はカンマで区切られるので、値にカンマを含むときは `^@^` の形にする（上のとおり）。
+- zsh では `read -p` が使えない。パスワードは `read -rs "PW?プロンプト: "`。貼り付けた複数行（`\` の継続と `#` の行）が崩れるので、1 行で渡す。
+- Secret に版が入る前に作った Job は、版を足したあとも Ready にならない（`SecretsAccessCheckFailed`）。Job を消して作り直す。
+- プロキシを閉じるとき、ラッパーを止めても子の `cloud-run-proxy` が残ることがある。子だけを止めるとラッパーが作り直す。ホストで `ps -axo pid,ppid,command | grep '[r]un services proxy'` で親を先に止め、次に子を止め、`lsof -nP -iTCP:8080 -sTCP:LISTEN` が空であることを確かめる。
+- `/healthz` は、Cloud Run の入口（Google 側）が 404 を返し、コンテナに届かない（リクエストログも残らない。予約された経路のためと推測。公式の文書では確認していない）。`/readyz` と存在しない経路は Django に届く。確認には `/readyz` を使う。コンテナの起動プローブは TCP で、動いている。
+- gunicorn が起動のたびに `[ERROR] Control server error: [Errno 13] Permission denied: '/home/app'` を出す（ユーザー `app` にホームディレクトリが無いため）。動作に支障は無い。重大度は付かないため、重大度の絞り込みでは見えない。
+- 認証アプリ（Google Authenticator）の登録時、iOS のカメラで QR を読むと Apple のパスワード管理への追加を勧められる。要素を分けるため、認証アプリ内の「コードをスキャン」で読んだ。
+- 回復用コードは無い。認証アプリを失くしたときの回復は、`totp_reset`（Job）。
+
+**R9 の流れ（2026-10-26 に実施。割り当てと解除は、利用者の選択で画面ではなく SQL で行った）:**
 1. 運用者が SQL で、限定ロールを作る（`insert into chatbot.roles …`、`insert into chatbot.role_collection_access …`。例は [configuration.md](configuration.md)）。
    `access_audit` に記録されることを確かめる。
 2. **承認を取ってから**、管理画面で自分のアカウントに、そのロールを割り当てる（画面の確認で、前後の見えるグループを見る）。
@@ -166,14 +194,22 @@ R7（スーパーユーザー）は、R6 の Job の `--args` を `manage.py,cre
 - ブラウザー（Playwright、幅 1280）での通し: パスワード → TOTP 登録 → 管理画面、ログアウト → 再ログイン → 誤コード拒否 → 正コード、
   割り当て（確認なしの保存は 400 で拒否 → チェックして保存）、ロール一覧の警告。保存後、`access_audit` の `actor` が `access_admin`、操作履歴にメールが載らないこと。
 
+**本番で確かめた（2026-10-26、読み取りの確認と、利用者の報告）:**
+- migration の適用（R3。`supabase db push --linked`）。`access_admin` ロール・`chatbot.admin_users`・権限（`has_table_privilege` で確認。`documents` に SELECT 無し、`user_roles` に INSERT あり・UPDATE 無し）。
+- イメージのビルド（Cloud Build。CI の `admin` ジョブでも Docker のビルドを確認）、非公開の Cloud Run への配備（`run.invoker` は運用者本人だけ）、Job での `migrate`（22 件、`saas` に 11 表、`chatbot` は変わらない）と `createsuperuser`。
+- 接続プーラー経由で `access_admin` が接続でき、`/readyz` が 200（ロールの `search_path` が効く）。
+- プロキシ経由（ホストのブラウザー、開発コンテナの curl の両方）でのログイン。パスワード → TOTP の登録（Google Authenticator）→ 再ログインでコードを要求 → 誤コードの拒否。
+- R9: 限定ロール `cafe-staff`（`cafe` だけ）の作成、運用者本人への一時的な割り当て、`/collections` と `/documents` が `cafe` だけになること、過去の会話の伏せ字、解除、`default`（3 グループ）への復帰。割り当てと解除は SQL で行った（監査の `actor` は `postgres`）。
+- 再デプロイ（`docunavi-admin-00003-cvr`）。コード入力画面の CSS にダークモードの主ボタンの規則が載っていること、ダークモードの見え方（利用者の報告）。
+
 **未確認:**
-- Docker イメージのビルドと起動（開発コンテナに Docker エンジンが無い。CI の `admin` ジョブが行う。結果は CI で見る）。
-- Supabase のホスト上で、`postgres` ロールがこの migration（`CREATE ROLE`、`ALTER ROLE … SET`、ビューの作成）を実行できること。R3 で確かめる。
-- 接続プーラー（Supabase）経由で `access_admin` が接続でき、ロールの `search_path` が効くこと（`/readyz` が見張る）。
-- 非公開の Cloud Run へ `gcloud run services proxy` で、開発コンテナの外のブラウザーからつなげること。Host ヘッダーと CSRF のオリジンの組み合わせ。
-- 実際の認証アプリで QR を読み取れること（テストは `django-otp` 自身のコード生成で確かめた）。
-- 利用者の実際の `auth.users` を `admin_users` 経由で読めること、`last_sign_in_at` の値。
-- Cloud Run Job での `migrate` と `createsuperuser`。
+- 実際の認証アプリで、白背景に直した QR を読み取れること。R8 の登録は、QR が黒地に黒で見えなかったため、DevTools で背景を白にして読み取った（その QR は読めた）。本番の登録済みの機器を消さない限り、登録の画面は見えないので、`totp_reset` のあとに確かめる。
+- Django の画面から割り当て・解除をしたときの `access_audit` の `actor`（`access_admin`）と、Django の操作履歴。本番の割り当てと解除は SQL で行った。
+- Django の画面の「見えるグループ」の表示と、`admin_users` 経由の利用者一覧・`last_sign_in_at` の値。
+- 割り当て後に、検索が `cafe` 以外のグループを返さないこと（実際の Gemini の埋め込みが要る）。
+- 認証のない実リクエストが拒否されること（`run.invoker` の設定を読んだだけで、試してはいない）。
+- 誤コードの直後に正しいコードでログインできること（失敗回数のリセット）。
+- 割り当てを Django の画面から行ったあとの、会話の伏せ字の挙動。
 
 ## 運用の注意
 
