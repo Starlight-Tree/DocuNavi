@@ -110,6 +110,12 @@ class RegistrationTests(TotpTestCase):
         self.assertNotIn(b32encode(device.bin_key).decode().rstrip("="), html)
         self.assertIn("no-store", response["Cache-Control"])
 
+    def test_the_qr_has_a_white_background_so_it_scans_in_dark_mode(self):
+        _, response = self.open_setup()
+        html = response.content.decode()
+        self.assertRegex(html, r'<path fill="#fff" d="M0 0h\d+v\d+h-\d+z"/>')  # 余白を含む全面の白
+        self.assertIn('stroke="#000"', html)  # 黒いモジュール
+
     def test_the_pages_use_the_site_name_and_a_page_title(self):
         _, response = self.open_setup()
         self.assertContains(response, "ドキュナビ 資料グループの管理")

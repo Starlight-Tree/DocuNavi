@@ -90,7 +90,7 @@ def setup(request: HttpRequest) -> HttpResponse:
             return _finish(request, device)
         messages.error(request, ERROR_BAD_CODE)
 
-    svg = segno.make(device.config_url, error="m").svg_inline(scale=5, border=2)
+    svg = segno.make(device.config_url, error="m").svg_inline(scale=5, border=2, dark="#000", light="#fff")
     response = render(request, SETUP_TEMPLATE, _context(request, "認証アプリの登録", qr=mark_safe(svg)))  # noqa: S308 - segno が生成した SVG
     response["Cache-Control"] = "no-store"
     return response
