@@ -43,6 +43,11 @@ _VISIBLE_SQL = (
     "WHERE a.role IN (SELECT r.role FROM user_roles r WHERE r.user_id = %(uid)s::uuid) "
     "OR (a.role = %(default)s AND NOT EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = %(uid)s::uuid))"
 )
+# いま存在する全グループ。登録済み（document_collections）と、資料にだけあるもの（documents.collection）の両方
+_KNOWN_SQL = (
+    "SELECT name AS collection FROM document_collections "
+    "UNION SELECT collection FROM documents WHERE collection IS NOT NULL"
+)
 _PROBE_SQL = (
     "SELECT (SELECT count(*) FROM roles WHERE name = %(default)s) AS default_roles, "
     "(SELECT count(*) FROM role_collection_access WHERE role = %(default)s) AS default_collections, "
@@ -75,6 +80,29 @@ async def visible_collections(user_id: str | None) -> frozenset[str]:
         cursor = await conn.execute(_VISIBLE_SQL, {"uid": user_id, "default": DEFAULT_ROLE})
         rows = await cursor.fetchall()
     return frozenset(row["collection"] for row in rows)
+
+
+async def visible_with_completeness(user_id: str | None) -> tuple[frozenset[str], bool]:
+    """見えるグループと、それが「いま存在する全グループ」を含むか。同じ接続で引く。
+
+    全グループを引けなかったときは、含まない（False）として返す。会話を伏せる側に倒れるだけで、検索の絞り込みは変わらない。
+    見えるグループの取得に失敗したときは `visible_collections` と同じ例外を送る。
+    """
+    pool = get_pool()
+    if pool is None:
+        raise AccessUnavailable("DB の接続プールが開いていません")
+    async with pool.connection() as conn:
+        cursor = await conn.execute(_VISIBLE_SQL, {"uid": user_id, "default": DEFAULT_ROLE})
+        visible = frozenset(row["collection"] for row in await cursor.fetchall())
+        try:
+            cursor = await conn.execute(_KNOWN_SQL)
+            known = frozenset(row["collection"] for row in await cursor.fetchall())
+        except Exception as exc:  # noqa: BLE001 - 型の名前だけを残す。伏せる側に倒す
+            logger.warning(
+                "存在する資料グループを引けませんでした (%s)。古い会話は伏せたままにします", type(exc).__name__
+            )
+            return visible, False
+    return visible, bool(visible) and known <= visible
 
 
 @dataclass(frozen=True)
@@ -113,7 +141,7 @@ class Access:
     def mask(self, messages: Sequence[BaseMessage], path: str) -> list[BaseMessage]:
         """見えないグループの検索結果に基づく部分を伏せた会話。shadow では伏せずに、伏せる件数をログに出す。"""
         if self.scope.shadow is not None:
-            _, count = mask_hidden_turns(messages, Scope(self.scope.shadow))
+            _, count = mask_hidden_turns(messages, Scope(self.scope.shadow, complete=self.scope.complete))
             logger.info("アクセス制御(shadow): %s 会話の %d 件が enforce では伏せられる", path, count)
         masked, _ = mask_hidden_turns(messages, self.scope)
         return masked
@@ -125,15 +153,15 @@ async def request_access(user_id: Annotated[str | None, Depends(current_user)]) 
     if mode == "off":
         return Access(mode, Scope.ALL)
     try:
-        visible = await visible_collections(user_id)
+        visible, complete = await visible_with_completeness(user_id)
     except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・SQL が入りうる。型の名前だけを残す
         logger.warning("利用できる資料グループを引けませんでした (mode=%s, %s)", mode, type(exc).__name__)
         if mode == "shadow":
             return Access(mode, Scope.ALL)  # shadow は観測だけ。引けなくても、いまの挙動のまま続ける
         raise HTTPException(status_code=503, detail=DETAIL_UNAVAILABLE) from None
     if mode == "shadow":
-        return Access(mode, Scope(None, shadow=visible))
-    return Access(mode, Scope(visible))
+        return Access(mode, Scope(None, shadow=visible, complete=complete))
+    return Access(mode, Scope(visible, complete=complete))
 
 
 async def verify_access_config() -> None:
@@ -165,12 +193,22 @@ async def verify_access_config() -> None:
     logger.info("アクセス制御: %s（user_roles の割り当て %d 件）", mode, row["assignments"])
 
 
+def _source_allowed(source: dict[str, Any], scope: Scope) -> bool:
+    """出典を見せてよいか。`collection` の項目そのものが無い古い出典は、全グループが見える範囲（`complete`）のときだけ見せる。
+
+    項目はあるが値が null の出典（グループの無い資料）は、全グループが見える範囲でも見せない（`allows` のとおり）。
+    """
+    if scope.complete and "collection" not in source:
+        return True
+    return scope.allows(source.get("collection"))
+
+
 def _hidden_sources(message: BaseMessage, scope: Scope) -> bool:
     """ツールの結果（ToolMessage）の出典に、範囲の外のグループ（グループ不明を含む）があるか。"""
     artifact = getattr(message, "artifact", None)
     if not isinstance(artifact, list):
         return False
-    return any(isinstance(source, dict) and not scope.allows(source.get("collection")) for source in artifact)
+    return any(isinstance(source, dict) and not _source_allowed(source, scope) for source in artifact)
 
 
 def mask_hidden_turns(messages: Sequence[BaseMessage], scope: Scope) -> tuple[list[BaseMessage], int]:
@@ -178,7 +216,8 @@ def mask_hidden_turns(messages: Sequence[BaseMessage], scope: Scope) -> tuple[li
 
     1 回の質問（ユーザーの発言から次のユーザーの発言まで）の中で、範囲の外のグループが出典に入った検索結果（ToolMessage）が
     あれば、その結果と、その後の最終回答（ツール呼び出しの無い AI の発言）を伏せる。ユーザーの発言は残す。
-    出典のグループが分からない検索結果（この項目を持たない古い会話）は、範囲を絞っているときは伏せる。
+    出典のグループが分からない検索結果は、範囲を絞っているときは伏せる。ただし、`collection` の項目そのものが無い古い会話
+    （2026-10-26 より前）は、範囲がいま存在する全グループを含む（`scope.complete`）なら伏せない。値が null の出典は伏せる。
     LLM に渡す履歴と、会話の表示の両方に使う（回答の本文には見えないグループの内容が入りうるため、LLM にも見せない）。
     元のメッセージは変えない。
     """

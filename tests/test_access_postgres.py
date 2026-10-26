@@ -106,6 +106,32 @@ def test_visible_collections_follow_the_roles_and_the_default_role(seeded):
     assert asyncio.run(_visible(EMPTY_USER)) == frozenset()  # ロールはあるが資料グループが無い
 
 
+async def _completeness(user_id: str | None) -> tuple[frozenset[str], bool]:
+    from app import history
+
+    async with history.history_store():
+        return await access.visible_with_completeness(user_id)
+
+
+def test_completeness_follows_every_existing_group_registered_or_only_in_documents(seeded):
+    everything = frozenset({"zahard", "cafe", "guides"})
+    assert asyncio.run(_completeness(PLAIN_USER)) == (everything, True)  # グループの無い資料（NULL）は数えない
+    assert asyncio.run(_completeness(None)) == (everything, True)
+    assert asyncio.run(_completeness(CAFE_USER)) == ({"cafe"}, False)
+    assert asyncio.run(_completeness(MULTI_USER)) == ({"cafe", "guides"}, False)
+    assert asyncio.run(_completeness(EMPTY_USER)) == (frozenset(), False)
+    with _admin(seeded) as admin:  # 登録されていないが、資料にはあるグループ
+        admin.execute("INSERT INTO documents (source, collection) VALUES ('new.pdf', 'newgroup')")
+    assert asyncio.run(_completeness(PLAIN_USER)) == (everything, False)
+    with _admin(seeded) as admin:  # 登録だけあって、資料の無いグループ
+        admin.execute("DELETE FROM documents WHERE collection = 'newgroup'")
+        admin.execute("INSERT INTO document_collections (name, label) VALUES ('empty', '空')")
+    assert asyncio.run(_completeness(PLAIN_USER)) == (everything, False)
+    with _admin(seeded) as admin:  # default に割り当てると、また全部になる
+        admin.execute("INSERT INTO role_collection_access (role, collection) VALUES ('default', 'empty')")
+    assert asyncio.run(_completeness(PLAIN_USER)) == (everything | {"empty"}, True)
+
+
 def test_a_change_of_roles_applies_to_the_next_lookup_with_no_cache(seeded):
     assert asyncio.run(_visible(PLAIN_USER)) == {"zahard", "cafe", "guides"}
     with _admin(seeded) as admin:
