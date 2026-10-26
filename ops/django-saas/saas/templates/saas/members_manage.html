@@ -1,0 +1,12 @@
+{% extends "saas/base.html" %}
+{% block title %}メンバー管理（準備中）{% endblock %}
+{% block content %}
+<p><a href="{% url 'org_detail' org.id %}">&larr; {{ org.name }}</a></p>
+<h1>メンバー管理（準備中）</h1>
+<section class="card empty">
+  <p><strong>この画面はまだ使えません。</strong></p>
+  <p><strong>理由:</strong> メンバーの追加・役割の変更は、この試作ではまだ実装していないためです（メール招待もしません）。</p>
+  <p><strong>次にやること:</strong> 追加・変更のフォームをつなぐ段階で、<code>admin</code> にも許すかを決めます（API の「追加は <code>owner</code> だけ」は今のままです）。</p>
+  <p class="muted">あなたの役割: {{ role_label }}</p>
+</section>
+{% endblock %}
