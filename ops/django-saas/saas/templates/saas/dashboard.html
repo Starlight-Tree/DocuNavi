@@ -1,0 +1,14 @@
+{% extends "saas/base.html" %}
+{% block title %}ダッシュボード{% endblock %}
+{% block content %}
+<h1>ダッシュボード</h1>
+<p>ログイン中の識別子: <span class="mono" title="{{ sub }}">{{ sub_short }}</span></p>
+<h2>所属組織</h2>
+{% if cards %}{% include "saas/_cards.html" %}{% else %}{% include "saas/_empty_orgs.html" %}{% endif %}
+<h2>最近の会話</h2>
+<section class="card empty">
+  <p><strong>まだ会話はありません。</strong></p>
+  <p><strong>理由:</strong> この試作は、検索・チャット本体につながっていないためです（実際の会話は表示しません）。</p>
+  <p><strong>次にやること:</strong> 本体の画面で会話を始めると、ここに出る形を想定しています（この試作には実装していません）。</p>
+</section>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% for c in cards %}
+<section class="card" aria-labelledby="org-{{ c.org.id }}">
+  <h2 id="org-{{ c.org.id }}"><a href="{% url 'org_detail' c.org.id %}">{{ c.org.name }}</a></h2>
+  {% include "saas/_org_summary.html" %}
+  <div class="meters">{% for m in c.meters %}{% include "saas/_meter.html" %}{% endfor %}</div>
+</section>
+{% endfor %}

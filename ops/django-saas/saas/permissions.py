@@ -5,5 +5,9 @@ from .models import Role
 _RANK = {Role.VIEWER: 1, Role.MEMBER: 2, Role.ADMIN: 3, Role.OWNER: 4}
 
 
+def rank(role: str) -> int:
+    return _RANK.get(role, 0)
+
+
 def allows(role: str, minimum: str) -> bool:
-    return _RANK.get(role, 0) >= _RANK[minimum]
+    return rank(role) >= _RANK[minimum]

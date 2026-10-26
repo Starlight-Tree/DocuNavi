@@ -66,3 +66,15 @@ class Subscription(models.Model):
 
     def __str__(self) -> str:
         return f"{self.organization} ({self.status})"
+
+
+class Usage(models.Model):
+    """組織ごとの使用量（架空の値）。ダッシュボードに表示するだけで、検索や取り込みの側からは更新しない（試作）。"""
+
+    organization = models.OneToOneField(Organization, on_delete=models.CASCADE, related_name="usage")
+    pdf_count = models.PositiveIntegerField(default=0)
+    searches_this_month = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"{self.organization} (PDF {self.pdf_count}, 検索 {self.searches_this_month})"

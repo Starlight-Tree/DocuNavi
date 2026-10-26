@@ -10,7 +10,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from saas.models import Membership, Organization, Plan, Role, Subscription
+from saas.models import Membership, Organization, Plan, Role, Subscription, Usage
 
 _PLANS = [
     {
@@ -31,13 +31,16 @@ _PLANS = [
     },
 ]
 
-# (slug, 名前, プラン, 契約の状態, [(固定の UUID の末尾, 役割), ...])
+# (slug, 名前, プラン, 契約の状態, (PDF 数, 今月の検索回数), [(固定の UUID の末尾, 役割), ...])
+# 使用量は、画面で「余裕あり」「上限に近い」「上限に達した」の 3 状態が出るように決めた架空の値。
+# 末尾 2 の利用者は 2 つの組織に入っている（複数組織の表示の確認用）。メンバーは 3 組織で 8 件。
 _ORGS = [
     (
         "demo-cafe",
         "デモ カフェ",
         "free",
         Subscription.Status.TRIALING,
+        (4, 100),
         [(1, Role.OWNER), (2, Role.MEMBER), (3, Role.VIEWER)],
     ),
     (
@@ -45,9 +48,10 @@ _ORGS = [
         "デモ 寮運営",
         "pro",
         Subscription.Status.ACTIVE,
-        [(4, Role.OWNER), (5, Role.ADMIN), (6, Role.MEMBER)],
+        (30, 4200),
+        [(4, Role.OWNER), (5, Role.ADMIN), (6, Role.MEMBER), (2, Role.VIEWER)],
     ),
-    ("demo-old", "デモ 旧組織", "pro", Subscription.Status.CANCELED, [(7, Role.OWNER)]),
+    ("demo-old", "デモ 旧組織", "pro", Subscription.Status.CANCELED, (0, 0), [(7, Role.OWNER)]),
 ]
 
 
@@ -64,7 +68,7 @@ class Command(BaseCommand):
         plans = {}
         for row in _PLANS:
             plans[row["code"]], _ = Plan.objects.update_or_create(code=row["code"], defaults=row)
-        for slug, name, plan_code, status, members in _ORGS:
+        for slug, name, plan_code, status, (pdfs, searches), members in _ORGS:
             org, _ = Organization.objects.update_or_create(slug=slug, defaults={"name": name, "plan": plans[plan_code]})
             Subscription.objects.update_or_create(
                 organization=org,
@@ -75,8 +79,12 @@ class Command(BaseCommand):
                     "canceled_at": now - timedelta(days=3) if status == Subscription.Status.CANCELED else None,
                 },
             )
+            Usage.objects.update_or_create(
+                organization=org, defaults={"pdf_count": pdfs, "searches_this_month": searches}
+            )
             for n, role in members:
                 Membership.objects.update_or_create(organization=org, external_user_id=_sub(n), defaults={"role": role})
         self.stdout.write(
-            f"プラン {Plan.objects.count()} 件、組織 {Organization.objects.count()} 件、契約 {Subscription.objects.count()} 件"
+            f"プラン {Plan.objects.count()} 件、組織 {Organization.objects.count()} 件、メンバー {Membership.objects.count()} 件、"
+            f"契約 {Subscription.objects.count()} 件、使用量 {Usage.objects.count()} 件"
         )

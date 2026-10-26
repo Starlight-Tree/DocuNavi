@@ -72,6 +72,10 @@ TIME_ZONE = "Asia/Tokyo"
 USE_TZ = True
 STATIC_URL = "static/"
 
+# 利用者向け画面の試作ログイン（`sub` を選ぶか入力するだけ。パスワードも検証もない）。ローカルの確認専用で、既定は DEBUG と同じ。
+# 公開する段階では、JWT の `sub` に置き換える（saas/session_auth.py の current_sub だけを差し替える）。
+SAAS_DEMO_LOGIN = os.environ.get("SAAS_DEMO_LOGIN", "1" if DEBUG else "0") == "1"
+
 # 疑似 JWT の検証（実際の Supabase には接続しない。公開鍵は JWKS のファイルから読む）
 SAAS_JWT_ISSUER = os.environ.get("SAAS_JWT_ISSUER", "http://127.0.0.1:54321/auth/v1")
 SAAS_JWT_AUDIENCE = "authenticated"

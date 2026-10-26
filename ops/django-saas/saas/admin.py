@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Membership, Organization, Plan, Subscription
+from .models import Membership, Organization, Plan, Subscription, Usage
 
 
 class MembershipInline(admin.TabularInline):
@@ -10,6 +10,11 @@ class MembershipInline(admin.TabularInline):
 
 class SubscriptionInline(admin.StackedInline):
     model = Subscription
+    extra = 0
+
+
+class UsageInline(admin.StackedInline):
+    model = Usage
     extra = 0
 
 
@@ -24,7 +29,7 @@ class OrganizationAdmin(admin.ModelAdmin):
     list_display = ("name", "slug", "plan", "created_at")
     list_filter = ("plan",)
     search_fields = ("name", "slug")
-    inlines = [SubscriptionInline, MembershipInline]
+    inlines = [SubscriptionInline, UsageInline, MembershipInline]
 
 
 @admin.register(Membership)

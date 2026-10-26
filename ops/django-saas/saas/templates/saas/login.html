@@ -1,0 +1,16 @@
+{% extends "saas/base.html" %}
+{% block title %}ログイン{% endblock %}
+{% block content %}
+<h1>試作ログイン</h1>
+<p class="muted">ローカルの確認用です。パスワードはなく、識別子（JWT の <code>sub</code> に相当する UUID）を選ぶか入力するだけです。</p>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form method="post" class="card">{% csrf_token %}
+  <label for="sub">登録済みの利用者から選ぶ</label>
+  <select id="sub" name="sub">
+    {% for c in choices %}<option value="{{ c.sub }}">{{ c.short }}: {{ c.summary }}</option>{% empty %}<option value="">（登録された利用者がいません。<code>manage.py seed_demo</code> を実行してください）</option>{% endfor %}
+  </select>
+  <label for="sub_typed">または UUID を入力する（どの組織にも入っていない利用者の確認に使う）</label>
+  <input id="sub_typed" name="sub_typed" type="text" autocomplete="off" placeholder="例: 00000000-0000-4000-8000-000000000099">
+  <p><button type="submit" class="button">ログイン</button></p>
+</form>
+{% endblock %}

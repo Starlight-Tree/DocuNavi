@@ -1,0 +1,31 @@
+{% extends "saas/base.html" %}
+{% block title %}{{ card.org.name }}{% endblock %}
+{% block content %}
+{% with c=card %}
+<p><a href="{% url 'org_list' %}">&larr; 所属組織</a></p>
+<h1>{{ c.org.name }}</h1>
+{% include "saas/_org_summary.html" %}
+
+<section class="card" aria-labelledby="plan">
+  <h2 id="plan">プランの上限と使用量</h2>
+  <dl>
+    <dt>プラン</dt><dd>{{ c.plan.name }}（月額 {{ c.plan.monthly_price_yen }} 円・架空）</dd>
+  </dl>
+  <div class="meters">{% for m in c.meters %}{% include "saas/_meter.html" %}{% endfor %}</div>
+</section>
+
+<section class="card" aria-labelledby="members">
+  <h2 id="members">メンバー（{{ members|length }} 人）</h2>
+  <ul class="members">
+    {% for m in members %}
+    <li><span class="mono">{{ m.sub_short }}</span><strong>{{ m.role_label }}</strong>{% if m.is_me %}<span class="tag">あなた</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% if c.can_manage %}
+    <p><a class="button" href="{% url 'members_manage' c.org.id %}">メンバーを管理する</a></p>
+  {% else %}
+    <p class="muted">メンバーの追加や役割の変更は、管理者またはオーナーが行います。</p>
+  {% endif %}
+</section>
+{% endwith %}
+{% endblock %}
