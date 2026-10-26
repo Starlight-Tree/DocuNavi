@@ -1,4 +1,4 @@
-# ドキュナビ（DocuNavi）フロントエンド（frontend-next）
+# ドキュナビ（DocuNavi）フロントエンド（frontend）
 
 資料に答える RAG チャットボット（FastAPI バックエンド）の Web 画面です。Next.js（App Router）+ React + TypeScript で、
 **Vercel が配信します**。バックエンド（Cloud Run の FastAPI）は API だけを持ち、画面は配信しません（構成は [docs/target-architecture.md](../docs/target-architecture.md)）。
@@ -30,7 +30,7 @@
 .venv/bin/uvicorn app.main:app --port 8000
 
 # 2) 画面
-cd frontend-next
+cd frontend
 npm install
 cp .env.example .env.local   # 初回だけ。API_PROXY_TARGET の転送で動かすなら NEXT_PUBLIC_API_BASE_URL は空のまま
 npm run dev                  # http://localhost:3000
@@ -76,7 +76,7 @@ Compose の `frontend` サービスも、この形（`API_PROXY_TARGET=http://ap
 ## ディレクトリ構成
 
 ```
-frontend-next/
+frontend/
 ├── app/                      # App Router（page.tsx → client-app.tsx → src/Root.tsx）
 ├── next.config.ts            # API の転送（rewrites）・ビルドの出力先
 ├── playwright.config.ts, e2e/

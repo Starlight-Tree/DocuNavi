@@ -38,7 +38,7 @@ flowchart LR
 | `app/access.py`・`app/scope.py` | ロール別の資料グループ制御（`ACCESS_MODE`。[configuration.md](configuration.md) の「資料グループのアクセス制御」）。`Scope` は検索できるグループの範囲で、検索は渡し忘れを許さない |
 | `app/search_vector.py` | 質問の埋め込みと pgvector のコサイン類似度検索、起動時の DB の検査（設計: [search-design.md](search-design.md)） |
 | `app/ingestion/` | PDF の取り込み（`python -m app.ingestion`）と埋め込み（`python -m app.ingestion.embed`）。`corpus.py` は評価の BM25 基準線用 |
-| `frontend-next/` | チャット画面（Next.js + React + TypeScript）。Vercel が配信する（FastAPI は配信しない）。E2E もここ |
+| `frontend/` | チャット画面（Next.js + React + TypeScript）。Vercel が配信する（FastAPI は配信しない）。E2E もここ |
 | `storage/pdf/<名前>/` | PDF の資料（取り込みの元。検索は DB を読む。ディレクトリ名は整理用。いまは zahard・cafe・guides） |
 | `scripts/` | 評価の道具。`bm25_baseline.py` は、以前アプリが使った BM25（評価の基準線。アプリは使わない） |
 | `tests/` | pytest（モックモード固定） |
@@ -129,7 +129,7 @@ sequenceDiagram
 
 ## 画面はどう配信されるか
 
-画面（`frontend-next/`、Next.js）は Vercel が配信します。FastAPI は画面を配信せず、API だけを持ちます（2026-10-24 に、Vite の画面の配信を外した）。
+画面（`frontend/`、Next.js）は Vercel が配信します。FastAPI は画面を配信せず、API だけを持ちます（2026-10-24 に、Vite の画面の配信を外した）。
 ブラウザーは、Vercel の画面から Cloud Run の API を直接呼ぶ別オリジンの構成なので、API は `CORS_ORIGINS` に画面のオリジンを持ちます。
 Cloud Run の `/` は 404 です。ローカルの開発では、Next.js の開発サーバーが `next.config.ts` の rewrites で API を同じオリジンに見せます。構成の決定は [target-architecture.md](target-architecture.md) です。
 

@@ -98,7 +98,7 @@ services:
       start_period: 5s
     restart: "no"
 
-  # 画面の開発サーバー（frontend-next の next dev。http://localhost:3000）。api とは別のコンテナで、ホットリロードで動く。
+  # 画面の開発サーバー（frontend/ の next dev。http://localhost:3000）。api とは別のコンテナで、ホットリロードで動く。
   # /chat /health /documents /threads は、next.config.ts の rewrites が、サービス名 api（Compose 内の名前解決）へ転送する
   # （API_PROXY_TARGET。NEXT_PUBLIC_API_BASE_URL は空にして、ブラウザーからは同じオリジンに見せる）。
   # api が healthy になってから起動する。本番の画面は Vercel が配信し、api（Cloud Run）は画面を配信しない。
@@ -115,13 +115,13 @@ services:
       - frontend-net
     environment:
       API_PROXY_TARGET: "http://api:8000"
-      # 空にする（frontend-next/.env.local の値より、コンテナの環境変数が優先される）
+      # 空にする（frontend/.env.local の値より、コンテナの環境変数が優先される）
       NEXT_PUBLIC_API_BASE_URL: ""
       # ホスト↔コンテナの変更通知が届かず、ホットリロードが効かないときだけ、次の行の # を外す
       # （ポーリングは CPU を使う。Docker Desktop など、ファイル変更通知が届かない環境向け）
       # WATCHPACK_POLLING: "true"
     volumes:
-      - ./frontend-next:/app
+      - ./frontend:/app
       # node_modules と .next はホストのものと分ける（ネイティブの依存が OS ごとに違うため）。依存を変えたら起動時の npm install が反映する
       - frontend_next_node_modules:/app/node_modules
       - frontend_next_cache:/app/.next

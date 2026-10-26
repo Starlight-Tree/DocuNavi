@@ -47,7 +47,7 @@ def test_pushes_the_image_before_deploying() -> None:
 
 
 def test_builds_the_api_image_without_build_args() -> None:
-    # 画面は Vercel の frontend-next が配信する。イメージに画面の設定（ビルド引数）は要らず、秘密も渡さない
+    # 画面は Vercel の frontend が配信する。イメージに画面の設定（ビルド引数）は要らず、秘密も渡さない
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert not re.search(r"^ARG ", dockerfile, flags=re.MULTILINE)
     assert "--build-arg" not in _step("build")["args"]

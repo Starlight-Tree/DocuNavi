@@ -18,7 +18,7 @@ def _build_step() -> tuple[dict, dict]:
 
 
 def test_builds_the_api_image_without_build_args() -> None:
-    # 画面は Vercel の frontend-next が配信する。イメージに画面の設定（ビルド引数）は要らない
+    # 画面は Vercel の frontend が配信する。イメージに画面の設定（ビルド引数）は要らない
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert not re.search(r"^ARG ", dockerfile, flags=re.MULTILINE)
     _, step = _build_step()

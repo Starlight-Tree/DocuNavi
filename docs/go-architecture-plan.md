@@ -22,7 +22,7 @@
 ```mermaid
 flowchart LR
     browser["ブラウザー"]
-    vercel["Vercel<br/>frontend-next（Next.js）"]
+    vercel["Vercel<br/>frontend（Next.js）"]
     relay["Cloud Run: docunavi-sse-relay<br/>Go（main.go 234 行）<br/>POST /chat/stream だけ"]
     api["Cloud Run: docunavi<br/>FastAPI + LangGraph（h2c, hypercorn）"]
     pg[("Supabase<br/>Postgres + pgvector")]
@@ -84,7 +84,7 @@ flowchart LR
 | 14 | 取り込みの制御（Queue） | `app/ingestion/queue_worker.py` 418（Queue から pull、メッセージの検査、ack/retry の判断） | Cloudflare Queues の REST、R2 | 11・12 経由 | 上の 3 つ + `ingest-queue-token` | 36 関数（展開後 65 件） | **配備済み（2026-10-26）**。Cloud Run Job `docunavi-ingest-queue`（イメージ `docunavi-ingest:8a9ba33`）を Cloud Scheduler `docunavi-ingest-queue-every-5min` が 5 分おきに起動する（[r2-ingest-design.md](r2-ingest-design.md) の「本番への切り替え」） |
 | 15 | 運用の Job | `ops/r2_key_issuer`（664 行）、`ops/r2_wire`（429 行）、`ops/budget_guard`（72 行） | Cloudflare / Cloud Run / Billing の API | なし | 各々 | `test_r2_key_issuer` `test_r2_wire` `test_budget_guard` | Cloud Run Job、Cloud Run functions |
 | 16 | 検索の MCP サーバー | `ops/mcp_search/main.py` 150（`app.search_vector` を使う） | Gemini | `chunks`（読み取り専用ロール） | `database-url-readonly` `gemini-api-key` | 13 | Cloud Run `docunavi-mcp`（非公開） |
-| 17 | 画面 | `frontend-next/`（Next.js） | API | なし | 公開用の値のみ | 単体 + E2E | Vercel |
+| 17 | 画面 | `frontend/`（Next.js） | API | なし | 公開用の値のみ | 単体 + E2E | Vercel |
 
 境界の性質で見ると、次の 3 つが重要。
 
@@ -118,7 +118,7 @@ flowchart LR
 | アイドルタイムアウト | ✗ | 本文が止まったままでも、`: ping` を送り続け、上流が止まっているのか生きているのか区別せず待つ。上流が `: ping` を送り続ける限り、実質いつまでも開いている（上限は Cloud Run の 120 秒） |
 | 接続数・同時実行数の制御 | ✗ | 上限なし。Cloud Run 側の `containerConcurrency 20`・最大 2 台が事実上の上限（それを超えた要求は Cloud Run が受け付ける側で待たされる〔挙動は未確認〕） |
 | 観測性（接続数・エラー率・遅延をログ・メトリクスで） | ✗ | 標準の `log` による文字列のログのみ。リクエストごとの記録（開始・終了・状態・所要時間・切断の理由）が無い。メトリクス無し。Cloud Logging が付ける request ログに頼っている |
-| 上流が失敗したときの SSE 上の `error` イベント | ✗ | `ErrorHandler` が **本文なしの 502** を返す。画面は HTTP の失敗として扱う（フロントの扱いは `frontend-next/src/api/chat.ts`。**本ファイル作成時には読んでいない**）。ヘッダー送信後（途中）の上流の失敗は、接続が閉じるだけ。**既知の課題:** 上流に届かず 502 を返した後、同じ HTTP/1.1 の接続を使い回した次の要求が "connection reset" になることがある（ローカルの単体テストで 60 回中 52 回。上限の有無に関係しない）。原因は 502 のとき要求本文を読まずに閉じるためと推測（未検証）。本番のブラウザー〜中継は HTTP/2 のはずで影響は未確認。直さず記録のみ。実 API の段階 1b で確認する |
+| 上流が失敗したときの SSE 上の `error` イベント | ✗ | `ErrorHandler` が **本文なしの 502** を返す。画面は HTTP の失敗として扱う（フロントの扱いは `frontend/src/api/chat.ts`。**本ファイル作成時には読んでいない**）。ヘッダー送信後（途中）の上流の失敗は、接続が閉じるだけ。**既知の課題:** 上流に届かず 502 を返した後、同じ HTTP/1.1 の接続を使い回した次の要求が "connection reset" になることがある（ローカルの単体テストで 60 回中 52 回。上限の有無に関係しない）。原因は 502 のとき要求本文を読まずに閉じるためと推測（未検証）。本番のブラウザー〜中継は HTTP/2 のはずで影響は未確認。直さず記録のみ。実 API の段階 1b で確認する |
 | ヘルスチェック | ✗ | `/healthz` 等が無い（`/chat/stream` 以外は 404）。Cloud Run の起動確認は TCP |
 | 最小権限 | ✗ | `docunavi-run`（API と同じ SA）で動くが、中継は Secret も DB も要らない |
 | 本文サイズの上限 | ✗ | 付けていない（README の「未確認」） |
