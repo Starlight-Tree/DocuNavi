@@ -43,7 +43,7 @@ const (
 	corsOriginsEnv = "CORS_ORIGINS"
 	// 上限で断ったときの待ち時間の目安（秒）。Retry-After に入れる
 	rejectRetryAfter = "5"
-	// 画面は 503 の detail が日本語ならそのまま見せる（frontend-next/src/api/chat.ts の SERVER_DETAIL_STATUSES）
+	// 画面は 503 の detail が日本語ならそのまま見せる（frontend/src/api/chat.ts の SERVER_DETAIL_STATUSES）
 	rejectBody = `{"detail":"ただいま混み合っています。しばらく待ってから、もう一度お試しください。"}`
 )
 

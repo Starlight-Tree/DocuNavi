@@ -1,5 +1,5 @@
 # Cloud Build でイメージをビルドして Artifact Registry に置く（scripts/preview.sh の build が使う。手順は docs/deploy.md）。
-# 画面は Vercel の frontend-next が配信するので、このイメージは API だけ（ビルド引数は無い）。
+# 画面は Vercel の frontend が配信するので、このイメージは API だけ（ビルド引数は無い）。
 # 配備は、できたイメージを `gcloud run deploy --image` で行う（このファイルは配備しない）。
 #
 # 置換変数（--substitutions で渡す。ユーザー定義は _ で始まる）:
