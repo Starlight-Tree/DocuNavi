@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from app import history, search_vector
+from app.scope import Scope
 from app.search_vector import Hit
 from ops.mcp_search import main as mcp_main
 
@@ -26,7 +27,9 @@ def no_pool(monkeypatch: pytest.MonkeyPatch) -> None:
 def fake_search(monkeypatch: pytest.MonkeyPatch, hits: list[Hit] | Exception) -> list[tuple[str, int]]:
     calls: list[tuple[str, int]] = []
 
-    async def search(query: str, top_k: int) -> list[Hit]:
+    async def search(query: str, top_k: int, *, scope: Scope) -> list[Hit]:
+        # 運用者専用の MCP は、全グループを検索することを明示して呼ぶ
+        assert scope is Scope.ALL
         calls.append((query, top_k))
         if isinstance(hits, Exception):
             raise hits

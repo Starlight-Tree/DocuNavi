@@ -4,7 +4,8 @@
 - `GET /documents/{id}/impact?node=…&hops=2`: そのノードを変えたとき、依存をたどって影響が及ぶ先
 - 対象は入寮規程（`tsubasa_dorm_rules.pdf`）だけ。他の資料は 404
 - DB には何も保存しない。元の PDF（名前と内容のハッシュが DB と合うもの。`app/pdf_originals.py`）を、リクエストのたびに読んで計算する
-- `AUTH_MODE=required` のときは `/documents` と同じ検証（`current_user`）を通った人だけが読める
+- `AUTH_MODE=required` のときは `/documents` と同じ検証（`current_user`）を通った人だけが読める。`ACCESS_MODE=enforce` で
+  見えないグループの資料は、存在しないのと同じ 404（対象外の資料の 404 と文が違うと存在が分かるので、先に見える資料かを確かめる）
 - 例外の文字列・サーバーのパスは返さない（固定メッセージ）
 """
 
@@ -16,6 +17,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from pydantic import BaseModel
 
+from app.access import Access, request_access
 from app.api.documents import (
     _DETAIL_NO_ORIGINAL,
     _DETAIL_NOT_CONFIGURED,
@@ -27,7 +29,6 @@ from app.api.documents import (
     _no_store,
     _unavailable,
 )
-from app.auth import current_user
 from app.history import get_pool
 from app.pdf_originals import find_original
 from app.relations.graph import Analysis, Impact, NotAnImpactSource, UnknownNode, analyze_dorm_rules, impact_of
@@ -109,7 +110,8 @@ def _edge(e) -> GraphEdge:
     )
 
 
-async def _load(document_id: int) -> tuple[GraphSource, Analysis]:
+async def _load(document_id: int, access: Access) -> tuple[GraphSource, Analysis]:
+    access.require_any()
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail=_DETAIL_NOT_CONFIGURED)
@@ -122,6 +124,7 @@ async def _load(document_id: int) -> tuple[GraphSource, Analysis]:
     if not rows:
         raise HTTPException(status_code=404, detail=_DETAIL_NOT_FOUND)
     row = rows[0]
+    access.require_visible(row.get("collection"), "関係図", _DETAIL_NOT_FOUND)
     if row["source"] != SUPPORTED_SOURCE:
         raise HTTPException(status_code=404, detail=_DETAIL_UNSUPPORTED)
     original = await asyncio.to_thread(find_original, row["source"], row.get("content_hash"))
@@ -150,10 +153,10 @@ async def _load(document_id: int) -> tuple[GraphSource, Analysis]:
 async def document_graph(
     document_id: Annotated[int, Path(ge=1, le=_MAX_ID)],
     response: Response,
-    _user: Annotated[str | None, Depends(current_user)],
+    access: Annotated[Access, Depends(request_access)],
 ) -> GraphResponse:
     _no_store(response)
-    source, analysis = await _load(document_id)
+    source, analysis = await _load(document_id, access)
     return GraphResponse(
         document=source,
         title=analysis.title,
@@ -166,12 +169,12 @@ async def document_graph(
 async def document_impact(
     document_id: Annotated[int, Path(ge=1, le=_MAX_ID)],
     response: Response,
-    _user: Annotated[str | None, Depends(current_user)],
+    access: Annotated[Access, Depends(request_access)],
     node: Annotated[str, Query(pattern=_NODE_ID)],
     hops: Annotated[int, Query(ge=1, le=MAX_HOPS)] = 2,
 ) -> ImpactResponse:
     _no_store(response)
-    source, analysis = await _load(document_id)
+    source, analysis = await _load(document_id, access)
     try:
         result: Impact = impact_of(analysis, node, hops)
     except UnknownNode:

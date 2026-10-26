@@ -14,6 +14,7 @@ from langchain_core.messages import AIMessage
 
 from app.api import routes
 from app.main import app
+from app.scope import ACCESS_SCOPE_KEY, Scope
 
 # 例外メッセージに混ぜて、レスポンスへ漏れていないかを確認するための文字列
 SECRET = "SECRET-KEY-abc123 internal-host.local"
@@ -213,7 +214,8 @@ def test_success_passes_stripped_message_and_keeps_response_shape(client, use_gr
         "hit_count": None,
     }
     assert graph.calls[0]["state"]["messages"][0].content == "ザーハードとは？"
-    assert graph.calls[0]["config"] == {"configurable": {"thread_id": "abc-1"}}
+    # 検索できる範囲は config で渡る（ACCESS_MODE=off は全グループ）
+    assert graph.calls[0]["config"] == {"configurable": {"thread_id": "abc-1", ACCESS_SCOPE_KEY: Scope.ALL}}
 
 
 # ---- 入力検証 ----

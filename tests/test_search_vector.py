@@ -20,9 +20,12 @@ from app.agents.tools import TOP_K, search_documents
 from app.api import routes
 from app.ingestion import embedding
 from app.main import app
+from app.scope import ACCESS_SCOPE_KEY, Scope
 
 pytestmark = pytest.mark.real_search
 
+# 検索ツールは、検索できる範囲を config で受け取る（渡されなければ何も検索しない）。このファイルは全グループで呼ぶ
+ALL_CONFIG = {"configurable": {ACCESS_SCOPE_KEY: Scope.ALL}}
 VECTOR = [0.001 * i for i in range(1, embedding.DIMENSIONS + 1)]
 SECRET = "AIzaSECRETKEY postgresql://user:pw@db.example.com/x https://example.com/leak"
 
@@ -86,7 +89,7 @@ def vector_env(monkeypatch: pytest.MonkeyPatch):
 
 
 def ainvoke(query: str) -> str:
-    return asyncio.run(search_documents.ainvoke({"query": query}))
+    return asyncio.run(search_documents.ainvoke({"query": query}, ALL_CONFIG))
 
 
 # ---- ツールの定義 ----
@@ -116,7 +119,7 @@ def test_the_tool_has_no_synchronous_path():
 def call_tool(query: str):
     """ToolCall の形で呼ぶ（グラフの ToolNode と同じ）。ToolMessage の content が LLM に見える文面、artifact が画面に渡す出典。"""
     call = {"name": "search_documents", "args": {"query": query}, "id": "call-1", "type": "tool_call"}
-    return asyncio.run(search_documents.ainvoke(call))
+    return asyncio.run(search_documents.ainvoke(call, ALL_CONFIG))
 
 
 def test_the_page_goes_to_the_artifact_and_never_into_the_text_the_model_sees(vector_env):
@@ -259,8 +262,8 @@ def test_results_below_the_floor_are_not_returned(vector_env):
 
 def test_a_blank_query_or_a_zero_top_k_does_not_call_the_embedding_or_the_database(vector_env):
     pool, embedder = vector_env
-    assert asyncio.run(search_vector.search("   ", TOP_K)) == []
-    assert asyncio.run(search_vector.search("大気", 0)) == []
+    assert asyncio.run(search_vector.search("   ", TOP_K, scope=Scope.ALL)) == []
+    assert asyncio.run(search_vector.search("大気", 0, scope=Scope.ALL)) == []
     assert embedder.queries == [] and pool.calls == []
 
 

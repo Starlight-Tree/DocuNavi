@@ -11,6 +11,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 
 from app import search_vector
+from app.scope import ACCESS_SCOPE_KEY, Scope
 from app.search_vector import Hit
 
 logger = logging.getLogger(__name__)
@@ -34,15 +35,18 @@ _SEARCH_DESCRIPTION = (
 )
 
 
-async def search_chunks_async(query: str, top_k: int = TOP_K, collection: str | None = None) -> list[Hit]:
+async def search_chunks_async(
+    query: str, top_k: int = TOP_K, collection: str | None = None, *, scope: Scope
+) -> list[Hit]:
     """クエリに近い資料の箇所を、`Hit`（ファイル名・本文・ページ）で最大 top_k 件返す（DB のベクトル検索。しきい値未満は返さない）。
 
-    `collection` を渡すと、その資料のグループだけを探す（None は全資料）。
+    `scope` は必須（検索できるグループの範囲。全グループは `Scope.ALL` を明示する）。`collection` を渡すと、その範囲の中の
+    そのグループだけを探す（None は範囲の全資料）。
 
     失敗しても BM25 などには戻らない（どちらで答えたかが曖昧になるため）。`VectorSearchError` を投げ、API が 503 の固定文にする。
     """
     try:
-        return await search_vector.search(query, top_k, collection)
+        return await search_vector.search(query, top_k, collection, scope=scope)
     except search_vector.VectorSearchError:
         raise
     except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・URL・本文が入りうる。型の名前だけを残す
@@ -81,11 +85,14 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
 async def _asearch_documents(query: str, config: RunnableConfig) -> tuple[str, list[dict[str, Any]]]:
     # 検索対象は LLM の引数ではなく、グラフの状態（会話ごとに固定）から tools ノードが config で渡す。LLM が変えられるのは query だけ
     # （`config` は LangChain が注入する引数で、LLM に見せるツールの定義には載らない）
-    collection = (config.get("configurable") or {}).get(COLLECTION_KEY)
-    if collection is None:
-        hits = await search_chunks_async(query)  # 指定なし（全資料）の呼び出しは、従来と同じ形のまま
-    else:
-        hits = await search_chunks_async(query, collection=collection)
+    configurable = config.get("configurable") or {}
+    collection = configurable.get(COLLECTION_KEY)
+    # 検索できる範囲も、LLM の引数ではなく config で渡る（API が利用者ごとに決める）。渡されていなければ何も見えない範囲にする
+    scope = configurable.get(ACCESS_SCOPE_KEY)
+    if not isinstance(scope, Scope):
+        logger.warning("検索の範囲が渡されませんでした。何も検索しません")
+        scope = Scope.NONE
+    hits = await search_chunks_async(query, collection=collection, scope=scope)
     return _format_hits(hits), _sources(hits)
 
 

@@ -117,7 +117,7 @@ def test_lists_registered_groups_with_label_description_and_counts(client, use_p
         "ready_count": 3,
     }
     assert body["collections"][1]["document_count"] == 0 and body["collections"][1]["ready_count"] == 0
-    assert pool.calls == [(collections._LIST_SQL, {"limit": collections._MAX_COLLECTIONS})]
+    assert pool.calls == [(collections._LIST_SQL, {"limit": collections._MAX_COLLECTIONS, "allowed": None})]
 
 
 def test_an_unregistered_name_is_returned_with_the_name_as_its_label(client, use_pool):

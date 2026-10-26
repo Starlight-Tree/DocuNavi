@@ -24,6 +24,7 @@
 | `DATABASE_POOL_MAX_SIZE` | `5` | 1 インスタンスが DB へ張る接続の上限。不正値・1 未満は既定値に戻る |
 | `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Supabase Auth の JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
 | `SUPABASE_URL` | （空） | `AUTH_MODE=required` のとき必須。プロジェクトの URL（`https://<ref>.supabase.co`。公開してよい値だが、このリポジトリには書かない）。JWT の公開鍵（JWKS）の取得先と、発行元の確認に使う |
+| `ACCESS_MODE` | `off` | 利用者のロールごとに、見える資料グループを制限するか（下記「資料グループのアクセス制御」）。`off` は制限なし（DB も読まない）、`shadow` は制限せずに絞り込まれる件数をログに出す、`enforce` は実際に制限する。知らない値は起動を失敗させる。`shadow` と `enforce` は `DATABASE_URL` と、マイグレーション `20261026045921` の適用が要る（無ければ起動を失敗させる） |
 
 ## 資料の検索
 
@@ -96,6 +97,71 @@ Google ログイン → 画面に戻る → 質問を送って回答が返る、
 
 **未確認:** Docker イメージ（画面の設定を外した、API だけの今のイメージを Cloud Build でビルドして配備した記録は無い。`docs/deploy.md` の「F」）、
 Cloud Run などの公開環境での動作。
+
+## 資料グループのアクセス制御
+
+利用者ごとに、検索・回答・出典・本文・PDF・関係図・会話の表示が届く資料グループ（`documents.collection`）を決めます（ロードマップ ⑧。実装は `app/access.py` と `app/scope.py`）。
+**既定は `ACCESS_MODE=off`（制限なし）で、いまの挙動のままです。本番へはまだ適用していません**（マイグレーションの適用も、`shadow` / `enforce` への切り替えも、別途承認を取って行います）。
+
+**見えるグループの決め方**
+
+- 利用者のロール（`chatbot.user_roles`。`user_id` は JWT の `sub`）が持つグループ（`chatbot.role_collection_access`）の和集合。
+- ロールが 1 つも割り当てられていない利用者は `default` ロール（初期データは `zahard` `cafe` `guides` の 3 グループ）。`AUTH_MODE=off` の匿名も `default`。
+  ほかのロールを 1 つでも割り当てると `default` は使われない（足したいときは `default` も割り当てる）。
+- キャッシュは持たず、リクエストごとに DB から引く。割り当てを変えると、次のリクエストから効く。
+- グループを持たない資料（`collection` が NULL）は、`ACCESS_MODE=enforce` では誰にも見えない（`ACCESS_MODE=off` の検索・一覧にだけ出る）。
+- 権限の判断はサーバーだけで行う（LLM には任せない）。検索は、検索の前に SQL で範囲を絞る（取ってから消さない）。範囲を絞った検索は、返ってきた行も確かめ直す。
+
+**`ACCESS_MODE`**
+
+| 値 | 挙動 |
+|---|---|
+| `off`（既定） | 制限しない。ロールの表を読まない（マイグレーション前でも動く） |
+| `shadow` | 制限しない。毎回ロールの表を引いて、`enforce` なら何件が絞り込まれるかを INFO ログに出す（件数だけ。グループ名は出さない）。引けなくても制限なしで続ける。本番はまずこれで観察する |
+| `enforce` | 制限する。引けなければ 503 の固定文（制限なしには倒れない）。起動時に、ロールの表と `default` ロールを検査して、無ければ起動を失敗させる |
+
+`shadow` のログは `アクセス制御(shadow): <経路> 全 N 件のうち M 件が enforce では絞り込まれる` の形。検索は、返った上位の件数のうちの M 件で、
+絞り込んだときに繰り上がる次点の結果までは見ない（実際の差はこれより小さいことがある）。
+
+**経路ごとの挙動（`enforce`）**
+
+| 経路 | 見えないグループの扱い |
+|---|---|
+| 検索（`search_vector.search`） | SQL で範囲に絞る。`scope` は必須の引数で、渡し忘れ・`None` は `TypeError`、`Scope.NONE` は何も返さない。全グループは `Scope.ALL` を明示したときだけ |
+| `GET /documents` | 見えるグループの資料だけ |
+| `GET /documents/{id}/chunks`・`/file`・`/graph`・`/impact` | 見えない資料は、存在しない資料と同じ 404（文も同じ。関係図の「対象外」の文より先に確かめる） |
+| `GET /collections` | 見えるグループだけ |
+| `POST /chat`・`/chat/stream` | `collection` が見えない（存在しないグループも同じ）なら 403。続きの会話に保存された検索対象が見えなくなっていても 403。省略した検索対象（「すべて」）は、見えるグループすべて |
+| `GET /threads/{id}/messages` | 会話は表示する。見えないグループの検索結果に基づく回答は固定文に置き換える。保存された検索対象が見えなければ `collection` は null |
+| 上のすべて | 見えるグループが 0 件なら 403「利用できる資料がありません。」（会話の一覧・表示は止めない） |
+
+エラーの文はすべて固定で、見えないグループの名前を載せない。会話の途中で検索対象を変えたときの 409 の文も、グループ名を載せなくなった。
+
+**過去の会話:** 会話自体と本人の発言は表示する。1 回の質問の中で、いま見えないグループが出典に入った検索結果があれば、その結果と、その後の最終回答を伏せる
+（画面にも、次の質問で LLM に渡す履歴にも出さない）。出典のグループが分からない検索結果（この項目を持たない古い会話）は、範囲を絞っているときは伏せる。
+伏せるのは検索結果とその回答だけで、ユーザーの発言や、検索していない回答には触れない。
+
+**検索の範囲の渡し方:** `config["configurable"]` の `access_scope` で検索ツールまで渡す。会話の状態（チェックポイント）には保存しない
+（`tests/test_access.py` が確かめる）。ツールを呼ぶ LLM の引数にも出ない。
+
+**MCP（`docunavi-mcp`）:** 運用者専用で、利用者のロールを持たない。`Scope.ALL` を明示して**全グループ**を検索する。利用者には公開しない（IAM の `roles/run.invoker` を持つ運用者だけが呼べる）。
+
+**ロールの割り当て:** 管理画面ができるまで（フェーズ 4。必要になってから検討する）、運用者が SQL で `chatbot.user_roles` を更新する。`chatbot_app`（API が使うロール）は SELECT だけなので、
+書き込みは運用者の権限（`postgres` など）で行う。変更は `chatbot.access_audit` に残る（`actor` は接続したロール）。例:
+
+```sql
+-- ロールを作る → ロールが見るグループを決める → 利用者（JWT の sub）に割り当てる
+insert into chatbot.roles (name, label) values ('cafe-staff', '店舗の担当');
+insert into chatbot.role_collection_access (role, collection) values ('cafe-staff', 'cafe');
+insert into chatbot.user_roles (user_id, role) values ('00000000-0000-0000-0000-000000000000', 'cafe-staff');
+```
+
+利用者の UUID は Supabase の Authentication の画面で確認する（メールとの対応は、このリポジトリでは持たない）。
+
+**確かめた範囲:** `tests/test_access.py`（偽の DB。10 経路の漏れ、`default` ロールが `off` と同じ結果になること、`ACCESS_MODE` の 3 値、`scope` を渡し忘れても全件を検索しないこと、
+会話の伏せ方）と `tests/test_access_postgres.py`（ローカルの Postgres 17。見えるグループを引く SQL、一覧の SQL の絞り込み、端から端までの挙動）。
+**未確認:** 検索の SQL（pgvector が要るので、ローカルの Postgres では動かせない。絞り込みの条件は一覧の SQL と共通で、そちらは確かめた）、本番の DB・本番のロール（`chatbot_app`）での動作、
+`shadow` のログを実際の利用で観察した結果、Supabase の Data API に `chatbot` スキーマが公開されていないこと（RLS はこの段階では入れていない）。
 
 ## 会話履歴の保存先
 

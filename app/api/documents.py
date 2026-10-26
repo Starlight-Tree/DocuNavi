@@ -2,8 +2,9 @@
 
 - チャットの検索（ベクトル検索）が読むのと同じ DB。ここに出る本文が、検索の対象になる本文そのもの（`status = 'ready'` の文書）
 - `GET /documents/{id}/file` は取り込んだ元の PDF を返す（名前と内容のハッシュが DB と合うものだけ。`app/pdf_originals.py`）
-- `AUTH_MODE=required` のときは、`/chat` と同じ検証（`current_user`）を通った人だけが読める。資料ごとの閲覧権限は
-  まだ無く、ログインした人は全員が全文を読める
+- `AUTH_MODE=required` のときは、`/chat` と同じ検証（`current_user`）を通った人だけが読める
+- `ACCESS_MODE=enforce` のときは、利用者が見えるグループ（`app/access.py`）の資料だけが一覧に出て、見えない資料の本文・PDF・関係図は
+  存在しないのと同じ 404（`off` と `shadow` は、ログインした人が全グループの全文を読める）。見えるグループが 0 件なら 403
 - 埋め込みのベクトルは返さない（あるかどうかと、モデル名だけ）。DB のエラーの文字列も返さない（固定メッセージ）
 """
 
@@ -17,9 +18,10 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Path, Response
 from pydantic import BaseModel
 
-from app.auth import current_user
+from app.access import Access, request_access
 from app.history import get_pool
 from app.pdf_originals import find_original
+from app.scope import ALLOWED_FILTER_SQL
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,7 @@ _LIST_SQL = (
     "d.failure_reason AS failure_reason, d.pages AS pages, d.updated_at AS updated_at, "
     "count(c.id) AS chunk_count, count(c.embedding) AS embedded_count "
     "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id "
+    "WHERE " + ALLOWED_FILTER_SQL + " "
     "GROUP BY d.id ORDER BY d.source, d.id LIMIT %(limit)s"
 )
 _DOCUMENT_SQL = (
@@ -139,28 +142,34 @@ def _summary(row: dict[str, Any]) -> DocumentSummary:
 @router.get("", response_model=DocumentList)
 async def list_documents(
     response: Response,
-    _user: Annotated[str | None, Depends(current_user)],
+    access: Annotated[Access, Depends(request_access)],
 ) -> DocumentList:
     _no_store(response)
+    access.require_any()
     pool = get_pool()
     if pool is None:
         return DocumentList(configured=False, documents=[])
     try:
         async with pool.connection() as conn:
-            cursor = await conn.execute(_LIST_SQL, {"limit": _MAX_DOCUMENTS})
+            cursor = await conn.execute(_LIST_SQL, {"limit": _MAX_DOCUMENTS, "allowed": access.scope.sql_names()})
             rows = await cursor.fetchall()
     except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・SQL が入りうる。型の名前だけを残す
         raise _unavailable(exc) from None
-    return DocumentList(configured=True, documents=[_summary(row) for row in rows])
+    access.scope.log_shadow("資料の一覧", (row.get("collection") for row in rows))
+    # SQL で絞っているが、返す前にもう一度確かめる（範囲の外のグループの資料は返さない）
+    return DocumentList(
+        configured=True, documents=[_summary(row) for row in rows if access.allows(row.get("collection"))]
+    )
 
 
 @router.get("/{document_id}/chunks", response_model=DocumentDetail)
 async def document_chunks(
     document_id: Annotated[int, Path(ge=1, le=_MAX_ID)],
     response: Response,
-    _user: Annotated[str | None, Depends(current_user)],
+    access: Annotated[Access, Depends(request_access)],
 ) -> DocumentDetail:
     _no_store(response)
+    access.require_any()
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail=_DETAIL_NOT_CONFIGURED)
@@ -177,6 +186,8 @@ async def document_chunks(
         raise _unavailable(exc) from None
     if not documents:
         raise HTTPException(status_code=404, detail=_DETAIL_NOT_FOUND)
+    # 見えないグループの資料は、存在しないのと同じ 404（本文は返さない）
+    access.require_visible(documents[0].get("collection"), "資料の本文", _DETAIL_NOT_FOUND)
     summary = _summary(documents[0])
     summary.chunk_count = len(chunks)
     summary.embedded_count = sum(1 for chunk in chunks if chunk["embedded"])
@@ -208,10 +219,11 @@ def _content_disposition(document_id: int, source: str) -> str:
 @router.get("/{document_id}/file")
 async def document_file(
     document_id: Annotated[int, Path(ge=1, le=_MAX_ID)],
-    _user: Annotated[str | None, Depends(current_user)],
+    access: Annotated[Access, Depends(request_access)],
 ) -> Response:
     """取り込んだ元の PDF。名前とハッシュが DB と合うものだけを、確かめたバイト列のまま返す（app/pdf_originals.py）。"""
     headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+    access.require_any()
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail=_DETAIL_NOT_CONFIGURED)
@@ -223,6 +235,7 @@ async def document_file(
         raise _unavailable(exc) from None
     if not rows:
         raise HTTPException(status_code=404, detail=_DETAIL_NOT_FOUND)
+    access.require_visible(rows[0].get("collection"), "元の PDF", _DETAIL_NOT_FOUND)
     source = rows[0]["source"]
     original = await asyncio.to_thread(find_original, source, rows[0].get("content_hash"))
     if not original.ok or original.data is None:
