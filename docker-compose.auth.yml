@@ -1,0 +1,13 @@
+# api を、ログイン必須（AUTH_MODE=required）で動かす上書き（画面で Google ログインしたまま、会話の履歴の一覧を使いたいとき用）。
+# 普段の docker-compose.yml では AUTH_MODE は off（匿名）で、GET /threads は 404 になり、画面の「会話の履歴」は読み込めない。
+#
+# SUPABASE_URL は .env から渡る（https://<プロジェクト>.supabase.co。api が公開鍵を取りに行くので、未設定なら api は起動に失敗する）。
+# 画面（frontend）の NEXT_PUBLIC_SUPABASE_URL と同じプロジェクトにすること。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d api
+#
+# 元に戻すとき: docker compose up -d api（上書きなしで作り直す）
+services:
+  api:
+    environment:
+      AUTH_MODE: "required"
