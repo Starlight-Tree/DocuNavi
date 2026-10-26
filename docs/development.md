@@ -98,7 +98,12 @@ docker compose restart frontend && docker compose ps                  # frontend
 **Next.js 版の `frontend` の状況（2026-10-25 更新）:** Vite の開発サーバーから置き換えた（2026-10-24）。
 **ホスト側（OrbStack）で、起動までは確認済み（2026-10-25）:** `docker compose up --build -d db api frontend` が通り、`ps` で `db`・`api`・`frontend` が healthy（`frontend` は作成の約 16 秒後）。
 `localhost:3000/health` が `{"status":"ok","mode":"gemini","history":"postgres"}`（rewrites → `api:8000` が通る）、`localhost:3000/` が 200。
-**未確認:** ホットリロード（`WATCHPACK_POLLING`）、`restart frontend` で `api` が動き続けること、`down` の所要時間、ブラウザーでの見た目と SSE の体感、Compose の `frontend` からの Google ログインの戻り。
+**再確認（2026-10-26。`frontend/` を `frontend-next/` から改名し、`frontend` コンテナを作り直した後）:** ホストで `docker compose ps` が `api`・`frontend` とも healthy、`localhost:3000/` が 200、`localhost:3000/health` が 200 で `api` の応答（rewrites の中継）、`frontend` コンテナから `http://api:8000/health` も同じ応答。
+`touch frontend/src/Root.tsx` の後のログには、ヘルスチェックの `GET / 200` しか出なかった（更新日時だけの変更で、`Root.tsx` はブラウザー側でだけ読まれる〔`ssr: false`〕ため、これでは判定できない）。
+**ファイル監視は確認済み（2026-10-26、開発コンテナから `host.docker.internal:3000` へ）:** `frontend/app/layout.tsx` の `title` を一時的に `ドキュナビ-hrtest` に変えると、5 秒以内に `curl` の HTML の `<title>` が変わり、戻すと元に戻った（`WATCHPACK_POLLING` なしで、ホストの変更が `frontend` コンテナの `next dev` に届く。差分は残していない）。
+Playwright で `host.docker.internal:3000` を開くと、`allowedDevOrigins` が `127.0.0.1` だけの間は、HMR の WebSocket（`/_next/hmr`）が `ERR_INVALID_HTTP_RESPONSE` で失敗した。`allowedDevOrigins` に `host.docker.internal` を一時的に足すと `[HMR] connected` になり、接続後に `layout.tsx` の `title` を変えると、再読み込みなし（`window` に置いた目印が残ったまま）で `document.title` が変わった（2026-10-26、確認後に設定は戻した）。ただし、接続後の最初の編集では変わらず、2 回目の編集で変わった（原因は未調査）。`localhost:3000` で開く本来の使い方は、`127.0.0.1` が許可済みの別オリジンなので、同じ結果になるかは見ていない（ホストのブラウザーでは未確認）。
+**Google ログインの戻りは確認済み（2026-10-26、ホストのブラウザーで `localhost:3000`）:** Supabase の Redirect URLs に `http://localhost:3000` が無い間は、Site URL（Cloud Run の URL）に戻され、API の 404（`{"detail":"Not Found"}`）が出た。足したあとは `localhost:3000` に戻り、ログイン済みの画面（メールアドレス表示）になった。
+**未確認:** `restart frontend` で `api` が動き続けること、`down` の所要時間、ブラウザーでの見た目と SSE の体感。
 開発コンテナの中では、`next dev`（`API_PROXY_TARGET` 付き）が `/` で 200、`/health` を API へ転送、`/chat/stream` の SSE を転送する、までを確かめてある。
 `frontend_node_modules` は `frontend_next_node_modules` に変えた。Vite 版のボリューム `docunavi_frontend_node_modules` は、この確認の時点でホストに残っていなかった（消す必要は無い）。
 
@@ -148,6 +153,7 @@ docker compose restart frontend && docker compose ps                  # frontend
 - **`docker compose down -v` は `pg-data` も消します**（埋め込みの作り直しは実 API を呼ぶ）。`node_modules` だけ消したいときは `docker volume rm docunavi_frontend_next_node_modules`（先に `docker compose down`）。
 - `api` の 8000 番を確かめたいとき（ビルド済みの画面配信・`curl`）: `docker compose -f docker-compose.yml -f docker-compose.api-port.yml up -d`。8000 番は `127.0.0.1` にだけ公開されます。
   上のコマンド例の `localhost:8000` は、この上書きを重ねたときの話です（`frontend` の 3000 番経由なら、`localhost:3000/health` などが `api` に届きます）。
+- 画面で Google ログインしたまま、左の「会話の履歴」を使いたいとき: `docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d api`。普段の `api` は `AUTH_MODE=off` で、`GET /threads` が 404 になり、履歴は「API が見つかりません（HTTP 404）」と出ます（2026-10-26 に `localhost:3000` で確認。ログインの戻りは、Supabase の Redirect URLs に `http://localhost:3000` を足したあとで通った）。`.env` に、実際のプロジェクトの `SUPABASE_URL` が要ります（無い・プレースホルダー `<project-ref>` のままだと、公開鍵を取れず `api` は起動に失敗し、unhealthy になる。2026-10-26 に、これで落ちた。`api` コンテナからの外向きの名前解決は正常だった）。直して `--force-recreate` で作り直すと healthy になった（同日、ホスト側の実行をユーザーが報告。`/health` 200、トークン無しの `/threads` と `/collections` は 401）。画面での履歴の表示は、ユーザーが解決したと報告したが、私は画面を見ていない。
 - **確認済み（2026-10-22、ホスト側。`.env` を別名にしたモックモード）:** `docker compose config` が通る / 空の `pg-data` からの初回の起動で、初期化スクリプトが通る
   （`CREATE SCHEMA`・`CREATE EXTENSION`・`CREATE ROLE`・`CREATE SCHEMA`・`ALTER ROLE`・`GRANT` がログに出る。Postgres 17.11）/ `db`・`api`・`frontend` の 3 つが healthy になる（`db` → `api` → `frontend` の順）/
   `api` が `internal` の `backend-net` 越しに `db` へ届く（起動ログに「会話履歴の保存先: Postgres」）/ `localhost:5173/health` が `{"status":"ok","mode":"mock","history":"postgres"}` を返す
