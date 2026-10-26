@@ -10,8 +10,10 @@ from django.contrib.auth.models import Group
 from django.db import models
 from django.db.models.expressions import RawSQL
 from django.http import HttpRequest
+from django.urls import path, reverse
+from django.utils.html import format_html
 
-from . import db, services
+from . import db, services, views
 from .models import AccessAudit, AdminUser, Role
 
 # このサービスでは使わない標準の画面。入れておくと操作の対象が増える
@@ -61,7 +63,7 @@ class AdminUserChangeList(ChangeList):
 
 @admin.register(AdminUser)
 class AdminUserAdmin(ReadOnlyAdmin):
-    list_display = ("email", "last_sign_in_at", "current_roles", "visible_groups")
+    list_display = ("email", "last_sign_in_at", "current_roles", "visible_groups", "assign_link")
     search_fields = ("email",)
     list_filter = (AssignmentFilter,)
     list_per_page = 50
@@ -83,6 +85,20 @@ class AdminUserAdmin(ReadOnlyAdmin):
 
     def get_changelist(self, request, **kwargs):
         return AdminUserChangeList
+
+    def get_urls(self):
+        custom = [
+            path(
+                "<uuid:user_id>/roles/",
+                self.admin_site.admin_view(lambda request, user_id: views.assign_roles(request, self, user_id)),
+                name="accessadmin_adminuser_roles",
+            )
+        ]
+        return custom + super().get_urls()
+
+    @admin.display(description="操作")
+    def assign_link(self, obj: AdminUser) -> str:
+        return format_html('<a href="{}">ロールを変更</a>', reverse("admin:accessadmin_adminuser_roles", args=[obj.pk]))
 
     @admin.display(description="現在のロール")
     def current_roles(self, obj: AdminUser) -> str:

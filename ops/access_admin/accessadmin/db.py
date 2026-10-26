@@ -57,3 +57,28 @@ def assigned_roles_by_user(user_ids: Iterable[str]) -> dict[str, frozenset[str]]
         for user_id, role in cursor.fetchall():
             result.setdefault(user_id, set()).add(role)
     return {user_id: frozenset(roles) for user_id, roles in result.items()}
+
+
+def lock_user(user_id: str) -> None:
+    """同じ利用者の割り当てを同時に変えないよう、トランザクションの間だけ排他にする（行ロックは UPDATE 権限が要るので使わない）。"""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", [f"user_roles:{user_id}"])
+
+
+def apply_role_change(user_id: str, add: Iterable[str], remove: Iterable[str]) -> None:
+    """user_roles に、足すロールを INSERT し、外すロールを DELETE する（呼び出し側が transaction.atomic の中で行う）。
+
+    変更の記録は DB のトリガー（access_audit）が残す。存在しないロールは外部キーで拒否される。
+    """
+    add_list, remove_list = sorted(add), sorted(remove)
+    with connection.cursor() as cursor:
+        if remove_list:
+            cursor.execute(
+                "DELETE FROM chatbot.user_roles WHERE user_id = %s::uuid AND role = ANY(%s::text[])",
+                [user_id, remove_list],
+            )
+        if add_list:
+            cursor.execute(
+                "INSERT INTO chatbot.user_roles (user_id, role) SELECT %s::uuid, unnest(%s::text[])",
+                [user_id, add_list],
+            )

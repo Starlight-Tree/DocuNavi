@@ -11,9 +11,9 @@ from django.db import models
 class AdminUser(models.Model):
     """`chatbot.admin_users`（auth.users のうち id / email / last_sign_in_at だけを見せる読み取り専用のビュー）。"""
 
-    id = models.UUIDField(primary_key=True)
-    email = models.TextField(null=True)
-    last_sign_in_at = models.DateTimeField(null=True)
+    id = models.UUIDField("ID", primary_key=True)
+    email = models.TextField("メール", null=True)
+    last_sign_in_at = models.DateTimeField("最終ログイン", null=True)
 
     class Meta:
         managed = False
@@ -29,8 +29,8 @@ class AdminUser(models.Model):
 class Role(models.Model):
     """`chatbot.roles`。読み取りだけ（ロールの作成・変更は 4a の対象外。SQL で行う）。"""
 
-    name = models.TextField(primary_key=True)
-    label = models.TextField()
+    name = models.TextField("ロール名", primary_key=True)
+    label = models.TextField("表示名")
 
     class Meta:
         managed = False
@@ -46,12 +46,12 @@ class Role(models.Model):
 class AccessAudit(models.Model):
     """`chatbot.access_audit`。roles / user_roles / role_collection_access の変更の記録（追記だけ。トリガーが書く）。"""
 
-    id = models.BigIntegerField(primary_key=True)
-    at = models.DateTimeField()
-    actor = models.TextField()
-    table_name = models.TextField()
-    op = models.TextField()
-    row_data = models.JSONField(null=True)
+    id = models.BigIntegerField("番号", primary_key=True)
+    at = models.DateTimeField("日時")
+    actor = models.TextField("実行した DB ロール")
+    table_name = models.TextField("表")
+    op = models.TextField("操作")
+    row_data = models.JSONField("行の内容", null=True)
 
     class Meta:
         managed = False
