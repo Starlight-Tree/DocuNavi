@@ -33,3 +33,6 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 # 静的ファイルのディレクトリ（collectstatic の出力）は、テストでは作らない。WhiteNoise の警告を避ける
 MIDDLEWARE = [m for m in MIDDLEWARE if not m.startswith("whitenoise")]  # noqa: F405
+
+# 403・404 のテストが出す警告（django.request）を、テストの出力に出さない
+LOGGING = {**LOGGING, "loggers": {"django.request": {"level": "ERROR"}}}  # noqa: F405

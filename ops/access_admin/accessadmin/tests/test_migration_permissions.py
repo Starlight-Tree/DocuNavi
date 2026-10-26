@@ -5,7 +5,6 @@ grant の一覧を引くだけでなく、access_admin に切り替えて、許�
 """
 
 import uuid
-from contextlib import contextmanager
 
 from django.db import ProgrammingError, connection, transaction
 
@@ -21,21 +20,6 @@ def _rows(sql: str, params: tuple = ()) -> list[tuple]:
 
 
 class AccessAdminRoleTests(AccessDbTestCase):
-    @contextmanager
-    def superuser(self):
-        """この間だけ、テストの接続のスーパーユーザーに戻る（準備の書き込みと、pg_authid の読み取り用）。"""
-        with connection.cursor() as cursor:
-            cursor.execute("RESET ROLE")
-        try:
-            yield
-        finally:
-            with connection.cursor() as cursor:
-                cursor.execute("SET LOCAL ROLE access_admin")
-
-    def as_superuser(self, sql: str, params: tuple = ()) -> None:
-        with self.superuser(), connection.cursor() as cursor:
-            cursor.execute(sql, params)
-
     def assertDenied(self, sql: str, params: tuple = ()) -> None:
         with self.assertRaisesMessage(ProgrammingError, "permission denied"), transaction.atomic():
             with connection.cursor() as cursor:
