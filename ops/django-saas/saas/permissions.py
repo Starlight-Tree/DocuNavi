@@ -2,7 +2,7 @@
 
 from .models import Role
 
-_RANK = {Role.VIEWER: 1, Role.MEMBER: 2, Role.OWNER: 3}
+_RANK = {Role.VIEWER: 1, Role.MEMBER: 2, Role.ADMIN: 3, Role.OWNER: 4}
 
 
 def allows(role: str, minimum: str) -> bool:

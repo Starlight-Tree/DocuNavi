@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "django.contrib.staticfiles",  # 開発サーバーが管理画面の CSS・JS を配るため（試作は本番に出さない）
     "saas",
 ]
 
