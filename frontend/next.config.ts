@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   agentRules: false,
   async rewrites() {
     if (!apiProxyTarget) return [];
-    return ['/health', '/chat', '/chat/stream', '/threads', '/threads/:path*', '/documents', '/documents/:path*'].map(
+    return ['/health', '/chat', '/chat/stream', '/threads', '/threads/:path*', '/documents', '/documents/:path*', '/collections'].map(
       (source) => ({ source, destination: `${apiProxyTarget}${source}` }),
     );
   },
