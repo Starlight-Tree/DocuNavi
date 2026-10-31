@@ -119,7 +119,7 @@ flowchart TB
     devc -.-> gemini
 ```
 
-- 本番環境では、Cloud Run 上で複数のサービス（FastAPI 本体、Go SSE 中継、MCP 検索、Admin 管理画面、各種バッチ Job）と Vercel 上の Next.js 画面が稼働し、Supabase（Postgres + pgvector、Auth）、Cloudflare R2（PDF 原本）、Vertex AI / Gemini API（Gemini 3.8 Flash / 3.5 Flash Lite）と連携しています（デプロイ実績と運用手順は [deploy.md](deploy.md)）。
+- 本番環境では、Cloud Run 上で複数のサービス（FastAPI 本体、Go SSE 中継、MCP 検索、Admin 管理画面、各種バッチ Job）と Vercel 上の Next.js 画面が稼働し、Supabase（Postgres + pgvector、Auth）、Cloudflare R2（PDF 原本）、Gemini API（主: gemini-3.1-flash-lite〔コード既定〕、副: gemini-3.5-flash-lite、埋め込み: gemini-embedding-2）と連携しています（デプロイ実績と運用手順は [deploy.md](deploy.md)）。
 - ローカル開発でのアプリ実行は 2 通りです。ホストでの `docker compose up`（`docunavi-api`。ローカルの `docunavi-db` につながり、ポートは公開せず、`docunavi-frontend`（next dev）の 3000 番経由で使う。
   8000 番は `docker-compose.api-port.yml` を重ねたときだけ）と、開発コンテナの `.venv` での `uvicorn`（8000 番。`DATABASE_URL` は `.env` の値）。
   開発コンテナには Docker が無いので、compose はホスト側で実行します。
