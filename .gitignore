@@ -26,3 +26,9 @@ playwright-report/
 
 # ops/access_admin（管理画面）の collectstatic の出力
 /ops/access_admin/staticfiles/
+
+# このマシン専用の Compose の重ね書き（ホストの絶対パスを含む）
+.devcontainer/docker-compose.local.yml
+
+# このマシン専用の Claude Code への指示（/tm の運用など）
+CLAUDE.local.md
