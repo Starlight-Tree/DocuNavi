@@ -11,7 +11,8 @@
 
 - **FastAPI**: HTTP API（`/chat`, `/chat/stream`, `/health`）
 - **LangGraph**: 入力ガード → エージェント（ツール呼び出しのループ）→ 出力ガード
-- **Gemini**（`gemini-3.1-flash-lite`）: 回答生成。Gemini API キーまたは Vertex AI（ADC）で認証し、どちらも未設定ならモックモードで動く
+- **Gemini**（主モデルはコード既定の `gemini-3.1-flash-lite`、フォールバックは `gemini-3.5-flash-lite`）: 回答生成。Gemini API キー、または `GOOGLE_GENAI_USE_VERTEXAI=true` のとき Vertex AI（ADC）で認証し、どちらも未設定ならモックモードで動く。
+  本番の Cloud Run（`docunavi-00025-qey`）には `GEMINI_MODEL` と `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く、`GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite` がある（2026-10-31 に `gcloud run services describe` で確認）。本番のキーの渡し方は**要確認**
 - **RAG**: PDF を、ページの文字の位置から見出し・段落・表を組み立ててチャンクにし、DB に取り込んで埋め込む（`python -m app.ingestion`）。質問ごとに埋め込みを作り、類似度の高いチャンクを LLM に渡す
 - **画面**: `frontend/`（Next.js + React + TypeScript）。Vercel が配信し、ブラウザーが API（Cloud Run の FastAPI）を直接呼ぶ。FastAPI は画面を配信しない
 
@@ -45,6 +46,17 @@ npm run dev                  # 開発サーバー（http://localhost:3000）。/
 ```
 
 画面の詳細は [frontend/README.md](frontend/README.md) を参照してください。
+
+## 開発環境の方針
+
+- **LiteLLM gateway is removed and no longer used.** LiteLLM Proxy・Bifrost・claude-code-router は採用しません（`.devcontainer/litellm_proxy` は削除済み。経緯は [docs/target-architecture.md](docs/target-architecture.md)）。
+  LLM の遅延・失敗への対処は、アプリの内側（`app/agents/resilience.py`）にあります。
+- **Gemini CLI is not part of the docunavi runtime.** 開発コンテナにも入れません（`devcontainer.json` と `docker-compose.yml` から、導入・ボリューム・`GOOGLE_CLOUD_*`・`GEMINI_MODEL` を外した）。開発時の AI 支援は Claude Code（VS Code 拡張）です。
+- **GCP の操作は、原則 gcloud CLI で行います。** Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は導入しません（`devcontainer.json` の `extensions` に足さない）。ガードの手順は [.devcontainer/README.md](.devcontainer/README.md)。
+- **画像生成の Cloud Run Job は、星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理します。** このリポジトリに `job/` は置きません。
+- **星庭ジョブのリポジトリは、開発コンテナに bind mount で載せています**（作業ツリーは読み取り専用、`.git` だけ書き込み可。`.devcontainer/docker-compose.yml`）。
+  このマウントは、ホストの `/Users/wataru/projects/hoshiniwa-job` があることが前提です。無い環境では、そのマウント 4 件を外すと、このリポジトリだけで開発コンテナを作れます。
+  それ以外の開発コンテナの定義は、このリポジトリのファイルだけで完結します。
 
 ## 設定
 
@@ -92,7 +104,7 @@ cd frontend && npm test    # フロントエンド（Vitest）
 | [docs/configuration.md](docs/configuration.md) | 環境変数、LLM の遅延・失敗・切断への対処 |
 | [docs/api.md](docs/api.md) | `/health`・`/chat`・`/chat/stream` の仕様、エラー |
 | [docs/development.md](docs/development.md) | テスト、CI、依存の更新 |
-| [docs/deploy.md](docs/deploy.md) | Cloud Run へのデプロイ手順（未実行の案） |
+| [docs/deploy.md](docs/deploy.md) | Cloud Run へのデプロイ手順と本番運用の記録 |
 | [docs/roadmap.md](docs/roadmap.md) | これからの拡張計画（DB、認証、Cloudflare、R2、Vercel）と、先に要る変更 |
 | [.devcontainer/README.md](.devcontainer/README.md) | 開発コンテナの gcloud・gh のログインとガード |
 | [CLAUDE.md](CLAUDE.md) | エージェント（Claude Code）が守ること |

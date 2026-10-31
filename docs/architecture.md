@@ -49,56 +49,88 @@ flowchart LR
 
 ## どこで動くか
 
-何がどこで動き、どこと通信するかの図です。破線は、条件つきの通信と、未実施の案です。
+本番環境（Cloud Run + Vercel + Supabase + R2 + Gemini）およびローカル開発環境の構成と通信経路です。
+本番の Cloud Run には `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認）、Vertex AI は使っていません。LiteLLM などの LLM ゲートウェイは通っていません
+（LiteLLM gateway is removed and no longer used.）。Gemini CLI is not part of the docunavi runtime。
 
 ```mermaid
 flowchart TB
     browser["ブラウザー"]
 
-    subgraph host["ホスト PC"]
-        envfile[".env（Git 管理外）<br/>GEMINI_API_KEY / DATABASE_URL など"]
-        subgraph compose["docker compose（Docker 上の実行）"]
-            api["コンテナ docunavi-api :8000<br/>FastAPI + LangGraph（API だけ）"]
+    subgraph vercel["Vercel（本番フロントエンド）"]
+        frontend["Next.js（frontend/）<br/>https://docunavi-eosin.vercel.app"]
+    end
+
+    subgraph gcp["GCP Cloud Run（本番バックエンド）"]
+        sserelay["docunavi-sse-relay<br/>Go SSE 中継（:8080）"]
+        api_prod["docunavi<br/>FastAPI + LangGraph（h2c）"]
+        mcp["docunavi-mcp<br/>MCP 検索ツール"]
+        admin["docunavi-admin<br/>Django ロール管理画面"]
+        jobs["Cloud Run Jobs<br/>history-cleanup / ingest-sync / ingest-queue"]
+    end
+
+    subgraph host["ローカル開発環境"]
+        subgraph compose["docker compose"]
+            c_front["frontend :3000<br/>（Next.js dev）"]
+            c_api["docunavi-api<br/>（FastAPI）"]
+            c_db["docunavi-db :5432<br/>（Postgres + pgvector）"]
         end
         subgraph devc["開発コンテナ（devcontainer）"]
-            venv[".venv の uvicorn / pytest<br/>（開発中のサーバー :8000）"]
-            devtools["gcloud（閲覧専用）/ gh（読み取り専用）<br/>Playwright"]
+            venv[".venv（uvicorn :8000 / pytest）"]
+            dev_tools["Claude Code<br/>Playwright"]
         end
     end
 
-    subgraph supabase["Supabase（外部）"]
-        pg["Postgres + pgvector<br/>documents / chunks / 会話履歴"]
-        auth["Auth<br/>AUTH_MODE=required のとき"]
+    subgraph supabase["Supabase（外部 DB / Auth）"]
+        pg["Postgres + pgvector<br/>chatbot / saas スキーマ"]
+        auth["Auth（JWKS / Google OAuth）"]
     end
 
-    gemini["Gemini API<br/>チャットと質問の埋め込み"]
-    cloudrun["Cloud Run + Vertex AI<br/>未実施の案（deploy.md）"]
+    subgraph cloudflare["Cloudflare R2（原本ストレージ）"]
+        r2["docunavi-documents<br/>PDF 原本"]
+    end
 
-    browser -->|HTTP| api
-    browser -.->|開発時| venv
-    envfile -.->|env_file| api
-    envfile -.->|読み込み| venv
-    api -->|DATABASE_URL| pg
-    venv -->|DATABASE_URL| pg
-    api -->|GEMINI_API_KEY| gemini
-    venv -->|GEMINI_API_KEY| gemini
-    api -.->|JWKS の取得| auth
+    subgraph llm["LLM（モデル生成・埋め込み）"]
+        gemini["Gemini API<br/>主: gemini-3.1-flash-lite（コード既定）<br/>副: gemini-3.5-flash-lite<br/>埋め込み: gemini-embedding-2"]
+    end
+
+    %% 本番の通信経路
+    browser -->|画面表示| frontend
+    browser -->|POST /chat/stream| sserelay
+    sserelay -->|h2c 中継| api_prod
+    browser -->|GET /documents, POST /chat 等| api_prod
     browser -.->|Google ログイン| auth
-    cloudrun -.-> pg
+
+    api_prod -->|DATABASE_URL| pg
+    api_prod -->|JWKS 取得| auth
+    api_prod -->|原本取得| r2
+    api_prod -->|推論・埋め込み| gemini
+
+    mcp -->|検索クエリ| pg
+    admin -->|saas 管理| pg
+    jobs -->|定期バッチ| pg
+    jobs -->|取り込み| r2
+
+    %% 開発時の通信経路
+    browser -.->|開発時| c_front
+    c_front -.->|rewrites| c_api
+    c_api -.-> c_db
+    devc -.-> c_db
+    devc -.-> gemini
 ```
 
-- アプリの実行は 2 通りです。ホストでの `docker compose up`（`docunavi-api`。ローカルの `docunavi-db` につながり、ポートは公開せず、`docunavi-frontend`（next dev）の 3000 番経由で使う。
+- 本番環境では、Cloud Run 上で複数のサービス（FastAPI 本体、Go SSE 中継、MCP 検索、Admin 管理画面、各種バッチ Job）と Vercel 上の Next.js 画面が稼働し、Supabase（Postgres + pgvector、Auth）、Cloudflare R2（PDF 原本）、Gemini API（主: gemini-3.1-flash-lite〔コード既定〕、副: gemini-3.5-flash-lite、埋め込み: gemini-embedding-2）と連携しています（デプロイ実績と運用手順は [deploy.md](deploy.md)）。
+- ローカル開発でのアプリ実行は 2 通りです。ホストでの `docker compose up`（`docunavi-api`。ローカルの `docunavi-db` につながり、ポートは公開せず、`docunavi-frontend`（next dev）の 3000 番経由で使う。
   8000 番は `docker-compose.api-port.yml` を重ねたときだけ）と、開発コンテナの `.venv` での `uvicorn`（8000 番。`DATABASE_URL` は `.env` の値）。
   開発コンテナには Docker が無いので、compose はホスト側で実行します。
-  開発コンテナ自体も Compose ベースで（2026-10-22。`.devcontainer/docker-compose.yml`。再ビルドは未実施）、開くと `db` `api` `frontend` も起動します
+  開発コンテナ自体も Compose ベースで（2026-10-22。`.devcontainer/docker-compose.yml`）、開くと `db` `api` `frontend` も起動します
   （[.devcontainer/README.md](../.devcontainer/README.md) の「開発コンテナの構成（Compose）」）。
 - 検索（`chunks`）と会話履歴は、同じ `DATABASE_URL` の DB です。本物の LLM では `DATABASE_URL` と `GEMINI_API_KEY` が必須で、
   無いとモックモード（キー未設定）か、起動の失敗になります（[search-design.md](search-design.md)）。
 - 秘密情報の置き場所は、実行時の環境変数だけです。値は文書にも画像にも書きません。
-  - `GEMINI_API_KEY`、`DATABASE_URL`: ホストのリポジトリ直下の `.env`（Git 管理外。雛形は `.env.example`）。compose が `env_file` で渡します。
+  - `GEMINI_API_KEY`、`DATABASE_URL`: ホストのリポジトリ直下の `.env`（Git 管理外。雛形は `.env.example`）。compose が `env_file` で渡します。本番では Secret Manager を利用します。
   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: 画面（Vercel）のビルド時に渡す公開用の値で、秘密ではありません。Cloud Run のイメージには入りません。
   - gh の読み取り専用トークン: 開発コンテナの名前付きボリューム（`~/.gh-config`）。gcloud のログインは残しません（[.devcontainer/README.md](../.devcontainer/README.md)）。
-- Cloud Run と Vertex AI は、手順を書いただけで、実行も検証もしていません（[deploy.md](deploy.md)）。
 
 ## ログインの流れ
 
@@ -125,7 +157,7 @@ sequenceDiagram
 - **信頼の境界。** バックエンドが信じるのは、検証に通ったトークンの `sub` だけです。クライアントが送る `thread_id` や、画面の状態は信じません。
 - **秘密と公開の区別。** 画面に渡すのは Supabase の URL と publishable key だけです（公開してよい値）。Gemini のキーと DB の接続 URL は、バックエンドの環境変数にだけあります。
 - **401 のとき。** 画面は、トークンの更新を 1 回試し、だめならログインを促す固定の文を出します。ログイン前の画面（`?tab=documents` など）は、ログイン後に元へ戻ります。
-- **確認の状況。** ローカルで、Google ログイン → 画面に戻る → 質問を送る、を実際の Supabase で通しました（2026-10-19）。本番の環境（Cloud Run）では未確認です。
+- **確認の状況。** ローカル（2026-10-19）および本番環境（Cloud Run + Vercel、2026-10-20、2026-10-24〜25）で、Google ログイン → 画面に戻る → 質問・SSE 回答の動作を確認済みです。
 
 ## 画面はどう配信されるか
 

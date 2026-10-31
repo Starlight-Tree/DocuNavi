@@ -1,12 +1,14 @@
 # Cloud Run へのデプロイ（段階 0）
 
-**この手順は未実行の案です。** コマンドの名前とフラグは `gcloud ... --help` で存在を確認しましたが、実際のデプロイ、
-Vertex AI でのモデルの利用、Cloud Build での Docker ビルド、`agent-deployer` の権限の過不足は確かめていません
-（Docker イメージのビルドと起動確認は CI が行っています）。
+**本番環境で実行済みです（2026-10-20 初回公開）。** 本文書の手順に基づき、Cloud Run へのサービス配備・公開、Cloud Build でのビルド、Secret Manager やサービスアカウントの連携、およびバッチ Job や予算ガードが本番稼働しています（実際に通った手順やつまずきの詳細は末尾の「実際に通った記録（2026-10-20）」を参照）。
 
 **資料の検索が DB のベクトル検索になったため（[search-design.md](search-design.md)）、本物の LLM のデプロイには `DATABASE_URL` が必須です**
 （下の C。「任意」ではありません）。さらに、質問の埋め込みは API キーで呼ぶので、**A（Vertex AI）でも `GEMINI_API_KEY` の Secret が要ります**
-（B の Secret の作り方）。A + ADC だけでは、起動の検査で失敗します。この組み合わせの実デプロイは未確認です。
+（B の Secret の作り方）。本番では `GEMINI_API_KEY` と `DATABASE_URL` を Secret Manager から注入して稼働させています。
+本番の Cloud Run（`docunavi-00025-qey`）には `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認）、LLM は B（キー）の経路です。Secret の参照の中身は**要確認**です。
+
+**デプロイの方針:** GCP の操作は原則 gcloud CLI で行います。Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は導入しません。
+LiteLLM gateway is removed and no longer used（Gemini CLI is not part of the docunavi runtime）。画像生成の Cloud Run Job は星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理し、このリポジトリには置きません。
 
 ## 誰の権限で実行するか
 
@@ -290,7 +292,7 @@ as_me gcloud scheduler jobs create http "${JOB}-weekly" \
 
 `--no-allow-unauthenticated` は Cloud Run の入口の認証（IAM）です。公開すると（`allUsers` に `roles/run.invoker`）、これが外れるので、
 **アプリ側のログイン（`AUTH_MODE=required`）と、費用の上限を先に揃えます。** 上の A〜C のコマンドに、次を足します。
-**この節は手順の案で、未実行です**（課金が無効だったため。2026-10-13 時点）。
+**実行済み（2026-10-20）。** 予算アラートの設定、`--max-instances 2`、`AUTH_MODE=required`、および `CORS_ORIGINS`（画面オリジン）の設定を適用して公開しました。
 
 | 守り | 設定 | 備考 |
 |---|---|---|
@@ -348,7 +350,7 @@ as_me gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
 
 ### G. 予算の自動停止（課金を紐づけるときに、デプロイより先に）
 
-**この節は手順の案で、未実行です。** 関数は `ops/budget_guard/main.py`（判断はテスト済み。Cloud Billing の API の呼び出しと、GCP での動作は未確認）。
+**実行済み（2026-10-20）。** 関数は `ops/budget_guard/main.py`。2026-10-20 に配線と動作確認（`DRY_RUN=false`）を実施しました。
 仕組みは、予算 → Pub/Sub → 関数 → プロジェクトの課金を無効化、という公式の方法です（Cloud Billing の「Disable billing with notifications」）。
 **「無料枠を超えそうになったら止める」ことはできません。** 予算は金額で、Gemini の API キーは同じプロジェクトにあり、課金を紐づけると有料枠に切り替わる可能性があります
 （公式の料金ページで確認）。実際は「月の費用が予算額に届いたら止める」です。金額は仮で、あとで変えられます。
@@ -786,8 +788,7 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
 ## 管理画面（`docunavi-admin`。ロードマップ ⑧ のフェーズ 4a）
 
-ロール別の資料グループの割り当て画面（Django Admin）は、別の非公開の Cloud Run サービスにする。手順（R3〜R9）・環境変数・Secret・戻し方は
-[access-admin.md](access-admin.md)。**まだ何も配備していない**（ローカルで実装・テスト済み）。
+ロール別の資料グループの割り当て画面（Django Admin）は、別の非公開の Cloud Run サービス（`docunavi-admin`）として本番配備済みです（2026-10-26、ステージ R0〜R9 完了）。手順・環境変数・Secret・戻し方は [access-admin.md](access-admin.md) を参照してください。
 
 ## 続き
 
