@@ -30,6 +30,37 @@ services:
       - gcloud-config:/home/vscode/.config/gcloud
       - pg-config:/home/vscode/.pg
       - playwright-browsers:/home/vscode/.cache/ms-playwright
+      # 星庭ジョブ（別プロジェクト）のリポジトリ（2026-10-28 に追加。ユーザーの承認済み）。
+      # 作業ツリーは読み取り専用（`:ro`）。星庭ジョブの api は --reload なので、ファイルを書き換えられると、ホストで動いている環境がすぐ変わってしまう。
+      # `.git` だけ書き込み可能にして、ステージ・コミット・プッシュを Docunavi と同じやり方でできるようにする（2026-10-28 追加。ユーザーの承認済み）。
+      # コミットは `.git` の中だけを変えるので、作業ツリーは変わらない。`git apply`・`checkout`・`reset --hard` のように作業ツリーを変える操作は、`:ro` で失敗する（意図どおり）。
+      # `.git/hooks` と `.git/config` は読み取り専用で重ねる — ホストの git が実行するフックや設定（hooksPath・fsmonitor・alias など）を、コンテナーから仕込めないようにするため。
+      # create_host_path: false — ホスト側のパスが無いときは、空のフォルダーを作らずに失敗させる。
+      # つまり、このマウントはホストに星庭ジョブのリポジトリがあることが前提（無い環境では、下の 4 件のマウントを外す。README の「開発環境の方針」）。
+      # 子のマウントは親より後ろに書く。重ねたマウントが期待どおりに効くかは、再ビルド後に確認する（未確認）。
+      - type: bind
+        source: /Users/wataru/projects/hoshiniwa-job
+        target: /workspaces/hoshiniwa-job
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /Users/wataru/projects/hoshiniwa-job/.git
+        target: /workspaces/hoshiniwa-job/.git
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /Users/wataru/projects/hoshiniwa-job/.git/hooks
+        target: /workspaces/hoshiniwa-job/.git/hooks
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /Users/wataru/projects/hoshiniwa-job/.git/config
+        target: /workspaces/hoshiniwa-job/.git/config
+        read_only: true
+        bind:
+          create_host_path: false
     # devcontainer.json の containerEnv と同じ値（Compose ベースで containerEnv が効くかは未確認なので、両方に置く。変えるときは両方を直す）。
     # GH_CONFIG_DIR: ~/.config/gh ではなく専用の場所にする。~/.config がイメージに無いと、マウントの親ディレクトリが
     # root 所有で作られ、他のツールが ~/.config に書けなくなるため。gcloud は、ガードのフックと拒否ルールが
