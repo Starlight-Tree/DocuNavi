@@ -32,7 +32,7 @@ pytest
   `.invalid` のホストへの通信と、127.0.0.1 以外へのすべての通信は止めて記録し、テストの最後に空であることを確かめます（実 Supabase・実 Google には届きません）。
   更新の失敗の応答の形は SDK のソースに合わせた推定で、**本物の Supabase での更新・期限切れの挙動は、ここでは確かめていません**（本番に近い環境での 1 時間後の確認は別）。
 - 初回だけ、Playwright 用の Chromium を入れます: `cd frontend && npx playwright install chromium`（約 120MB。`~/.cache/ms-playwright` に入り、
-  Playwright MCP 用の Chromium（`.devcontainer/install-playwright.sh`）とは別の版です。システムのライブラリーは MCP 用の導入で入っています）。
+  Playwright MCP 用の Chromium（`.devcontainer/install-playwright.sh`）とは別の版です。システムのライブラリーは `.devcontainer/Dockerfile` のイメージに入っています）。
 - Python は、リポジトリ直下の `.venv` があればそれを、無ければ PATH の `python` を使います（`E2E_PYTHON` で指定できます）。
 - 失敗時の成果物（`frontend/test-results/`・`frontend/playwright-report/`）は Git 管理外です。
 - 今あるのは 4 シナリオ（チャット 1、認証 3）で、CI には入れていません。Vite 版から 2026-10-24 に移しました（移した直後に、新旧とも 4 件通ることを確かめた）。実 API のスモークテストも、まだありません。

@@ -16,6 +16,13 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 - `devcontainer.json`・`.devcontainer/docker-compose.yml`・`.devcontainer/Dockerfile` に、ホストの絶対パス・別プロジェクトのファイル・外部のアカウント（GCP プロジェクト ID など）を足す変更は、事前にユーザーに確認する
 - 再ビルドはホスト側の作業。承認なしに実行しない
 
+## ツールの入れ場所（2026-10-31）
+
+- gcloud・gh・psql・Go・docker-cli・Playwright のライブラリーは、`.devcontainer/Dockerfile`（イメージのビルド時）に入れる。`postCreateCommand` に apt の導入を足さない（作成のたびに毎回走り、キャッシュされない）
+- Chromium の本体は、名前付きボリューム `playwright-browsers` のまま（`install-playwright.sh` が取得と起動確認を行う）
+- Node の feature はイメージの後に入るので、npm で入れるもの（Vercel CLI）は Dockerfile に移せない。Vercel CLI は今は残してあり、削除は別のコミットで行う予定
+- `install-gh.sh`・`install-psql.sh`・`install-go.sh` は残してある（`postCreateCommand` からは呼ばない）。Go の版とハッシュは `install-go.sh` と Dockerfile の両方にあるので、上げるときは両方を合わせる
+
 ## ルール・メモリーの置き場所
 
 - 重要なルールは Auto Memory だけに置かない。プロジェクト固有のルールは `CLAUDE.md` か `.claude/rules/`、ユーザー共通のルールは `~/.claude/CLAUDE.md` に置く
