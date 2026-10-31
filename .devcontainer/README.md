@@ -218,15 +218,24 @@ gcloud などが書けなくなるおそれがあるためです）。読み取�
 
 ## 開発環境の Vercel CLI
 
-開発コンテナには Vercel CLI が入ります（`.devcontainer/install-vercel.sh`。版は固定で、作成時に `npm install -g` します）。
-`frontend` を Vercel へ最初に 1 回デプロイするために使いました（`docs/target-architecture.md` の「段階 7」。そのあとは Git 連携に移す方針です）。
+開発コンテナには Vercel CLI を**入れていません**（2026-10-31 に削除。以前は `install-vercel.sh` が 63.1.2 を `npm install -g` で入れていました）。
+`frontend` を Vercel へ最初に 1 回デプロイするために入れたもので（`docs/target-architecture.md` の「段階 7」）、そのあとは Git 連携（`main` へのプッシュ）に移したので、
+常用はしません。npm の導入は作成のたびに約 1〜2 分かかっていました。
 
-- **ログイン情報はイメージにもボリュームにも残しません。** 再ビルドすると消えます。デプロイのたびに `vercel login`（ブラウザーでの承認）を行い、
+必要なときだけ、版を固定して `npx` で実行します。
+
+```bash
+npx --yes vercel@63.1.2 --version
+npx --yes vercel@63.1.2 login      # ブラウザーでの承認。終わったら logout
+```
+
+- **ログイン情報はイメージにもボリュームにも残しません。** 再ビルドすると消えます。使うたびに `vercel login` を行い、
   終わったら `vercel logout` します。長期の `VERCEL_TOKEN` はコンテナに置きません。
 - ログイン中のトークン（`~/.local/share/com.vercel.cli`）は、コンテナの中のエージェントから読める経路が残ります（gcloud の「限界」と同じ）。
   エージェントはこれを読まず、`vercel` の認証系のコマンドも実行しません。デプロイや環境変数の変更はあなたが実行します。
-- 版を上げるときは、公開日（2 週間以上前か）を `npm view vercel time` で確かめてから、スクリプトの `VERCEL_VERSION` を書き換えます。
-- 未確認: 再ビルド後にこのスクリプトが実際に導入すること（構文と、導入済みのときの分岐だけ確認）。
+- 版を上げるときは、公開日（2 週間以上前か）を `npm view vercel time` で確かめてから、上のコマンドの版を書き換えます。
+- Vercel の操作の多くは、Vercel MCP（次の節）で足ります。CLI が要るのは、`vercel login` を伴う手動のデプロイなど、MCP で届かないものだけです。
+- 未確認: `npx --yes vercel@63.1.2` が、このコンテナで実際に動くこと（初回は取得に時間がかかる）。
 
 ## 開発環境の Vercel MCP
 

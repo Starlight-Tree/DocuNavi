@@ -1,7 +1,7 @@
 # 開発コンテナのイメージ。CLI とシステムのライブラリーは、ここで入れる（再ビルドで層のキャッシュが効く）。
 # 入れるもの: gcloud・gh・psql・docker-cli・docker-compose（apt）、Playwright の Chromium に要るライブラリー（apt）、Go（公式の tar）。
 # 入れないもの: Chromium 本体（名前付きボリューム playwright-browsers が ~/.cache/ms-playwright を重ねるので、postCreateCommand の
-# install-playwright.sh が取得する）、Vercel CLI（postCreateCommand の install-vercel.sh。Node は feature で、この後に入る）。
+# install-playwright.sh が取得する）、Vercel CLI（入れない。必要なときは npx --yes vercel@63.1.2。README の「開発環境の Vercel CLI」）。
 #
 # 層の順は、変わりにくいものが上。ツールの版を上げたときに作り直すのは、その層から下だけになる。
 # 「Rebuild Container」は層のキャッシュを使う。「Rebuild Without Cache」は使わないので、全部を入れ直す。
