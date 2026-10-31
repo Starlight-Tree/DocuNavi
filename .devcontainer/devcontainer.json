@@ -62,14 +62,14 @@
 	//   1. install-playwright.sh: Playwright MCP（.mcp.json）用の Chromium（~/.cache/ms-playwright のボリュームに入る。所有者の修正もこのスクリプトが行う）の取得と、
 	//      起動確認（--version。ライブラリーの取りこぼしもここで分かる）。README の「開発環境のブラウザー確認」
 	//   2. ツールの存在確認: イメージに入れたツールが PATH にあるかを見て、無ければ「missing: 名前」を標準エラーに出す（導入はしない）。
-	//   3. install-vercel.sh: Vercel CLI（npm の導入。Node は feature でイメージの後に入るため、Dockerfile には移せない。別のコミットで削除する予定）。
+	// Vercel CLI は入れない（2026-10-31 に削除。必要なときは npx --yes vercel@63.1.2 を使う。README の「開発環境の Vercel CLI」）。
 	// 並列に動く別エントリにはしない（並列化は、この移設の効果を測ってから検討する）。
 	"postCreateCommand": {
 		"claude-volume": "sudo chown -R vscode:vscode /home/vscode/.claude",
 		"gh-volume": "sudo chown -R vscode:vscode /home/vscode/.gh-config",
 		"pg-volume": "sudo chown -R vscode:vscode /home/vscode/.pg && chmod 700 /home/vscode/.pg",
 		"gcloud-volume": "sudo chown vscode:vscode /home/vscode/.config && sudo chown -R vscode:vscode /home/vscode/.config/gcloud && chmod 700 /home/vscode/.config/gcloud",
-		"cli-tools": "bash .devcontainer/install-playwright.sh; for t in gcloud gh psql go docker; do command -v $t >/dev/null || echo missing: $t >&2; done; bash .devcontainer/install-vercel.sh"
+		"cli-tools": "bash .devcontainer/install-playwright.sh; for t in gcloud gh psql go docker; do command -v $t >/dev/null || echo missing: $t >&2; done"
 	},
 
 	// 起動のたびに、書き込み可能な Supabase MCP（supabase-write。ローカル登録）を今の作業ディレクトリに登録し直す。
