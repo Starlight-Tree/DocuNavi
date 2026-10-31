@@ -186,6 +186,8 @@ README の「開発環境の GitHub CLI（gh）」を参照。
 - タスクで指定された範囲だけを編集する。範囲外のファイル（`tests/`・README・`.dockerignore`・`docker-compose.yml` など）に必要な変更があれば、勝手に直さず提案する。
 - この CLAUDE.md が 199 行を超えたら（＝200 行以上。`wc -l CLAUDE.md`）、作業の区切りで 1 回、圧縮・分離・削除の整理案を提案する。実行は承認後。
   禁止事項と承認が必要な操作は、行数のために削らない。
+- 開発環境の方針は [.claude/rules/dev-environment.md](.claude/rules/dev-environment.md)。LiteLLM gateway is removed and no longer used. Gemini CLI is not part of the docunavi runtime. GCP の操作は原則 gcloud CLI で、Cloud Code 等の GCP 用 VS Code 拡張は入れない。
+- 画像生成の Cloud Run Job は星庭ジョブのリポジトリで管理し、`job/` をここに置かない（星庭ジョブの bind mount は残す）。開発コンテナの再ビルドの可能性を壊す変更は、先に確認する。
 
 ## 指示への従い方
 
