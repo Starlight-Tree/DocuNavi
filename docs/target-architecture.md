@@ -93,11 +93,11 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 | Cloudflare Worker + プロキシ | 決定（未実装） | 利用者の決定。SSE の通過は測定済み（A、プローブ。下記） | 自分のドメインが要る（roadmap 段階 3） |
 | Cloud Run の `--use-http2` + h2c 対応サーバー（hypercorn） | **本番に適用済み**（2026-10-25） | 切断の伝わりをプローブで測定（A）。本番（`docunavi-00016-ces`）で、ブラウザーの停止ボタンによる取り消しを確認済み（A。roadmap ②の追記） | 適用済み。旧リビジョン（HTTP/1.1）へ戻すと取り消しは効かなくなる |
 | Hono | 候補 | 不明 | Worker のルートが増えたとき。今のプローブは素の Worker |
-| Go の SSE 中継 | 条件付き（学習用に `ops/sse-relay/` を作成。2026-10-25） | Worker を通した SSE は 90 秒まで問題なし（A）。Go を挟む構成は、開発コンテナ内の疑似 SSE で測定済み（A。下記「Go の SSE 中継の測定」）。本番の経路・本物の LLM では未測定 | 下記 |
+| Go の SSE 中継 | **本番に配備済み**（2026-10-25） | 開発コンテナ内の疑似 SSE 測定（A）を経て、Cloud Run（`docunavi-sse-relay`、h2c）へ配備。`/chat/stream` を中継 | 画面の `NEXT_PUBLIC_STREAM_BASE_URL` 経由で稼働中 |
 | gRPC のサーバーストリーミング | 条件付き | 未測定 | 下記 |
-| Django（組織・課金・管理画面） | 条件付き | 学習用の試作を開発コンテナ内で測定（A。疑似データ）。実際の要件・Supabase の実鍵・本番の DB では未確認。下記「Django の測定」 | 下記 |
+| Django（組織・課金・管理画面） | **管理画面を本番に配備済み**（2026-10-26） | 学習用の試作（`ops/django-saas/`）を経て、運用者向けロール割り当て画面（`ops/access_admin/`）を非公開 Cloud Run（`docunavi-admin`）に配備 | 本番の SaaS 組織・課金管理機能としては未着手・条件待ち。運用者用管理画面として稼働中 |
 | Celery + Redis | 条件付き | 不明 | 下記。今の取り込みは Cloud Run の Job + Scheduler で足りている（A、本番で稼働） |
-| LiteLLM などの LLM ゲートウェイ | 条件付き | 不明 | 下記。ヘッジ・フォールバック・有料キーはアプリに実装済み |
+| LLM ゲートウェイ（LiteLLM Proxy、Bifrost、claude-code-router / CCR） | 非推奨・廃止（削除済み）。LiteLLM gateway is removed and no longer used. | アプリ内実装（ヘッジ・フォールバック・有料キー）で充足。開発時の AI 支援は Claude Code（VS Code 拡張）。Gemini CLI is not part of the docunavi runtime | 採用しない。外部プロキシやルーティング層は置かず、必要な耐障害性はアプリ（`app/agents/resilience.py`）で担保する |
 
 ## 測定済みのこと（プローブ。LLM・DB・秘密なし。2026-10-22〜24。証拠等級 A）
 
@@ -232,9 +232,14 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 
 取り込みや埋め込みが長時間になり、再試行・優先度・並行数の制御が要るか、API と別にスケールさせたいとき。
 
-### LLM ゲートウェイ
+### LLM ゲートウェイ（LiteLLM Proxy、Bifrost、claude-code-router / CCR）
 
-複数のプロバイダーを使うか、モデルの振り分け・費用の上限・切り替えが、今の実装（`app/agents/resilience.py`）で足りなくなったとき。
+**非推奨・廃止（削除済み）。LiteLLM gateway is removed and no longer used.**
+以前検討された LiteLLM Proxy、Bifrost、claude-code-router（CCR）等の外部 LLM ゲートウェイやプロキシレイヤーは採用せず、非推奨・廃止（削除済み）とした。
+- アプリ本体側で、ヘッジ付き再試行・フォールバック（`gemini-3.5-flash-lite`）・有料キー切り替え（`app/agents/resilience.py`）を内製・完結しており、外部ゲートウェイを挟むオーバーヘッドや障害点を排除する。
+- 開発環境でも、中間ルーティングプロキシは使わない。開発時の AI 支援は Claude Code（VS Code 拡張）で、Gemini CLI is not part of the docunavi runtime（開発コンテナにも入れない）。
+- Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は導入しない。GCP の操作は原則 gcloud CLI で行う（[README.md](../README.md) の「開発環境の方針」）。
+- 画像生成の Cloud Run Job は、星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理する。このリポジトリに `job/` は置かない。
 
 ## 段階 7（Vercel）の前に決めること
 
@@ -257,7 +262,7 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 
 ## やらないこと
 
-- 新しいというだけで、Go・Django・gRPC・Celery・Redis・LiteLLM を入れない。入れるのは、製品の必要か、利用者が決めた学習の目的があるときだけ。
+- 新しいというだけで、gRPC・Celery・Redis・LiteLLM / Bifrost / CCR を入れない（LiteLLM Proxy・Bifrost・claude-code-router などの外部 LLM ゲートウェイは廃止・非推奨）。入れるのは、製品の必要か、利用者が決めた学習の目的があるときだけ。
 - 測定・要件・学習の目的のどれも無いまま、サービスを分けない。
 - Supabase Auth と並べて、Django の認証を入れない（運用者 1 人専用の管理画面だけが例外。上の「Django」の「例外」）。
 - `chatbot` スキーマのマイグレーションの持ち主を二重にしない。
