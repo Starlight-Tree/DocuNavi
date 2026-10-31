@@ -153,7 +153,7 @@ Read の拒否ルールとフックは、これを完全に隔離するもので
 
 ## 開発環境の GitHub CLI（gh）
 
-開発コンテナには `gh` が入ります（`.devcontainer/install-gh.sh`）。CI の実行結果やログ、ルールセットなど、GitHub の参照に使います。
+開発コンテナには `gh` が入ります（イメージのビルド時。`.devcontainer/Dockerfile`。`install-gh.sh` は残してあるが、`postCreateCommand` からは呼ばない）。CI の実行結果やログ、ルールセットなど、GitHub の参照に使います。
 gcloud と同じ考え方で、エージェントには**読み取り専用**だけを持たせ、書き込み（PR の作成、設定の変更）はあなたが行います。
 
 | 層 | 内容 |
@@ -269,8 +269,8 @@ console と network のエラーを、スクリーンショット付きで確か
 |---|---|
 | 登録 | リポジトリ直下の `.mcp.json`（プロジェクトのスコープ）。`@playwright/mcp@0.0.83 --headless --browser chromium`。初回は、Claude Code がプロジェクトの MCP を信頼するかを尋ねます |
 | Chromium | `.devcontainer/install-playwright.sh` が `~/.cache/ms-playwright` に取得します（約 260 MB）。ここは名前付きボリュームなので、再ビルドしても取得し直しません |
-| ライブラリー | 同じスクリプトが `playwright install-deps chromium`（apt）で入れます。Chromium の実行に要るライブラリーと、日本語を含むフォントです。ボリュームには入らないので、再ビルドのたびに入れ直します（作成が数分延びます）。apt のロックを他の導入が持っていて失敗したときは、15 秒あけて最大 8 回試し直します |
-| 成功の判定 | 最後に Chromium を実際に起動して（`chrome --version`）確かめます。だめなら理由を stderr に出して終了コード 1 で終わり、作成のログに「Playwright の導入に失敗しました」と出ます（他の導入は先に済んでいます）。直したら `bash .devcontainer/install-playwright.sh` を再実行します |
+| ライブラリー | `.devcontainer/Dockerfile` が、イメージのビルド時に apt で入れます（Chromium の実行に要るライブラリーと、日本語を含むフォント。`playwright install-deps` の結果を一覧にしたもの）。作成のたびには入れ直しません（イメージのキャッシュが効く）。Playwright の版を上げるときは、`install-deps` で要るライブラリーが変わっていないかを見て、Dockerfile の一覧を作り直します |
+| 成功の判定 | 最後に Chromium を実際に起動して（`chrome --version`）確かめます。ライブラリーの取りこぼしも、ここで分かります。だめなら理由を stderr に出して終了コード 1 で終わり、作成のログに「Playwright の導入に失敗しました」と出ます（あとの確認と導入は続きます）。直したら `bash .devcontainer/install-playwright.sh` を再実行します |
 | スクリーンショット | `.playwright-mcp/` に出ます（保存先は、ツールの制限でリポジトリ内に限られます）。`.gitignore` には入れていないので、使ったあとは未追跡のファイルとして Git に出ます。確認が済んだら削除し、コミットしません |
 
 使うときは、モックを起動してから（`GEMINI_API_KEY=your_api_key_here uvicorn app.main:app`）、エージェントに画面の確認を頼みます。
@@ -287,8 +287,8 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
   画面や PDF の内容は、エージェントにとって信頼できない入力です。厳しくしたいときは、PDF を内蔵ビューアーで開かず、画像にして確かめる方法を検討します。
 - **`claude mcp add --scope local` で同じ名前（`playwright`）を登録済みのときは、そちらが優先されます。** 古い登録が
   残らないよう、`claude mcp remove playwright --scope local` で消してください。
-- 再ビルドで確かめたのは、Chromium のキャッシュ（ボリューム）が残ること、MCP の登録が有効なことです。ライブラリーの導入は、再ビルド直後に apt のロック競合で失敗したため、試し直しと失敗の検知を足しました。
-  試し直しは、ロックを人為的に持たせて確かめました（回復・失敗時の終了コード 1・通常の実行）。足したあとの再ビルドは、まだ行っていません（開発コンテナの中には Docker が無いため）。
+- 再ビルドで確かめたのは、Chromium のキャッシュ（ボリューム）が残ること、MCP の登録が有効なことです。ライブラリーの導入は、以前は `postCreateCommand` の apt で、再ビルド直後にロックの競合で失敗したことがありました。
+  今はライブラリーをイメージに入れたので、`postCreateCommand` に apt は残りません（ロックの競合も、試し直しの処理もありません）。移したあとの再ビルドで、Chromium の起動（`--version` と、ヘッドレスでの DOM の出力）と Playwright MCP での画面の操作を確かめました。
 
 ## Supabase MCP（読み取り専用の共有）
 

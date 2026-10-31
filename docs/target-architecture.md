@@ -111,7 +111,7 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 ## Go の SSE 中継の測定（学習用。2026-10-25。証拠等級 A）
 
 利用者の決定（学習目的。「目的」の節）で、`ops/sse-relay/` に Go（1.26.10、標準ライブラリだけ）の SSE 中継を作って測った。製品のコード・本番・Cloud Run・Compose・CI は変えていない。
-Go は `.devcontainer/install-go.sh` で入れる（公式の SHA-256 を照合。コンテナを作り直すと消える。恒久化は未決）。単体テスト 4 件（逐次の中継、`Authorization` の受け渡し、切断の伝播。上流が HTTP/1.1 と h2c の両方）が通る。
+Go は `.devcontainer/Dockerfile` のイメージに入れてある（公式の SHA-256 を照合。以前は `.devcontainer/install-go.sh` を `postCreateCommand` から呼んでいて、作り直すたびに入れ直していた。`install-go.sh` は残してあり、版とハッシュが Dockerfile と重複する）。単体テスト 4 件（逐次の中継、`Authorization` の受け渡し、切断の伝播。上流が HTTP/1.1 と h2c の両方）が通る。
 
 - **条件:** 開発コンテナの 127.0.0.1 だけ（外部通信なし・課金なし）。上流は `ops/sse-relay/bench/sse_upstream.py`（FastAPI の `StreamingResponse` で、1 秒ごとに 20 秒間送る疑似 SSE。LLM・DB なし）。
   クライアントは 1 つの Python プロセス（HTTP/1.1、`Connection: close`）。4 構成: 直接の uvicorn、中継 → uvicorn（HTTP/1.1）、直接の hypercorn、中継 → hypercorn（h2c）。再現: `ops/sse-relay/bench/bench.py`。

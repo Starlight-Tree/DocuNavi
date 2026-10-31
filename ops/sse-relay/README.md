@@ -23,10 +23,10 @@ API が取り消し処理を実行したことまでの確認で、モデル提�
   応答が途中で終わることがあった。約 5〜10%。`TestRelayDoesNotAbortWhenUpstreamRespondsEarly` が再現する）
 
 ```bash
-.devcontainer/install-go.sh                      # Go 1.26.10（公式の SHA-256 を照合。devcontainer の cli-tools からも呼ばれる）
+.devcontainer/install-go.sh                      # Go 1.26.10（公式の SHA-256 を照合）。開発コンテナでは Dockerfile が入れ済みなので、手で入れ直すときだけ（版とハッシュは Dockerfile と同じ）
 cd ops/sse-relay && go vet ./... && go test -race ./...
 go build -o /tmp/sse-relay . && /tmp/sse-relay -listen 127.0.0.1:8200 -upstream http://127.0.0.1:8100 [-upstream-h2c] [-heartbeat 25s]
 ```
 
 `bench/` は、`/chat/stream` に絞る前の中継（`GET /stream`）で測ったもの。いまの中継には、そのままでは使えない（測定の記録は target-architecture.md に残っている）。
-戻し方: `ops/sse-relay/` と `.devcontainer/install-go.sh` を消し、`sudo rm -rf /usr/local/go /usr/local/bin/go /usr/local/bin/gofmt`。
+戻し方: `ops/sse-relay/` と `.devcontainer/install-go.sh` を消し、Dockerfile の Go の節（`GO_VERSION`・`GO_SHA256_ARM64` を含む `RUN`）も消して、再ビルドする。
