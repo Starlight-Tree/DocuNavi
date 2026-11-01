@@ -1,4 +1,4 @@
-"""検索の重ね（app/search_pipeline.py: ハイブリッド・リランカー・GraphRAG）のテスト。実 API・実 DB は使わない。
+"""検索の重ね（app/search/pipeline.py: ハイブリッド・リランカー・GraphRAG）のテスト。実 API・実 DB は使わない。
 
 ベクトル検索（`search_vector.search`）と資料の写しの読み取り（`_fetch_chunks`）を偽物に差し替える。
 conftest は既存のテストのために 3 つのフラグを off にしている。ここでは、確かめたいものだけを on にする。
@@ -12,13 +12,14 @@ from typing import Any
 import pytest
 import yaml
 
-from app import search_pipeline, search_vector
 from app.agents.tools import _sources
 from app.scope import Scope
-from app.search_graph import build_edges
-from app.search_keyword import KeywordIndex, identifiers, tokenize
-from app.search_pipeline import Chunk
-from app.search_vector import Hit, VectorSearchError
+from app.search import pipeline as search_pipeline
+from app.search import vector as search_vector
+from app.search.graph import build_edges
+from app.search.keyword import KeywordIndex, identifiers, tokenize
+from app.search.pipeline import Chunk
+from app.search.types import Hit, VectorSearchError
 
 FLAGS = ("SEARCH_HYBRID", "SEARCH_RERANK", "SEARCH_GRAPH")
 

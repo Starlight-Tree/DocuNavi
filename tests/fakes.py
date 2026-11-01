@@ -10,7 +10,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 
 from app.agents.graph import MockChatModel
 from app.scope import Scope
-from app.search_vector import Hit
+from app.search.types import Hit
 
 # search_documents の出力 "[ファイル名.pdf]\n本文" の、ファイル名の行
 SOURCE_HEADER = re.compile(r"(?m)^\[([^\]\n]+\.(?:txt|pdf))\]\n")

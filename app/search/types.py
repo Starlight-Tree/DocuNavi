@@ -1,0 +1,25 @@
+"""検索の結果と失敗の型。ベクトル検索（`app/search/vector.py`）が使い、パイプライン・API・ツールが受け取る。"""
+
+from typing import NamedTuple
+
+
+class Hit(NamedTuple):
+    """検索で拾った 1 チャンク。`page` は PDF の 1 始まりのページ、`page_end` はページをまたぐ表の最終ページ（またがなければ None）。
+
+    `similarity` はコサイン類似度。画面の出典カードを絞る判断（`app/agents/tools.py` の `WEAK_GAP`）だけに使い、LLM には渡さない。
+    `collection` は資料のグループ（`documents.collection`。未設定なら None）。画面の出典に添えるだけで、LLM には渡さない。
+    `origin` は拾った経路（`app/search/pipeline.py` が付ける。`vector` / `keyword` / `vector+keyword` / `graph`。ベクトル検索だけのときは None）。
+    `similarity` は、キーワードだけで拾った箇所と `graph` の箇所では None。
+    """
+
+    source: str
+    text: str
+    page: int | None = None
+    page_end: int | None = None
+    similarity: float | None = None
+    collection: str | None = None
+    origin: str | None = None
+
+
+class VectorSearchError(RuntimeError):
+    """資料の検索を使えない（設定・DB の状態・実行時の失敗）。メッセージは固定文（ファイル名まで）で、API はこの型を 503 の固定文にする。"""
