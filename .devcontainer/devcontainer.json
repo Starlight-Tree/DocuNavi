@@ -72,7 +72,7 @@
 		"cli-tools": "bash .devcontainer/install-playwright.sh; for t in gcloud gh psql go docker; do command -v $t >/dev/null || echo missing: $t >&2; done"
 	},
 
-	// 起動のたびに、書き込み可能な Supabase MCP（supabase-write。ローカル登録）を今の作業ディレクトリに登録し直す。
+	// 起動のたびに、書き込み可能な Supabase MCP（supabase。ローカル登録）を今の作業ディレクトリに登録し直す。
 	// ローカル登録は作業ディレクトリのパスがキーなので、フォルダー名を変えると、ボリュームに設定が残っていても外れるため。
 	// 登録だけで、認証や DB の呼び出しはしない。何度実行しても同じ（登録済みなら何もしない）。
 	// 前景で実行する。バックグラウンドの子プロセスは、起動処理の終了で止められる（`( … &)` も `setsid nohup … &` も、

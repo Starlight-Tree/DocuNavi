@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# 書き込み可能な Supabase MCP（supabase-write）を、このプロジェクトのローカル登録に入れる。初回の登録、または登録が失われたときの復旧用。
+# 書き込み可能な Supabase MCP（supabase。2026-11-01 に supabase-write から改名）を、このプロジェクトのローカル登録に入れる。初回の登録、または登録が失われたときの復旧用。
 # 設定ファイルは、devcontainer.json の CLAUDE_CONFIG_DIR により ~/.claude のボリューム内（~/.claude/.claude.json）にある。
 # このため、通常の再ビルドでは登録も OAuth のトークン（~/.claude/.credentials.json）も残る。
 # ただし、ローカル登録は作業ディレクトリのパスがキーなので、フォルダー名を変える（例: chatbot → docunavi）と、設定が残っていても外れる。
 # 起動のたびに devcontainer.json の postStartCommand がこのスクリプトを呼び、今のパスに登録し直す。
 # ボリュームを削除したときなどは、登録が消え、再認証（/mcp）も要る可能性がある。
-# README の「Supabase MCP（読み取り専用の共有）」。
+# README の「Supabase MCP」。
 #
 # ・参照 ID は展開前の ${SUPABASE_PROJECT_REF} のまま登録する（値は ~/.claude/settings.json の env。設定ファイルにもログにも残さない）。
-# ・共有の .mcp.json の supabase（read_only=true）は変えない。別名にするのは、同じ名前だと共有側が隠れるため。
+# ・.mcp.json に Supabase の定義は無い（読み取り専用の supabase-read は 2026-11-01 に削除した）。登録はこのローカル登録だけ。
 # ・書き込みのツールは、呼ぶたびに利用者の承認が要る（許可リストには入れない）。
 # ・claude の実体は VS Code の拡張に同梱されていて、コンテナの作成直後はまだ無いことがある。出てくるまで 5 秒おきに待つ
 #   （既定は 60 回 = 最大 5 分。環境変数 REGISTER_SUPABASE_WAIT_TRIES で回数を変えられる）。
@@ -18,7 +18,7 @@
 
 cd "$(dirname "$0")/.." || exit 0
 
-NAME=supabase-write
+NAME=supabase
 URL='https://mcp.supabase.com/mcp?project_ref=${SUPABASE_PROJECT_REF}&features=database,docs'
 
 find_claude() {
