@@ -9,6 +9,9 @@ services:
   db:
     image: pgvector/pgvector:0.8.7-pg17
     container_name: docunavi-db
+    # 表示用ラベル（.vscode/settings.json の groupByLabel が読む）。動作には影響しない。
+    labels:
+      local.ui.group: "docunavi"
     environment:
       POSTGRES_DB: docunavi
       POSTGRES_PASSWORD: "${LOCAL_DB_PASSWORD:-docunavi-local}"
@@ -35,6 +38,9 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: docunavi-api
+    # 表示用ラベル（.vscode/settings.json の groupByLabel が読む）。動作には影響しない。
+    labels:
+      local.ui.group: "docunavi"
     # ポートは公開しない。画面は frontend（:3000）のプロキシ経由で使う。8000 番を確かめたいときは docker-compose.api-port.yml を重ねる
     env_file:
       # .env が無くても起動できる（その場合は GEMINI_API_KEY 未設定 = モックモード）
@@ -105,6 +111,9 @@ services:
   frontend:
     image: node:24-slim
     container_name: docunavi-frontend
+    # 表示用ラベル（.vscode/settings.json の groupByLabel が読む）。動作には影響しない。
+    labels:
+      local.ui.group: "docunavi"
     working_dir: /app
     depends_on:
       api:

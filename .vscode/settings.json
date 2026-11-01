@@ -5,6 +5,8 @@
     "remote.otherPortsAttributes": {
         "onAutoForward": "ignore"
     },
+    "containers.containers.groupBy": "Label",
+    "containers.containers.groupByLabel": "local.ui.group",
     "remote.portsAttributes": {
         "8000": {
             "label": "docunavi-api",
