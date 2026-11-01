@@ -7,6 +7,7 @@ import { ErrorBanner } from './components/ErrorBanner';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
 import { MessageList } from './components/MessageList';
+import { ReferencesView } from './components/ReferencesView';
 import { ScopeChips } from './components/ScopeChips';
 import { ScopeConfirm } from './components/ScopeConfirm';
 import { ThreadSidebar } from './components/ThreadSidebar';
@@ -20,6 +21,7 @@ import {
 } from './hooks/useCollections';
 import { useThreads } from './hooks/useThreads';
 import { collectionLabel } from './lib/collections';
+import type { SourceDoc } from './lib/sources';
 import { useUrlState } from './lib/urlState';
 
 const ALL_LABEL = 'すべての資料';
@@ -48,6 +50,8 @@ function ChatScreen() {
   // 開いている画面は URL が決める（戻る・再読み込み・共有で戻れる）
   const { tab: view, navigate } = useUrlState();
   const [pendingScope, setPendingScope] = useState<PendingScope | null>(null);
+  // 参照資料の専用ページに出す、ひとつの回答の出典。null ならチャット。URL には載せない（会話の中身は再読み込みで残らないため）
+  const [references, setReferences] = useState<SourceDoc[] | null>(null);
   // 範囲を切り替えたあと、入力欄へフォーカスを移す依頼（チャットの画面が見えてから移す）
   const [focusRequest, setFocusRequest] = useState(0);
   const focusedRequest = useRef(0);
@@ -115,8 +119,14 @@ function ChatScreen() {
       <Header
         mode={chat.mode ?? healthMode}
         view={view}
-        onViewChange={(tab) => navigate({ tab })}
-        onNewConversation={chat.reset}
+        onViewChange={(tab) => {
+          setReferences(null);
+          navigate({ tab });
+        }}
+        onNewConversation={() => {
+          setReferences(null);
+          chat.reset();
+        }}
         userLabel={state.status === 'signedIn' ? (state.user.email ?? 'ログイン中') : undefined}
         onSignOut={signedIn ? () => void signOut() : undefined}
       />
@@ -129,7 +139,7 @@ function ChatScreen() {
         />
       )}
       {/* 資料一覧を開いている間も、チャットは隠すだけで残す（生成中の回答・入力途中の文・スクロール位置を失わない） */}
-      <div className="chat-layout" hidden={view !== 'chat'}>
+      <div className="chat-layout" hidden={view !== 'chat' || references !== null}>
         {signedIn && (
           <ThreadSidebar
             state={threads.state}
@@ -150,6 +160,7 @@ function ChatScreen() {
             history={chat.history}
             onExample={chat.pending ? undefined : chat.send}
             onAskAll={groups ? chat.askAgainInAll : undefined}
+            onShowReferences={setReferences}
           />
           {chat.error && (
             <ErrorBanner
@@ -192,6 +203,15 @@ function ChatScreen() {
           />
         </div>
       </div>
+      {view === 'chat' && references !== null && (
+        <ReferencesView
+          sources={references}
+          onBack={() => {
+            setReferences(null);
+            setFocusRequest((n) => n + 1);
+          }}
+        />
+      )}
       {view === 'documents' && (
         <DocumentsView
           onAskGroup={groups ? (collection, trigger) => requestScope(collection, trigger, true) : undefined}
