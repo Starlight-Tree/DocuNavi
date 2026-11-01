@@ -1,4 +1,4 @@
-import type { Loaded } from '../hooks/useDocuments';
+import type { Loaded } from '../hooks/useLoaded';
 
 /** 読み込み中・失敗（再試行つき）の表示。読み込めたとき（ready）は何も出さない。 */
 export function Status<T>({ state, onRetry }: { state: Loaded<T>; onRetry: () => void }) {
