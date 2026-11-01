@@ -54,6 +54,7 @@
 | `corpora/guides/` | 段階 2 の評価用の資料（架空の洗濯乾燥機の取扱説明書と、学生寮の入寮規程。どちらも 1 段組み）。`source/` は Markdown・事実リスト・PDF を作る `make_pdfs.py`。質問は 22 件（承認の経緯は `questions.yaml` の先頭） |
 | `fixtures/two_column/` | **2 段組みの PDF（架空の市のごみの出し方ガイド）と、その質問 11 件。評価セットにも、アプリの検索対象にも入れていない**。2026-10-18 より前は、抽出の段階で根拠が欠けて `--corpus` が止まった。今は段を検出して読み順を組み直す（下の「2 段組みの PDF」と「段の検出と読み順」） |
 | `fixtures/menu/` | **メニューとキャンペーンの PDF 2 冊（架空のカフェ。表・脚注・FAQ・条件と例外）と、その質問 22 件。アプリの検索対象に入れていない**（入れると既存の質問に文が混ざる。下の「menu」の節）。`--corpus` で測る。表のセルの折り返しは、チャンク化が組み直す（下の「折り返したセルの組み直し」。2026-10-18 より前は根拠が抽出に無い質問が 2 問あり、`--allow-missing-evidence` が要った）。質問は user 未確認 |
+| `fixtures/exact/` | **型番・仕様書・リリースノートの PDF 3 冊（架空の空気清浄機・ロボット掃除機・メモアプリ。完全一致が効く資料）と、その質問 50 問（`e001`-`e050`）。アプリの検索対象に入れていない**（`storage/pdf/` にも本番 DB にも入れない）。`--corpus evals/fixtures/exact` で測る。もとは `evals/corpora/exact/` に置き、質問の id は `x001`-`x050` だった（`20c6662`）が、`--app` が `evals/corpora/*/questions.yaml` を全部読んで `storage/pdf/` に無い PDF を探すことと、menu の `x001`-`x004` と id が重なることから、fixtures へ移して `e` 始まりに改めた（2026-11-01） |
 | `results/baseline_bm25_menu.json` / `_menu_k2.json` | `--corpus evals/fixtures/menu`（k=5 / k=2。ファイルが 2 冊なので同じ結果。2026-10-18 に、折り返したセルの組み直しの後で取り直した） |
 | `results/baseline_bm25_guides.json` / `_guides_k2.json` | `--corpus evals/corpora/guides`（k=5 / k=2。ファイルが 2 冊なので同じ結果） |
 | `../scripts/eval_retrieval.py` | 採点の本体 |
