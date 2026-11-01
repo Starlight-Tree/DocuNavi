@@ -65,6 +65,30 @@ as_me() { env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT "$@"; }
    現状の有効な API は `as_me gcloud services list --enabled --project "$PROJECT_ID"` で確認できます
    （あなた自身の権限が要ります。閲覧専用の ID には、一覧を読む権限がありません）。
 
+   **記録（2026-11-02。利用者の報告と、私が確認したことを分ける）:**
+
+   - 利用者の報告: `docunavi-app` で `aiplatform.googleapis.com` を有効化した。開発コンテナ内で、利用者本人の認証により `gemini-3.1-flash-lite-image` の画像生成テストが成功し、`test_image_0.png` ができた。権限の変更は、報告に無い（無しか未確認か、利用者に確認が要る）。
+   - 私が確認した: `test_image_0.png`（リポジトリ直下、未追跡）は 1024×1024 の画像として表示できた。**実体は JPEG で、拡張子だけが `.png`**（先頭・末尾のマーカーで確認）。資料画像の取り込み（`app/hero_images`）は中身のバイトで形式を判定するので、JPEG のままでも扱える。
+   - 私が確認した（読み取り）: 本番の Cloud Run `docunavi` の実行サービスアカウントは `docunavi-run`（`docunavi-sse-relay` も同じ）。環境変数の名前に `GOOGLE_GENAI_USE_VERTEXAI`・`GOOGLE_CLOUD_*`・なりすましの設定は無く、本番の LLM はキーの経路のまま。今回の有効化は、本番の動作を変えない。
+   - 私が確認した（テストのスクリプト `test_image.py`、リポジトリ直下、未追跡）: `genai.Client(vertexai=True, project="docunavi-app", location="global")`、モデル `gemini-3.1-flash-lite-image`、縦横比 1:1。認証はコード内に無く、ADC。生成した画像のバイト列を、形式を見ずに `.png` で保存している（上の JPEG の理由）。
+   - **未確認:** `docunavi-run` に `roles/aiplatform.user` が付いているか（閲覧専用の ID は IAM ポリシーを読めない。`docunavi-app` の Cloud Resource Manager API が無効で、私は有効化していない）、API の有効化そのもの、ADC が本人の認証かどうか。利用者の権限で確認する:
+
+     ```bash
+     as_me gcloud projects get-iam-policy docunavi-app --flatten=bindings \
+       --filter='bindings.members:serviceAccount:docunavi-run@docunavi-app.iam.gserviceaccount.com' --format='value(bindings.role)'
+     as_me gcloud services list --enabled --project docunavi-app --filter='config.name:aiplatform.googleapis.com'
+     ```
+
+   - **なりすまし設定（`CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`）の影響（gcloud の仕様による整理。このコンテナの認証情報の中身は見ていない）:**
+
+     | 場面 | 使われる認証 | なりすましの影響 |
+     |---|---|---|
+     | 開発コンテナの gcloud コマンド | 既定で閲覧専用の `docunavi-viewer` | 読み取りだけ。Vertex AI の生成や書き込みは 403 になる設計 |
+     | 開発コンテナの Python（`google-genai`、Vertex） | ADC（アプリケーションのデフォルト認証）。gcloud のなりすましの設定は、ADC には効かない | なりすましは効かない。ADC を作った認証（今回は利用者本人）で動く |
+     | 本番の Cloud Run | 実行サービスアカウント `docunavi-run`（メタデータサーバー） | 設定が無いので影響なし |
+
+   - 注意: ADC を開発コンテナ内で作った場合、利用者本人のリフレッシュトークンがボリュームに残る。テストが終わったら、残すか消すか（`gcloud auth application-default revoke`。利用者が実行）を決める。
+
 2. **実行用のサービスアカウントを作る**
 
    ```bash
