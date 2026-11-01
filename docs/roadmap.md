@@ -108,7 +108,7 @@
 
 **検索改善の実装（2026-11-01、利用者の指示。4c・GraphRAG・リランカー。プッシュ・デプロイはしていない）**
 
-実装: `app/search_pipeline.py`（入口。`app/agents/tools.py` の `search_chunks_async` がここを呼ぶ）、`app/search_keyword.py`（BM25）、`app/search_rerank.py`、`app/search_graph.py`。ベクトル検索（`app/search_vector.py`）は変えていない（`Hit` に `origin` の列を足しただけ）。
+実装: `app/search/pipeline.py`（入口。`app/agents/tools.py` の `search_chunks_async` がここを呼ぶ）、`app/search/keyword.py`（BM25）、`app/search/rerank.py`、`app/search/graph.py`。ベクトル検索（`app/search/vector.py`）は変えていない（`Hit` に `origin` の列を足しただけ）。
 
 | 環境変数 | 既定 | 中身 |
 |---|---|---|
@@ -120,8 +120,8 @@
 - 3 つとも off なら `search_vector.search` をそのまま呼ぶ（これまでと同じ結果）。不正な値は 503 の固定文（黙って既定に戻さない）。**ハイブリッドとリランカーは既定が on なので、このまま配備すると本番の検索が変わる**（GraphRAG は既定 off）。ローカルの `docker compose` も同じ。配備は別に承認を得る。
 - **ベクトルの下限（`MIN_SIMILARITY`）を崩さない:** キーワードだけで拾うのは、質問に型番・版番号・コード（数字を含む英数字の連なり）があり、本文にそのまま出るチャンクだけ。語が重なるだけのチャンクは、ベクトルの下限を越えていなければ返さない（「資料にない質問」を断る前提を守る）。
 - **失敗は別経路に戻さない:** キーワード側の DB の読み取りが失敗したら、ベクトルだけにはせず 503。原因を絞るときは、フラグを 1 つずつ off にする。
-- **ログ（INFO、1 回に 1 行、`app.search_pipeline`）:** 質問は本文を載せず 8 文字のハッシュと字数だけ。フラグ、候補の数（vector / keyword / keyword除外）、写しの件数、所要ミリ秒、返したチャンクごとに 資料・ページ・経路（`vector` / `keyword` / `vector+keyword` / `graph`）・`vec`（コサイン類似度）・`bm25`・`rrf`・`lex`・`score`。全部 off の経路にも、経路とコサイン類似度の行を出す。
-- **GraphRAG の形（利用者が選んだ「既存の関係図で拡張」からの違い）:** `app/relations` は入寮規程の PDF の原本を毎回読み直して辺を作るので、検索のたびには呼べない。そこで同じ種類の規則（「第N条」の参照）を、DB のチャンクの本文に当てて辺を作る（`app/search_graph.py`）。入寮規程に限らず、「第N条」で始まる行を持つ資料なら効く。「前条」「前項」と、語の定義への辺（`app/relations/terms.py`）は張らない。汎用の実体グラフは未着手。
+- **ログ（INFO、1 回に 1 行、`app.search.pipeline`）:** 質問は本文を載せず 8 文字のハッシュと字数だけ。フラグ、候補の数（vector / keyword / keyword除外）、写しの件数、所要ミリ秒、返したチャンクごとに 資料・ページ・経路（`vector` / `keyword` / `vector+keyword` / `graph`）・`vec`（コサイン類似度）・`bm25`・`rrf`・`lex`・`score`。全部 off の経路にも、経路とコサイン類似度の行を出す。
+- **GraphRAG の形（利用者が選んだ「既存の関係図で拡張」からの違い）:** `app/relations` は入寮規程の PDF の原本を毎回読み直して辺を作るので、検索のたびには呼べない。そこで同じ種類の規則（「第N条」の参照）を、DB のチャンクの本文に当てて辺を作る（`app/search/graph.py`）。入寮規程に限らず、「第N条」で始まる行を持つ資料なら効く。「前条」「前項」と、語の定義への辺（`app/relations/terms.py`）は張らない。汎用の実体グラフは未着手。
 - MCP（`docunavi-mcp`）は `search_vector.search` を直接呼ぶので、ベクトル検索のまま。
 
 確認したこと（証拠等級 A、偽の LLM・偽の検索・実 API なし）:
@@ -150,7 +150,7 @@
 未確認・限界:
 - RRF の重み（k=60）、リランカーの配合（0.5 : 0.5、識別子 0.5）、`SEARCH_CANDIDATES` は、結果を見る前に固定した初期値のまま。調整していない。調整するときは、測定に使った質問とは別の質問の集まりで行う。
 - GraphRAG の効果は未測定（下の実測で辺が 0 本）。測るには、条ごとのチャンク分割か参照辺の拡張が要る（未着手。検討中）。
-- リランカーは語彙の一致だけで、意味的な並べ替えではない。Gemini やクロスエンコーダーへの差し替えは、費用・依存・遅延が増えるので入れていない（`app/search_rerank.py` の `lexical_scores` と同じ形の関数にすれば差し替えられる）。
+- リランカーは語彙の一致だけで、意味的な並べ替えではない。Gemini やクロスエンコーダーへの差し替えは、費用・依存・遅延が増えるので入れていない（`app/search/rerank.py` の `lexical_scores` と同じ形の関数にすれば差し替えられる）。
 - 資料の写しは、範囲ごとにプロセス内へ持つ（既定 60 秒）。チャンクが数千を超えたら、読み取りと BM25 が重くなる。そのときは、DB の全文索引（pgroonga）への移行を測る。取り込み直した直後の最大 60 秒は、キーワード側が古い（ベクトル側は新しい）。
 - 本物の LLM を通した `/chat/stream` と、本番の DB（pgvector 入り）での確認はしていない。
 

@@ -61,7 +61,7 @@ pytest
 テストは DB も埋め込みの API も使いません。資料の検索（`app/agents/tools.py` の `search_chunks_async`）は、`tests/conftest.py` が自動で偽の検索
 （`scripts/bm25_baseline.py`。`storage/pdf/` の PDF を BM25 で引く、決まった入力に決まった出力を返す実装）に差し替えます。
 アプリのモックモードは検索しない固定の返答なので、グラフの「ツール呼び出し → 回答」の流れを通すテストは、偽の LLM（`tests/fakes.py` の
-`SearchingMockLLM`、アプリの画面側は `searching_llm` フィクスチャ）を使います。本物の検索（`app/search_vector.py`）を確かめるテストは、
+`SearchingMockLLM`、アプリの画面側は `searching_llm` フィクスチャ）を使います。本物の検索（`app/search/vector.py`）を確かめるテストは、
 `@pytest.mark.real_search` で差し替えを外し、DB と埋め込みを自分で偽物にします（`tests/test_search_vector.py`）。
 
 GitHub Actions（`.github/workflows/ci.yml`）が、`main` へのプッシュと PR で、バックエンドのテスト（Python 3.12）、
