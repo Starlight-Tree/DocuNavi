@@ -61,6 +61,8 @@ class Hit(NamedTuple):
 
     `similarity` はコサイン類似度。画面の出典カードを絞る判断（`app/agents/tools.py` の `WEAK_GAP`）だけに使い、LLM には渡さない。
     `collection` は資料のグループ（`documents.collection`。未設定なら None）。画面の出典に添えるだけで、LLM には渡さない。
+    `origin` は拾った経路（`app/search_pipeline.py` が付ける。`vector` / `keyword` / `vector+keyword` / `graph`。ベクトル検索だけのときは None）。
+    `similarity` は、キーワードだけで拾った箇所と `graph` の箇所では None。
     """
 
     source: str
@@ -69,6 +71,7 @@ class Hit(NamedTuple):
     page_end: int | None = None
     similarity: float | None = None
     collection: str | None = None
+    origin: str | None = None
 
 
 class VectorSearchError(RuntimeError):
