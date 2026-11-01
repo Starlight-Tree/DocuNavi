@@ -3,7 +3,7 @@
 - /login/ /logout/                          試作ログイン（SAAS_DEMO_LOGIN が有効なときだけ）
 - /dashboard/                               所属組織・役割・契約・上限と使用量・最近の会話
 - /orgs/ /orgs/<id>/                        所属組織の一覧と詳細
-- /orgs/<id>/members/manage/                メンバー管理の入口（owner / admin だけ。中身は準備中）
+- /orgs/<id>/members/manage/                メンバー管理（owner / admin だけ。追加・役割の変更・外す。規則は member_admin.py）
 入っていない組織は、存在を知らせないために 404（API と同じ）。役割が足りないときは 403。
 """
 
@@ -15,6 +15,8 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
 
+from . import member_admin
+from .member_admin import MemberError
 from .models import Membership, Role
 from .permissions import allows, rank
 from .presenters import meters_for, subscription_summary
@@ -146,15 +148,85 @@ def org_detail(request, org_id):
     return render(request, "saas/org_detail.html", _context(request, card=card, members=rows, nav="orgs"))
 
 
+_DONE = {"added": "メンバーを追加しました。", "role": "役割を変更しました。", "removed": "メンバーを外しました。"}
+_ACTIONS = {"add", "set_role", "remove"}
+
+
+def _apply(request, membership: Membership) -> str:
+    """POST の操作を行い、成功の印（`_DONE` のキー）を返す。失敗は MemberError。"""
+    action = request.POST.get("action", "")
+    org = membership.organization
+    if action == "add":
+        member_admin.add_member(org, membership, request.POST.get("sub", ""), request.POST.get("role", ""))
+        return "added"
+    try:
+        target = int(request.POST.get("membership", ""))
+    except ValueError:
+        raise MemberError(400, "対象のメンバーの指定が正しくありません。") from None
+    if action == "set_role":
+        member_admin.change_role(org, membership, target, request.POST.get("role", ""))
+        return "role"
+    member_admin.remove_member(org, membership, target)
+    return "removed"
+
+
+def _manage_context(request, membership: Membership, **extra) -> dict:
+    org = membership.organization
+    members = list(Membership.objects.filter(organization=org).order_by("id"))
+    members.sort(key=lambda m: -rank(m.role))
+    roles = member_admin.grantable_roles(membership.role)
+    rows = [
+        {
+            "id": m.pk,
+            "sub": m.external_user_id,
+            "role": m.role,
+            "role_label": Role(m.role).label,
+            "is_me": m.external_user_id == request.sub,
+            "editable": member_admin.can_modify(membership, m),
+        }
+        for m in members
+    ]
+    return _context(
+        request,
+        org=org,
+        role_label=Role(membership.role).label,
+        members=rows,
+        grantable=[{"value": r.value, "label": r.label} for r in roles],
+        member_count=len(members),
+        max_members=org.plan.max_members,
+        nav="orgs",
+        **extra,
+    )
+
+
 @sub_required
+@require_http_methods(["GET", "POST"])
 def members_manage(request, org_id):
     membership = _own_membership(request, org_id)
     if not allows(membership.role, Role.ADMIN):
         return render(
             request, "saas/forbidden.html", _context(request, org=membership.organization, nav="orgs"), status=403
         )
+    if request.method == "POST":
+        if request.POST.get("action") not in _ACTIONS:
+            return render(
+                request,
+                "saas/members_manage.html",
+                _manage_context(request, membership, error="操作の指定が正しくありません。"),
+                status=400,
+            )
+        try:
+            done = _apply(request, membership)
+        except MemberError as err:
+            return render(
+                request,
+                "saas/members_manage.html",
+                _manage_context(request, membership, error=err.message),
+                status=err.status,
+            )
+        return redirect(f"{request.path}?done={done}")  # 再読み込みで二重に送らない
     return render(
         request,
         "saas/members_manage.html",
-        _context(request, org=membership.organization, role_label=Role(membership.role).label, nav="orgs"),
+        _manage_context(request, membership, notice=_DONE.get(request.GET.get("done", ""))),
     )

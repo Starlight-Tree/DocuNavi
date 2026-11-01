@@ -272,22 +272,14 @@ class OrgPagesTests(WebTestCase):
                 response = self.client.get(reverse("members_manage", args=[org.pk]))
                 self.assertContains(response, "この操作をする権限がありません", status_code=403)
 
-    def test_the_manage_page_is_open_to_owner_and_admin_and_says_it_is_not_ready(self):
+    def test_the_manage_page_is_open_to_owner_and_admin_and_shows_the_forms(self):
         for n, org in ((1, self.cafe), (5, self.dorm)):
             with self.subTest(sub=n):
                 self.login(sub(n))
                 response = self.client.get(reverse("members_manage", args=[org.pk]))
-                self.assertContains(response, "メンバー管理（準備中）")
-                self.assertContains(response, "次にやること:")
-                self.assertContains(response, "<form", count=1)  # ナビのログアウトだけ。追加・変更のフォームは無い
+                self.assertContains(response, "メンバーを追加する")
+                self.assertNotContains(response, "準備中")
 
     def test_the_manage_page_of_an_org_i_am_not_in_is_404(self):
         self.login(sub(1))
         self.assertEqual(self.client.get(reverse("members_manage", args=[self.dorm.pk])).status_code, 404)
-
-    def test_the_manage_page_takes_no_writes(self):
-        self.login(sub(1))
-        before = Membership.objects.count()
-        response = self.client.post(reverse("members_manage", args=[self.cafe.pk]), {"sub": str(sub(60))})
-        self.assertEqual(response.status_code, 200)  # 受け取らない。何も変わらない
-        self.assertEqual(Membership.objects.count(), before)
