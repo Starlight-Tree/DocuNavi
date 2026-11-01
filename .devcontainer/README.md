@@ -300,6 +300,39 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 - 再ビルドで確かめたのは、Chromium のキャッシュ（ボリューム）が残ること、MCP の登録が有効なことです。ライブラリーの導入は、以前は `postCreateCommand` の apt で、再ビルド直後にロックの競合で失敗したことがありました。
   今はライブラリーをイメージに入れたので、`postCreateCommand` に apt は残りません（ロックの競合も、試し直しの処理もありません）。移したあとの再ビルドで、Chromium の起動（`--version` と、ヘッドレスでの DOM の出力）と Playwright MCP での画面の操作を確かめました。
 
+## 開発環境の Supabase CLI（2026-11-02。設定の追加まで。リビルドと初回ログインは未実施）
+
+詳細・理由・リスクは [docs/supabase-cli.md](../docs/supabase-cli.md) の「開発コンテナの Supabase CLI」。ここには、開発コンテナの定義との対応だけを書く。
+
+- **導入:** `Dockerfile`（版 v2.122.0。公式の `checksums.txt` の SHA-256 を照合。arm64 だけ）。`postCreateCommand` の `cli-tools` が、PATH にあるかを見る。
+- **ログイン情報:** 名前付きボリューム `supabase-config` を `~/.supabase` にマウントする（`docker-compose.yml`）。所有者と 700 は `postCreateCommand` の `supabase-volume`。再ビルドで残る見込み（未確認）。
+  DB の接続文字列（`~/.pg`、`pg-config`）とは別のボリューム。
+- **初回ログイン（利用者が端末で）:** `supabase login --no-browser`。確認コードを入力する。トークンをチャットに貼らない。`--token` を使わない。
+- **再ビルド後の確認（読み取りだけ）:**
+  1. `supabase --version`（2.122.0）。
+  2. `stat -c '%a %n' ~/.supabase ~/.supabase/access-token`（700 / 600。中身は表示しない）。
+  3. `supabase projects list 2>&1 | grep -c "$(cat supabase/.temp/project-ref)"`（1 ならトークンが有効で、link 先が見える。管理 API の読み取りだけで、DB には接続しない）。
+- **再ログインが要るとき:** トークンの期限切れ・失効、ボリュームの削除（`docker volume rm supabase-config-<id>`、`down -v`、`prune`、OrbStack の仮想ディスクごとの削除。**これらはボリュームでは防げない**）。
+- **消し方:** `docker volume rm supabase-config-<id>`（ホスト）、または `rm -rf ~/.supabase/*`（コンテナ）。トークンはダッシュボードの Access Tokens から失効する。
+
+## 開発環境の Infisical（2026-11-02。設定の追加まで。リビルドと検証は未実施）
+
+開発用の秘密情報の置き場（Infisical Cloud の Free プラン）。本番（Cloud Run・Vercel）の秘密は対象外。サードパーティの Feature は使わない。
+
+- **CLI:** `Dockerfile`（公式の .deb v0.44.11。公式の `checksums.txt` の SHA-256 を照合。arm64 だけ）。`cli-tools` が PATH にあるかを見る。テレメトリーと更新確認は止めてある（`INFISICAL_DISABLE_*`）。
+- **運用は CLI のみ**（ユーザーが決定、2026-11-02）。VS Code 拡張（`Infisical.infisical-vscode`）は使わない。`devcontainer.json` の `extensions` にも入れない。
+- **ログイン状態（2 つは別物）:**
+  - CLI のマシンアイデンティティ（**Viewer 固定**）: `~/.infisical/identity/` の `client-id` と `client-secret`（ボリューム `infisical-config`。600）。ボリュームが残る限り残る。
+  - `infisical login`（ユーザーのログイン）は使わない。キーリングが無く、データ本体（`~/infisical-keyring`）がボリュームの外なので、リビルドで消える。
+- **資格情報を置く（利用者が端末で。値は引数・履歴・チャットに出ない）:**
+  `bash -c 'umask 077; d=$HOME/.infisical/identity; mkdir -p "$d"; read -rp "Client ID: " i; printf %s "$i" > "$d/client-id"; read -rsp "Client Secret: " s; echo; printf %s "$s" > "$d/client-secret"; unset i s'`
+- **再ビルド後の確認（読み取りだけ。値は表示しない）:**
+  1. `infisical --version`（0.44.11）と `dpkg -V infisical`（出力なし）。
+  2. `stat -c '%a %U' ~/.infisical`（700 vscode）。`ls -A ~/.infisical`（初回は空）。
+  3. `ls ~/.vscode-server/extensions | grep -ci infisical`（0。拡張は入れない）。
+- **消し方:** `docker volume rm infisical-config-<id>`（ホスト）、または `rm -rf ~/.infisical/*`（コンテナ）。資格情報の失効は、Infisical の画面（Machine Identities）で行う（手順は未確認）。
+- **注意:** Free プランにはシークレットの版管理も監査ログも無い。CLI での更新・削除は戻せないので、原本は別の場所にも残す。
+
 ## Supabase MCP
 
 **2026-11-01 の整理:** 読み取り専用の共有 `supabase-read`（`.mcp.json`）を削除し、書き込み可能なローカル登録 `supabase-write` を `supabase` に改名した（利用者の指示）。以下の「読み取り専用」「共有」の記述は、整理前の記録（2026-10-18〜21）で、現在の構成ではない。現在は、ローカル登録の `supabase` だけで、読み取りのツールも書き込み可能な接続を通る。`.claude/settings.json` の deny（`apply_migration`）と、`~/.claude/settings.json` の `ask`（`mcp__supabase__*`）で守る。

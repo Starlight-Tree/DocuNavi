@@ -1,5 +1,5 @@
 # 開発コンテナのイメージ。CLI とシステムのライブラリーは、ここで入れる（再ビルドで層のキャッシュが効く）。
-# 入れるもの: gcloud・gh・psql・docker-cli・docker-compose（apt）、Playwright の Chromium に要るライブラリー（apt）、Go（公式の tar）。
+# 入れるもの: gcloud・gh・psql・docker-cli・docker-compose（apt）、Playwright の Chromium に要るライブラリー（apt）、Go・Supabase CLI・Infisical CLI（公式の配布物。SHA-256 を照合）。
 # 入れないもの: Chromium 本体（名前付きボリューム playwright-browsers が ~/.cache/ms-playwright を重ねるので、postCreateCommand の
 # install-playwright.sh が取得する）、Vercel CLI（入れない。必要なときは npx --yes vercel@63.1.2。README の「開発環境の Vercel CLI」）。
 #
@@ -98,3 +98,61 @@ RUN --mount=type=cache,target=/var/cache/go-dl,sharing=locked \
     ln -sf /usr/local/go/bin/go /usr/local/bin/go; \
     ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
     go version
+
+# Supabase CLI（本番 DB の migration 管理と、読み取りの確認用。docs/supabase-cli.md）。公式のリリースを、公式の checksums.txt の SHA-256 と照合して入れる（2026-11-02）。
+# 版は v2.122.0（2026-10-23 公開の安定版）。配布物の実行ファイルは supabase と supabase-go の 2 つで、同じ場所（/usr/local/bin）に置く。
+# ログイン情報（~/.supabase。平文の access-token）はイメージに含めない。名前付きボリューム supabase-config に残す（./docker-compose.yml）。
+# 上げるときは、公開日を確かめてから、版とハッシュを書き換える（Go と同じ。arm64 のハッシュだけを固定している）。
+# 版の確認は、SUPABASE_HOME を一時の場所にして行う（イメージに ~/.supabase を作らないため）。
+ARG SUPABASE_CLI_VERSION=2.122.0
+ARG SUPABASE_CLI_SHA256_ARM64=8980b46044aba0863f26a1b4134a498d2c74df0dadf24289bb4faa86729511cc
+RUN --mount=type=cache,target=/var/cache/supabase-cli-dl,sharing=locked \
+    set -eu; \
+    case "$(uname -m)" in \
+      aarch64 | arm64) arch=arm64; expected="${SUPABASE_CLI_SHA256_ARM64}" ;; \
+      *) echo "未対応のアーキテクチャです: $(uname -m)（arm64 のハッシュだけを固定している）" >&2; exit 1 ;; \
+    esac; \
+    archive="supabase_${SUPABASE_CLI_VERSION}_linux_${arch}.tar.gz"; \
+    file="/var/cache/supabase-cli-dl/${archive}"; \
+    if [ ! -f "${file}" ]; then \
+      curl -fsSL -o "${file}.part" "https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/${archive}"; \
+      mv "${file}.part" "${file}"; \
+    fi; \
+    if ! echo "${expected}  ${file}" | sha256sum -c -; then \
+      rm -f "${file}"; \
+      echo "SHA-256 が一致しません。導入を中止します" >&2; \
+      exit 1; \
+    fi; \
+    tar -xzf "${file}" -C /usr/local/bin supabase supabase-go; \
+    chmod 755 /usr/local/bin/supabase /usr/local/bin/supabase-go; \
+    SUPABASE_HOME=/tmp/supabase-build supabase --version; \
+    rm -rf /tmp/supabase-build
+
+# Infisical CLI（開発用の秘密情報を `infisical run` で受け渡す。2026-11-02）。公式のリリース（GitHub の Infisical/cli）の .deb を、公式の checksums.txt の SHA-256 と照合して入れる。
+# 版は v0.44.11（2026-10-30 公開）。.deb には導入後のスクリプトも依存も無く、/usr/bin/infisical（約 150MB）と補完・man だけを置く（2026-11-02 に確認）。
+# 公式の apt 手順（curl | sudo bash）は、版を固定できないので使わない。署名や証明書類は公開されていないので、チェックサムは配布元と同じ出どころ。
+# ログイン情報（~/.infisical）はイメージに含めない。名前付きボリューム infisical-config に残す（./docker-compose.yml）。
+# 上げるときは、公開日を確かめてから、版とハッシュを書き換える（arm64 のハッシュだけを固定している）。
+# 版の確認は、HOME を一時の場所にして、テレメトリーと更新確認を止めて行う（イメージに ~/.infisical を作らないため）。
+ARG INFISICAL_CLI_VERSION=0.44.11
+ARG INFISICAL_CLI_SHA256_ARM64=d6998d7ae0c217aa6a9c2a44025dc3df22725c08e1c7fae19dbd60b4ba63505d
+RUN --mount=type=cache,target=/var/cache/infisical-cli-dl,sharing=locked \
+    set -eu; \
+    case "$(uname -m)" in \
+      aarch64 | arm64) arch=arm64; expected="${INFISICAL_CLI_SHA256_ARM64}" ;; \
+      *) echo "未対応のアーキテクチャです: $(uname -m)（arm64 のハッシュだけを固定している）" >&2; exit 1 ;; \
+    esac; \
+    deb="infisical_${INFISICAL_CLI_VERSION}_linux_${arch}.deb"; \
+    file="/var/cache/infisical-cli-dl/${deb}"; \
+    if [ ! -f "${file}" ]; then \
+      curl -fsSL -o "${file}.part" "https://github.com/Infisical/cli/releases/download/v${INFISICAL_CLI_VERSION}/${deb}"; \
+      mv "${file}.part" "${file}"; \
+    fi; \
+    if ! echo "${expected}  ${file}" | sha256sum -c -; then \
+      rm -f "${file}"; \
+      echo "SHA-256 が一致しません。導入を中止します" >&2; \
+      exit 1; \
+    fi; \
+    dpkg -i "${file}"; \
+    HOME=/tmp/infisical-build INFISICAL_DISABLE_TELEMETRY=true INFISICAL_DISABLE_UPDATE_CHECK=true infisical --version; \
+    rm -rf /tmp/infisical-build
