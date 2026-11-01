@@ -466,9 +466,11 @@ describe('検索範囲: 出典に資料グループを添える', () => {
     const { user } = setup();
     await ask(user, '質問');
 
-    const group = await screen.findByRole('group', { name: /出典/ });
-    expect(within(group).getByText('設定資料')).toBeInTheDocument();
-    expect(within(group).getAllByRole('button')).toHaveLength(2);
+    const group = await screen.findByRole('group', { name: /参照資料/ });
+    const [zahard, cafe] = within(group).getAllByRole('button');
+    expect(zahard).toHaveTextContent('設定資料 ・ p.1');
+    expect(cafe).toHaveTextContent('p.2');
+    expect(cafe).not.toHaveTextContent('・');
   });
 });
 

@@ -1,0 +1,29 @@
+import { useState } from 'react';
+import type { SourceDoc } from '../lib/sources';
+import { useOpenSource } from './useDocuments';
+import type { OpenSourceResult } from './useDocuments';
+
+export const MSG_NOT_FOUND = '資料一覧に見つかりませんでした。';
+export const MSG_ERROR = '資料を開けませんでした。しばらく待ってから、もう一度お試しください。';
+
+/**
+ * 参照資料のカードから、元の PDF を開く。開いている最中のカード（`opening`、`sources` の添字）と、失敗の種類を持つ。
+ * 回答の下のカードと、参照資料の専用ページが同じ開き方を使う。
+ */
+export function useOpenReference(sources: SourceDoc[]) {
+  const openSource = useOpenSource();
+  const [opening, setOpening] = useState<number | null>(null);
+  const [failure, setFailure] = useState<Exclude<OpenSourceResult, 'opened'> | null>(null);
+
+  const open = async (index: number) => {
+    const source = sources[index];
+    if (!source || opening !== null) return;
+    setOpening(index);
+    setFailure(null);
+    const result = await openSource(source.name, source.text, source.page);
+    setOpening(null);
+    if (result !== 'opened') setFailure(result);
+  };
+
+  return { opening, failure, failureMessage: failure === null ? null : failure === 'notfound' ? MSG_NOT_FOUND : MSG_ERROR, open };
+}
