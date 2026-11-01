@@ -22,21 +22,21 @@ MAX_IMAGE_BYTES = 5 * 1024 * 1024  # migration の document_images_size と同�
 KIND = "hero"
 _DIGITS = re.compile(r"[0-9]+")
 
-SELECT_DOCUMENT_SQL = "SELECT content_hash FROM documents WHERE id = %s"
+SELECT_DOCUMENT_SQL = "SELECT content_hash FROM chatbot.documents WHERE id = %s"
 INSERT_SQL = (
-    "INSERT INTO document_images (document_id, kind, status, mime_type, data, width, height, document_hash, prompt_sha256, model) "
+    "INSERT INTO chatbot.document_images (document_id, kind, status, mime_type, data, width, height, document_hash, prompt_sha256, model) "
     "VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s) RETURNING id"
 )
-SELECT_IMAGE_SQL = "SELECT id, document_id, kind, status FROM document_images WHERE id = %s FOR UPDATE"
+SELECT_IMAGE_SQL = "SELECT id, document_id, kind, status FROM chatbot.document_images WHERE id = %s FOR UPDATE"
 DEMOTE_SQL = (
-    "UPDATE document_images SET status = 'rejected', approved_at = NULL "
+    "UPDATE chatbot.document_images SET status = 'rejected', approved_at = NULL "
     "WHERE document_id = %s AND kind = %s AND status = 'approved' AND id <> %s"
 )
-APPROVE_SQL = "UPDATE document_images SET status = 'approved', approved_at = now() WHERE id = %s"
-REJECT_SQL = "UPDATE document_images SET status = 'rejected', approved_at = NULL WHERE id = %s"
+APPROVE_SQL = "UPDATE chatbot.document_images SET status = 'approved', approved_at = now() WHERE id = %s"
+REJECT_SQL = "UPDATE chatbot.document_images SET status = 'rejected', approved_at = NULL WHERE id = %s"
 LIST_SQL = (
     "SELECT id, document_id, kind, status, mime_type, octet_length(data) AS bytes, width, height, created_at "
-    "FROM document_images ORDER BY document_id, id"
+    "FROM chatbot.document_images ORDER BY document_id, id"
 )
 
 

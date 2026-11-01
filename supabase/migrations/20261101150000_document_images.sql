@@ -14,7 +14,8 @@ set role postgres; -- Ensure objects are owned by postgres, matching the existin
 -- 状態: 未適用（本番にも、ローカルにも）。適用は承認後。
 -- 適用の順序: この SQL → 検証の SELECT → コードを配る（API の一覧が document_images を読むので、逆だと GET /documents が 503 になる）。
 -- 権限: 所有者は postgres（先頭の set role）。API の chatbot_app には SELECT だけを付ける（書き込みは付けない）。
---   画像の取り込み・承認（python -m app.hero_images）は、書き込める接続（運用者の DATABASE_URL）で行う。どのロールで行うかは未確認。
+--   画像の取り込み・承認（python -m app.hero_images）は、書き込める別の接続（環境変数 HERO_IMAGES_DATABASE_URL。所有者の postgres の接続を、運用者が端末で渡す）で行う。
+--   DATABASE_URL（chatbot_app）では SELECT しかできないので失敗する（2026-11-01、本番のカタログで確認: 同じ postgres 所有の表への chatbot_app の INSERT 権限は false）。
 --   anon / authenticated は全権限を外す。行レベルのセキュリティ（RLS）は有効にしない
 --   （有効にすると、所有者でない chatbot_app は、ポリシーが無いので 0 行しか読めない）。
 -- 再実行しても安全（create ... if not exists）。

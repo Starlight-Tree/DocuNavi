@@ -1,4 +1,4 @@
-"""ヒーロー画像の取り込み・承認コマンド（運用者用）。書き込める DATABASE_URL が要る。
+"""ヒーロー画像の取り込み・承認コマンド（運用者用）。書き込める接続（HERO_IMAGES_DATABASE_URL。無ければ DATABASE_URL）が要る。
 
     python -m app.hero_images list                                   # 画像の一覧（id・資料・状態・バイト数）
     python -m app.hero_images import --plan plan.json --dir images/  # ジョブの出力（<資料ID>/<ハッシュ先頭16文字>.png）を draft で入れる
@@ -9,6 +9,7 @@
 """
 
 import argparse
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -35,9 +36,10 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     load_dotenv()
-    url = database_url()
+    # 書き込める接続（HERO_IMAGES_DATABASE_URL）を優先する。アプリの DATABASE_URL のロール（chatbot_app）は document_images を読むだけ。
+    url = os.environ.get("HERO_IMAGES_DATABASE_URL", "").strip() or database_url()
     if not url:
-        print("DATABASE_URL が未設定です。", file=sys.stderr)
+        print("HERO_IMAGES_DATABASE_URL（または DATABASE_URL）が未設定です。", file=sys.stderr)
         return 2
     import psycopg
 

@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+import psycopg
 import pytest
 
 from app import hero_images as hero
@@ -215,3 +216,34 @@ def test_format_rows():
     }
     text = hero.format_rows([row])
     assert "draft" in text and "4x3" in text
+
+
+def test_cli_prefers_the_write_url_over_the_app_url(monkeypatch):
+    from app.hero_images import __main__ as cli
+
+    seen: list[str] = []
+
+    def fake_connect(url, **_kwargs):
+        seen.append(url)
+        raise psycopg.OperationalError("x")
+
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://app/db")
+    monkeypatch.setenv("HERO_IMAGES_DATABASE_URL", "postgresql://writer/db")
+    monkeypatch.setattr(psycopg, "connect", fake_connect)
+    assert cli.main(["list"]) == 1
+    assert seen == ["postgresql://writer/db"]
+
+    monkeypatch.delenv("HERO_IMAGES_DATABASE_URL")
+    seen.clear()
+    assert cli.main(["list"]) == 1
+    assert seen == ["postgresql://app/db"]
+
+
+def test_cli_without_any_url_exits_with_usage_error(monkeypatch):
+    from app.hero_images import __main__ as cli
+
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("HERO_IMAGES_DATABASE_URL", raising=False)
+    assert cli.main(["list"]) == 2
