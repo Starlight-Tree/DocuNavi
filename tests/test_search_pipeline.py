@@ -342,9 +342,9 @@ def test_one_log_line_has_the_method_scores_and_origin_but_not_the_query(monkeyp
         monkeypatch, [A, B, C], [hit(B, 0.81), hit(C, 0.70)], SEARCH_HYBRID="on", SEARCH_RERANK="on", SEARCH_GRAPH="on"
     )
     query = "AP-340S の消費電力は何Wですか"
-    with caplog.at_level(logging.INFO, logger="app.search.pipeline"):
+    with caplog.at_level(logging.INFO, logger="app.search_pipeline"):
         run(query, top_k=2)
-    lines = [r.getMessage() for r in caplog.records if r.name == "app.search.pipeline"]
+    lines = [r.getMessage() for r in caplog.records if r.name == "app.search_pipeline"]
     assert len(lines) == 1
     line = lines[0]
     assert "flags=hybrid=on,rerank=on,graph=on" in line
@@ -363,9 +363,9 @@ def test_one_log_line_has_the_method_scores_and_origin_but_not_the_query(monkeyp
 
 def test_the_all_off_path_also_logs_the_method_and_the_vector_score(monkeypatch, caplog):
     install(monkeypatch, [A], [hit(A, 0.9)])
-    with caplog.at_level(logging.INFO, logger="app.search.pipeline"):
+    with caplog.at_level(logging.INFO, logger="app.search_pipeline"):
         run("AP-340S")
-    line = [r.getMessage() for r in caplog.records if r.name == "app.search.pipeline"][0]
+    line = [r.getMessage() for r in caplog.records if r.name == "app.search_pipeline"][0]
     assert "flags=hybrid=off,rerank=off,graph=off" in line and "vector vec=0.900" in line
 
 

@@ -27,7 +27,8 @@ from app.ingestion import embedding
 from app.scope import ALLOWED_FILTER_SQL, Scope, require_scope
 from app.search.types import Hit, VectorSearchError
 
-logger = logging.getLogger(__name__)
+# ログの絞り込み（ロガー名）を、移動前の app.search_vector のまま保つ
+logger = logging.getLogger("app.search_vector")
 
 # この値未満のチャンクは返さない。evals/README.md の「回答の評価（ベクトル検索）」で、14 問を LLM まで通して確かめた値
 # （資料にない話題の質問 11 問を全て断り、答えのある 3 問は断らなかった。小さい標本なので、動く値と見る）

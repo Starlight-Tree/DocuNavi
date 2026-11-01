@@ -460,7 +460,7 @@ def _eval_chunks(hits: Sequence[search_vector.Hit]) -> list[ev.Chunk]:
 
 async def measure(index: VectorIndex, questions: Sequence[Question]) -> dict[str, Any]:
     collector = _LogCollector()
-    logger = logging.getLogger("app.search.pipeline")
+    logger = logging.getLogger("app.search_pipeline")
     previous_level = logger.level
     logger.setLevel(logging.INFO)
     logger.addHandler(collector)

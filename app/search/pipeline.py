@@ -35,7 +35,8 @@ from app.search.keyword import KeywordIndex, identifiers, normalize
 from app.search.rerank import lexical_scores
 from app.search.types import Hit, VectorSearchError
 
-logger = logging.getLogger(__name__)
+# ログの絞り込み（ロガー名）を、移動前の app.search_pipeline のまま保つ
+logger = logging.getLogger("app.search_pipeline")
 
 RRF_K = 60
 # 最終点 = RRF（最大を 1 にそろえる）と語の一致の点の平均
