@@ -1,7 +1,7 @@
 """ロール別の資料グループ制御を、本物の Postgres で検証する（TEST_DATABASE_URL があるときだけ動く）。
 
 準備と実行例は tests/test_history_postgres.py と同じ（テストごとに専用スキーマを作って消す）。マイグレーション
-（supabase/migrations の 20261025205258 と 20261026045921）の SQL を、専用スキーマに向けて適用してから確かめる。
+（supabase/migrations の 20261025205258・20261026045921・20261101150000）の SQL を、専用スキーマに向けて適用してから確かめる。
 確かめるのは、見えるグループを引く SQL（ロールなし = default、複数ロール = 和集合、割り当て変更の即時反映）と、資料・グループの
 一覧の SQL の絞り込み（`allowed` の配列の渡し方を含む）、API の端から端まで。
 検索の SQL（pgvector が要る）は動かせない。絞り込みの条件（`ALLOWED_FILTER_SQL`）は一覧の SQL と共通なので、ここで確かめる。
@@ -31,6 +31,7 @@ TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "").strip()
 MIGRATIONS = Path(__file__).resolve().parent.parent / "supabase" / "migrations"
 ROLE_MIGRATION = "20261026045921_role_collection_access.sql"
 COLLECTIONS_MIGRATION = "20261025205258_document_collections.sql"
+IMAGES_MIGRATION = "20261101150000_document_images.sql"  # 資料一覧の SQL が document_images を読む
 
 CAFE_USER = str(uuid.uuid4())  # cafe だけのロール
 MULTI_USER = str(uuid.uuid4())  # cafe と guides のロール
@@ -64,6 +65,7 @@ def seeded(db):  # noqa: F811
         )
         _apply_migration(admin, COLLECTIONS_MIGRATION, schema)
         _apply_migration(admin, ROLE_MIGRATION, schema)
+        _apply_migration(admin, IMAGES_MIGRATION, schema)
         for source, collection in (
             ("zahard_world.pdf", "zahard"),
             ("cafe_hours.pdf", "cafe"),
