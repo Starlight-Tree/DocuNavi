@@ -1,12 +1,11 @@
 ---
 paths:
   - "app/search/**"
-  - "app/search_*.py"
 ---
 
 # 検索の実装を触るとき
 
-`app/search/` は、検索ファイルを移した後の置き場（今は `app/search_*.py` が `app/` 直下）。どちらでも同じ規則を適用する。詳細は [app/CLAUDE.md](../../app/CLAUDE.md)。
+検索の実装は `app/search/`（`pipeline` `vector` `keyword` `rerank` `graph` `types`）。詳細は [app/CLAUDE.md](../../app/CLAUDE.md)。
 
 - 3 つのフラグ（`SEARCH_HYBRID` `SEARCH_RERANK` `SEARCH_GRAPH`）がすべて off なら、`search_vector.search` をそのまま呼ぶ。この経路を変えない
 - `scope` は必須。`Scope.ALL` は呼び出し側が明示する。範囲は SQL と、返った行の両方で確かめる

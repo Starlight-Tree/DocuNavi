@@ -1,11 +1,11 @@
 ---
 name: search-refactor
-description: 検索の実装（app/search_*.py）を、動作を変えずに移動・分割・整理するときの安全な手順。app/search/ への移動、検索コードのリファクタを頼まれたときに使う。
+description: 検索の実装（app/search/）を、動作を変えずに移動・分割・整理するときの安全な手順。検索コードのリファクタを頼まれたときに使う。
 ---
 
 # 検索リファクタの安全な手順
 
-検索の実装は `app/search_vector.py` `search_keyword.py` `search_rerank.py` `search_graph.py` `search_pipeline.py`（今は `app/` 直下）。
+検索の実装は `app/search/`（`pipeline` `vector` `keyword` `rerank` `graph` `types`。2026-11-01 に `app/search_*.py` から移した）。
 規約は `app/CLAUDE.md` と `.claude/rules/search.md`。
 
 ## 始める前
@@ -18,12 +18,13 @@ description: 検索の実装（app/search_*.py）を、動作を変えずに移�
 ## 手順（1 ファイルずつ）
 
 1. **基準を取る。** 変更前に `ruff check .` と `pytest` を実行して、通っていることを確かめる。Postgres のテストも通すなら `make test-db`（`.venv/bin/pytest` のシバンが旧パスを指して動かないときは `make test-db PYTEST=".venv/bin/python -m pytest"`）。
-2. **参照元を洗い出す。** `grep -rn "search_<名前>" app tests scripts evals docs` で、import、`monkeypatch.setattr` の対象（文字列でモジュールを指すもの）、docstring・文書のパスを全部出す。
-   今ある参照元: `app/agents/tools.py`、`scripts/eval_pipeline.py`、`tests/conftest.py`、`tests/test_search_pipeline.py`、`tests/test_search_pipeline_postgres.py`。
-3. **1 ファイルだけ移す**（`git mv`）。中身は変えない。参照元を同じコミットで直す。
+2. **参照元を洗い出す。** `grep -rn "<名前>" app tests scripts ops docs` で、import、`monkeypatch.setattr` の対象（文字列でモジュールを指すもの）、docstring・文書のパスを全部出す。
+   参照元の例: `app/agents/tools.py`、`app/main.py`、`ops/mcp_search/main.py`、`scripts/eval_pipeline.py`、`tests/` の検索まわり。
+   外からは `from app.search import vector as search_vector` の別名で読み、`monkeypatch` の対象名を変えない。ロガー名は `app.search_pipeline` `app.search_vector` のまま（`__name__` に戻さない）。
+3. **1 ファイルだけ移す**（`git mv`）。中身は変えない。同じコミットで参照元を直す。
 4. **差し替えを確かめる。** `monkeypatch` の対象が新しい名前を指していないと、テストが本物の検索を呼びに行く。`tests/conftest.py` の `fake_search` と `vector_only_search`、`scripts/eval_pipeline.py` の差し替え（`search_vector.search` と `search_pipeline._fetch_chunks`）を見る。
 5. **検査する。** `ruff check .`、`ruff format --check .`、`pytest`。`SEARCH_*` がすべて off のとき `search_vector.search` をそのまま呼ぶ経路（`tests/test_search_pipeline.py`）が通ることを確かめる。
-6. **コミットする。** 1 ファイル 1 コミット（`refactor(search): move <名前> under app/search`）。本文に、動作を変えていないことと、実行した検査を書く。
+6. **コミットする。** 1 ファイル（または、DB も API も使わない葉のモジュールのまとまり）が 1 コミット（`refactor(search): …`）。本文に、動作を変えていないことと、実行した検査を書く。
 
 ## 触らないもの
 
