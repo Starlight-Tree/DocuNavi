@@ -1,7 +1,7 @@
 """検索パイプライン（ハイブリッド・リランカー・GraphRAG）の実 API の埋め込みでの比較（実験。アプリの検索経路は変えない）。
 
 同じ資料・同じ質問で、5 つの構成（既存のベクトル検索 / ハイブリッドのみ / +リランカー / +GraphRAG / 3 つ全部）を測り、
-根拠が上位 1・3・5 件に入る率を出す。アプリの `app/search_pipeline.py` をそのまま呼ぶ。置き換えるのは次の 2 つだけ（DB を使わない）。
+根拠が上位 1・3・5 件に入る率を出す。アプリの `app/search/pipeline.py` をそのまま呼ぶ。置き換えるのは次の 2 つだけ（DB を使わない）。
 
 - `search_vector.search`: 実 API で作った埋め込みでコサイン類似度を計算し、`MIN_SIMILARITY` の下限と範囲の絞り込みは本物と同じ規則。
   本番の SQL（pgvector）そのものは通らない。
@@ -38,12 +38,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from app import search_pipeline
 from app.ingestion import embedding
 from app.ingestion.chunker import chunk_pages
 from app.ingestion.pdf_parser import extract_pages
 from app.scope import Scope, require_scope
 from app.search import keyword as search_keyword
+from app.search import pipeline as search_pipeline
 from app.search import rerank as search_rerank
 from app.search import vector as search_vector
 from scripts import eval_vector as ev
@@ -460,7 +460,7 @@ def _eval_chunks(hits: Sequence[search_vector.Hit]) -> list[ev.Chunk]:
 
 async def measure(index: VectorIndex, questions: Sequence[Question]) -> dict[str, Any]:
     collector = _LogCollector()
-    logger = logging.getLogger("app.search_pipeline")
+    logger = logging.getLogger("app.search.pipeline")
     previous_level = logger.level
     logger.setLevel(logging.INFO)
     logger.addHandler(collector)

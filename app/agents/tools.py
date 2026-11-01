@@ -1,4 +1,4 @@
-"""LLM に渡す検索ツール `search_documents`。検索の入口は `app/search_pipeline.py`（DB の `chunks` へのベクトル検索に、
+"""LLM に渡す検索ツール `search_documents`。検索の入口は `app/search/pipeline.py`（DB の `chunks` へのベクトル検索に、
 ハイブリッド・リランカー・GraphRAG を環境変数で重ねる。3 つとも off なら `app/search/vector.py` のベクトル検索そのまま）。
 
 検索はひとつの関数 `search_chunks_async` に閉じてある。テストはここを差し替えて（偽の検索）、DB も埋め込みの API も使わずに動かす。
@@ -11,8 +11,8 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 
-from app import search_pipeline
 from app.scope import ACCESS_SCOPE_KEY, Scope
+from app.search import pipeline as search_pipeline
 from app.search import vector as search_vector
 from app.search.types import Hit
 

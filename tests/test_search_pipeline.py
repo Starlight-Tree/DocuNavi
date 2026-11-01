@@ -1,4 +1,4 @@
-"""検索の重ね（app/search_pipeline.py: ハイブリッド・リランカー・GraphRAG）のテスト。実 API・実 DB は使わない。
+"""検索の重ね（app/search/pipeline.py: ハイブリッド・リランカー・GraphRAG）のテスト。実 API・実 DB は使わない。
 
 ベクトル検索（`search_vector.search`）と資料の写しの読み取り（`_fetch_chunks`）を偽物に差し替える。
 conftest は既存のテストのために 3 つのフラグを off にしている。ここでは、確かめたいものだけを on にする。
@@ -12,14 +12,14 @@ from typing import Any
 import pytest
 import yaml
 
-from app import search_pipeline
 from app.agents.tools import _sources
 from app.scope import Scope
+from app.search import pipeline as search_pipeline
 from app.search import vector as search_vector
 from app.search.graph import build_edges
 from app.search.keyword import KeywordIndex, identifiers, tokenize
+from app.search.pipeline import Chunk
 from app.search.types import Hit, VectorSearchError
-from app.search_pipeline import Chunk
 
 FLAGS = ("SEARCH_HYBRID", "SEARCH_RERANK", "SEARCH_GRAPH")
 
@@ -342,9 +342,9 @@ def test_one_log_line_has_the_method_scores_and_origin_but_not_the_query(monkeyp
         monkeypatch, [A, B, C], [hit(B, 0.81), hit(C, 0.70)], SEARCH_HYBRID="on", SEARCH_RERANK="on", SEARCH_GRAPH="on"
     )
     query = "AP-340S の消費電力は何Wですか"
-    with caplog.at_level(logging.INFO, logger="app.search_pipeline"):
+    with caplog.at_level(logging.INFO, logger="app.search.pipeline"):
         run(query, top_k=2)
-    lines = [r.getMessage() for r in caplog.records if r.name == "app.search_pipeline"]
+    lines = [r.getMessage() for r in caplog.records if r.name == "app.search.pipeline"]
     assert len(lines) == 1
     line = lines[0]
     assert "flags=hybrid=on,rerank=on,graph=on" in line
@@ -363,9 +363,9 @@ def test_one_log_line_has_the_method_scores_and_origin_but_not_the_query(monkeyp
 
 def test_the_all_off_path_also_logs_the_method_and_the_vector_score(monkeypatch, caplog):
     install(monkeypatch, [A], [hit(A, 0.9)])
-    with caplog.at_level(logging.INFO, logger="app.search_pipeline"):
+    with caplog.at_level(logging.INFO, logger="app.search.pipeline"):
         run("AP-340S")
-    line = [r.getMessage() for r in caplog.records if r.name == "app.search_pipeline"][0]
+    line = [r.getMessage() for r in caplog.records if r.name == "app.search.pipeline"][0]
     assert "flags=hybrid=off,rerank=off,graph=off" in line and "vector vec=0.900" in line
 
 
