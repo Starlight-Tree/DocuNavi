@@ -1,0 +1,523 @@
+# 承認済み。評価に使ってよい。50 問とも user が承認した（修正の指示は x002・x010・x035 だったが、3 問とも質問文に識別子が入っていたため変更なし。x025 は否定形のまま残す）。
+# 対象の資料: ap_air_purifier_spec.pdf / rv_robot_vacuum_spec.pdf / notememo_release_notes.pdf（元は source/ の同名 .md）
+# 作成者: subagent（検索の実装・既存の評価を知らない、分離した文脈）
+# 作成日: 2026-11-01
+# 承認者: user
+# 承認日: 2026-11-01
+# 種類の内訳（50 問、すべて資料から答えが一意に決まる。資料外の質問は無い）:
+#   exact_match      40 問（x001-x040）: 型番・コード・数値・版番号・変更 ID・不具合番号を質問文に含めて問う
+#                    空気清浄機 13（x001-x013）/ ロボット掃除機 13（x014-x026）/ リリースノート 14（x027-x040）
+#   confusable_model 10 問（x041-x050）: 紛らわしい相手の値では不正解になる質問。confusable_with に相手を書く
+#                    空気清浄機 4（x041-x044）/ ロボット掃除機 3（x045-x047）/ リリースノート 3（x048-x050）
+# evidence は資料の Markdown にある 1 文、または表の 1 行（セルを半角スペースでつないだ形）をそのまま引用したもの。
+# 答えは source/facts.md の事実と照合して書いた。
+- id: x001
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "AP-340S の消費電力は何Wですか？"
+  answer: "42W です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "AP-340S の消費電力は 42W、質量は 6.9kg です。"
+- id: x002
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "AP-430 の加湿量は、最大でどのくらいですか？"
+  answer: "最大で 400mL/h です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "加湿タンクの容量は 3.5L、加湿量は最大で 400mL/h です。"
+- id: x003
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "E-210 が表示されたときの原因は何ですか？"
+  answer: "PM2.5 センサーの通信異常です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "E-210 は、PM2.5 センサーの通信異常を示します。"
+- id: x004
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "集じんフィルター FL-304 の希望小売価格はいくらですか？"
+  answer: "2,750円です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "FL-304 は AP-304 専用で、交換目安は 1 年 6 か月、希望小売価格は 2,750円です。"
+- id: x005
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "AP-340L の強運転での運転音は何dBですか？"
+  answer: "58dB です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "AP-340L の運転音は、静音運転で 23dB、強運転で 58dB です。"
+- id: x006
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "AP-340S をアプリ「ミナトホーム」で操作するには、アプリの版はいくつ以上が必要ですか？"
+  answer: "版 5.0.2 以上です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "AP-340S だけが Wi-Fi（2.4GHz）に対応し、アプリ「ミナトホーム」の版 5.0.2 以上で操作できます。"
+- id: x007
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "E-120 が表示されたとき、ルーターを再起動してから何分待てばよいですか？"
+  answer: "2 分待ちます。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "ルーターを再起動してから 2 分待つと、再接続を試みます。"
+- id: x008
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "E-201 が表示されたときの原因は何ですか？"
+  answer: "加湿タンクの水切れです。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "E-201 は、加湿タンクの水切れを示し、AP-430 だけで表示されます。"
+- id: x009
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "脱臭フィルター DF-340 の交換目安は何年ですか？"
+  answer: "5 年です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "脱臭フィルター DF-340 は、AP-340L と AP-430 に使い、交換目安は 5 年です。"
+- id: x010
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "E-12 が表示されたとき、カバーを取り付けるとどのくらいで消えますか？"
+  answer: "約 3 秒で消えます。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "全型番に共通で、カバーを取り付けると約 3 秒で消えます。"
+- id: x011
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "AP-430 を設置するときは、壁から何cm以上離す必要がありますか？"
+  answer: "20cm 以上です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "ただし、AP-430 だけは壁から 20cm 以上離す必要があります。"
+- id: x012
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "AP-340S の待機電力は何Wですか？"
+  answer: "1.2W です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "AP-340S の待機電力だけは 1.2W です。"
+- id: x013
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "AP-430 の消費電力は何Wですか？"
+  answer: "85W です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "AP-430 の消費電力は 85W、質量は 11.2kg（加湿タンクが空のとき）です。"
+- id: x014
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "RV-1200X の水タンクの容量は何mLですか？"
+  answer: "200mL です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "RV-1200X だけが水拭きに対応し、水タンクの容量は 200mL です。"
+- id: x015
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "RV-1200X で水拭きの設定をするには、アプリの版はいくつ以上が必要ですか？"
+  answer: "版 5.2.1 以上です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "水拭きにはモップパッド MP-20 を使い、アプリの水拭き設定には版 5.2.1 以上が必要です。"
+- id: x016
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "バッテリー BT-84 の電圧と容量を教えてください。"
+  answer: "18.0V・5,200mAh です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "BT-84 は、18.0V・5,200mAh のバッテリーで、RV-2100 専用です。"
+- id: x017
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "ER-501 が表示されたときの原因は何ですか？"
+  answer: "集じんステーションの集じんパックが満杯であることを示します。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "ER-501 は、集じんステーションの集じんパックが満杯であることを示し、RV-2100 だけで表示されます。"
+- id: x018
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "ER-50 が表示されたとき、充電台に戻して何分置けばよいですか？"
+  answer: "30 分です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "充電台に戻して 30 分置くと、温度が下がって再開できます。"
+- id: x019
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "モップパッド MP-20 の交換目安はどのくらいですか？"
+  answer: "3 か月です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "モップパッド MP-20 は RV-1200X だけに使い、交換目安は 3 か月です。"
+- id: x020
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "集じんパック DP-5 は、1 枚でどのくらい使えますか？"
+  answer: "1 枚で約 60日使えます。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "集じんパック DP-5 は RV-2100 だけに使い、1 枚で約 60日使えます。"
+- id: x021
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "RV-1020 の本体の高さは何mmですか？"
+  answer: "95mm です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "RV-1020 の質量は 3.0kg、本体の直径は 330mm、高さは 95mm です。"
+- id: x022
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "RV-1002 のダストボックスの容量は何Lですか？"
+  answer: "0.2L です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "RV-1002 のダストボックスの容量は 0.2L、質量は 2.6kg です。"
+- id: x023
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "RV-2100 のバッテリーの充電時間は何時間ですか？"
+  answer: "5 時間です（バッテリーは BT-84）。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "RV-2100 のバッテリーは BT-84 で、充電時間は 5 時間です。"
+- id: x024
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "RV-1200 は、いつ発売されましたか？"
+  answer: "2024年11月です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "RV-1200 は 2024年11月に発売されました。"
+- id: x025
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "エラーコード ER-150 が表示されない型番はどれですか？"
+  answer: "RV-1002 です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "Wi-Fi に対応する RV-1200、RV-1200X、RV-1020、RV-2100 で表示され、RV-1002 では表示されません。"
+- id: x026
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "RV-2100 をアプリ「ミナトホーム」で使うには、アプリの版はいくつ以上が必要ですか？"
+  answer: "版 5.12.0 以上です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "スマートフォンのアプリ「ミナトホーム」の対応版は、RV-1200 と RV-1200X が版 5.2.0 以上、RV-1020 が版 4.8.0 以上、RV-2100 が版 5.12.0 以上です。"
+- id: x027
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "CHG-2401 で、設定キー sync.interval_sec の既定値は、いくつからいくつに変わりましたか？"
+  answer: "300 から 120（秒）に短くなりました。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "CHG-2401 で、同期の間隔を示す設定キー sync.interval_sec の既定値を、300 から 120 に短くしました。"
+- id: x028
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "不具合 BUG-7731 が修正されたのは、どの版ですか？"
+  answer: "4.12.1 です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "4.12.1 で修正された不具合は BUG-7731 です。"
+- id: x029
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "BUG-7317 は、どの版で修正されますか？"
+  answer: "未定です（修正する版は決まっていません）。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "BUG-7317 Android 11 でダークモードの切り替え時に、編集中のメモが閉じる 4.21.0 未定"
+- id: x030
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "CHG-2140 で、GET /v2/notes に指定できる limit の上限は、いくつからいくつに変わりましたか？"
+  answer: "100 から 200 に増えました。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "CHG-2140 で、API の GET /v2/notes に指定できる limit の上限を、100 から 200 に増やしました。"
+- id: x031
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "ノートメモの 4.12.0 は、いつリリースされましたか？"
+  answer: "2025年9月16日です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "4.12.0 は、2025年9月16日にリリースされました。"
+- id: x032
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "ノートメモ 4.21.0 の対象 OS の最小版は何ですか？"
+  answer: "iOS 16.4 と Android 11 です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "4.21.0 2026年1月20日 iOS 16.4 Android 11"
+- id: x033
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "CHG-2104 で、設定キー editor.autosave_sec の既定値は、いくつからいくつに変わりましたか？"
+  answer: "60 から 30（秒）に短くなりました。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "CHG-2104 で、自動保存の間隔を示す設定キー editor.autosave_sec の既定値を、60 から 30 に短くしました。"
+- id: x034
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "不具合 BUG-1744 が修正されたのは、どの版ですか？"
+  answer: "4.12.0 です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "4.12.0 で修正された不具合は BUG-1744 です。"
+- id: x035
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "API を呼ぶとき、リクエストのヘッダー X-NoteMemo-Key には何を入れますか？"
+  answer: "API キーを入れます。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "API を呼ぶときは、リクエストのヘッダー X-NoteMemo-Key に API キーを入れます。"
+- id: x036
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "関数 getNoteList() が非推奨になったのは、どの版ですか？"
+  answer: "4.21.0 です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "関数 getNoteList() は、4.21.0 で非推奨になりました。"
+- id: x037
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "CHG-2411 で、API のレート制限は、毎分何回から毎分何回に変わりましたか？"
+  answer: "毎分 60 回から毎分 120 回に増えました。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "CHG-2411 で、API のレート制限を、毎分 60 回から毎分 120 回に増やしました。"
+- id: x038
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "BUG-7371 は、どんな不具合ですか？"
+  answer: "ちょうど 50MB の添付ファイルが、アップロードに失敗する不具合です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "BUG-7371 は、ちょうど 50MB の添付ファイルが、アップロードに失敗する不具合です。"
+- id: x039
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "ノートメモの 4.12.1 は、いつリリースされましたか？"
+  answer: "2025年10月2日です。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "4.12.1 は、2025年10月2日にリリースされた修正版です。"
+- id: x040
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "CHG-1204 で、設定キー tags.max_per_note の既定値は、いくつからいくつに変わりましたか？"
+  answer: "50 から 100 に増えました。"
+  category: factual
+  kind: exact_match
+  evidence_mode: any
+  evidence:
+    - "CHG-1204 で、1 つのメモに付けられるタグの上限を示す設定キー tags.max_per_note の既定値を、50 から 100 に増やしました。"
+- id: x041
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "AP-304 の適用畳数は何畳ですか？"
+  answer: "13畳です。"
+  category: factual
+  kind: confusable_model
+  confusable_with: "AP-340"
+  evidence_mode: any
+  evidence:
+    - "AP-304 の適用畳数は 13畳、風量は 3.8m³/min です。"
+- id: x042
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "AP-340S の保証期間は何年ですか？"
+  answer: "3 年です。"
+  category: factual
+  kind: confusable_model
+  confusable_with: "AP-340"
+  evidence_mode: any
+  evidence:
+    - "AP-340S の保証期間は 3 年です。"
+- id: x043
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "集じんフィルター FL-3400 は、どの型番の専用ですか？"
+  answer: "AP-340L 専用です。"
+  category: factual
+  kind: confusable_model
+  confusable_with: "FL-340"
+  evidence_mode: any
+  evidence:
+    - "FL-3400 は AP-340L 専用です。"
+- id: x044
+  doc: ap_air_purifier_spec.pdf
+  expected_doc_ids: ["ap_air_purifier_spec.pdf"]
+  question: "E-21 が表示されたときの原因は何ですか？"
+  answer: "ファンモーターの回転異常です。"
+  category: factual
+  kind: confusable_model
+  confusable_with: "E-210"
+  evidence_mode: any
+  evidence:
+    - "E-21 は、ファンモーターの回転異常を示します。"
+- id: x045
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "RV-1200 の吸引力は何Paですか？"
+  answer: "2,000Pa です。"
+  category: factual
+  kind: confusable_model
+  confusable_with: "RV-1200X"
+  evidence_mode: any
+  evidence:
+    - "RV-1200 の吸引力は 2,000Pa、ダストボックスの容量は 0.4L です。"
+- id: x046
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "バッテリー BT-48 の容量は何mAhですか？"
+  answer: "2,600mAh です。"
+  category: factual
+  kind: confusable_model
+  confusable_with: "BT-480"
+  evidence_mode: any
+  evidence:
+    - "BT-48 は、14.4V・2,600mAh のバッテリーで、RV-1200 と RV-1020 に使います。"
+- id: x047
+  doc: rv_robot_vacuum_spec.pdf
+  expected_doc_ids: ["rv_robot_vacuum_spec.pdf"]
+  question: "サイドブラシ SB-4 の交換目安はどのくらいですか？"
+  answer: "6 か月です。"
+  category: factual
+  kind: confusable_model
+  confusable_with: "SB-40"
+  evidence_mode: any
+  evidence:
+    - "SB-4 サイドブラシ RV-1200、RV-1020、RV-1002 6か月"
+- id: x048
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "CHG-2041 で変更された設定キーと、その既定値の変化を教えてください。"
+  answer: "設定キー attachment.max_mb の既定値が、20 から 50 に増えました。"
+  category: factual
+  kind: confusable_model
+  confusable_with: "CHG-2014"
+  evidence_mode: any
+  evidence:
+    - "CHG-2041 で、設定キー attachment.max_mb の既定値を、20 から 50 に増やしました。"
+- id: x049
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "不具合 BUG-7713 が修正されたのは、どの版ですか？"
+  answer: "4.2.10 です。"
+  category: factual
+  kind: confusable_model
+  confusable_with: "BUG-7317"
+  evidence_mode: any
+  evidence:
+    - "4.2.10 で修正された不具合は BUG-7713 です。"
+- id: x050
+  doc: notememo_release_notes.pdf
+  expected_doc_ids: ["notememo_release_notes.pdf"]
+  question: "ノートメモの 4.1.20 は、いつリリースされましたか？"
+  answer: "2025年4月22日です。"
+  category: factual
+  kind: confusable_model
+  confusable_with: "4.12.0"
+  evidence_mode: any
+  evidence:
+    - "4.1.20 は、2025年4月22日にリリースされました。"
