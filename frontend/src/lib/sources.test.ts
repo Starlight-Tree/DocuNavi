@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatPages, parseSourceRefs, parseSources, withPages } from './sources';
+import { formatPages, parseSourceRefs, parseSources, referenceCards, withPages } from './sources';
+import type { SourceDoc } from './sources';
 
 describe('parseSources', () => {
   it('見出しごとにファイル名と本文を取り出す', () => {
@@ -158,5 +159,24 @@ describe('formatPages', () => {
     expect(formatPages(2, undefined)).toBe('p.2');
     expect(formatPages(2, 3)).toBe('p.2–3');
     expect(formatPages(undefined, undefined)).toBeNull();
+  });
+});
+
+describe('referenceCards', () => {
+  const docs: SourceDoc[] = [
+    { name: 'a.pdf', text: 'a' },
+    { name: 'b.pdf', text: 'b', weak: true },
+    { name: 'c.pdf', text: 'c', weak: false },
+  ];
+
+  it('weak を除き、元の並びでの添字を残す（番号が元の出典とずれない）', () => {
+    expect(referenceCards(docs).map(({ source, index }) => [source.name, index])).toEqual([
+      ['a.pdf', 0],
+      ['c.pdf', 2],
+    ]);
+  });
+
+  it('出典が無ければ空', () => {
+    expect(referenceCards([])).toEqual([]);
   });
 });

@@ -7,6 +7,7 @@ import { collectionLabel } from '../lib/collections';
 import { followUpQuestions } from '../lib/followUps';
 import { renderMarkdown } from '../lib/markdown';
 import { parseSources } from '../lib/sources';
+import type { SourceDoc } from '../lib/sources';
 import { SourcesPanel } from './SourcesPanel';
 
 interface MessageListProps {
@@ -28,6 +29,8 @@ interface MessageListProps {
    * 渡さなければ、ボタンは出さない。
    */
   onAskAll?: () => void;
+  /** 回答の下の「参照資料をすべて見る」を押したとき。その回答の出典（ページつき）を渡す。渡さなければ、リンクは出さない。 */
+  onShowReferences?: (sources: SourceDoc[]) => void;
 }
 
 /** 最初の画面に出す質問例。登録した資料（ザーハード・入寮規程・洗濯乾燥機の取扱説明書・店舗案内）ごとに 1 つ。 */
@@ -60,6 +63,7 @@ export function MessageList({
   history = 'idle',
   onExample,
   onAskAll,
+  onShowReferences,
 }: MessageListProps) {
   const { state: catalog } = useCollectionCatalog();
   const groups = catalog.status === 'ready' ? catalog.data.collections : undefined;
@@ -169,7 +173,7 @@ export function MessageList({
               <p className="message-text">{message.text}</p>
             )}
             {message.role === 'assistant' && message.context && !generating && (
-              <SourcesPanel context={message.context} sources={message.sources} />
+              <SourcesPanel context={message.context} sources={message.sources} onShowAll={onShowReferences} />
             )}
             {/* 範囲の指定があって、検索で 0 件だった最新の回答だけ。検索していない（hit_count が無い・null）ときは出さない */}
             {message.role === 'assistant' &&

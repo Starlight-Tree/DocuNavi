@@ -193,6 +193,122 @@ describe('出典カードのページ（サーバーが検索で返した値）'
   });
 });
 
+describe('参照資料カード（回答の下）と専用ページ', () => {
+  const CONTEXT4 = [1, 2, 3, 4].map((n) => `[tsubasa_dorm_rules.pdf]\n第${n}条 本文${n}`).join('\n\n');
+  const SOURCES4 = [1, 2, 3, 4].map((page) => ({ name: 'tsubasa_dorm_rules.pdf', page, page_end: null, weak: false }));
+
+  function installRefs(context: string, sources: unknown) {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'gemini' });
+      if (url.includes('/chat/stream')) return replyResponse({ reply: '回答です。', context, sources });
+      if (url === '/documents') return jsonResponse(LIST);
+      if (url === '/documents/7/chunks') return jsonResponse(DETAIL);
+      return new Response('not found', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+  }
+
+  it('カードは最大 3 枚。件数は全体で数え、「参照資料をすべて見る」を出す', async () => {
+    installRefs(CONTEXT4, SOURCES4);
+    render(<App />);
+    await ask(userEvent.setup());
+
+    const group = await screen.findByRole('group', { name: /参照資料/ });
+    expect(within(group).getAllByRole('button')).toHaveLength(3);
+    expect(screen.getByText('参照資料（4 件）')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '参照資料をすべて見る →' })).toBeInTheDocument();
+  });
+
+  it('カードに、サムネイルの代わりの灰色の枠・番号・資料名・ページを出し、更新日は出さない', async () => {
+    installRefs(CONTEXT4, SOURCES4);
+    const { container } = render(<App />);
+    await ask(userEvent.setup());
+
+    const card = (await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ }))[0]!;
+    expect(within(card).getByText('p.1')).toBeInTheDocument();
+    expect(within(card).getByText('資料を開く →')).toBeInTheDocument();
+    expect(card.querySelector('.reference-thumb')).not.toBeNull();
+    expect(card.querySelector('img')).toBeNull();
+    expect(card).not.toHaveTextContent('更新');
+    expect(container.querySelector('.reference-excerpt')).toBeNull();
+  });
+
+  it('専用ページに、全件を抜粋つきで出す。「チャットに戻る」で、会話と入力欄に戻る', async () => {
+    installRefs(CONTEXT4, SOURCES4);
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    await user.click(await screen.findByRole('button', { name: '参照資料をすべて見る →' }));
+
+    const page = screen.getByRole('main', { name: '参照資料' });
+    expect(within(page).getByRole('heading', { name: 'この回答の参照資料（4 件）' })).toHaveFocus();
+    expect(within(page).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })).toHaveLength(4);
+    expect(within(page).getByText(/第4条 本文4/)).toBeInTheDocument();
+    expect(screen.getByRole('log', { name: '会話', hidden: true })).not.toBeVisible();
+
+    await user.click(within(page).getByRole('button', { name: '← チャットに戻る' }));
+
+    expect(screen.queryByRole('main', { name: '参照資料' })).not.toBeInTheDocument();
+    expect(screen.getByRole('log', { name: '会話' })).toBeVisible();
+    expect(screen.getByText('回答です。')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveFocus();
+  });
+
+  it('専用ページのカードを押すと、元の PDF をその箇所のページで開く（資料詳細へのリンクは無い）', async () => {
+    installRefs(CONTEXT4, SOURCES4);
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+    await user.click(await screen.findByRole('button', { name: '参照資料をすべて見る →' }));
+
+    const page = screen.getByRole('main', { name: '参照資料' });
+    expect(within(page).queryByText('資料詳細')).not.toBeInTheDocument();
+    await user.click(within(page).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })[3]!);
+
+    await waitFor(() => expect(window.location.search).toBe('?tab=documents&doc=7&view=pdf&page=4'));
+  });
+
+  it('専用ページから別のタブへ移ったら、チャットに戻ったときは会話が出る', async () => {
+    installRefs(CONTEXT4, SOURCES4);
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+    await user.click(await screen.findByRole('button', { name: '参照資料をすべて見る →' }));
+
+    await user.click(screen.getByRole('button', { name: '資料一覧' }));
+    await user.click(screen.getByRole('button', { name: 'チャット' }));
+
+    expect(screen.queryByRole('main', { name: '参照資料' })).not.toBeInTheDocument();
+    expect(screen.getByRole('log', { name: '会話' })).toBeVisible();
+  });
+
+  it('weak の出典は、専用ページにも出さない。件数も合わせる', async () => {
+    installRefs(CONTEXT4, SOURCES4.map((source, i) => ({ ...source, weak: i >= 2 })));
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    expect(await screen.findByText('参照資料（2 件）')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '参照資料をすべて見る →' }));
+    expect(screen.getByRole('heading', { name: 'この回答の参照資料（2 件）' })).toBeInTheDocument();
+    expect(within(screen.getByRole('main', { name: '参照資料' })).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })).toHaveLength(2);
+  });
+
+  it('資料一覧に無い資料を専用ページから押したら、その旨を出す', async () => {
+    installRefs('[unknown.pdf]\n本文', [{ name: 'unknown.pdf', page: 1, page_end: null, weak: false }]);
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+    await user.click(await screen.findByRole('button', { name: '参照資料をすべて見る →' }));
+
+    await user.click(within(screen.getByRole('main', { name: '参照資料' })).getByRole('button', { name: /unknown\.pdf/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('資料一覧に見つかりませんでした');
+  });
+});
+
 describe('続けて聞く', () => {
   it('回答の根拠になった資料に答えがある質問を出し、聞いたばかりの質問は出さない', () => {
     const questions = followUpQuestions(['tsubasa_dorm_rules.pdf'], ['入寮できるのは誰ですか？']);
