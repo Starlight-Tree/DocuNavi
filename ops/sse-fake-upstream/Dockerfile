@@ -1,6 +1,6 @@
 # 疑似の上流のイメージ（負荷試験用。試験が終わったらサービスもイメージも消す）。標準ライブラリだけなので、静的にビルドして distroless に置く。
 # ビルドの文脈は ops/sse-fake-upstream/（cloudbuild.yaml が指す）。
-FROM golang:1.27.2 AS build
+FROM golang:1.26.10 AS build
 WORKDIR /src
 COPY go.mod ./
 COPY main.go ./
