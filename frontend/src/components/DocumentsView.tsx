@@ -12,7 +12,7 @@ import type { Loaded } from '../hooks/useLoaded';
 import type { DetailView, NavigateMode, UrlState } from '../lib/urlState';
 import { useUrlState } from '../lib/urlState';
 import { DocumentFilterBar } from './DocumentFilterBar';
-import { RecentCarousel } from './RecentCarousel';
+import { HeroCarousel } from './HeroCarousel';
 import { CollectionCards } from './CollectionCards';
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
@@ -102,8 +102,8 @@ function DocumentTable({ state, collection, onCollectionChange, filter, onFilter
 
   return (
     <>
-      {/* 最近更新された資料。種別・検索の絞り込みには連動せず、全資料から選ぶ（一覧からも外さない） */}
-      <RecentCarousel
+      {/* 最近更新された資料（ヒーロー）。種別・検索の絞り込みには連動せず、全資料から選ぶ（一覧からも外さない） */}
+      <HeroCarousel
         documents={recentDocuments(state.data.documents)}
         collectionLabel={(name) => collectionLabel(name, labelGroups)}
         onOpen={onOpen}
