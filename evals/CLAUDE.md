@@ -34,6 +34,7 @@
 | `m` `p` `x` | `fixtures/menu` |
 | `xc` `xs` `xg` | `fixtures/cross_collection` `cross_collection_short` `gym` |
 | `h` | `fixtures/two_column` |
+| `gr` | `fixtures/graph_rules`（`gr001`-`gr022`。GraphRAG の評価専用。`python -m scripts.eval_graph`） |
 | `n` | `answers/questions_research.yaml` |
 
 `fixtures/menu` の `x001`-`x004` があるので、`x` 始まりの新しい ID は使わない（`exact` が `x001`-`x050` だった時代に衝突した）。

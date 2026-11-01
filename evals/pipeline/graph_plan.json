@@ -1,0 +1,297 @@
+{
+  "api": {
+    "calls": 2,
+    "chars": 3138,
+    "doc_texts": 22,
+    "estimated_cost_usd": 0.000628,
+    "hard_call_limit": 3,
+    "planned_call_limit": 2,
+    "query_texts": 22
+  },
+  "chunk_count": 22,
+  "corpus_fingerprint": "62339016dd71ad1771dfa30dcc21fc72de5e5208b923e996708ddc8dbd7e4a5f",
+  "created_at": "2026-11-01T19:00:15+09:00",
+  "edges": [
+    "ラウンジ利用規程.txt 第4条 -> 第7条",
+    "ラウンジ利用規程.txt 第5条 -> 第8条",
+    "ラウンジ利用規程.txt 第9条 -> 第8条",
+    "ラウンジ利用規程.txt 第10条 -> 第7条",
+    "工房利用規程.txt 第5条 -> 第8条",
+    "工房利用規程.txt 第6条 -> 第9条",
+    "工房利用規程.txt 第7条 -> 第10条",
+    "工房利用規程.txt 第9条 -> 第11条",
+    "工房利用規程.txt 第11条 -> 第8条",
+    "工房利用規程.txt 第12条 -> 第7条"
+  ],
+  "fixed": {
+    "app_top_k": 2,
+    "bm25_b": 0.75,
+    "bm25_k1": 1.5,
+    "candidates": 20,
+    "chunking": "1 条 = 1 チャンク（見出し「第N条（題）」+ 本文）",
+    "collection": "graph_rules",
+    "configs": {
+      "all": [
+        true,
+        true,
+        true
+      ],
+      "hybrid": [
+        true,
+        false,
+        false
+      ],
+      "hybrid+graph": [
+        true,
+        false,
+        true
+      ],
+      "hybrid+rerank": [
+        true,
+        true,
+        false
+      ],
+      "vector": [
+        false,
+        false,
+        false
+      ]
+    },
+    "dimensions": 768,
+    "graph_max_extra": 1,
+    "identifier_weight": 0.5,
+    "ks": [
+      1,
+      2,
+      3,
+      5
+    ],
+    "min_similarity": 0.65,
+    "model": "gemini-embedding-2",
+    "query": "質問文そのまま（LLM による言い換えは使わない）",
+    "rerank_lexical_share": 0.5,
+    "rerank_rrf_share": 0.5,
+    "rrf_k": 60,
+    "scope": "ALL（全グループ。collection の絞り込みなし）"
+  },
+  "git_head": "e7b2e06",
+  "note": "検索の結果を見る前に作った。ここに写した値は、この測定の中で変えない。",
+  "questions": [
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr001",
+      "kind": "ref_far",
+      "text": "電動のこぎりを使えるようになるには、事前に何をしておく必要がありますか。それにはいくらかかりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr002",
+      "kind": "ref_near",
+      "text": "工具を借りて、返すのが遅れたら、どうなりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr003",
+      "kind": "ref_near",
+      "text": "市内の高校生が一般機器を1時間使うと、料金はいくらですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr004",
+      "kind": "ref_far",
+      "text": "工房の機械でけがをしたとき、治療費は誰が負担しますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr005",
+      "kind": "ref_near",
+      "text": "利用停止になったあと、再開するために受ける講習は、次にいつ受けられますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr006",
+      "kind": "ref_near",
+      "text": "工具の返却が8日遅れたら、利用はどうなりますか。いつまで止まりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr007",
+      "kind": "chain3",
+      "text": "工具の返却が長く遅れて、利用停止になりました。再開のために受ける講習の受講料は、いくらですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "ラウンジ利用規程.txt"
+      ],
+      "id": "gr008",
+      "kind": "ref_far",
+      "text": "ラウンジにお酒を持ち込みたいのですが、どうすればよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "ラウンジ利用規程.txt"
+      ],
+      "id": "gr009",
+      "kind": "ref_near",
+      "text": "会議スペースの予約を、当日に取り消すと、料金はどうなりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "ラウンジ利用規程.txt"
+      ],
+      "id": "gr010",
+      "kind": "ref_far",
+      "text": "ラウンジの利用停止が終わったあと、また使うには、何をすればいいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ラウンジ利用規程.txt"
+      ],
+      "id": "gr011",
+      "kind": "ref_unneeded",
+      "text": "ラウンジで事故が起きたとき、損害は誰が負担しますか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ラウンジ利用規程.txt"
+      ],
+      "id": "gr012",
+      "kind": "ref_unneeded",
+      "text": "ラウンジの会議スペースは、何日前から予約できますか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr013",
+      "kind": "ref_unneeded",
+      "text": "工具は、1回につき何日間まで借りられますか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr014",
+      "kind": "single",
+      "text": "工房の利用時間は、何時から何時までですか。"
+    },
+    {
+      "answerable": true,
+      "category": "paraphrase",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr015",
+      "kind": "single",
+      "text": "工房が休みなのは、何曜日ですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr016",
+      "kind": "single",
+      "text": "工房の利用者登録の更新料は、いくらですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "工房利用規程.txt"
+      ],
+      "id": "gr017",
+      "kind": "single",
+      "text": "特定機器の講習の定員は、何名ですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ラウンジ利用規程.txt"
+      ],
+      "id": "gr018",
+      "kind": "single",
+      "text": "ラウンジで借りられるプロジェクターは、何時間まで貸してもらえますか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gr019",
+      "kind": "absent",
+      "text": "みなと市の明日の天気は、どうなりますか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gr020",
+      "kind": "absent",
+      "text": "工房の旋盤は、全部で何台ありますか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gr021",
+      "kind": "absent",
+      "text": "特定機器の講習は、オンラインでも受けられますか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gr022",
+      "kind": "absent",
+      "text": "ラウンジの会議スペースには、何人まで入れますか。"
+    }
+  ],
+  "sources": [
+    "ラウンジ利用規程.txt",
+    "工房利用規程.txt"
+  ]
+}
