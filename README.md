@@ -106,6 +106,7 @@ cd frontend && npm test    # フロントエンド（Vitest）
 | [docs/development.md](docs/development.md) | テスト、CI、依存の更新 |
 | [docs/deploy.md](docs/deploy.md) | Cloud Run へのデプロイ手順と本番運用の記録 |
 | [docs/roadmap.md](docs/roadmap.md) | これからの拡張計画（DB、認証、Cloudflare、R2、Vercel）と、先に要る変更 |
+| [docs/decisions/](docs/decisions/README.md) | 重要な決定と、その理由（1 件 1 ファイル） |
 | [.devcontainer/README.md](.devcontainer/README.md) | 開発コンテナの gcloud・gh のログインとガード |
 | [CLAUDE.md](CLAUDE.md) | エージェント（Claude Code）が守ること |
 

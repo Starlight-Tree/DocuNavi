@@ -1,8 +1,8 @@
 # CLAUDE.md
 
 資料（架空の惑星「ザーハード」の設定資料と、PDF の資料）に答える RAG チャットボット。FastAPI + LangGraph + Gemini のバックエンドと、
-Vite + React + TypeScript のフロントエンド（ビルド成果物を FastAPI が配信）。入口は [README.md](README.md)、
-詳細は [docs/](docs/)（構成は `architecture.md`、API は `api.md`、環境変数と LLM の挙動は `configuration.md`、計画は `roadmap.md`）。
+Next.js + React + TypeScript のフロントエンド（Vercel が配信。FastAPI は配信しない）。入口は [README.md](README.md)、
+詳細は [docs/](docs/)（構成は `architecture.md`、API は `api.md`、環境変数と LLM の挙動は `configuration.md`、計画は `roadmap.md`、決定の記録は `decisions/`）。領域ごとの規約は `app/` `frontend/` `tests/` `docs/` `evals/` `ops/django-saas/`（学習用の試作。製品の Django は `ops/access_admin/`）`ops/sse-relay/` の各 `CLAUDE.md`、パス別の規則は `.claude/rules/`。
 
 ## よく使うコマンド
 
@@ -37,7 +37,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
   変更したら `manage.py check`・`makemigrations --check`・Django のテストを実行する。`services.py` の「見えるグループ」は `tests/test_access_admin_contract.py` が `app/access.py` と照合する
 - `app/api/threads.py`（会話の一覧・発言・削除。`required` では本人の分だけ、`off` は一覧が 404）、`app/api/documents.py`（資料一覧。読み取り専用）、
   `app/api/graph.py`（入寮規程の関係図。`app/relations/` が規則ベースで PDF から都度計算する実験。DB に保存しない）。仕様は `docs/api.md`
-- 画面: `frontend/`（Next.js。2026-10-26 に `frontend-next/` から改名）。Vercel が配信し、FastAPI は画面を配信しない（`/` は 404）。API は別オリジンなので `CORS_ORIGINS` が要る。README は `frontend/README.md`
+- 画面: `frontend/`（Next.js。2026-10-26 に `frontend-next/` から改名）。Vercel が配信し、FastAPI は画面を配信しない（`/` は 404）。API は別オリジンなので `CORS_ORIGINS` が要る。規約は `frontend/CLAUDE.md`、README は `frontend/README.md`
 - `storage/pdf/<名前>/`: PDF の資料（`cafe` `guides` `zahard`）。検索は DB を読むので、PDF を足しても `python -m app.ingestion` と
   `python -m app.ingestion.embed` をするまで検索には出ない。`cafe` `guides` は `evals/corpora/<同じ名前>/` の写し（作り直したら両方を更新）、`zahard` は .txt から作った PDF（`docs/configuration.md` の「評価用の PDF の写し」）。
   2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は実物で確かめるまでアプリには置かない
