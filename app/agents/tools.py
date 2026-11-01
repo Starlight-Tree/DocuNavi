@@ -1,4 +1,5 @@
-"""LLM に渡す検索ツール `search_documents`。検索の実体は DB の `chunks` へのベクトル検索（`app/search_vector.py`）だけ。
+"""LLM に渡す検索ツール `search_documents`。検索の入口は `app/search_pipeline.py`（DB の `chunks` へのベクトル検索に、
+ハイブリッド・リランカー・GraphRAG を環境変数で重ねる。3 つとも off なら `app/search_vector.py` のベクトル検索そのまま）。
 
 検索はひとつの関数 `search_chunks_async` に閉じてある。テストはここを差し替えて（偽の検索）、DB も埋め込みの API も使わずに動かす。
 """
@@ -10,7 +11,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 
-from app import search_vector
+from app import search_pipeline, search_vector
 from app.scope import ACCESS_SCOPE_KEY, Scope
 from app.search_vector import Hit
 
@@ -38,7 +39,8 @@ _SEARCH_DESCRIPTION = (
 async def search_chunks_async(
     query: str, top_k: int = TOP_K, collection: str | None = None, *, scope: Scope
 ) -> list[Hit]:
-    """クエリに近い資料の箇所を、`Hit`（ファイル名・本文・ページ）で最大 top_k 件返す（DB のベクトル検索。しきい値未満は返さない）。
+    """クエリに近い資料の箇所を、`Hit`（ファイル名・本文・ページ）で最大 top_k 件返す（DB のベクトル検索が土台。しきい値未満は返さない）。
+    `SEARCH_GRAPH` が on のときは、参照先のチャンクが `origin="graph"` で最後に加わることがある（top_k の外）。
 
     `scope` は必須（検索できるグループの範囲。全グループは `Scope.ALL` を明示する）。`collection` を渡すと、その範囲の中の
     そのグループだけを探す（None は範囲の全資料）。
@@ -46,7 +48,7 @@ async def search_chunks_async(
     失敗しても BM25 などには戻らない（どちらで答えたかが曖昧になるため）。`VectorSearchError` を投げ、API が 503 の固定文にする。
     """
     try:
-        return await search_vector.search(query, top_k, collection, scope=scope)
+        return await search_pipeline.search(query, top_k, collection, scope=scope)
     except search_vector.VectorSearchError:
         raise
     except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・URL・本文が入りうる。型の名前だけを残す
@@ -66,14 +68,15 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
 
     `page` は 1 以上の整数だけ、`page_end` は `page` より大きいときだけ入れる（不正な値は None にして、画面が表示しない）。
     `collection` は資料のグループ（未設定なら None）。画面の出典に、どのグループの資料かを添えるためのもの。
-    `weak` は、1 位との類似度の差が `WEAK_GAP` を超える 2 件目以降（画面の出典カードに出さない）。類似度が無ければ False。
+    `weak` は、1 位との類似度の差が `WEAK_GAP` を超える 2 件目以降と、GraphRAG で加えた参照先（`origin="graph"`）。画面の出典カードに出さない。
+    類似度が無ければ（キーワードだけで拾った箇所など）差では判断せず False。
     """
     sources: list[dict[str, Any]] = []
     top = hits[0].similarity if hits else None
     for index, hit in enumerate(hits):
         page = hit.page if isinstance(hit.page, int) and hit.page >= 1 else None
         page_end = hit.page_end if page is not None and isinstance(hit.page_end, int) and hit.page_end > page else None
-        weak = (
+        weak = hit.origin == "graph" or (
             index > 0 and top is not None and hit.similarity is not None and round(top - hit.similarity, 4) > WEAK_GAP
         )
         sources.append(
