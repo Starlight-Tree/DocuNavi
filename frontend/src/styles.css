@@ -1469,6 +1469,125 @@ textarea {
   display: none;
 }
 
+/* 資料一覧の一番上の「最近更新された資料」。横スクロール（スナップ付き）で、スワイプ・矢印ボタンで動く。自動再生はしない */
+.recent-carousel {
+  margin: 0 0 1rem;
+}
+
+.recent-carousel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.recent-carousel-title {
+  flex: 1;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.recent-carousel-range {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.recent-carousel-arrow {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.recent-carousel-arrow:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+.recent-carousel-arrow:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.recent-carousel-track {
+  position: relative; /* カードの位置（offsetLeft）をこの枠から測る */
+  display: flex;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.recent-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+/* 3 枚並び。幅が狭いときは、次のカードが少し見える大きさにする */
+.recent-carousel-item {
+  display: flex;
+  flex: 0 0 calc((100% - 1.5rem) / 3);
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+@media (max-width: 40rem) {
+  .recent-carousel-item {
+    flex-basis: 85%;
+  }
+}
+
+.recent-carousel-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 7rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent-carousel-card:hover {
+  background: var(--surface-muted);
+}
+
+.recent-carousel-name {
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.recent-carousel-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+  margin-top: auto;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.recent-carousel-kind {
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+}
+
 /* 一覧の上の絞り込み（表示の切り替えと同じ部品）。カード一覧との間に余白を置く */
 .collection-filter {
   margin-bottom: 0.75rem;

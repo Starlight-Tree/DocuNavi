@@ -6,11 +6,13 @@ import { usableCollections, useCollectionCatalog } from '../hooks/useCollections
 import { useDocumentChunks, useDocumentList, useDocumentPdf } from '../hooks/useDocuments';
 import { collectionLabel, collectionOptions } from '../lib/collections';
 import { facetOptions, filterDocuments, sortDocuments } from '../lib/documentFilter';
+import { recentDocuments } from '../lib/recentDocuments';
 import type { DocumentFilter, FilterContext } from '../lib/documentFilter';
 import type { Loaded } from '../hooks/useLoaded';
 import type { DetailView, NavigateMode, UrlState } from '../lib/urlState';
 import { useUrlState } from '../lib/urlState';
 import { DocumentFilterBar } from './DocumentFilterBar';
+import { RecentCarousel } from './RecentCarousel';
 import { CollectionCards } from './CollectionCards';
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
@@ -100,6 +102,12 @@ function DocumentTable({ state, collection, onCollectionChange, filter, onFilter
 
   return (
     <>
+      {/* 最近更新された資料。種別・検索の絞り込みには連動せず、全資料から選ぶ（一覧からも外さない） */}
+      <RecentCarousel
+        documents={recentDocuments(state.data.documents)}
+        collectionLabel={(name) => collectionLabel(name, labelGroups)}
+        onOpen={onOpen}
+      />
       {groups ? (
         <CollectionCards
           collections={groups}

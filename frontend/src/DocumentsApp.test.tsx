@@ -773,7 +773,8 @@ describe('資料一覧: 種別（資料群）', () => {
     await openDocuments(user);
     await user.click(await within(await screen.findByRole('group', { name: '種別で絞り込み' })).findByRole('button', { name: 'cafe' }));
 
-    await user.click(screen.getByRole('button', { name: /cafe_store_guide\.pdf を開く/ }));
+    // 同じ資料は、最近更新のカルーセルにも出る。一覧の表のボタンを押す
+    await user.click(within(screen.getByRole('table')).getByRole('button', { name: /cafe_store_guide\.pdf を開く/ }));
     await screen.findByRole('heading', { level: 2 });
     expect(window.location.search).toContain('doc=3');
     expect(window.location.search).not.toContain('collection');
@@ -989,5 +990,149 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     await waitFor(() => expect(window.location.search).toBe(listSearch));
     expect(await screen.findByRole('searchbox', { name: /キーワード/ })).toHaveValue('入寮');
     expect(names()).toHaveLength(1);
+  });
+});
+
+describe('資料一覧: 最近更新された資料（カルーセル）', () => {
+  // サーバーの順（ファイル名順）とは別に、更新日の新しい順に並ぶことを確かめる。7 冊のうち 1 冊は更新日なし
+  const LIST_7 = {
+    configured: true,
+    documents: [
+      summary(1, 'a.pdf', 1, 1, { collection: 'guides', updated_at: '2026-10-01T03:00:00+00:00' }),
+      summary(2, 'b.pdf', 1, 1, { collection: 'cafe', updated_at: '2026-10-07T03:00:00+00:00', title: 'B 店の案内' }),
+      summary(3, 'c.pdf', 1, 1, { collection: 'zahard', updated_at: '2026-10-03T03:00:00+00:00' }),
+      summary(4, 'd.pdf', 1, 1, { collection: 'guides', updated_at: '2026-10-06T03:00:00+00:00' }),
+      summary(5, 'e.pdf', 1, 1, { collection: 'cafe', updated_at: '2026-10-02T03:00:00+00:00' }),
+      summary(6, 'f.pdf', 1, 1, { collection: 'zahard', updated_at: '2026-10-05T03:00:00+00:00' }),
+      summary(7, 'g.pdf', 1, 1, { collection: 'guides', updated_at: null }),
+    ],
+  };
+  const CATALOG = {
+    configured: true,
+    collections: [
+      { name: 'zahard', label: '設定資料', description: '', sort_order: 10, registered: true, document_count: 2, ready_count: 2 },
+      { name: 'cafe', label: '店舗案内', description: '', sort_order: 20, registered: true, document_count: 2, ready_count: 2 },
+      { name: 'guides', label: '規程・取扱説明書', description: '', sort_order: 30, registered: true, document_count: 3, ready_count: 3 },
+    ],
+  };
+  const scrollIntoView = vi.fn();
+
+  beforeEach(() => {
+    scrollIntoView.mockClear();
+    Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(window.HTMLElement.prototype, 'scrollIntoView');
+  });
+
+  const install = (list: object = LIST_7) =>
+    installDocsFetch(
+      (url) => jsonResponse(url === '/documents' ? list : { document: LIST_7.documents[1], chunks: [chunk(0, '本文')] }),
+      () => jsonResponse(CATALOG),
+    );
+  const carousel = () => screen.findByRole('region', { name: '最近更新された資料' });
+  const cards = (region: HTMLElement) => within(region).getAllByRole('button', { name: /（最近更新）$/ });
+
+  it('一覧の一番上（種別のカードより前）に、更新が新しい順の 5 件を出す。更新日のない資料は入れない', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+    const region = await carousel();
+
+    expect(cards(region).map((c) => c.getAttribute('aria-label'))).toEqual([
+      'B 店の案内 を開く（最近更新）',
+      'd.pdf を開く（最近更新）',
+      'f.pdf を開く（最近更新）',
+      'c.pdf を開く（最近更新）',
+      'e.pdf を開く（最近更新）',
+    ]);
+    const group = screen.getByRole('group', { name: /資料グループ/ });
+    expect(region.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 最近更新の枠は、一覧の表とは別。一覧には 7 冊すべてが残る
+    await screen.findByRole('row', { name: /g\.pdf/ });
+    expect(screen.getAllByRole('row').slice(1)).toHaveLength(7);
+  });
+
+  it('各カードに、文書名・種別・更新日を出す', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+    const first = cards(await carousel())[0]!;
+
+    expect(first).toHaveTextContent('B 店の案内');
+    expect(first).toHaveTextContent('店舗案内');
+    expect(first).toHaveTextContent('更新 2026/10/07');
+  });
+
+  it('カードを押すと、その資料の詳細へ移る', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+
+    await user.click(cards(await carousel())[0]!);
+
+    await screen.findByRole('heading', { level: 2 });
+    expect(window.location.search).toContain('doc=2');
+  });
+
+  it('種別のカードや検索・絞り込みには連動しない', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+    const region = await carousel();
+    const before = cards(region).map((c) => c.getAttribute('aria-label'));
+
+    await user.click(within(screen.getByRole('group', { name: /資料グループ/ })).getByRole('button', { name: /^設定資料\s*資料/ }));
+    await user.type(await screen.findByRole('searchbox', { name: /キーワード/ }), 'zzz');
+
+    expect(screen.getByText(MSG_NO_MATCH)).toBeInTheDocument();
+    expect(cards(await carousel()).map((c) => c.getAttribute('aria-label'))).toEqual(before);
+  });
+
+  it('矢印で 1 枚ずつ送る。端では矢印が押せない。自動では動かない', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+    const region = await carousel();
+    const prev = within(region).getByRole('button', { name: '前の資料へ' });
+    const next = within(region).getByRole('button', { name: '次の資料へ' });
+
+    expect(region).toHaveTextContent('1–3 / 5');
+    expect(prev).toBeDisabled();
+    expect(next).toBeEnabled();
+
+    await user.click(next);
+    expect(scrollIntoView).toHaveBeenLastCalledWith(expect.objectContaining({ inline: 'start' }));
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(cards(region)[1]!.closest('li'));
+    expect(region).toHaveTextContent('2–4 / 5');
+    expect(prev).toBeEnabled();
+
+    await user.click(next);
+    expect(region).toHaveTextContent('3–5 / 5');
+    expect(next).toBeDisabled();
+
+    await user.click(prev);
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(cards(region)[1]!.closest('li'));
+    expect(region).toHaveTextContent('2–4 / 5');
+  });
+
+  it('資料が 3 件までなら、矢印は両方とも押せない', async () => {
+    install({ configured: true, documents: LIST_7.documents.slice(0, 2) });
+    const { user } = setup();
+    await openDocuments(user);
+    const region = await carousel();
+
+    expect(cards(region)).toHaveLength(2);
+    expect(within(region).getByRole('button', { name: '前の資料へ' })).toBeDisabled();
+    expect(within(region).getByRole('button', { name: '次の資料へ' })).toBeDisabled();
+  });
+
+  it('更新日のある資料が無ければ、カルーセルは出さない', async () => {
+    install({ configured: true, documents: [summary(1, 'a.pdf', 1, 1, { updated_at: null })] });
+    const { user } = setup();
+    await openDocuments(user);
+
+    await screen.findByRole('row', { name: /a\.pdf/ });
+    expect(screen.queryByRole('region', { name: '最近更新された資料' })).not.toBeInTheDocument();
   });
 });
