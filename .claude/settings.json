@@ -67,7 +67,8 @@
       "Bash(git restore *)",
       "Bash(scripts/mcp-proxy.sh)",
       "mcp__cloudflare__execute",
-      "mcp__playwright__browser_run_code_unsafe"
+      "mcp__playwright__browser_run_code_unsafe",
+      "Bash(curl *api.supabase.com/v1/projects/*/database/password*)"
     ],
     "defaultMode": "auto",
     "disableBypassPermissionsMode": "disable"
