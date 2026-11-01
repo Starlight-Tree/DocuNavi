@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { afterEach } from 'vitest';
 import { buildSearch, currentStateSearch, parseUrlState, replaceUrlState } from './urlState';
 
+// 一覧の検索・絞り込み・並び替えが無いときの状態
+const NO_LIST_FILTER = { query: null, status: null, pageBand: null, updatedBand: null, sort: null };
+
 describe('parseUrlState', () => {
   it('何も無ければチャット', () => {
-    expect(parseUrlState('')).toEqual({ tab: 'chat', doc: null, view: null, item: null, page: null, collection: null });
+    expect(parseUrlState('')).toEqual({ tab: 'chat', doc: null, view: null, item: null, page: null, collection: null, ...NO_LIST_FILTER });
   });
 
   it('資料・表示・項まで読む', () => {
@@ -15,6 +18,7 @@ describe('parseUrlState', () => {
       item: 'a11p1',
       page: null,
       collection: null,
+      ...NO_LIST_FILTER,
     });
   });
 
@@ -43,6 +47,7 @@ describe('parseUrlState', () => {
       item: null,
       page: null,
       collection: null,
+      ...NO_LIST_FILTER,
     });
     expect(parseUrlState('?tab=documents&view=graph&item=a1p1')).toMatchObject({ view: null, item: null });
     expect(parseUrlState('?tab=documents&doc=3&view=pdf&item=a1p1').item).toBeNull();
@@ -96,6 +101,55 @@ describe('一覧の絞り込み（collection）', () => {
   });
 });
 
+describe('一覧の検索・絞り込み・並び替え', () => {
+  const LIST = '?tab=documents';
+
+  it('資料の一覧を見ているときだけ読む（チャットでも、資料を開いていても無い）', () => {
+    const search = 'q=%E5%85%A5%E5%AF%AE&status=ready&pages=few&updated=week&sort=updated';
+    expect(parseUrlState(`${LIST}&${search}`)).toMatchObject({
+      query: '入寮',
+      status: 'ready',
+      pageBand: 'few',
+      updatedBand: 'week',
+      sort: 'updated',
+    });
+    expect(parseUrlState(`?tab=chat&${search}`)).toMatchObject(NO_LIST_FILTER);
+    expect(parseUrlState(`${LIST}&doc=3&${search}`)).toMatchObject(NO_LIST_FILTER);
+  });
+
+  it('キーワードは、そのままの文字で読む（「+」は空白、全角の空白も残す）。空白だけ・長すぎる・制御文字は捨てる', () => {
+    expect(parseUrlState(`${LIST}&q=a+b`).query).toBe('a b');
+    expect(parseUrlState(`${LIST}&q=${encodeURIComponent('入寮　規程')}`).query).toBe('入寮　規程');
+    expect(parseUrlState(`${LIST}&q=`).query).toBeNull();
+    expect(parseUrlState(`${LIST}&q=%20%E3%80%80`).query).toBeNull();
+    expect(parseUrlState(`${LIST}&q=${'x'.repeat(100)}`).query).toBe('x'.repeat(100));
+    expect(parseUrlState(`${LIST}&q=${'x'.repeat(101)}`).query).toBeNull();
+    expect(parseUrlState(`${LIST}&q=a%00b`).query).toBeNull();
+  });
+
+  it('形が合わない値は捨てる（未知の帯・並び順・状態）。並び順の既定（default）は URL に持たない', () => {
+    expect(parseUrlState(`${LIST}&status=Ready`).status).toBeNull();
+    expect(parseUrlState(`${LIST}&status=${'a'.repeat(21)}`).status).toBeNull();
+    expect(parseUrlState(`${LIST}&pages=huge`).pageBand).toBeNull();
+    expect(parseUrlState(`${LIST}&updated=yesterday`).updatedBand).toBeNull();
+    expect(parseUrlState(`${LIST}&sort=evil`).sort).toBeNull();
+    expect(parseUrlState(`${LIST}&sort=default`).sort).toBeNull();
+  });
+
+  it('URL に書き、戻す（null）と消える。資料を開くと外れる', () => {
+    expect(buildSearch(LIST, { query: '入寮 規程', status: 'ready', pageBand: 'one', updatedBand: 'older', sort: 'name' })).toBe(
+      '?tab=documents&q=%E5%85%A5%E5%AF%AE+%E8%A6%8F%E7%A8%8B&status=ready&pages=one&updated=older&sort=name',
+    );
+    expect(buildSearch('?tab=documents&q=a&status=ready&sort=pages', { query: null, status: null, sort: null })).toBe(LIST);
+    expect(buildSearch('?tab=documents&q=a&status=ready&sort=pages&collection=cafe', { doc: 3 })).toBe('?tab=documents&doc=3');
+  });
+
+  it('チャットに切り替えると外れ、種別（collection）の絞り込みは残したまま条件を変えられる', () => {
+    expect(buildSearch('?tab=documents&q=a&sort=pages', { tab: 'chat' })).toBe('?tab=chat');
+    expect(buildSearch('?tab=documents&collection=cafe&q=a', { status: 'ready' })).toBe('?tab=documents&collection=cafe&q=a&status=ready');
+  });
+});
+
 describe('currentStateSearch / replaceUrlState', () => {
   afterEach(() => {
     window.history.replaceState(null, '', '/');
@@ -122,6 +176,11 @@ describe('currentStateSearch / replaceUrlState', () => {
     expect(window.location.search).toBe('?tab=documents&doc=3&view=pdf&page=2');
     expect(window.history.length).toBe(length);
     expect(notified).toBe(1);
+  });
+
+  it('資料の画面の検索・絞り込みも、整えたクエリに含める（ログインの往復で戻す）', () => {
+    window.history.replaceState(null, '', '/?tab=documents&q=%E5%85%A5%E5%AF%AE&sort=pages&sort2=x&code=secret');
+    expect(currentStateSearch()).toBe('?tab=documents&q=%E5%85%A5%E5%AF%AE&sort=pages');
   });
 
   it('replaceUrlState は、預けられた文字列も整えてから書く（不正な値・未知のパラメータは落ちる）', () => {

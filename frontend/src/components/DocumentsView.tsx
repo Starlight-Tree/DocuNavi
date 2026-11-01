@@ -5,9 +5,14 @@ import { GRAPH_SOURCE } from '../api/graph';
 import { usableCollections, useCollectionCatalog } from '../hooks/useCollections';
 import { useDocumentChunks, useDocumentList, useDocumentPdf } from '../hooks/useDocuments';
 import { collectionLabel, collectionOptions } from '../lib/collections';
+import { facetOptions, filterDocuments, sortDocuments } from '../lib/documentFilter';
+import { recentDocuments } from '../lib/recentDocuments';
+import type { DocumentFilter, FilterContext } from '../lib/documentFilter';
 import type { Loaded } from '../hooks/useLoaded';
-import type { DetailView } from '../lib/urlState';
+import type { DetailView, NavigateMode, UrlState } from '../lib/urlState';
 import { useUrlState } from '../lib/urlState';
+import { DocumentFilterBar } from './DocumentFilterBar';
+import { HeroCarousel } from './HeroCarousel';
 import { CollectionCards } from './CollectionCards';
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
@@ -16,11 +21,16 @@ export const MSG_NOT_CONFIGURED = '資料のデータベースが設定されて
 export const MSG_NO_GRAPH = '関係図は、入寮規程だけで見られます（ほかの資料は、まだ対応していません）。';
 export const MSG_NO_DOCUMENTS = '登録された資料はありません。資料を取り込むと、ここに表示され、チャットで検索できます。';
 export const MSG_NO_DOCUMENTS_IN_GROUP = 'このグループには、まだ資料がありません。';
+export const MSG_NO_MATCH = 'キーワードを減らすか、条件をクリアしてください。';
 
 const STATUS_LABELS: Record<string, string> = { ready: '取り込み済み', failed: '取り込み失敗' };
 
+function statusName(status: string): string {
+  return STATUS_LABELS[status] ?? status;
+}
+
 function statusLabel(document: DocumentSummary): string {
-  const label = STATUS_LABELS[document.status] ?? document.status;
+  const label = statusName(document.status);
   return document.failureReason ? `${label}（${document.failureReason}）` : label;
 }
 
@@ -65,13 +75,16 @@ interface DocumentTableProps {
   /** URL で指定された絞り込み（資料群の名前）。一覧に無い名前は、絞り込みなしと同じに扱う。 */
   collection: string | null;
   onCollectionChange: (collection: string | null) => void;
+  /** URL で指定された、一覧の検索・絞り込み・並び替え。 */
+  filter: DocumentFilter;
+  onFilterChange: (next: Partial<DocumentFilter>, mode?: NavigateMode) => void;
   /** 「このグループに質問」。検索範囲を変える。渡さなければ、ボタンは出さない。 */
   onAskGroup?: ((collection: string, trigger: HTMLElement) => void) | undefined;
   onRetry: () => void;
   onOpen: (document: DocumentSummary) => void;
 }
 
-function DocumentTable({ state, collection, onCollectionChange, onAskGroup, onRetry, onOpen }: DocumentTableProps) {
+function DocumentTable({ state, collection, onCollectionChange, filter, onFilterChange, onAskGroup, onRetry, onOpen }: DocumentTableProps) {
   const { state: catalogState } = useCollectionCatalog();
   if (state.status !== 'ready') return <Status state={state} onRetry={onRetry} />;
   if (!state.data.configured) return <p>{MSG_NOT_CONFIGURED}</p>;
@@ -82,9 +95,19 @@ function DocumentTable({ state, collection, onCollectionChange, onAskGroup, onRe
   const options = groups ? groups.map((g) => g.name) : collectionOptions(state.data.documents.map((d) => d.collection));
   const active = collection !== null && options.includes(collection) ? collection : null;
   const documents = active === null ? state.data.documents : state.data.documents.filter((d) => d.collection === active);
+  // 一覧の検索・絞り込み・並び替えは、種別（カード）で絞った資料に対して行う
+  const labelGroups = catalogState.status === 'ready' ? catalogState.data.collections : undefined;
+  const context: FilterContext = { now: new Date(), collectionLabel: (name) => collectionLabel(name, labelGroups) };
+  const shown = sortDocuments(filterDocuments(documents, filter, context), filter.sort);
 
   return (
     <>
+      {/* 最近更新された資料（ヒーロー）。種別・検索の絞り込みには連動せず、全資料から選ぶ（一覧からも外さない） */}
+      <HeroCarousel
+        documents={recentDocuments(state.data.documents)}
+        collectionLabel={(name) => collectionLabel(name, labelGroups)}
+        onOpen={onOpen}
+      />
       {groups ? (
         <CollectionCards
           collections={groups}
@@ -118,7 +141,20 @@ function DocumentTable({ state, collection, onCollectionChange, onAskGroup, onRe
           </div>
         )
       )}
-      {documents.length === 0 ? <p>{MSG_NO_DOCUMENTS_IN_GROUP}</p> : <DocumentCards documents={documents} onOpen={onOpen} />}
+      {documents.length === 0 ? (
+        <p>{MSG_NO_DOCUMENTS_IN_GROUP}</p>
+      ) : (
+        <>
+          <DocumentFilterBar
+            filter={filter}
+            options={facetOptions(documents, filter, context, statusName)}
+            resultCount={shown.length}
+            onChange={onFilterChange}
+            onClear={() => onFilterChange({ query: '', status: null, pages: null, updated: null })}
+          />
+          {shown.length === 0 ? <p className="document-filter-empty">{MSG_NO_MATCH}</p> : <DocumentCards documents={shown} onOpen={onOpen} />}
+        </>
+      )}
     </>
   );
 }
@@ -314,7 +350,18 @@ function DocumentChunks({ document, view, page, onViewChange, onBack }: Document
  * 開いている資料・表示・関係図の項は、URL が決める（戻る・再読み込み・共有で戻れる）。
  */
 export function DocumentsView({ onAskGroup }: { onAskGroup?: ((collection: string, trigger: HTMLElement) => void) | undefined } = {}) {
-  const { doc, view, page, collection, navigate } = useUrlState();
+  const { doc, view, page, collection, query, status, pageBand, updatedBand, sort, navigate } = useUrlState();
+  const filter: DocumentFilter = { query: query ?? '', status, pages: pageBand, updated: updatedBand, sort: sort ?? 'default' };
+  // 画面の条件（DocumentFilter）を、URL の状態（UrlState）に直して書く。空のキーワードと既定の並び順は、URL から外す
+  const onFilterChange = (next: Partial<DocumentFilter>, mode?: NavigateMode) => {
+    const patch: Partial<UrlState> = {};
+    if (next.query !== undefined) patch.query = next.query.trim() === '' ? null : next.query;
+    if (next.status !== undefined) patch.status = next.status;
+    if (next.pages !== undefined) patch.pageBand = next.pages;
+    if (next.updated !== undefined) patch.updatedBand = next.updated;
+    if (next.sort !== undefined) patch.sort = next.sort === 'default' ? null : next.sort;
+    navigate(patch, mode);
+  };
   const [state, reload] = useDocumentList();
   const selected =
     doc !== null && state.status === 'ready' ? (state.data.documents.find((d) => d.id === doc) ?? null) : null;
@@ -340,6 +387,8 @@ export function DocumentsView({ onAskGroup }: { onAskGroup?: ((collection: strin
           state={state}
           collection={collection}
           onCollectionChange={(next) => navigate({ collection: next })}
+          filter={filter}
+          onFilterChange={onFilterChange}
           onAskGroup={onAskGroup}
           onRetry={reload}
           onOpen={(d) => navigate({ doc: d.id })}
