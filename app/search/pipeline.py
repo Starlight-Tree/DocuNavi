@@ -4,7 +4,7 @@
 |---|---|---|
 | `SEARCH_HYBRID` | on | キーワード（BM25。`app/search/keyword.py`）の順位をベクトルの順位と RRF で合わせる |
 | `SEARCH_RERANK` | on | 候補を語の一致で並べ直す（`app/search/rerank.py`。外部のモデルも API も使わない） |
-| `SEARCH_GRAPH` | off | 上位のチャンクが「第N条」と参照する先のチャンクを、追加の文脈として加える（`app/search/graph.py`）。2026-11-01 の実測では辺が 0 本で効果を測れなかったため、既定は off |
+| `SEARCH_GRAPH` | on | 上位のチャンクが「第N条」と参照する先のチャンクを、追加の文脈として加える（`app/search/graph.py`）。2026-11-01 の第 2 の評価セット（62 問）で、参照が要る 38 問の根拠がそろう数が増え、悪化は 0 問だったため、利用者が既定を on にした（`docs/decisions/0007-graph-rag-default-on.md`）。追加は誤って付くこともある |
 | `SEARCH_CANDIDATES` | 20 | 1 次検索の候補の数（ベクトル・キーワードそれぞれ。`top_k` より小さくはならない） |
 | `SEARCH_GRAPH_MAX_EXTRA` | 1 | `graph` で加えるチャンクの上限（0 で加えない） |
 | `SEARCH_CORPUS_TTL_SECONDS` | 60 | キーワード側が読む資料の写し（範囲ごと）を持つ秒数 |
@@ -97,7 +97,7 @@ class Flags:
         return cls(
             hybrid=_flag("SEARCH_HYBRID", True),
             rerank=_flag("SEARCH_RERANK", True),
-            graph=_flag("SEARCH_GRAPH", False),
+            graph=_flag("SEARCH_GRAPH", True),
             candidates=int(_number("SEARCH_CANDIDATES", 20, 1, 100)),
             graph_extra=int(_number("SEARCH_GRAPH_MAX_EXTRA", 1, 0, 3)),
             corpus_ttl=_number("SEARCH_CORPUS_TTL_SECONDS", 60, 0, 3600),
