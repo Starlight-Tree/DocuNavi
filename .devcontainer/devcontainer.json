@@ -31,7 +31,7 @@
 		// feature の失敗はコンテナの作成ごと止めるため
 	},
 
-	// 永続化するボリューム（~/.claude、gh、gcloud、pgpass、Playwright）は、mounts ではなく ./docker-compose.yml の dev に移した
+	// 永続化するボリューム（~/.claude、gh、gcloud、pgpass、Supabase CLI、Infisical、Playwright）は、mounts ではなく ./docker-compose.yml の dev に移した
 	// （理由のコメントもそちら。ボリューム名は今のまま）。ここに mounts を書くと、同じ場所への二重のマウントでエラーになる。
 	//
 	// containerEnv は、ここに残す（CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT と DOCKER_HOST を含む。場所を変えない）。
@@ -53,11 +53,16 @@
 		"CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
 		"TZ": "Asia/Tokyo",
 		"DOCKER_HOST": "tcp://docunavi-docker-proxy:2375",
-		"CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT": "docunavi-viewer@docunavi-ops.iam.gserviceaccount.com"
+		"CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT": "docunavi-viewer@docunavi-ops.iam.gserviceaccount.com",
+		"INFISICAL_DISABLE_TELEMETRY": "true",
+		"INFISICAL_DISABLE_UPDATE_CHECK": "true"
 	},
 
 	// claude-volume / gh-volume: 新規作成直後のボリュームは root 所有になるため、vscode ユーザーが書き込めるようにする。
-	// gcloud・gh・psql・Go・docker-cli・Playwright のライブラリーは、イメージ（.devcontainer/Dockerfile）に入れてある。ここでは入れない。
+	// supabase-volume: ~/.supabase（Supabase CLI のログイン情報のボリューム）も同じ。権限は 700 にする（中の access-token は CLI が 600 で書く）。
+	// infisical-volume: ~/.infisical（Infisical CLI の状態とマシンアイデンティティの資格情報のボリューム）も同じ。権限は 700（資格情報のファイルは 600 でユーザーが置く）。
+	// INFISICAL_DISABLE_*: Infisical CLI のテレメトリーと更新確認を止める（同じ値を ./docker-compose.yml の environment にも置く）。
+	// gcloud・gh・psql・Go・Supabase CLI・Infisical CLI・docker-cli・Playwright のライブラリーは、イメージ（.devcontainer/Dockerfile）に入れてある。ここでは入れない。
 	// cli-tools: 次を順番に実行する（ログインや接続情報は含まない）。失敗してもコンテナの作成は止まらない（最後のコマンドの終了コードが 0 のため）。
 	//   1. install-playwright.sh: Playwright MCP（.mcp.json）用の Chromium（~/.cache/ms-playwright のボリュームに入る。所有者の修正もこのスクリプトが行う）の取得と、
 	//      起動確認（--version。ライブラリーの取りこぼしもここで分かる）。README の「開発環境のブラウザー確認」
@@ -68,8 +73,10 @@
 		"claude-volume": "sudo chown -R vscode:vscode /home/vscode/.claude",
 		"gh-volume": "sudo chown -R vscode:vscode /home/vscode/.gh-config",
 		"pg-volume": "sudo chown -R vscode:vscode /home/vscode/.pg && chmod 700 /home/vscode/.pg",
+		"supabase-volume": "sudo chown -R vscode:vscode /home/vscode/.supabase && chmod 700 /home/vscode/.supabase",
+		"infisical-volume": "sudo chown -R vscode:vscode /home/vscode/.infisical && chmod 700 /home/vscode/.infisical",
 		"gcloud-volume": "sudo chown vscode:vscode /home/vscode/.config && sudo chown -R vscode:vscode /home/vscode/.config/gcloud && chmod 700 /home/vscode/.config/gcloud",
-		"cli-tools": "bash .devcontainer/install-playwright.sh; for t in gcloud gh psql go docker; do command -v $t >/dev/null || echo missing: $t >&2; done"
+		"cli-tools": "bash .devcontainer/install-playwright.sh; for t in gcloud gh psql go docker supabase infisical; do command -v $t >/dev/null || echo missing: $t >&2; done"
 	},
 
 	// 起動のたびに、書き込み可能な Supabase MCP（supabase。ローカル登録）を今の作業ディレクトリに登録し直す。
