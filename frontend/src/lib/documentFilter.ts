@@ -1,0 +1,202 @@
+/**
+ * 資料一覧の検索・絞り込み・並び替え。React にも通信にも依存しない（`GET /documents` の結果を、画面の中だけで絞る）。
+ *
+ * - キーワード: 文書名・ファイル名・種別（資料グループ）の表示名が対象。空白（全角も）で区切り、すべての語を含む資料に絞る（AND）。
+ *   全角と半角・大文字と小文字は区別しない（NFKC に揃えて比べる）。本文は探さない（本文の検索は API が要る）。
+ * - 絞り込み: 状態・ページ数の帯・更新の新しさ。選択肢ごとの件数は、「その選択肢以外の条件」で絞った件数にする
+ *   （選ぶと何件になるかが分かる）。
+ * - 並び替え: `default` は入力の順のまま（サーバーはファイル名順で返す）。
+ */
+import type { DocumentSummary } from '../api/documents';
+
+export const PAGE_BANDS = ['one', 'few', 'many'] as const;
+export type PageBand = (typeof PAGE_BANDS)[number];
+
+export const UPDATED_BANDS = ['week', 'month', 'older'] as const;
+export type UpdatedBand = (typeof UPDATED_BANDS)[number];
+
+export const SORT_KEYS = ['default', 'name', 'updated', 'pages', 'chunks'] as const;
+export type SortKey = (typeof SORT_KEYS)[number];
+
+/** キーワードの最大の長さ（URL に載るので、長さを絞る）。 */
+export const QUERY_MAX_LENGTH = 100;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_DAYS = 7;
+const MONTH_DAYS = 30;
+
+export interface DocumentFilter {
+  /** 入力されたままのキーワード。空白だけ・空は「絞らない」。 */
+  query: string;
+  /** 状態（`ready` など）。null は絞らない。 */
+  status: string | null;
+  pages: PageBand | null;
+  updated: UpdatedBand | null;
+  sort: SortKey;
+}
+
+export const EMPTY_FILTER: DocumentFilter = { query: '', status: null, pages: null, updated: null, sort: 'default' };
+
+export interface FilterContext {
+  /** 「7 日以内」などの基準にする、いまの時刻。 */
+  now: Date;
+  /** 種別（資料グループの名前）の表示名。 */
+  collectionLabel: (collection: string) => string;
+}
+
+/** 比べやすい形（NFKC・小文字）にする。全角の英数字と半角、全角の空白と半角の空白が同じになる。 */
+function fold(text: string): string {
+  return text.normalize('NFKC').toLowerCase();
+}
+
+/** キーワードを、空白（全角を含む）で語に分ける。空の語は捨てる。 */
+export function splitKeywords(query: string): string[] {
+  return fold(query)
+    .split(/\s+/)
+    .filter((word) => word !== '');
+}
+
+export function pageBand(pages: number | null): PageBand | null {
+  if (pages === null) return null;
+  if (pages <= 1) return 'one';
+  return pages <= 4 ? 'few' : 'many';
+}
+
+/** 更新が、いまから見てどの帯か。日付が無い・読めないときは null（帯を選ぶと除かれる）。未来の日付は「7 日以内」に含める。 */
+export function updatedBand(updatedAt: string | null, now: Date): UpdatedBand | null {
+  if (updatedAt === null) return null;
+  const time = new Date(updatedAt).getTime();
+  if (Number.isNaN(time)) return null;
+  const days = (now.getTime() - time) / DAY_MS;
+  if (days <= WEEK_DAYS) return 'week';
+  return days <= MONTH_DAYS ? 'month' : 'older';
+}
+
+function matchesKeywords(document: DocumentSummary, words: string[], context: FilterContext): boolean {
+  if (words.length === 0) return true;
+  const label = document.collection === null ? '' : context.collectionLabel(document.collection);
+  const haystack = fold([document.title ?? '', document.source, label].join(' '));
+  return words.every((word) => haystack.includes(word));
+}
+
+export type FilterFacet = 'status' | 'pages' | 'updated';
+
+/**
+ * 条件に合う資料に絞る（入力の順は変えない）。`skip` を渡すと、その条件だけを外す（選択肢ごとの件数に使う）。
+ */
+export function filterDocuments(
+  documents: readonly DocumentSummary[],
+  filter: DocumentFilter,
+  context: FilterContext,
+  skip?: FilterFacet,
+): DocumentSummary[] {
+  const words = splitKeywords(filter.query);
+  return documents.filter(
+    (d) =>
+      matchesKeywords(d, words, context) &&
+      (skip === 'status' || filter.status === null || d.status === filter.status) &&
+      (skip === 'pages' || filter.pages === null || pageBand(d.pages) === filter.pages) &&
+      (skip === 'updated' || filter.updated === null || updatedBand(d.updatedAt, context.now) === filter.updated),
+  );
+}
+
+function displayKey(document: DocumentSummary): string {
+  return document.title ?? document.source;
+}
+
+/** 並び替えた写しを返す。`default` は入力の順のまま。同じ値は入力の順を保つ。更新日が無い資料は、新しい順の最後に置く。 */
+export function sortDocuments(documents: readonly DocumentSummary[], sort: SortKey): DocumentSummary[] {
+  const copy = [...documents];
+  switch (sort) {
+    case 'name':
+      return copy.sort((a, b) => displayKey(a).localeCompare(displayKey(b), 'ja'));
+    case 'pages':
+      return copy.sort((a, b) => (b.pages ?? -1) - (a.pages ?? -1));
+    case 'chunks':
+      return copy.sort((a, b) => b.chunkCount - a.chunkCount);
+    case 'updated':
+      return copy.sort((a, b) => timeOf(b.updatedAt) - timeOf(a.updatedAt));
+    default:
+      return copy;
+  }
+}
+
+function timeOf(value: string | null): number {
+  if (value === null) return Number.NEGATIVE_INFINITY;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? Number.NEGATIVE_INFINITY : time;
+}
+
+/** 資料にある状態を、`ready` を先頭に、残りを名前順で返す（重複なし）。 */
+export function statusValues(documents: readonly DocumentSummary[]): string[] {
+  const values = [...new Set(documents.map((d) => d.status))];
+  return values.sort((a, b) => (a === 'ready' ? -1 : b === 'ready' ? 1 : a.localeCompare(b)));
+}
+
+/** 条件で絞り込んでいるか（並び替えは数えない）。 */
+export function isFiltered(filter: DocumentFilter): boolean {
+  return splitKeywords(filter.query).length > 0 || filter.status !== null || filter.pages !== null || filter.updated !== null;
+}
+
+/** 選択肢ごとの件数: その条件以外で絞った資料のうち、選択肢に当てはまる数。 */
+export function facetCounts(
+  documents: readonly DocumentSummary[],
+  filter: DocumentFilter,
+  context: FilterContext,
+  facet: FilterFacet,
+): { total: number; byValue: Map<string, number> } {
+  const rest = filterDocuments(documents, filter, context, facet);
+  const byValue = new Map<string, number>();
+  for (const d of rest) {
+    const value = facet === 'status' ? d.status : facet === 'pages' ? pageBand(d.pages) : updatedBand(d.updatedAt, context.now);
+    if (value !== null) byValue.set(value, (byValue.get(value) ?? 0) + 1);
+  }
+  return { total: rest.length, byValue };
+}
+
+export const PAGE_BAND_LABELS: Record<PageBand, string> = { one: '1ページ', few: '2〜4ページ', many: '5ページ以上' };
+export const UPDATED_BAND_LABELS: Record<UpdatedBand, string> = { week: '7日以内', month: '30日以内', older: 'それ以前' };
+export const SORT_LABELS: Record<SortKey, string> = {
+  default: 'ファイル名順',
+  name: '文書名順',
+  updated: '更新が新しい順',
+  pages: 'ページ数が多い順',
+  chunks: 'チャンク数が多い順',
+};
+
+/** 絞り込みの選択肢。`value` が null のものは「すべて」。 */
+export interface FacetOption<T extends string = string> {
+  value: T | null;
+  label: string;
+  count: number;
+}
+
+function options<T extends string>(
+  values: readonly T[],
+  labelOf: (value: T) => string,
+  counts: { total: number; byValue: Map<string, number> },
+): FacetOption<T>[] {
+  return [
+    { value: null, label: 'すべて', count: counts.total },
+    ...values.map((value) => ({ value, label: labelOf(value), count: counts.byValue.get(value) ?? 0 })),
+  ];
+}
+
+/**
+ * 状態・ページ数・更新の選択肢と、それぞれの件数。
+ * 状態の選択肢は、資料にある状態だけ（URL で指定された、資料に無い状態は、件数 0 の選択肢として残す。選択が見えなくならないように）。
+ */
+export function facetOptions(
+  documents: readonly DocumentSummary[],
+  filter: DocumentFilter,
+  context: FilterContext,
+  statusLabel: (status: string) => string,
+): { status: FacetOption[]; pages: FacetOption<PageBand>[]; updated: FacetOption<UpdatedBand>[] } {
+  const statuses = statusValues(documents);
+  if (filter.status !== null && !statuses.includes(filter.status)) statuses.push(filter.status);
+  return {
+    status: options(statuses, statusLabel, facetCounts(documents, filter, context, 'status')),
+    pages: options(PAGE_BANDS, (b) => PAGE_BAND_LABELS[b], facetCounts(documents, filter, context, 'pages')),
+    updated: options(UPDATED_BANDS, (b) => UPDATED_BAND_LABELS[b], facetCounts(documents, filter, context, 'updated')),
+  };
+}
