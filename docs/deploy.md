@@ -363,7 +363,7 @@ as_me gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
 
 ```bash
 BILLING_ACCOUNT=<請求先アカウント ID>
-BUDGET=1000                        # 仮。請求先アカウントの通貨で指定する（円なら 1000 円）。あとで変えてよい
+BUDGET=3000                        # 2026-11-01 に 1000 から 3000 に変更。請求先アカウントの通貨で指定する（円なら 3000 円）
 TOPIC=budget-alerts
 GUARD_SA=budget-guard
 ```
