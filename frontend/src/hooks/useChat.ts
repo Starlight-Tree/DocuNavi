@@ -21,7 +21,7 @@ import { parseSourceRefs } from '../lib/sources';
 import type { SourceRef } from '../lib/sources';
 import { loadThreadId, saveThreadId } from '../lib/storage';
 import { fetchThreadMessages } from '../api/threads';
-import { useAuthedJsonFetch } from './useDocuments';
+import { useAuthedJsonFetch } from './useLoaded';
 
 type ChatUIMessage = UIMessage<ChatMetadata>;
 

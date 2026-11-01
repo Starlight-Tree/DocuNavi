@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ChatApiError, isAbortError } from '../api/chat';
 import { deleteThread, fetchThreads } from '../api/threads';
 import type { ThreadSummary } from '../api/threads';
-import { useAuthedJsonFetch } from './useDocuments';
+import { useAuthedJsonFetch } from './useLoaded';
 
 const MSG_LIST_FAILED = '会話の一覧を取得できませんでした。しばらく待ってから再試行してください。';
 const MSG_DELETE_FAILED = '会話を削除できませんでした。しばらく待ってから再試行してください。';
