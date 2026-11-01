@@ -75,15 +75,17 @@ Compose の `frontend` サービスも、この形（`API_PROXY_TARGET=http://ap
 
 ## ディレクトリ構成
 
+層の境界と守ること（Claude Code 向け）は [CLAUDE.md](CLAUDE.md)。
+
 ```
 frontend/
 ├── app/                      # App Router（page.tsx → client-app.tsx → src/Root.tsx）
 ├── next.config.ts            # API の転送（rewrites）・ビルドの出力先
 ├── playwright.config.ts, e2e/
 └── src/
-    ├── api/                  # chat.ts（トランスポート用の fetch と /health）、documents.ts、threads.ts、graph.ts
+    ├── api/                  # chat.ts（トランスポート用の fetch と /health）、collections.ts、documents.ts、threads.ts、graph.ts
     ├── auth/                 # Google ログイン（Supabase Auth）。types.ts = 窓口の型、supabase.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
-    ├── hooks/                # useChat（AI SDK の useChat を包む）、useBackendMode、useDocuments、useThreads
+    ├── hooks/                # useChat（AI SDK の useChat を包む）、useBackendMode、useCollections、useDocuments、useThreads、useLoaded（取得状態 Loaded と認証つき fetch の共通部品）
     ├── lib/                  # relationGraph（関係図の選び方・並べ方・影響の分類）、sources（出典の取り出し）、storage、urlState、markdown ほか
     ├── components/           # Header / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen / DocumentsView / ThreadSidebar / RelationGraphView ほか
     ├── App.tsx, Root.tsx, styles.css
