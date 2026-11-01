@@ -11,6 +11,7 @@ SQL が本物の Postgres で期待どおりに絞るかは tests/test_access_po
 """
 
 import asyncio
+import datetime as dt
 import json
 import logging
 import uuid
@@ -28,6 +29,7 @@ from app.agents.tools import search_documents
 from app.api import collections, documents, routes
 from app.api import graph as graph_api
 from app.main import app
+from app.relations import extract as relations_extract
 from app.scope import ACCESS_SCOPE_KEY, ALLOWED_FILTER_SQL, Scope
 from app.search import vector as search_vector
 from tests.fakes import GroupedFakeSearch, SearchingMockLLM
@@ -455,9 +457,19 @@ def _snapshot(client, thread_id: str) -> dict[str, Any]:
     return out
 
 
+class _FixedClock(dt.datetime):
+    """関係図の辺の `updated_at`（`extract.py` が作るたびに `datetime.now` で付ける）を固定する。
+    固定しないと、2 回の流しが秒の境目をまたいだときに、辺の時刻が 1 秒ずれて比較が崩れる。"""
+
+    @classmethod
+    def now(cls, tz=None):
+        return dt.datetime(2026, 11, 1, 12, 0, 0, tzinfo=tz)
+
+
 def test_the_default_role_behaves_exactly_like_access_mode_off(
-    client, set_access, grouped_search, docs_pool, groups_pool
+    client, set_access, grouped_search, docs_pool, groups_pool, monkeypatch
 ):
+    monkeypatch.setattr(relations_extract, "datetime", _FixedClock)
     # 未分類の資料（collection が NULL）は、グループを持つロールには見えない。これは現行との違いなので、この比較からは外す
     docs_pool.docs.pop(UNGROUPED_DOC["id"])
     set_access("off")

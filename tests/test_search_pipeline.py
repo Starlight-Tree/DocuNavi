@@ -72,11 +72,11 @@ C = chunk("spec.pdf", "お手入れ\nフィルターは月に一度、水洗い�
 # ---- フラグ ----
 
 
-def test_hybrid_and_rerank_default_to_on_and_graph_to_off(monkeypatch):
+def test_hybrid_rerank_and_graph_all_default_to_on(monkeypatch):
     for name in FLAGS:
         monkeypatch.delenv(name, raising=False)
     flags = search_pipeline.Flags.from_env()
-    assert (flags.hybrid, flags.rerank, flags.graph) == (True, True, False)
+    assert (flags.hybrid, flags.rerank, flags.graph) == (True, True, True)
     assert (flags.candidates, flags.graph_extra) == (20, 1)
 
 

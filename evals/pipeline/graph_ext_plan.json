@@ -1,0 +1,733 @@
+{
+  "api": {
+    "calls": 5,
+    "chars": 9688,
+    "doc_texts": 69,
+    "estimated_cost_usd": 0.001938,
+    "hard_call_limit": 6,
+    "planned_call_limit": 5,
+    "query_texts": 62
+  },
+  "chunk_count": 69,
+  "corpus_fingerprint": "13926e1a63e66d09f2e224ec6d70c21e153acb3df7f1471e750b19774b135654",
+  "created_at": "2026-11-01T20:51:12+09:00",
+  "edges": [
+    "市民プール利用規程.txt 第7条 -> 第5条",
+    "市民プール利用規程.txt 第8条 -> 第4条",
+    "市民プール利用規程.txt 第8条 -> 第6条",
+    "市民プール利用規程.txt 第9条 -> 第5条",
+    "市民プール利用規程.txt 第10条 -> 第8条",
+    "市民プール利用規程.txt 第11条 -> 第9条",
+    "市民プール利用規程.txt 第12条 -> 第8条",
+    "市民プール利用規程.txt 第13条 -> 第4条",
+    "市民プール利用規程.txt 第14条 -> 第4条",
+    "市民プール利用規程.txt 第15条 -> 第4条",
+    "市民プール利用規程.txt 第16条 -> 第6条",
+    "市民プール利用規程.txt 第17条 -> 第6条",
+    "市民会館ホール利用規程.txt 第4条 -> 第9条",
+    "市民会館ホール利用規程.txt 第4条 -> 第10条",
+    "市民会館ホール利用規程.txt 第5条 -> 第9条",
+    "市民会館ホール利用規程.txt 第6条 -> 第11条",
+    "市民会館ホール利用規程.txt 第7条 -> 第11条",
+    "市民会館ホール利用規程.txt 第8条 -> 第10条",
+    "市民会館ホール利用規程.txt 第12条 -> 第10条",
+    "市民会館ホール利用規程.txt 第12条 -> 第11条",
+    "市民会館ホール利用規程.txt 第13条 -> 第9条",
+    "市民会館ホール利用規程.txt 第13条 -> 第11条",
+    "市民会館ホール利用規程.txt 第14条 -> 第12条",
+    "市民会館ホール利用規程.txt 第15条 -> 第12条",
+    "市民会館ホール利用規程.txt 第16条 -> 第13条",
+    "市民会館ホール利用規程.txt 第17条 -> 第13条",
+    "市民農園利用規程.txt 第4条 -> 第10条",
+    "市民農園利用規程.txt 第5条 -> 第9条",
+    "市民農園利用規程.txt 第6条 -> 第9条",
+    "市民農園利用規程.txt 第7条 -> 第11条",
+    "市民農園利用規程.txt 第8条 -> 第10条",
+    "市民農園利用規程.txt 第12条 -> 第9条",
+    "市民農園利用規程.txt 第12条 -> 第10条",
+    "市民農園利用規程.txt 第12条 -> 第11条",
+    "市民農園利用規程.txt 第13条 -> 第11条",
+    "市民農園利用規程.txt 第14条 -> 第12条",
+    "市民農園利用規程.txt 第15条 -> 第12条",
+    "市民農園利用規程.txt 第16条 -> 第12条",
+    "市民農園利用規程.txt 第17条 -> 第13条",
+    "市民農園利用規程.txt 第18条 -> 第9条",
+    "市立図書館利用規程.txt 第4条 -> 第8条",
+    "市立図書館利用規程.txt 第5条 -> 第6条",
+    "市立図書館利用規程.txt 第9条 -> 第6条",
+    "市立図書館利用規程.txt 第9条 -> 第8条",
+    "市立図書館利用規程.txt 第10条 -> 第9条",
+    "市立図書館利用規程.txt 第11条 -> 第9条",
+    "市立図書館利用規程.txt 第12条 -> 第7条",
+    "市立図書館利用規程.txt 第13条 -> 第12条",
+    "市立図書館利用規程.txt 第14条 -> 第6条",
+    "市立図書館利用規程.txt 第15条 -> 第7条",
+    "市立図書館利用規程.txt 第16条 -> 第7条",
+    "市立図書館利用規程.txt 第17条 -> 第6条"
+  ],
+  "fixed": {
+    "app_top_k": 2,
+    "bm25_b": 0.75,
+    "bm25_k1": 1.5,
+    "candidates": 20,
+    "chunking": "1 条 = 1 チャンク（見出し「第N条（題）」+ 本文）",
+    "collection": "graph_rules_ext",
+    "configs": {
+      "all": [
+        true,
+        true,
+        true
+      ],
+      "hybrid": [
+        true,
+        false,
+        false
+      ],
+      "hybrid+graph": [
+        true,
+        false,
+        true
+      ],
+      "hybrid+rerank": [
+        true,
+        true,
+        false
+      ],
+      "vector": [
+        false,
+        false,
+        false
+      ]
+    },
+    "dimensions": 768,
+    "graph_max_extra": 1,
+    "identifier_weight": 0.5,
+    "ks": [
+      1,
+      2,
+      3,
+      5
+    ],
+    "min_similarity": 0.65,
+    "model": "gemini-embedding-2",
+    "query": "質問文そのまま（LLM による言い換えは使わない）",
+    "rerank_lexical_share": 0.5,
+    "rerank_rrf_share": 0.5,
+    "rrf_k": 60,
+    "scope": "ALL（全グループ。collection の絞り込みなし）"
+  },
+  "git_head": "aab74e4",
+  "note": "検索の結果を見る前に作った。ここに写した値は、この測定の中で変えない。",
+  "questions": [
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx001",
+      "kind": "chain3",
+      "text": "市内の小学校が、水泳の授業でプールを使いたいときは、いつまでに何をすればよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx002",
+      "kind": "chain3",
+      "text": "夏休みの短期教室に、障害のある小学生が参加するとき、受講料はどうなりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx003",
+      "kind": "chain3",
+      "text": "市内のスポーツ少年団が、練習中にプールの設備を壊してしまいました。どうなりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx004",
+      "kind": "ref_far",
+      "text": "プールでテレビ番組の撮影をしたいときは、受付に出す書類に何を書けばよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx005",
+      "kind": "ref_far",
+      "text": "水泳の記録会を開きたいのですが、開いてよいかどうかは、いつ分かりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx006",
+      "kind": "ref_far",
+      "text": "フィンを使った練習をする予定ですが、人数が変わることになりました。いつまでに知らせればよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx007",
+      "kind": "ref_far",
+      "text": "借りたビート板をなくしてしまいました。いくら払えばよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx008",
+      "kind": "ref_far",
+      "text": "プールで転んで手すりを曲げてしまいました。直すお金は、いつまでに払えばよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx009",
+      "kind": "ref_near",
+      "text": "70歳の市民が一般の利用をするとき、料金はいくらですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx010",
+      "kind": "ref_unneeded",
+      "text": "学校の授業でプールを使うとき、引率の先生はどこにいればよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx011",
+      "kind": "ref_unneeded",
+      "text": "スポーツ少年団がプールで練習できるのは、何時から何時までですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx012",
+      "kind": "single",
+      "text": "プールが休みなのは、何曜日ですか。"
+    },
+    {
+      "answerable": true,
+      "category": "paraphrase",
+      "expected": [
+        "市民プール利用規程.txt"
+      ],
+      "id": "gx013",
+      "kind": "single",
+      "text": "プールのロッカーの鍵を戻すと、入れたお金はどうなりますか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gx014",
+      "kind": "absent",
+      "text": "プールの水温は、何度ですか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gx015",
+      "kind": "absent",
+      "text": "来週の日曜日の花火大会は、何時から始まりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx016",
+      "kind": "chain3",
+      "text": "学童保育の施設が、まとめて本を借りたいです。受付に何を持っていけばよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx017",
+      "kind": "chain3",
+      "text": "病院の患者向け文庫の本を、返すのが遅れてしまいました。その後、どうなりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx018",
+      "kind": "chain3",
+      "text": "町内会が、上映会のために借りたDVDを割ってしまいました。いくら払うことになりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx019",
+      "kind": "ref_far",
+      "text": "借りた本を返さないまま、1か月以上たってしまいました。どうなりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx020",
+      "kind": "ref_far",
+      "text": "予約に使うカードをなくしてしまいました。作り直すのにお金はかかりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx021",
+      "kind": "ref_far",
+      "text": "夜、ブックポストに返した本が、ポストの中で破れていたと言われました。どうすればよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx022",
+      "kind": "ref_far",
+      "text": "絶版の本を借りて、うっかり破ってしまいました。同じ本を買って返せばよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx023",
+      "kind": "ref_far",
+      "text": "電子書籍の利用に使っているカードを、電車の中で落としてしまいました。まず何をすればよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx024",
+      "kind": "ref_near",
+      "text": "市外に住んでいて、市内の会社に勤めています。図書館のカードを作るには、何を示しますか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx025",
+      "kind": "ref_unneeded",
+      "text": "図書館では、一度に何冊まで借りられますか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx026",
+      "kind": "ref_unneeded",
+      "text": "図書館でDVDは、何点まで借りられますか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx027",
+      "kind": "single",
+      "text": "図書館が休みなのは、何曜日ですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市立図書館利用規程.txt"
+      ],
+      "id": "gx028",
+      "kind": "single",
+      "text": "図書館の閲覧席は、一度に何時間まで使えますか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gx029",
+      "kind": "absent",
+      "text": "図書館の蔵書は、全部で何冊ありますか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gx030",
+      "kind": "absent",
+      "text": "みなと市の人口は、何人ですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx031",
+      "kind": "chain3",
+      "text": "中学校の吹奏楽部が、発表会のためにホールを借ります。料金を安くしてもらうには、何を示せばよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx032",
+      "kind": "chain3",
+      "text": "自治会の防災講座で借りたホールの椅子を、うっかり壊してしまいました。どうなりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx033",
+      "kind": "chain3",
+      "text": "市内の美術団体が展覧会を開く予定でしたが、開催の3日前に中止が決まりました。ホールの代金は戻りますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx034",
+      "kind": "chain3",
+      "text": "写真クラブが写真展の設営で、ホールの壁を傷つけてしまいました。費用は、いつまでに払えばよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx035",
+      "kind": "ref_far",
+      "text": "20日後に予定していた会議が中止になり、ホールの使用を取りやめます。代金はどうなりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx036",
+      "kind": "ref_far",
+      "text": "ホールの使用を取りやめることにしました。戻るお金は、いつ口座に入りますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx037",
+      "kind": "ref_far",
+      "text": "借りた楽屋の鍵をなくしてしまいました。いくら払うことになりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx038",
+      "kind": "ref_far",
+      "text": "ステージの床に重い機材を落として、へこませてしまいました。いくら払うことになりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx039",
+      "kind": "ref_far",
+      "text": "市が開く講演会でホールを使います。代金はかかりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx040",
+      "kind": "ref_near",
+      "text": "市内の文化団体が、大ホールを夜間に借りるとき、使用料はいくらですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx041",
+      "kind": "ref_unneeded",
+      "text": "自治会がホールを借りるときの申込みは、何日前から受け付けてもらえますか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx042",
+      "kind": "ref_unneeded",
+      "text": "学校の発表会でホールを使えるのは、いつですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx043",
+      "kind": "single",
+      "text": "ホールは、何時まで使えますか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民会館ホール利用規程.txt"
+      ],
+      "id": "gx044",
+      "kind": "single",
+      "text": "大ホールの定員は、何名ですか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gx045",
+      "kind": "absent",
+      "text": "小ホールの定員は、何名ですか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gx046",
+      "kind": "absent",
+      "text": "ホールにグランドピアノはありますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx047",
+      "kind": "chain3",
+      "text": "祖父が借りていた畑を、孫が引き継ぎたいです。手続の受付は、いつですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx048",
+      "kind": "chain3",
+      "text": "長く入院している利用者が、契約を更新しないことにしました。畑を返すときに、育てている野菜はどうしますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx049",
+      "kind": "chain3",
+      "text": "契約の途中で、経済的な支援を受けることになりました。畑の代金を安くしてもらう申請は、いつ行えばよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx050",
+      "kind": "chain3",
+      "text": "海外への転勤が決まり、契約を途中でやめます。畑に建てた小屋を片付けないまま帰国したら、どうなりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx051",
+      "kind": "ref_far",
+      "text": "友人と2人で1区画を借りたいです。希望者が多いときは、どうやって決まりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx052",
+      "kind": "ref_far",
+      "text": "抽選に外れて、補欠に登録しました。当選した人が期限までに代金を払わなかったら、その人の当選はどうなりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx053",
+      "kind": "ref_far",
+      "text": "畑にビニールハウスを建てて使ってきました。契約が終わるときは、いつまでに片付ければよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx054",
+      "kind": "ref_far",
+      "text": "障害のある人を支援する団体が、畑を借りて作業をしたいです。代金はかかりますか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx055",
+      "kind": "ref_far",
+      "text": "年額の代金を分けて払いたいのですが、いつまでに相談すればよいですか。"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx056",
+      "kind": "ref_near",
+      "text": "72歳の市民が1区画を借りるとき、年額いくらですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx057",
+      "kind": "ref_unneeded",
+      "text": "市民農園の1区画は、何平方メートルですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx058",
+      "kind": "ref_unneeded",
+      "text": "畑の名義は、家族以外の人に変えられますか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx059",
+      "kind": "single",
+      "text": "市民農園を借りられるのは、どんな人ですか。"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "市民農園利用規程.txt"
+      ],
+      "id": "gx060",
+      "kind": "single",
+      "text": "市民農園に、果樹は植えられますか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gx061",
+      "kind": "absent",
+      "text": "市民農園に、水道はありますか。"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "gx062",
+      "kind": "absent",
+      "text": "市民農園の駐車場は、何台とめられますか。"
+    }
+  ],
+  "sources": [
+    "市民プール利用規程.txt",
+    "市民会館ホール利用規程.txt",
+    "市民農園利用規程.txt",
+    "市立図書館利用規程.txt"
+  ]
+}

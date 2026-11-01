@@ -5,7 +5,7 @@
 ## 検索
 
 - 入口は `search/pipeline.py`（`search/vector.py` の `search` に、ハイブリッド・リランカー・GraphRAG を環境変数で重ねる）。ほかの経路から `vector.search` を直接呼ぶ追加はしない（MCP は運用者専用の例外）。
-  フラグの表と既定（`SEARCH_HYBRID` on、`SEARCH_RERANK` on、`SEARCH_GRAPH` off）は、`search/pipeline.py` の先頭の docstring が正本。
+  フラグの表と既定（`SEARCH_HYBRID` on、`SEARCH_RERANK` on、`SEARCH_GRAPH` on。2026-11-01 から）は、`search/pipeline.py` の先頭の docstring が正本。
 - **3 つのフラグがすべて off のときは、`search_vector.search` をそのまま呼ぶ**（結果も経路も以前と同じ）。この性質を壊さない。
 - `search` は `scope`（`app/scope.py` の `Scope`）が必須で、渡し忘れは `TypeError`。`Scope.ALL` は呼び出し側が明示する。範囲は SQL で絞り、返った行も確かめる。
 - 失敗しても別の経路には戻らない。DB・設定・キーの失敗は `VectorSearchError`（API は 503 の固定文）。不正なフラグ値も黙って既定に戻さない。
