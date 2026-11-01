@@ -32,6 +32,14 @@ def fake_search(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(tools, "search_chunks_async", FakeSearch())
 
 
+@pytest.fixture(autouse=True)
+def vector_only_search(monkeypatch: pytest.MonkeyPatch) -> None:
+    """検索の重ね（ハイブリッド・リランカー・GraphRAG。既定は on）を、既存のテストでは off にして、ベクトル検索だけを確かめる。
+    重ねを確かめるテスト（tests/test_search_pipeline.py）は、自分で on にする。"""
+    for name in ("SEARCH_HYBRID", "SEARCH_RERANK", "SEARCH_GRAPH"):
+        monkeypatch.setenv(name, "off")
+
+
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
