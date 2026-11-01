@@ -1,3 +1,3 @@
 module docunavi/sse-relay
 
-go 1.26
+go 1.26.10
