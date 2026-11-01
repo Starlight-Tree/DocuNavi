@@ -82,4 +82,4 @@ CLI は版（ファイル名の数字）しか比べず、内容の食い違い�
 - `supabase/config.toml`、`supabase/migrations/`（本番に適用する側）
 - `docker-compose.yml`（`db` が `supabase/migrations/` を `/migrations` に読み取り専用でマウント）、`db/local-init/`（初回の入れ物の作成。migration ではない）
 - `docs/development.md`（ローカルの DB に手で適用する手順）
-- 台帳の確認: Supabase MCP の `list_migrations`（読み取り専用の `supabase-read`）
+- 台帳の確認: Supabase MCP の `list_migrations`（`supabase`。書き込み可能な登録なので、読み取りのツールだけ使う）
