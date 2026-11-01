@@ -58,7 +58,7 @@
       "Bash(docker compose up *)",
       "Bash(docker compose down *)",
       "Bash(docker compose restart *)",
-      "mcp__supabase-write__apply_migration"
+      "mcp__supabase__apply_migration"
     ],
     "ask": [
       "Bash(git push)",
@@ -89,7 +89,7 @@
         ]
       },
       {
-        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe",
+        "matcher": "mcp__vercel__.*|mcp__supabase__.*|mcp__playwright__browser_run_code_unsafe",
         "hooks": [
           {
             "type": "command",
@@ -104,7 +104,7 @@
     ],
     "PermissionRequest": [
       {
-        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe|Bash",
+        "matcher": "mcp__vercel__.*|mcp__supabase__.*|mcp__playwright__browser_run_code_unsafe|Bash",
         "hooks": [
           {
             "type": "command",
@@ -119,7 +119,7 @@
     ],
     "PermissionDenied": [
       {
-        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe|Bash",
+        "matcher": "mcp__vercel__.*|mcp__supabase__.*|mcp__playwright__browser_run_code_unsafe|Bash",
         "hooks": [
           {
             "type": "command",
@@ -134,7 +134,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe",
+        "matcher": "mcp__vercel__.*|mcp__supabase__.*|mcp__playwright__browser_run_code_unsafe",
         "hooks": [
           {
             "type": "command",
@@ -149,7 +149,7 @@
     ],
     "PostToolUseFailure": [
       {
-        "matcher": "mcp__vercel__.*|mcp__supabase-write__.*|mcp__playwright__browser_run_code_unsafe",
+        "matcher": "mcp__vercel__.*|mcp__supabase__.*|mcp__playwright__browser_run_code_unsafe",
         "hooks": [
           {
             "type": "command",
@@ -179,7 +179,7 @@
     ],
     "Elicitation": [
       {
-        "matcher": "supabase-write",
+        "matcher": "supabase",
         "hooks": [
           {
             "type": "command",

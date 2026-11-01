@@ -18,7 +18,7 @@ def main():
     message = data.get("message") or ""
     ref = os.environ.get("SUPABASE_PROJECT_REF", "")
     ok = (
-        server == "supabase-write"
+        server == "supabase"
         and data.get("mode", "form") == "form"
         and message.startswith(PREFIX)
         and bool(ref)

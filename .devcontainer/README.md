@@ -300,9 +300,11 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 - 再ビルドで確かめたのは、Chromium のキャッシュ（ボリューム）が残ること、MCP の登録が有効なことです。ライブラリーの導入は、以前は `postCreateCommand` の apt で、再ビルド直後にロックの競合で失敗したことがありました。
   今はライブラリーをイメージに入れたので、`postCreateCommand` に apt は残りません（ロックの競合も、試し直しの処理もありません）。移したあとの再ビルドで、Chromium の起動（`--version` と、ヘッドレスでの DOM の出力）と Playwright MCP での画面の操作を確かめました。
 
-## Supabase MCP（読み取り専用の共有）
+## Supabase MCP
 
-リポジトリ直下の `.mcp.json` に、`supabase-read`（読み取り専用。2026-10-21 に `supabase` から改名）の定義があります。DB の中身（`documents` / `chunks` など）を、エージェントが読んで確かめるためのものです。
+**2026-11-01 の整理:** 読み取り専用の共有 `supabase-read`（`.mcp.json`）を削除し、書き込み可能なローカル登録 `supabase-write` を `supabase` に改名した（利用者の指示）。以下の「読み取り専用」「共有」の記述は、整理前の記録（2026-10-18〜21）で、現在の構成ではない。現在は、ローカル登録の `supabase` だけで、読み取りのツールも書き込み可能な接続を通る。`.claude/settings.json` の deny（`apply_migration`）と、`~/.claude/settings.json` の `ask`（`mcp__supabase__*`）で守る。
+
+リポジトリ直下の `.mcp.json` に、`supabase-read`（読み取り専用。2026-10-21 に `supabase` から改名。2026-11-01 に削除）の定義がありました。DB の中身（`documents` / `chunks` など）を、エージェントが読んで確かめるためのものです。
 
 - **読み取り専用です。** URL の `read_only=true` で、書き込み（マイグレーションの適用、書き込みの SQL）を止めます。実際の接続で確かめました（2026-10-18）。
   `apply_migration` のツールは出ず、`CREATE TEMP TABLE` は読み取り専用のトランザクションとして拒否され、`list_tables` などの読み取りは通りました。
@@ -313,8 +315,8 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
   代わりに、ホスト側の環境変数を渡す方法もあります。`devcontainer.json` の `containerEnv` に `"SUPABASE_PROJECT_REF": "${localEnv:SUPABASE_PROJECT_REF}"` を足します（この方法では確かめていません）。
   macOS で Dock から VS Code を起動すると、シェルの環境変数が届かないことがあります。ターミナルから `code .` で開くか、設定したあとで VS Code を起動し直します。
 - **認証は OAuth です。** トークンは設定ファイルに無く、初回は `/mcp` の画面でブラウザーからログインします。トークンは `~/.claude` のボリュームにあり、再ビルドのあとに再認証は要りませんでした（2026-10-18 に 2 回の再ビルドで確認。1 回の環境での結果です）。
-- **書き込みは、別名のローカル登録で行います**（共有の `supabase-read` と同じ名前にすると、ローカル登録が優先されて、共有側が隠れます）。
-  `claude mcp add --scope local --transport http supabase-write "https://mcp.supabase.com/mcp?project_ref=<参照ID>&features=database,docs"`。
+- **接続は、ローカル登録の `supabase` です**（2026-11-01 までは、共有の `supabase-read` と区別するため `supabase-write` という別名でした）。
+  `claude mcp add --scope local --transport http supabase "https://mcp.supabase.com/mcp?project_ref=<参照ID>&features=database,docs"`。
   **本番 DB の DDL は、この登録の `apply_migration` では適用しません**（`apply_migration` は `.claude/settings.json` で deny。2026-10-26 から Supabase CLI の `db push --linked` で、`supabase/migrations/` の SQL を適用する。手順は [docs/supabase-cli.md](../docs/supabase-cli.md)）。参照 ID は、リポジトリにも会話の記録にも残しません。
   ローカル登録は作業ディレクトリのパスがキーです。フォルダー名を変えると、設定が残っていても外れます（2026-10-20、chatbot → docunavi で `supabase-write` が一覧から消えた）。
   そのため、`devcontainer.json` の `postStartCommand` が、起動のたびに `.devcontainer/register-supabase-write.sh` を前景で呼び、今のパスに登録し直します（登録だけで、認証はしません。待ちは最大 20 秒。ログは `/tmp/register-supabase-write.log`）。
@@ -322,14 +324,14 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
   前景の書き方は、登録を外した状態からの再ビルドで、自動で登録が戻ることを確かめました（2026-10-20）。パスを変えた直後の最初のセッションだけは、Claude Code が設定を読むほうが登録より早いので、Window の再読み込みが要ります。確かめるときは、先にそのパスの登録を外してから再ビルドします（残っていると、自動登録が失敗しても `/mcp` に出てしまうため）。
 - 変数が未設定でも、`.mcp.json` 全体は壊れません（`claude mcp list` に警告が出て、`${…}` の文字のまま使われます。公式の説明で、スクラッチの読み込みでも確認しました）。Playwright は影響を受けません。
 
-### `supabase-write` の破壊的な SQL が `declined` になる
+### `supabase`（旧 `supabase-write`）の破壊的な SQL が `declined` になる
 
 `DELETE` などの破壊的な SQL を流すと、承認の画面が出ないまま `{"status":"declined"}` が返ることがあります（2026-10-21、`delete … where id = 22` で複数回）。
 
-- **実測：** Supabase MCP は、破壊的な SQL の前に確認要求（elicitation。本文は `This SQL includes destructive operations` で始まる）を送ります。`settings.json` の `Elicitation` フック（matcher `supabase-write`、`.claude/hooks/accept-supabase-elicitation.py`）に、その要求が届くことは、ログで確かめました。
+- **実測：** Supabase MCP は、破壊的な SQL の前に確認要求（elicitation。本文は `This SQL includes destructive operations` で始まる）を送ります。`settings.json` の `Elicitation` フック（matcher `supabase`。2026-11-01 まで `supabase-write`、`.claude/hooks/accept-supabase-elicitation.py`）に、その要求が届くことは、ログで確かめました。
 - **推測（未確認）：** 要求に誰も答えないために `declined` になり、VS Code 拡張が確認の画面を出せないためと見ています。拡張側の実装は確かめていません。権限のモードや `ask` ルールが原因ではありませんでした。
 - **フックの既定：** `ENFORCE = False` で、記録だけして何も答えません。サーバー名・本文の接頭辞・プロジェクト参照・`mode=form` がすべて合うときだけ答える作りで、例外のときは答えません。
-- **ログの見方：** `~/.claude/elicitation-hook.log` に 1 要求 1 行（`server`、`match`、`enforce`、時刻。本文は残さない）。`supabase-write` の行が増えて `match: true` なら、要求が届いたことを示します。`enforce` は、そのときのフックの設定です。
+- **ログの見方：** `~/.claude/elicitation-hook.log` に 1 要求 1 行（`server`、`match`、`enforce`、時刻。本文は残さない）。`supabase`（記録が古いと `supabase-write`）の行が増えて `match: true` なら、要求が届いたことを示します。`enforce` は、そのときのフックの設定です。
 
 ## 開発環境の Docker（読み取り専用のソケットプロキシ）
 
