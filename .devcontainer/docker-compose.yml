@@ -32,6 +32,15 @@ services:
       - gh-config:/home/vscode/.gh-config
       - gcloud-config:/home/vscode/.config/gcloud
       - pg-config:/home/vscode/.pg
+      # ~/.supabase は Supabase CLI のログイン情報（平文の access-token と telemetry.json。権限 600）。再ビルドのたびに再ログインしなくて済むよう、
+      # 名前付きボリュームに残す（ユーザーが決定、2026-11-02）。Supabase のアクセストークンは、アカウント全体の管理権限を持つ。
+      # それがコンテナ内で読める平文のファイルとして残るリスクを受け入れた変更（ガードのフックは supabase を見ない）。
+      # DB の接続文字列（~/.pg）とは別のボリュームで、別に管理する。消し方と再ログインは docs/supabase-cli.md。
+      - supabase-config:/home/vscode/.supabase
+      # ~/.infisical は Infisical CLI の状態と、マシンアイデンティティの資格情報（ユーザーが置く。client secret は平文・権限 600。Viewer 固定）。
+      # 再ビルドで消えないよう、名前付きボリュームに残す（ユーザーが決定、2026-11-02）。イメージ・Git には含めない。
+      # 消し方と再設定は .devcontainer/README.md の「開発環境の Infisical」。
+      - infisical-config:/home/vscode/.infisical
       - playwright-browsers:/home/vscode/.cache/ms-playwright
       # 星庭ジョブ（別プロジェクト）のリポジトリ（2026-10-28 に追加。ユーザーの承認済み）。
       # 作業ツリーは書き込み可能（2026-11-01 に `:ro` を外した。ユーザーの承認済み。星庭ジョブのリポジトリ整備のため）。
@@ -81,6 +90,9 @@ services:
       TZ: Asia/Tokyo
       DOCKER_HOST: tcp://docunavi-docker-proxy:2375
       CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT: docunavi-viewer@docunavi-ops.iam.gserviceaccount.com
+      # Infisical CLI のテレメトリー（PostHog）と更新確認を止める（2026-11-02）。
+      INFISICAL_DISABLE_TELEMETRY: "true"
+      INFISICAL_DISABLE_UPDATE_CHECK: "true"
     # docunavi-dev だけに繋ぐ（docker-proxy との通信用。外へも出られる）。frontend-net・backend-net には繋がない
     # （api と db に、開発コンテナから直接届かないようにするため）。
     networks:
@@ -112,5 +124,11 @@ volumes:
     name: gcloud-config-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
   pg-config:
     name: pg-config-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
+  # 新規（2026-11-02）。同じ命名の規則で、空のボリュームとして作られる（初回ログインは、ユーザーが端末で行う）。
+  supabase-config:
+    name: supabase-config-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
+  # 新規（2026-11-02）。同じ命名の規則で、空のボリュームとして作られる（資格情報は、ユーザーが端末で置く）。
+  infisical-config:
+    name: infisical-config-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
   playwright-browsers:
     name: playwright-browsers-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
