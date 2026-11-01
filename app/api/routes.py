@@ -23,7 +23,7 @@ from app.api.ui_stream import DONE, KEEPALIVE, UI_STREAM_HEADERS, UIMessageStrea
 from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, history_backend
 from app.scope import ACCESS_SCOPE_KEY
-from app.search_vector import VectorSearchError
+from app.search.types import VectorSearchError
 
 logger = logging.getLogger(__name__)
 

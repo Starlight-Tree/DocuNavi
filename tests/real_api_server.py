@@ -41,11 +41,11 @@ sys.path.insert(0, str(ROOT))
 import uvicorn  # noqa: E402
 from fastapi import APIRouter  # noqa: E402
 
-from app import search_vector  # noqa: E402
 from app.agents import graph as graph_module  # noqa: E402
 from app.agents import tools  # noqa: E402
 from app.api import routes  # noqa: E402
 from app.main import app  # noqa: E402
+from app.search import vector as search_vector  # noqa: E402
 from tests.fakes import FakeSearch  # noqa: E402
 from tests.real_api_faults import FaultInjector, RecordingSearch  # noqa: E402
 

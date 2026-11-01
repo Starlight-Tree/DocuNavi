@@ -2,7 +2,7 @@
 
 import asyncio
 
-from app.search_vector import Hit
+from app.search.types import Hit
 from tests.fakes import FakeSearch
 
 

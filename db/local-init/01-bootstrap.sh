@@ -3,7 +3,7 @@
 # アプリの DB（Supabase）と同じ形の「入れ物」だけを作る。テーブル・資料・埋め込みは作らない
 # （テーブルは python -m app.ingestion --apply、埋め込みは python -m app.ingestion.embed --apply。手順は docs/development.md）。
 #
-#   extensions スキーマ + vector 型  検索の SQL が extensions.vector と OPERATOR(extensions.<=>) を使う（app/search_vector.py）
+#   extensions スキーマ + vector 型  検索の SQL が extensions.vector と OPERATOR(extensions.<=>) を使う（app/search/vector.py）
 #   chatbot_app ロール + chatbot スキーマ  本番と同じ。ロールの search_path が chatbot なので、テーブルは chatbot にできる
 #                                         （docs/configuration.md の「DB のロール」）
 #

@@ -1,6 +1,6 @@
 """資料の検索を MCP のツール `search_documents` として出す、読み取り専用のサーバー（設計: docs/mcp-tool-design.md）。
 
-実体は `app.search_vector.search`（アプリと同じ検索。しきい値も同じ）。履歴・認証・LLM は読み込まない。
+実体は `app.search.vector.search`（アプリと同じ検索。しきい値も同じ）。履歴・認証・LLM は読み込まない。
 アプリとは別の Cloud Run サービスとして動かす（`--no-allow-unauthenticated`。認証は Cloud Run の IAM に任せ、ここでは何もしない）。
 
 - **DB の接続プールは、最初の呼び出しで開いて使い回す。** FastMCP の `lifespan` はステートレスでは呼び出しごとに走るため使わない。
@@ -17,9 +17,10 @@ from typing import Annotated, Any
 
 from pydantic import Field
 
-from app import history, search_vector
+from app import history
 from app.scope import Scope
-from app.search_vector import Hit
+from app.search import vector as search_vector
+from app.search.types import Hit
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ async def search_documents(
         # 運用者専用の MCP は、利用者のロールを持たない。全グループを検索することを明示する（資料グループの制限は API 側）
         hits = await search_vector.search(query, top_k, scope=Scope.ALL)
     except search_vector.VectorSearchError as exc:
-        # この型のメッセージは固定文（app/search_vector.py）
+        # この型のメッセージは固定文（app/search/vector.py）
         logger.warning("資料の検索を使えません: %s", exc)
         raise _failure() from None
     except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・URL・本文が入りうる。型の名前だけを残す

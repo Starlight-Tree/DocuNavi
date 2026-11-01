@@ -11,7 +11,6 @@ from typing import Any
 
 import pytest
 
-from app import search_vector
 from app.agents import graph as graph_module
 from app.agents.graph import build_graph, create_paid_llm
 from app.agents.resilience import (
@@ -21,6 +20,7 @@ from app.agents.resilience import (
     paid_api_key,
     stream_with_key_switch,
 )
+from app.search import vector as search_vector
 from tests.test_llm_fallback import FAST, PlanLLM, RateLimited, Rejected, Unavailable, ask
 
 ANSWER_FREE = [("text", "無料キーの回答です。")]

@@ -21,7 +21,7 @@ import pytest
 from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from app import access, search_vector
+from app import access
 from app.agents import graph as graph_module
 from app.agents import tools
 from app.agents.tools import search_documents
@@ -29,6 +29,7 @@ from app.api import collections, documents, routes
 from app.api import graph as graph_api
 from app.main import app
 from app.scope import ACCESS_SCOPE_KEY, ALLOWED_FILTER_SQL, Scope
+from app.search import vector as search_vector
 from tests.fakes import GroupedFakeSearch, SearchingMockLLM
 from tests.test_collections import FakeCursor as CollectionsCursor
 from tests.test_collections import row as collection_row

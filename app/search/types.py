@@ -1,4 +1,4 @@
-"""検索の結果と失敗の型。ベクトル検索（`app/search_vector.py`）が使い、パイプライン・API・ツールが受け取る。"""
+"""検索の結果と失敗の型。ベクトル検索（`app/search/vector.py`）が使い、パイプライン・API・ツールが受け取る。"""
 
 from typing import NamedTuple
 

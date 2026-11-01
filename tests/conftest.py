@@ -24,7 +24,7 @@ def fake_search(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch)
     """アプリの検索（DB のベクトル検索）を、テスト用の偽物に差し替える。DB も埋め込みの API も使わない。
 
     偽物は tests/fakes.py の FakeSearch（テスト内の小さな資料をキーワードで引く。PDF も BM25 も読まない）。
-    本物の検索（app/search_vector.py）を確かめるテストは、`@pytest.mark.real_search` で差し替えを外し、DB と埋め込みを自分で偽物にする。
+    本物の検索（app/search/vector.py）を確かめるテストは、`@pytest.mark.real_search` で差し替えを外し、DB と埋め込みを自分で偽物にする。
     """
     if request.node.get_closest_marker("real_search"):
         return

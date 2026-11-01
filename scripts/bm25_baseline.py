@@ -1,6 +1,6 @@
 """評価用の基準線（ベースライン）: ローカルの PDF / .txt を読み、BM25 で検索する。アプリは使わない。
 
-アプリの検索は、DB の `chunks` へのベクトル検索だけ（`app/search_vector.py`）。ここにあるのは、以前アプリが
+アプリの検索は、DB の `chunks` へのベクトル検索だけ（`app/search/vector.py`）。ここにあるのは、以前アプリが
 `app/agents/tools.py` で使っていた BM25 の実装で、評価（`scripts/eval_retrieval.py`・`eval_vector.py`・`eval_search_compare.py`）が
 「BM25 の経路」を測るために残してある。コーパスが増えて、ハイブリッド検索やリランカーを測り直すときの比較の基準にもなる
 （`docs/search-design.md`）。アプリの挙動には関与しない。

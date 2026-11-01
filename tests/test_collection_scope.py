@@ -19,7 +19,7 @@ from app.agents import tools
 from app.agents.tools import search_documents
 from app.api import routes
 from app.scope import Scope
-from app.search_vector import Hit
+from app.search.types import Hit
 
 SECRET = "postgresql://user:pw@db.example.com/x"
 

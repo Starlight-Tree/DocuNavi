@@ -1,4 +1,4 @@
-"""資料の検索の入口。ベクトル検索（`app/search_vector.py`）に、ハイブリッド・リランカー・GraphRAG を、環境変数で重ねる。
+"""資料の検索の入口。ベクトル検索（`app/search/vector.py`）に、ハイブリッド・リランカー・GraphRAG を、環境変数で重ねる。
 
 | 環境変数 | 既定 | 中身 |
 |---|---|---|
@@ -28,12 +28,12 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from app import search_vector
 from app.scope import ALLOWED_FILTER_SQL, Scope, require_scope
+from app.search import vector as search_vector
 from app.search.graph import build_edges
 from app.search.keyword import KeywordIndex, identifiers, normalize
 from app.search.rerank import lexical_scores
-from app.search_vector import Hit, VectorSearchError
+from app.search.types import Hit, VectorSearchError
 
 logger = logging.getLogger(__name__)
 

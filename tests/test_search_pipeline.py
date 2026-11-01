@@ -12,13 +12,14 @@ from typing import Any
 import pytest
 import yaml
 
-from app import search_pipeline, search_vector
+from app import search_pipeline
 from app.agents.tools import _sources
 from app.scope import Scope
+from app.search import vector as search_vector
 from app.search.graph import build_edges
 from app.search.keyword import KeywordIndex, identifiers, tokenize
+from app.search.types import Hit, VectorSearchError
 from app.search_pipeline import Chunk
-from app.search_vector import Hit, VectorSearchError
 
 FLAGS = ("SEARCH_HYBRID", "SEARCH_RERANK", "SEARCH_GRAPH")
 
