@@ -1,0 +1,220 @@
+# GraphRAG の効果を測るための質問（草案。user の承認前）。2026-11-01。
+# 作成者: Claude（検索の結果を見る前に書いた。実 API の埋め込みも、まだ作っていない）。
+# 資料: 工房利用規程.txt（12 条）、ラウンジ利用規程.txt（10 条）。1 条 = 1 チャンクで取り込む（scripts/eval_graph.py）。
+#   条の番号が両方の資料で重なる（第7条・第8条ほか）。別の資料の同じ番号に辺を張らないことも確かめる。
+# kind（質問を書いたときの見立て。結果を見て付け替えない）:
+#   ref_far      参照元の条を引く質問。答えの後半は、参照先の条にだけあり、質問の語は参照先と離れている
+#   ref_near     同じだが、質問の語が参照先の条にも近い（参照先がベクトルでも上位に来うる）
+#   chain3       3 つの条（A -> B -> C）にまたがる。GraphRAG は 1 段（参照先を 1 件）しか足さない
+#   ref_unneeded 参照元の条だけで答えが決まる。辺は出るが、追加の文脈は要らない（余計な文脈の影響を見る）
+#   single       辺のない条だけで決まる
+#   absent       資料に答えが無い（追加の文脈が付くかを見る）
+# 採点: ref_far / ref_near / chain3 は evidence_mode: all（参照元と参照先の両方の文が、返ったチャンクに要る）。
+#   本体の上位 k 件だけで満たすか（hit_main）と、GraphRAG の追加を含めて満たすか（hit_with_graph）を分けて数える。
+# 質問 ID の接頭辞は gr（evals/CLAUDE.md の表）。承認後は、質問・根拠を変えない。
+- id: gr001
+  question: "電動のこぎりを使えるようになるには、事前に何をしておく必要がありますか。それにはいくらかかりますか。"
+  answer: "第8条の講習を修了しておく必要があります。受講料は1,500円です。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "特定機器を使用する者は、第8条に定める講習を修了していなければならない"
+    - "受講料は1,500円"
+
+- id: gr002
+  question: "工具を借りて、返すのが遅れたら、どうなりますか。"
+  answer: "返却が1日遅れるごとに、翌月の予約枠が1枠減ります。"
+  category: multi_hop
+  kind: ref_near
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "返却が遅れた場合の取扱いは、第9条による"
+    - "返却が1日遅れるごとに、翌月の予約枠を1枠減らす"
+
+- id: gr003
+  question: "市内の高校生が一般機器を1時間使うと、料金はいくらですか。"
+  answer: "一般機器は1時間500円で、市内の高校生は半額なので、250円です。"
+  category: multi_hop
+  kind: ref_near
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "一般機器が1時間500円"
+    - "市内の高校生は、利用料金を半額とする"
+
+- id: gr004
+  question: "工房の機械でけがをしたとき、治療費は誰が負担しますか。"
+  answer: "料金に含まれる利用者傷害保険の範囲で負担されます（第7条の料金に保険料が含まれます）。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "けがの治療費など損害の負担は、第7条の料金に含まれる保険の範囲による"
+    - "利用者傷害保険料（1回につき100円）を含む"
+
+- id: gr005
+  question: "利用停止になったあと、再開するために受ける講習は、次にいつ受けられますか。"
+  answer: "毎月第2土曜日の午前10時から午後1時までです。"
+  category: multi_hop
+  kind: ref_near
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "第8条の講習を再受講しなければならない"
+    - "毎月第2土曜日の午前10時から午後1時まで"
+
+- id: gr006
+  question: "工具の返却が8日遅れたら、利用はどうなりますか。いつまで止まりますか。"
+  answer: "第11条により利用が停止され、停止は30日間です。"
+  category: multi_hop
+  kind: ref_near
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "延滞が7日を超えたときは、第11条により利用を停止する"
+    - "利用の停止は、30日間とする"
+
+- id: gr007
+  question: "工具の返却が長く遅れて、利用停止になりました。再開のために受ける講習の受講料は、いくらですか。"
+  answer: "1,500円です（延滞7日超で第11条の停止になり、再開には第8条の講習の再受講が要ります）。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "延滞が7日を超えたときは、第11条により利用を停止する"
+    - "第8条の講習を再受講しなければならない"
+    - "受講料は1,500円"
+
+- id: gr008
+  question: "ラウンジにお酒を持ち込みたいのですが、どうすればよいですか。"
+  answer: "第8条の許可が要ります。利用日の7日前までに受付へ申請します。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["ラウンジ利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "アルコールの持込みは、第8条の許可を得た場合に限る"
+    - "利用日の7日前までに受付へ申請する"
+
+- id: gr009
+  question: "会議スペースの予約を、当日に取り消すと、料金はどうなりますか。"
+  answer: "料金の50％がかかります。"
+  category: multi_hop
+  kind: ref_near
+  expected_doc_ids: ["ラウンジ利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "予約を取り消したときの料金は、第7条による"
+    - "当日の取消しは料金の50％"
+
+- id: gr010
+  question: "ラウンジの利用停止が終わったあと、また使うには、何をすればいいですか。"
+  answer: "第8条の申請をやり直します。利用日の7日前までに受付へ申請します。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["ラウンジ利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "停止の後に再開するには、第8条の申請をやり直さなければならない"
+    - "利用日の7日前までに受付へ申請する"
+
+- id: gr011
+  question: "ラウンジで事故が起きたとき、損害は誰が負担しますか。"
+  answer: "利用者が加入する保険によります。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["ラウンジ利用規程.txt"]
+  evidence:
+    - "利用者が加入する保険による"
+
+- id: gr012
+  question: "ラウンジの会議スペースは、何日前から予約できますか。"
+  answer: "利用日の30日前から予約できます。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["ラウンジ利用規程.txt"]
+  evidence:
+    - "予約は、利用日の30日前から受け付ける"
+
+- id: gr013
+  question: "工具は、1回につき何日間まで借りられますか。"
+  answer: "3日間までです。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence:
+    - "1回につき3日間まで"
+
+- id: gr014
+  question: "工房の利用時間は、何時から何時までですか。"
+  answer: "午前9時から午後8時までです。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence:
+    - "利用時間は、午前9時から午後8時までとする"
+
+- id: gr015
+  question: "工房が休みなのは、何曜日ですか。"
+  answer: "火曜日です。"
+  category: paraphrase
+  kind: single
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence:
+    - "火曜日は休館とする"
+
+- id: gr016
+  question: "工房の利用者登録の更新料は、いくらですか。"
+  answer: "年額2,000円です。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence:
+    - "更新料は年額2,000円とする"
+
+- id: gr017
+  question: "特定機器の講習の定員は、何名ですか。"
+  answer: "8名です。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["工房利用規程.txt"]
+  evidence:
+    - "定員は8名とする"
+
+- id: gr018
+  question: "ラウンジで借りられるプロジェクターは、何時間まで貸してもらえますか。"
+  answer: "2時間までです。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["ラウンジ利用規程.txt"]
+  evidence:
+    - "貸出しは、2時間までとする"
+
+- id: gr019
+  question: "みなと市の明日の天気は、どうなりますか。"
+  category: out_of_scope
+  scope_kind: off_topic
+  kind: absent
+
+- id: gr020
+  question: "工房の旋盤は、全部で何台ありますか。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  kind: absent
+
+- id: gr021
+  question: "特定機器の講習は、オンラインでも受けられますか。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  kind: absent
+
+- id: gr022
+  question: "ラウンジの会議スペースには、何人まで入れますか。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  kind: absent
