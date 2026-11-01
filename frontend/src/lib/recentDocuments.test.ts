@@ -14,6 +14,7 @@ function doc(id: number, updatedAt: string | null): DocumentSummary {
     updatedAt,
     chunkCount: 1,
     embeddedCount: 1,
+    heroImage: false,
   };
 }
 
