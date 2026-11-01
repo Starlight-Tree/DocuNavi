@@ -24,6 +24,13 @@ cd ../.. && scripts/test-postgres-down.sh                     # 一時 Postgres 
 
 ## 構成
 
+Claude Code 向けの規約と、層ごとの責務の表は [CLAUDE.md](CLAUDE.md)。製品の Django（運用者向けのロール割り当て）は `ops/access_admin/` で、これとは別。アプリは `saas` ひとつ。
+
+- `config/`: `settings.py`（`saas` スキーマだけを使う。秘密を持たない）・`urls.py`（`/admin/` `/api/` `/`）・`wsgi.py`
+- `saas/urls.py`: API の経路（`/api/me/orgs/` `/api/orgs/<id>/` `/api/orgs/<id>/members/`）
+- `saas/permissions.py`: 役割の強さ（`rank` `allows`）。HTTP に依存しない
+- `saas/migrations/`: 0001〜0003（`saas` スキーマだけ）
+- `saas/tests/`: `test_api.py`（API）・`test_web.py`（画面）・`test_members.py`（メンバー管理の規則）・`test_jwt.py`・`test_models_admin.py`、共通の部品は `helpers.py`
 - `saas/models.py`: `Plan`（人数・PDF 数・月の検索回数の上限は架空の値で、強制しない） `Organization` `Membership`（`external_user_id` = JWT の `sub`。役割は viewer < member < admin < owner） `Subscription`（組織と 1 対 1。trialing / active / canceled。支払いの情報は持たない） `Usage`（組織と 1 対 1。PDF 数と今月の検索回数の架空の値。画面に出すだけで、更新も強制もしない）。Django のユーザー表は利用者には使わない
 - `saas/admin.py`: 管理画面（一覧・絞り込み・検索・組織の中の契約・使用量・メンバー編集）
 - `saas/management/commands/seed_demo.py`: 架空の組織・メンバー・プラン・契約・使用量を入れる（繰り返し実行できる。ローカルの試作 DB だけに使う）
