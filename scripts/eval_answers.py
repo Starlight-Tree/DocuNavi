@@ -242,13 +242,14 @@ async def run_one(graph: Any, question: Question, budget: CallBudget) -> dict[st
 async def vector_search_session(min_similarity: float | None) -> AsyncIterator[None]:
     """測るあいだだけ、DB の接続プールを開き、しきい値を差し替える（min_similarity が None ならアプリの値のまま。アプリのコードは変えない）。
 
-    app の lifespan と違い、履歴の checkpointer は作らない（テーブルの作成も書き込みもしない）。検索（app/search_vector.py）が借りる
+    app の lifespan と違い、履歴の checkpointer は作らない（テーブルの作成も書き込みもしない）。検索（app/search/vector.py）が借りる
     プールだけを、history の _pool に入れる。起動時の検査（資料と埋め込みが DB と合っているか）は app と同じものを通す。
     """
     from psycopg.rows import dict_row
     from psycopg_pool import AsyncConnectionPool
 
-    from app import history, search_vector
+    from app import history
+    from app.search import vector as search_vector
 
     url = history.database_url()
     if not url:
@@ -324,7 +325,7 @@ async def run_all(
 
 
 def search_floor() -> float:
-    from app import search_vector
+    from app.search import vector as search_vector
 
     return search_vector.MIN_SIMILARITY
 

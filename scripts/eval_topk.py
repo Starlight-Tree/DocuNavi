@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from app.agents.tools import TOP_K
-from app.search_vector import MIN_SIMILARITY
+from app.search.vector import MIN_SIMILARITY
 from scripts.eval_retrieval import CORPORA_DIR, QUESTIONS_PATH, Question, load_questions
 from scripts.eval_vector import (
     JST,

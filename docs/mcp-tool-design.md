@@ -17,7 +17,7 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 | 最初のツール | **資料の検索**（`search_documents` 相当、読み取り専用）。「資料への質問」は作らない | 「質問」は中で Gemini が回答を作り、呼び出し側の LLM と二重になる。ガードレールと出典の扱いも重くなる。検索なら質問の埋め込み 1 回で済む |
 | 利用者 | **Claude Code だけ** | まず自分で使う。ほかのエージェントは後 |
 | 資料グループの制限 | **かけない（運用者専用・全グループ）** | 利用者のロールを持たないので、`search_vector.search(..., scope=Scope.ALL)` と明示して全グループを検索する。利用者ごとの資料グループの制限（`ACCESS_MODE`。`docs/configuration.md` の「資料グループのアクセス制御」）は API 側だけにかかる。この MCP を利用者に公開しない（`roles/run.invoker` を持つ運用者だけが呼べる）。利用者に公開するなら、先にこの方針を見直す |
-| 依存の置き場 | **専用のイメージ**（`ops/mcp_search/`）。アプリの `requirements*.in` に `mcp` は足さない | 本番のアプリの依存を動かさず、いつでも消せる。アプリのコード（`app/`）は同じものをイメージに入れ、`app.search_vector.search` をそのまま呼ぶ |
+| 依存の置き場 | **専用のイメージ**（`ops/mcp_search/`）。アプリの `requirements*.in` に `mcp` は足さない | 本番のアプリの依存を動かさず、いつでも消せる。アプリのコード（`app/`）は同じものをイメージに入れ、`app.search.vector.search` をそのまま呼ぶ |
 | 検索結果の `similarity` | **返す**（見出しに `類似度 0.82`） | 呼び出し側の LLM が関連の強さを判断できる。『資料にない』の判断には使えない粗い目安と、ツールの説明に書く。要らなければ消すだけ |
 
 ## 公式で確かめたこと（Google Cloud、2026-10-21）
@@ -58,7 +58,7 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 
 名前は `search_documents`。引数は `query`（文字列、1〜500 文字）と `top_k`（整数、1〜5、既定は 2 = アプリの `TOP_K`）。範囲外は検索まで届かず、入力の検証エラーになる。読み取り専用（`readOnlyHint`）であることを、ツールの注釈に付ける。
 
-- 実体は `app.search_vector.search(query, top_k)`。しきい値（`MIN_SIMILARITY` 0.65）もそのまま使う。
+- 実体は `app.search.vector.search(query, top_k)`。しきい値（`MIN_SIMILARITY` 0.65）もそのまま使う。
 - 返すもの: 各ヒットの、ファイル名・ページ・類似度を見出しにして、見出し付きの本文（`[a.pdf p.3-4 類似度 0.82]` の次の行から本文）。アプリが LLM に渡す文面とは違い、出典を示せるようにしている。
 - **出力ガードは通らない。** アプリのガードレール（`StreamingOutputGuard` など）は LLM の回答を検査するもので、生のチャンクを返す MCP には掛からない。返すのは運営者が置いた共通の資料だけなので、漏れて困る内容は含まれない（システムプロンプトの漏洩は別の話）。
 - **返した本文は、呼び出し側から見て「信頼できないデータ」。** 資料に書かれた指示にエージェントが従わないよう、ツールの説明に書く。
@@ -72,7 +72,7 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 
 ## 作るもの（着手するとき）
 
-1. `app/` とは別の入口（例: `mcp_server/` または `ops/mcp_search/`）。`app.search_vector` を import するか、薄く複製するかを決める。履歴・認証・LLM は読み込まない。
+1. `app/` とは別の入口（例: `mcp_server/` または `ops/mcp_search/`）。`app.search.vector` を import するか、薄く複製するかを決める。履歴・認証・LLM は読み込まない。
 2. 専用のコンテナーイメージ（`docunavi-ingest` と同様に別イメージ）と、Cloud Run サービス `docunavi-mcp`（`--no-allow-unauthenticated`、`--max-instances 1〜2`）。専用のサービスアカウントには、`DATABASE_URL` と `GEMINI_API_KEY` の Secret の `secretAccessor` だけ。
 3. 呼び出し側の ID への `roles/run.invoker`。誰に与えるか（利用者自身か、専用のサービスアカウントか）は未決。
 4. Claude Code への登録（`claude mcp add`、スコープは local）。登録と権限ルールの変更は、ユーザーの承認が要る。

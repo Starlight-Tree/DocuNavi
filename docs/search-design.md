@@ -9,7 +9,7 @@ BM25 の経路と、`SEARCH_BACKEND`・`SEARCH_SCOPE` の切り替えは、な�
 | 項目 | 決定 |
 |---|---|
 | 検索 | 質問を `gemini-embedding-2`（768 次元）で埋め込み、`chunks.embedding` とのコサイン類似度が高い上位 2 件（`TOP_K`）。DB の `status = 'ready'` の文書が対象 |
-| しきい値 | 類似度 0.65 未満のチャンクは返さない（`app/search_vector.py` の `MIN_SIMILARITY`）。**粗い下限**で、「資料にない」の判断は LLM に任せる |
+| しきい値 | 類似度 0.65 未満のチャンクは返さない（`app/search/vector.py` の `MIN_SIMILARITY`）。**粗い下限**で、「資料にない」の判断は LLM に任せる |
 | 失敗したとき | 別の経路に戻らない（どちらで答えたかが曖昧になるため）。API は 503 の固定文を返す |
 | DB と API | 本物の LLM では `DATABASE_URL` と `GEMINI_API_KEY` が必須。揃わなければ起動を失敗させる |
 | モックモード | `GEMINI_API_KEY` が未設定。資料の検索も回答もしない固定の返答（画面と API の動作確認用）。DB も API も要らない |

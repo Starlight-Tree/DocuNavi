@@ -1,4 +1,4 @@
-"""資料の検索（app/search_vector.py と、tools.py の search_documents）のテスト。実 API・実 DB は使わない。
+"""資料の検索（app/search/vector.py と、tools.py の search_documents）のテスト。実 API・実 DB は使わない。
 
 埋め込みの API と DB は、偽物（`embed_query` の差し替えと、偽の接続プール）に置き換える。conftest の偽の検索への差し替えは、
 このファイルでは外す（`real_search`）。アプリの検索は DB のベクトル検索だけで、別の経路に戻らない。
@@ -14,13 +14,13 @@ import pytest
 from fastapi.testclient import TestClient
 from langchain_core.utils.function_calling import convert_to_openai_tool
 
-from app import search_vector
 from app.agents import tools
 from app.agents.tools import TOP_K, search_documents
 from app.api import routes
 from app.ingestion import embedding
 from app.main import app
 from app.scope import ACCESS_SCOPE_KEY, Scope
+from app.search import vector as search_vector
 
 pytestmark = pytest.mark.real_search
 
@@ -182,7 +182,7 @@ def test_a_second_hit_far_below_the_first_is_marked_weak_but_still_goes_to_the_m
 
 def test_the_gap_is_measured_from_the_first_hit_and_a_close_second_is_not_weak():
     from app.agents.tools import WEAK_GAP, _sources
-    from app.search_vector import Hit
+    from app.search.types import Hit
 
     assert WEAK_GAP == 0.05
     close = _sources([Hit("a.pdf", "A", similarity=0.80), Hit("b.pdf", "B", similarity=0.78)])

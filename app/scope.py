@@ -1,6 +1,6 @@
 """検索できる資料グループの範囲（`Scope`）。標準ライブラリだけで書く（`ops/mcp_search` も import するので、FastAPI や認証は読み込まない）。
 
-- `Scope.ALL` は「全グループ」。**明示したときだけ**全資料を探す。検索（`app/search_vector.py`）は `scope` を必須の引数にし、
+- `Scope.ALL` は「全グループ」。**明示したときだけ**全資料を探す。検索（`app/search/vector.py`）は `scope` を必須の引数にし、
   渡し忘れ・`None`・`Scope` 以外は `TypeError`、空の範囲（`Scope.NONE`）は何も返さない（漏れる方向には倒れない）。
 - 範囲は `config["configurable"]` で検索ツールまで渡す。会話の状態（チェックポイント）には保存しない。
 - `shadow`: `ACCESS_MODE=shadow` のときだけ入る「enforce なら見える範囲」。制限には使わず、絞り込みになる件数をログに出すためだけに持つ。

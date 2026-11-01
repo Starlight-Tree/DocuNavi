@@ -28,7 +28,7 @@
 
 ## 資料の検索
 
-チャットの検索（`search_documents`）は、**DB の `chunks` へのベクトル検索だけ**です（`app/search_vector.py`）。決めた理由と、見直す条件は
+チャットの検索（`search_documents`）は、**DB の `chunks` へのベクトル検索だけ**です（`app/search/vector.py`）。決めた理由と、見直す条件は
 [search-design.md](search-design.md)、測定は [evals/README.md](../evals/README.md) にあります。
 
 - **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元。質問ごとに API を 1 回呼ぶ）、`chunks.embedding` との
@@ -43,7 +43,7 @@
 - **起動の検査。** 本物の LLM のとき、`DATABASE_URL` が無い、`GEMINI_API_KEY` が無い、DB に検索できる資料（`ready`）が無い、
   `ready` の文書に埋め込みが無い・古い（モデル・次元・入力のハッシュが違う）チャンクがある、のどれかなら、起動を失敗させます。
   PDF を足す・差し替えたら、取り込みと埋め込みをやり直します（再起動は要りません。検索は DB を読むため）。
-- **しきい値。** 類似度が 0.65（`app/search_vector.py` の `MIN_SIMILARITY`）未満のチャンクは返しません。粗い下限で、「資料にない」の判断は LLM に任せます
+- **しきい値。** 類似度が 0.65（`app/search/vector.py` の `MIN_SIMILARITY`）未満のチャンクは返しません。粗い下限で、「資料にない」の判断は LLM に任せます
   （理由と評価は [search-design.md](search-design.md)）。変えるときは、評価をやり直します。
 - **失敗したとき。** クエリの埋め込みや DB の問い合わせが失敗したら、別の経路には戻らず、`/chat`・`/chat/stream` が 503（「資料の検索に失敗しました。…」の固定文）を返し、
   WARNING を 1 行残します（例外の型の名前だけ。接続先・キー・クエリ・本文は出さない）。埋め込みは 1 回だけ試し（SDK の再試行なし）、待つ上限は約 10 秒です。

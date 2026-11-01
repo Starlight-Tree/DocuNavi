@@ -24,7 +24,7 @@ Vite + React + TypeScript のフロントエンド（ビルド成果物を FastA
 - `app/api/routes.py`: `/chat` `/chat/stream` `/health`。LLM の失敗は固定メッセージの 429/504/500/502 に変換する。画面は SSE の `/chat/stream`（組み立ては `ui_stream.py`）を使う
 - `app/agents/`: LangGraph（`graph.py`）、検索ツール（`tools.py`）、ガードレール（`guardrails.py`。完成した回答の検査と、ストリーミング中の `StreamingOutputGuard`）、
   ヘッジ付き再試行・フォールバック・有料キー切り替え（`resilience.py`）
-- `app/search_vector.py`: 資料の検索（Supabase / pgvector）。`search_documents` の実体で、アプリの検索はこれだけ。
+- `app/search/vector.py`: 資料の検索（Supabase / pgvector）。`search_documents` の実体で、アプリの検索はこれだけ。
   本物の LLM では `DATABASE_URL` と `GEMINI_API_KEY` が必須。起動時に DB の状態を検査し、合わなければ起動を失敗させる。
   失敗しても別の経路には戻らず、API は 503 の固定文を返す。モックモード（キー未設定）は資料を検索しない固定の返答。設計は `docs/search-design.md`
 - `app/history.py`: 会話履歴。`DATABASE_URL` があれば Postgres、空ならメモリ。開けなければ起動を失敗させ、メモリへは切り替えない。削除コマンドは `app/history_admin.py`（既定は件数の表示だけ、`--apply` で削除。アプリからは使わない）

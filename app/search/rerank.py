@@ -7,7 +7,7 @@
 
 from collections.abc import Sequence
 
-from app.search_keyword import KeywordIndex, identifiers, normalize, tokenize
+from app.search.keyword import KeywordIndex, identifiers, normalize, tokenize
 
 # 型番などが質問にあるとき、一致の割合に置く重み（残りは語の一致の割合）
 IDENTIFIER_WEIGHT = 0.5

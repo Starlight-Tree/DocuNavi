@@ -2,7 +2,7 @@
 
 「第N条」と書いたチャンクから、同じ資料の中で「第N条」の見出しで始まる行を持つチャンクへ、辺を張る（向きは参照する側 → 参照される側）。
 条の参照だけを使い、LLM も PDF の再解析も使わない（`app/relations/` は入寮規程の PDF 専用で、PDF の原本から都度計算するため、
-検索の経路では使わない）。ヒットしたチャンクが他の条を参照していたら、その条のチャンクを追加の文脈にする（`app/search_pipeline.py`）。
+検索の経路では使わない）。ヒットしたチャンクが他の条を参照していたら、その条のチャンクを追加の文脈にする（`app/search/pipeline.py`）。
 「前条」「前項」のような相対の参照と、語の定義への辺（`app/relations/terms.py`）は張らない。
 """
 
@@ -10,7 +10,7 @@ import re
 from collections import defaultdict
 from collections.abc import Sequence
 
-from app.search_keyword import normalize
+from app.search.keyword import normalize
 
 _DEFINES = re.compile(r"^\s*第(\d+)条", re.MULTILINE)
 _REFERS = re.compile(r"第(\d+)条")

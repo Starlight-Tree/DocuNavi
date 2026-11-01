@@ -1,4 +1,4 @@
-"""検索の重ね（app/search_pipeline.py）の資料の読み取りの SQL を、本物の Postgres で検証する（TEST_DATABASE_URL があるときだけ動く）。
+"""検索の重ね（app/search/pipeline.py）の資料の読み取りの SQL を、本物の Postgres で検証する（TEST_DATABASE_URL があるときだけ動く）。
 
 準備と実行例は tests/test_access_postgres.py と同じ（テストごとに専用スキーマ）。pgvector が無いので、`embedding` は text の代用の列にする。
 確かめるのは、`ready` の資料だけ・埋め込みのあるチャンクだけ・資料名とチャンクの順の並び・範囲（`allowed`）と `collection` の絞り込み。
@@ -11,8 +11,9 @@ import os
 import psycopg
 import pytest
 
-from app import history, search_pipeline
+from app import history
 from app.scope import Scope
+from app.search import pipeline as search_pipeline
 from tests.test_history_postgres import db  # noqa: F401 - フィクスチャ
 
 pytestmark = pytest.mark.skipif(

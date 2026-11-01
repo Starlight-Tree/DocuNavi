@@ -11,7 +11,6 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
-from app import search_vector  # noqa: E402
 from app.access import verify_access_config  # noqa: E402
 from app.agents.graph import is_mock_mode  # noqa: E402
 from app.api.collections import router as collections_router  # noqa: E402
@@ -21,6 +20,7 @@ from app.api.routes import router  # noqa: E402
 from app.api.threads import router as threads_router  # noqa: E402
 from app.auth import verify_auth_config  # noqa: E402
 from app.history import history_store  # noqa: E402
+from app.search import vector as search_vector  # noqa: E402
 
 _APP_LOG_HANDLER = "app-log"
 

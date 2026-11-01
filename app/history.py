@@ -32,7 +32,7 @@ _SETUP_RETRY_SECONDS = 0.5
 
 # lifespan の間だけ入る。get_checkpointer() の呼び出し側（routes.get_graph）が読む
 _checkpointer: BaseCheckpointSaver | None = None
-# 同じ接続プール。履歴のほかに、ベクトル検索（app/search_vector.py）も借りる。接続の上限（DATABASE_POOL_MAX_SIZE）は共有になる
+# 同じ接続プール。履歴のほかに、ベクトル検索（app/search/vector.py）も借りる。接続の上限（DATABASE_POOL_MAX_SIZE）は共有になる
 _pool: Any | None = None
 
 

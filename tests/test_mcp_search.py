@@ -10,9 +10,10 @@ from typing import Any
 
 import pytest
 
-from app import history, search_vector
+from app import history
 from app.scope import Scope
-from app.search_vector import Hit
+from app.search import vector as search_vector
+from app.search.types import Hit
 from ops.mcp_search import main as mcp_main
 
 SECRET = "AIzaSECRETKEY postgresql://user:pw@db.example.com/x https://example.com/leak"
