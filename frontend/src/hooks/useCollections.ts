@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext } from 'react';
 import { fetchCollections } from '../api/collections';
 import type { CollectionCatalog, CollectionInfo } from '../api/collections';
-import { useAuthedJsonFetch, useLoaded } from './useDocuments';
-import type { Loaded } from './useDocuments';
+import { useAuthedJsonFetch, useLoaded } from './useLoaded';
+import type { Loaded } from './useLoaded';
 
 /** 資料グループの一覧（GET /collections）。画面全体で 1 回だけ取り、Context で配る。 */
 export function useCollectionCatalogLoader(): CollectionCatalogApi {

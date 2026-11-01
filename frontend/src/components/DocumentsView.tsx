@@ -5,7 +5,7 @@ import { GRAPH_SOURCE } from '../api/graph';
 import { usableCollections, useCollectionCatalog } from '../hooks/useCollections';
 import { useDocumentChunks, useDocumentList, useDocumentPdf } from '../hooks/useDocuments';
 import { collectionLabel, collectionOptions } from '../lib/collections';
-import type { Loaded } from '../hooks/useDocuments';
+import type { Loaded } from '../hooks/useLoaded';
 import type { DetailView } from '../lib/urlState';
 import { useUrlState } from '../lib/urlState';
 import { CollectionCards } from './CollectionCards';
