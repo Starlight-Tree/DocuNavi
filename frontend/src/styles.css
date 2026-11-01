@@ -1469,9 +1469,243 @@ textarea {
   display: none;
 }
 
+/* 資料一覧の一番上の「最近更新された資料」。左に資料情報（白地）、右に画像のスプリット型。約 7 秒ごとに横へスライドする
+   （自動切り替えの条件は HeroCarousel.tsx）。文字と画像は重ねない。画像が無くても文字側と操作は動く */
+.hero-carousel {
+  margin: 0 0 1rem;
+}
+
+.hero-carousel-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.hero-frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.875rem;
+  background: var(--surface);
+}
+
+.hero-track {
+  display: flex;
+  transition: transform 450ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-track {
+    transition: none;
+  }
+}
+
+.hero-slide {
+  display: grid;
+  flex: 0 0 100%;
+  grid-template-columns: 45fr 55fr;
+  min-width: 0;
+  min-height: 17rem;
+}
+
+/* 下の余白は、重ねて置く操作列（.hero-controls）の分 */
+.hero-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1.5rem 2rem 4.5rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.hero-kind {
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+}
+
+.hero-title {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.hero-open {
+  align-self: flex-start;
+  min-height: 2.75rem;
+  padding-inline: 1.25rem;
+}
+
+/* 画像の枠。画像が無い（生成前・失敗）ときは灰色の代替表示 */
+.hero-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+}
+
+.hero-controls {
+  position: absolute;
+  left: 2rem;
+  bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hero-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.hero-control:hover {
+  background: var(--surface-muted);
+}
+
+.hero-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.25rem;
+}
+
+.hero-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.hero-dot.is-current {
+  width: 1.4rem;
+  background: var(--accent);
+}
+
+.hero-position {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* 狭い画面では、画像を上・文字を下に積む（モバイル向けの最適化ではなく、崩れないための最低限） */
+@media (max-width: 40rem) {
+  .hero-slide {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-media {
+    order: -1;
+    min-height: 8rem;
+  }
+
+  .hero-info {
+    padding: 1rem 1rem 4.5rem;
+  }
+
+  .hero-title {
+    font-size: 1.25rem;
+  }
+
+  .hero-controls {
+    left: 1rem;
+  }
+}
+
 /* 一覧の上の絞り込み（表示の切り替えと同じ部品）。カード一覧との間に余白を置く */
 .collection-filter {
   margin-bottom: 0.75rem;
+}
+
+/* 一覧の検索・絞り込み・並び替え（1 行）。種別のカードは大きな分類、ここは細かい条件。幅が足りなければ折り返す */
+.document-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.document-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.document-filter-query {
+  flex: 1 1 12rem;
+}
+
+.document-filter-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.document-filter-field input,
+.document-filter-field select {
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  max-width: 100%;
+  padding: 0 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.document-filter-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  min-height: 2.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.document-filter-result p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.document-filter-empty {
+  margin: 0;
+  padding: 1.5rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 /* 状態は、色つきの小さなラベルにする（取り込み失敗は赤）。ラベルの色が見出しの代わりなので、「状態」の文字は付けない */

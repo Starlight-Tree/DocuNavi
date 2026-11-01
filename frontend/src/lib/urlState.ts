@@ -1,11 +1,15 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { PAGE_BANDS, QUERY_MAX_LENGTH, SORT_KEYS, UPDATED_BANDS } from './documentFilter';
+import type { PageBand, SortKey, UpdatedBand } from './documentFilter';
 
 /**
  * 画面の状態（タブ・資料・表示の切り替え・関係図で選んだ項）を、URL のクエリに持たせる。
  * 戻る・進む・再読み込み・URL の共有で、同じ画面に戻れる。
  *
- * 例: /?tab=documents&doc=3&view=graph&item=a11p1 、/?tab=documents&doc=3&view=pdf&page=2 、/?tab=documents&collection=cafe
- * 入力途中の文・開閉・スクロール位置など、一時的な状態は URL に置かない（トークンなどの秘密も置かない）。
+ * 例: /?tab=documents&doc=3&view=graph&item=a11p1 、/?tab=documents&doc=3&view=pdf&page=2 、/?tab=documents&collection=cafe 、
+ *     /?tab=documents&q=入寮+規程&status=ready&pages=few&updated=week&sort=updated（一覧の検索・絞り込み・並び替え）
+ * チャットの入力途中の文・開閉・スクロール位置など、一時的な状態は URL に置かない（トークンなどの秘密も置かない）。
+ * 一覧のキーワード（`q`）は、共有・再読み込みで同じ一覧に戻すために載せる（公開してよい文だけを想定。長さは QUERY_MAX_LENGTH まで）。
  */
 
 export type Tab = 'chat' | 'documents';
@@ -23,6 +27,16 @@ export interface UrlState {
   page: number | null;
   /** 一覧の絞り込み（資料群の名前）。一覧を見ているときだけ意味がある。 */
   collection: string | null;
+  /** 一覧のキーワード。空・空白だけは null。一覧を見ているときだけ意味がある（以下の 4 つも同じ）。 */
+  query: string | null;
+  /** 一覧の状態の絞り込み（`ready` など）。 */
+  status: string | null;
+  /** 一覧のページ数の帯での絞り込み。 */
+  pageBand: PageBand | null;
+  /** 一覧の更新の新しさでの絞り込み。 */
+  updatedBand: UpdatedBand | null;
+  /** 一覧の並び替え。null はサーバーの順（`default`）。 */
+  sort: Exclude<SortKey, 'default'> | null;
 }
 
 const VIEWS: readonly DetailView[] = ['pdf', 'text', 'graph'];
@@ -32,6 +46,15 @@ const DOC_PATTERN = /^[1-9]\d{0,9}$/;
 const PAGE_PATTERN = /^[1-9]\d{0,3}$/;
 // 資料群の名前の形（DB の制約と同じ）
 const COLLECTION_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
+// 状態の名前の形（`ready` `failed` など）
+const STATUS_PATTERN = /^[a-z_]{1,20}$/;
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
+
+/** キーワードとして使える形か。空白だけ・長すぎる・制御文字を含むものは使わない（null）。 */
+function cleanQuery(value: string | null): string | null {
+  if (value === null || value.trim() === '' || value.length > QUERY_MAX_LENGTH || CONTROL_CHARS.test(value)) return null;
+  return value;
+}
 
 /** 状態として意味が通るように整える。資料が無ければ表示も項も無く、関係図でなければ項は無い。絞り込みは一覧だけ。 */
 function normalize(state: UrlState): UrlState {
@@ -39,8 +62,21 @@ function normalize(state: UrlState): UrlState {
   const view = doc === null ? null : state.view;
   const item = view === 'graph' ? state.item : null;
   const page = view === 'pdf' ? state.page : null;
-  const collection = state.tab === 'documents' && doc === null ? state.collection : null;
-  return { tab: state.tab, doc, view, item, page, collection };
+  const inList = state.tab === 'documents' && doc === null;
+  const collection = inList ? state.collection : null;
+  return {
+    tab: state.tab,
+    doc,
+    view,
+    item,
+    page,
+    collection,
+    query: inList ? state.query : null,
+    status: inList ? state.status : null,
+    pageBand: inList ? state.pageBand : null,
+    updatedBand: inList ? state.updatedBand : null,
+    sort: inList ? state.sort : null,
+  };
 }
 
 /** URL のクエリ（`?tab=…` 形式の文字列）から状態を読む。不正な値は、安全な既定値（チャット・一覧）にする。 */
@@ -52,6 +88,10 @@ export function parseUrlState(search: string): UrlState {
   const itemParam = params.get('item');
   const pageParam = params.get('page');
   const collectionParam = params.get('collection');
+  const statusParam = params.get('status');
+  const pagesParam = params.get('pages');
+  const updatedParam = params.get('updated');
+  const sortParam = params.get('sort');
   return normalize({
     tab,
     doc: docParam !== null && DOC_PATTERN.test(docParam) ? Number(docParam) : null,
@@ -59,6 +99,11 @@ export function parseUrlState(search: string): UrlState {
     item: itemParam !== null && ITEM_PATTERN.test(itemParam) ? itemParam : null,
     page: pageParam !== null && PAGE_PATTERN.test(pageParam) ? Number(pageParam) : null,
     collection: collectionParam !== null && COLLECTION_PATTERN.test(collectionParam) ? collectionParam : null,
+    query: cleanQuery(params.get('q')),
+    status: statusParam !== null && STATUS_PATTERN.test(statusParam) ? statusParam : null,
+    pageBand: PAGE_BANDS.find((b) => b === pagesParam) ?? null,
+    updatedBand: UPDATED_BANDS.find((b) => b === updatedParam) ?? null,
+    sort: SORT_KEYS.find((k): k is Exclude<SortKey, 'default'> => k !== 'default' && k === sortParam) ?? null,
   });
 }
 
@@ -76,6 +121,11 @@ export function buildSearch(current: string, next: Partial<UrlState>): string {
   set('item', state.item);
   set('page', state.page);
   set('collection', state.collection);
+  set('q', state.query);
+  set('status', state.status);
+  set('pages', state.pageBand);
+  set('updated', state.updatedBand);
+  set('sort', state.sort);
   return `?${params.toString()}`;
 }
 

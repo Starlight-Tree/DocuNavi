@@ -3,7 +3,13 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
-import { MSG_NOT_CONFIGURED, MSG_NO_DOCUMENTS, MSG_NO_GRAPH } from './components/DocumentsView';
+import {
+  MSG_NOT_CONFIGURED,
+  MSG_NO_DOCUMENTS,
+  MSG_NO_DOCUMENTS_IN_GROUP,
+  MSG_NO_GRAPH,
+  MSG_NO_MATCH,
+} from './components/DocumentsView';
 import { fakeAuth } from './test/auth';
 import type { FakeAuth } from './test/auth';
 import { errorResponse, jsonResponse } from './test/helpers';
@@ -767,7 +773,8 @@ describe('資料一覧: 種別（資料群）', () => {
     await openDocuments(user);
     await user.click(await within(await screen.findByRole('group', { name: '種別で絞り込み' })).findByRole('button', { name: 'cafe' }));
 
-    await user.click(screen.getByRole('button', { name: /cafe_store_guide\.pdf を開く/ }));
+    // 同じ資料は、最近更新のヒーローにも出る。一覧の表のボタンを押す
+    await user.click(within(screen.getByRole('table')).getByRole('button', { name: /cafe_store_guide\.pdf を開く/ }));
     await screen.findByRole('heading', { level: 2 });
     expect(window.location.search).toContain('doc=3');
     expect(window.location.search).not.toContain('collection');
@@ -775,5 +782,337 @@ describe('資料一覧: 種別（資料群）', () => {
     window.history.back();
     await waitFor(() => expect(window.location.search).toBe('?tab=documents&collection=cafe'));
     expect(names()).toHaveLength(1);
+  });
+});
+
+describe('資料一覧: 検索・絞り込み・並び替え', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+  // サーバーの順（ファイル名順）。更新・ページ数・状態を変えてある
+  const LIST_5 = {
+    configured: true,
+    documents: [
+      summary(1, 'aoba_aw820_manual.pdf', 6, 6, { collection: 'guides', pages: 4, updated_at: ago(32) }),
+      summary(2, 'cafe_store_guide.pdf', 5, 5, { collection: 'cafe', pages: 4, updated_at: ago(14) }),
+      summary(3, 'tsubasa_dorm_rules.pdf', 3, 3, { collection: 'guides', pages: 3, title: 'つばさ大学学生寮 入寮規程', updated_at: ago(14) }),
+      summary(4, 'ザーハード1.pdf', 2, 2, { collection: 'zahard', pages: 1, updated_at: ago(10) }),
+      summary(5, 'ザーハード2.pdf', 0, 0, { collection: 'zahard', pages: 1, status: 'failed', updated_at: ago(1) }),
+    ],
+  };
+  const CATALOG = {
+    configured: true,
+    collections: [
+      { name: 'zahard', label: '設定資料', description: '', sort_order: 10, registered: true, document_count: 2, ready_count: 1 },
+      { name: 'cafe', label: '店舗案内', description: '', sort_order: 20, registered: true, document_count: 1, ready_count: 1 },
+      { name: 'guides', label: '規程・取扱説明書', description: '', sort_order: 30, registered: true, document_count: 2, ready_count: 2 },
+      { name: 'draft', label: '準備中の資料', description: '', sort_order: 40, registered: true, document_count: 0, ready_count: 0 },
+    ],
+  };
+  const install = () =>
+    installDocsFetch(
+      () => jsonResponse(LIST_5),
+      () => jsonResponse(CATALOG),
+    );
+  const names = () => screen.queryAllByRole('row').slice(1).map((row) => row.textContent ?? '');
+  // 各行のファイル名（題名があるときは補助の行、無ければ文書名がファイル名）
+  const files = () =>
+    screen
+      .queryAllByRole('row')
+      .slice(1)
+      .map((row) => (row.querySelector('.document-file') ?? row.querySelector('.document-name'))?.textContent ?? '');
+  const keyword = () => screen.getByRole('searchbox', { name: /キーワード/ });
+  const select = (name: string) => screen.getByRole('combobox', { name });
+  const result = () => screen.getByRole('status');
+
+  async function openList() {
+    const { user } = setup();
+    await openDocuments(user);
+    await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
+    return user;
+  }
+
+  it('種別のカードの下に、キーワード・状態・ページ数・更新・並び替えと、件数を出す。絞り込みが無ければ「条件をクリア」は出さない', async () => {
+    install();
+    await openList();
+
+    expect(keyword()).toHaveValue('');
+    expect(select('状態')).toHaveValue('');
+    expect(select('並び替え')).toHaveValue('default');
+    expect(result()).toHaveTextContent('5 件の資料が見つかりました');
+    expect(names()).toHaveLength(5);
+    expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
+    // 既定の並びはサーバーの順のまま
+    expect(files()).toEqual(['aoba_aw820_manual.pdf', 'cafe_store_guide.pdf', 'tsubasa_dorm_rules.pdf', 'ザーハード1.pdf', 'ザーハード2.pdf']);
+  });
+
+  it('キーワードは、題名・ファイル名・種別の表示名を探し、空白（全角も）で AND になる。打っている間は履歴を増やさず、URL に載る', async () => {
+    install();
+    const user = await openList();
+    const length = window.history.length;
+
+    await user.type(keyword(), '入寮');
+    expect(names()).toHaveLength(1);
+    expect(names()[0]).toMatch(/tsubasa_dorm_rules\.pdf/);
+    expect(result()).toHaveTextContent('1 件の資料が見つかりました');
+    expect(window.location.search).toBe('?tab=documents&q=%E5%85%A5%E5%AF%AE');
+    expect(window.history.length).toBe(length);
+    expect(screen.getByRole('button', { name: '条件をクリア' })).toBeInTheDocument();
+
+    await user.clear(keyword());
+    expect(names()).toHaveLength(5);
+    expect(window.location.search).toBe('?tab=documents');
+
+    await user.type(keyword(), '設定資料'); // 種別の表示名（グループの一覧の label）
+    expect(files()).toEqual(['ザーハード1.pdf', 'ザーハード2.pdf']);
+
+    await user.clear(keyword());
+    await user.type(keyword(), '規程　取扱'); // 全角の空白 = AND（種別「規程・取扱説明書」）
+    expect(files()).toEqual(['aoba_aw820_manual.pdf', 'tsubasa_dorm_rules.pdf']);
+  });
+
+  it('一致が無いときは、見つからない旨と案内を出す（一覧の表は出さない）。「条件をクリア」で全件に戻る', async () => {
+    install();
+    const user = await openList();
+
+    await user.type(keyword(), 'zzzz');
+    expect(result()).toHaveTextContent('該当する資料が見つかりませんでした');
+    expect(screen.getByText(MSG_NO_MATCH)).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '条件をクリア' }));
+    expect(keyword()).toHaveValue('');
+    expect(names()).toHaveLength(5);
+    expect(window.location.search).toBe('?tab=documents');
+  });
+
+  it('状態・ページ数・更新は、選ぶと絞り、選択肢に件数が付く。URL に載り、戻るで元に戻る', async () => {
+    install();
+    const user = await openList();
+
+    expect(within(select('状態')).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'すべて (5)',
+      '取り込み済み (4)',
+      '取り込み失敗 (1)',
+    ]);
+    expect(within(select('ページ数')).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'すべて (5)',
+      '1ページ (2)',
+      '2〜4ページ (3)',
+      '5ページ以上 (0)',
+    ]);
+
+    await user.selectOptions(select('状態'), 'failed');
+    expect(files()).toEqual(['ザーハード2.pdf']);
+    expect(window.location.search).toBe('?tab=documents&status=failed');
+    // 件数は、その選択肢以外の条件で数える（状態を選んだあとのページ数は、失敗した 1 件の分）
+    expect(within(select('ページ数')).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'すべて (1)',
+      '1ページ (1)',
+      '2〜4ページ (0)',
+      '5ページ以上 (0)',
+    ]);
+
+    await user.selectOptions(select('更新'), 'older');
+    expect(names()).toHaveLength(0); // 失敗した資料は 1 日前の更新
+
+    window.history.back();
+    await waitFor(() => expect(window.location.search).toBe('?tab=documents&status=failed'));
+    expect(files()).toEqual(['ザーハード2.pdf']);
+    window.history.back();
+    await waitFor(() => expect(window.location.search).toBe('?tab=documents'));
+    expect(names()).toHaveLength(5);
+    expect(select('状態')).toHaveValue('');
+  });
+
+  it('並び替えは、既定ではサーバーの順で、選ぶと並び替わり URL に載る。既定に戻すと URL から外れる', async () => {
+    install();
+    const user = await openList();
+
+    await user.selectOptions(select('並び替え'), 'updated');
+    expect(files()).toEqual(['ザーハード2.pdf', 'ザーハード1.pdf', 'cafe_store_guide.pdf', 'tsubasa_dorm_rules.pdf', 'aoba_aw820_manual.pdf']);
+    expect(window.location.search).toBe('?tab=documents&sort=updated');
+    // 並び替えでは件数も絞り込みの有無も変わらない
+    expect(result()).toHaveTextContent('5 件の資料が見つかりました');
+    expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
+
+    await user.selectOptions(select('並び替え'), 'pages');
+    expect(files().slice(0, 3)).toEqual(['aoba_aw820_manual.pdf', 'cafe_store_guide.pdf', 'tsubasa_dorm_rules.pdf']);
+
+    await user.selectOptions(select('並び替え'), 'default');
+    expect(files()[0]).toBe('aoba_aw820_manual.pdf');
+    expect(window.location.search).toBe('?tab=documents');
+  });
+
+  it('URL の条件で開いた共有リンクは、その条件で絞り・並べ、入力欄にも出る。種別の絞り込みとも併用できる', async () => {
+    install();
+    window.history.replaceState(null, '', '/?tab=documents&collection=guides&q=%E8%A6%8F%E7%A8%8B&status=ready&sort=name');
+    setup();
+    await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
+
+    expect(keyword()).toHaveValue('規程');
+    expect(select('状態')).toHaveValue('ready');
+    expect(select('並び替え')).toHaveValue('name');
+    expect(files()).toEqual(['aoba_aw820_manual.pdf', 'tsubasa_dorm_rules.pdf']);
+  });
+
+  it('「条件をクリア」は、種別（カード）の絞り込みと並び替えは残す', async () => {
+    install();
+    window.history.replaceState(null, '', '/?tab=documents&collection=guides&q=%E5%85%A5%E5%AF%AE&sort=name');
+    setup();
+    await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
+    expect(names()).toHaveLength(1);
+
+    await userEvent.setup().click(screen.getByRole('button', { name: '条件をクリア' }));
+    expect(files()).toEqual(['aoba_aw820_manual.pdf', 'tsubasa_dorm_rules.pdf']);
+    expect(window.location.search).toBe('?tab=documents&collection=guides&sort=name');
+  });
+
+  it('資料が 1 件も無いグループでは、検索の欄を出さず、これまでの案内だけを出す', async () => {
+    install();
+    window.history.replaceState(null, '', '/?tab=documents&collection=draft');
+    setup();
+    expect(await screen.findByText(MSG_NO_DOCUMENTS_IN_GROUP)).toBeInTheDocument();
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+  });
+
+  it('資料を開くと一覧の条件は URL から外れ、ブラウザーの「戻る」で、条件つきの一覧に戻る', async () => {
+    window.history.replaceState(null, '', '/');
+    install();
+    const user = await openList();
+    await user.type(keyword(), '入寮');
+    const listSearch = window.location.search;
+    expect(listSearch).toBe('?tab=documents&q=%E5%85%A5%E5%AF%AE');
+
+    await user.click(screen.getByRole('button', { name: 'つばさ大学学生寮 入寮規程 を開く' }));
+    expect(window.location.search).toBe('?tab=documents&doc=3');
+
+    window.history.back();
+    await waitFor(() => expect(window.location.search).toBe(listSearch));
+    expect(await screen.findByRole('searchbox', { name: /キーワード/ })).toHaveValue('入寮');
+    expect(names()).toHaveLength(1);
+  });
+});
+
+describe('資料一覧: 最近更新された資料（ヒーローカルーセル）', () => {
+  // サーバーの順（ファイル名順）とは別に、更新日の新しい順に並ぶことを確かめる。7 冊のうち 1 冊は更新日なし
+  const LIST_7 = {
+    configured: true,
+    documents: [
+      summary(1, 'a.pdf', 1, 1, { collection: 'guides', updated_at: '2026-10-01T03:00:00+00:00' }),
+      summary(2, 'b.pdf', 1, 1, { collection: 'cafe', updated_at: '2026-10-07T03:00:00+00:00', title: 'B 店の案内' }),
+      summary(3, 'c.pdf', 1, 1, { collection: 'zahard', updated_at: '2026-10-03T03:00:00+00:00' }),
+      summary(4, 'd.pdf', 1, 1, { collection: 'guides', updated_at: '2026-10-06T03:00:00+00:00' }),
+      summary(5, 'e.pdf', 1, 1, { collection: 'cafe', updated_at: '2026-10-02T03:00:00+00:00' }),
+      summary(6, 'f.pdf', 1, 1, { collection: 'zahard', updated_at: '2026-10-05T03:00:00+00:00' }),
+      summary(7, 'g.pdf', 1, 1, { collection: 'guides', updated_at: null }),
+    ],
+  };
+  const CATALOG = {
+    configured: true,
+    collections: [
+      { name: 'zahard', label: '設定資料', description: '', sort_order: 10, registered: true, document_count: 2, ready_count: 2 },
+      { name: 'cafe', label: '店舗案内', description: '', sort_order: 20, registered: true, document_count: 2, ready_count: 2 },
+      { name: 'guides', label: '規程・取扱説明書', description: '', sort_order: 30, registered: true, document_count: 3, ready_count: 3 },
+    ],
+  };
+
+  const install = (list: object = LIST_7) =>
+    installDocsFetch(
+      (url) => jsonResponse(url === '/documents' ? list : { document: LIST_7.documents[1], chunks: [chunk(0, '本文')] }),
+      () => jsonResponse(CATALOG),
+    );
+  const carousel = () => screen.findByRole('region', { name: '最近更新された資料' });
+  // 見えている 1 枚（見えていないスライドは aria-hidden なので、ロールでは取れない）
+  const shownSlide = (region: HTMLElement) => within(region).getByRole('group', { name: /^\d+ \/ \d+$/ });
+  const position = (region: HTMLElement) => within(region).getByText(/^\d+ \/ \d+$/).textContent;
+
+  it('一覧の一番上（種別のカードより前）に、更新が新しい順の 5 件を 1 枚ずつ出す。更新日のない資料は入れない', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+    const region = await carousel();
+
+    expect(position(region)).toBe('1 / 5');
+    const names = Array.from(region.querySelectorAll('.hero-title'), (el) => el.textContent);
+    expect(names).toEqual(['B 店の案内', 'd.pdf', 'f.pdf', 'c.pdf', 'e.pdf']);
+    const group = screen.getByRole('group', { name: /資料グループ/ });
+    expect(region.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // ヒーローは、一覧の表とは別。一覧には 7 冊すべてが残る
+    await screen.findByRole('row', { name: /g\.pdf/ });
+    expect(screen.getAllByRole('row').slice(1)).toHaveLength(7);
+  });
+
+  it('見えている 1 枚に、文書名・種別・更新日を出す。画像が無いので灰色の代替表示', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+    const slide = shownSlide(await carousel());
+
+    expect(slide).toHaveTextContent('B 店の案内');
+    expect(slide).toHaveTextContent('店舗案内');
+    expect(slide).toHaveTextContent('更新 2026/10/07');
+    expect(slide.querySelector('img')).toBeNull();
+    expect(slide.querySelector('.hero-media')).not.toBeNull();
+  });
+
+  it('「資料を開く」を押すと、その資料の詳細へ移る', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+
+    await user.click(within(await carousel()).getByRole('button', { name: '資料を開く：B 店の案内' }));
+
+    await screen.findByRole('heading', { level: 2 });
+    expect(window.location.search).toContain('doc=2');
+  });
+
+  it('種別のカードや検索・絞り込みには連動しない', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+    const region = await carousel();
+
+    await user.click(within(screen.getByRole('group', { name: /資料グループ/ })).getByRole('button', { name: /^設定資料\s*資料/ }));
+    await user.type(await screen.findByRole('searchbox', { name: /キーワード/ }), 'zzz');
+
+    expect(screen.getByText(MSG_NO_MATCH)).toBeInTheDocument();
+    const after = await carousel();
+    expect(position(after)).toBe('1 / 5');
+    expect(shownSlide(after)).toHaveTextContent('B 店の案内');
+    expect(after).toBe(region);
+  });
+
+  it('矢印で 1 枚ずつ動かす（端では反対側へ回る）', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+    const region = await carousel();
+
+    await user.click(within(region).getByRole('button', { name: '次の資料へ' }));
+    expect(position(region)).toBe('2 / 5');
+    expect(shownSlide(region)).toHaveTextContent('d.pdf');
+
+    await user.click(within(region).getByRole('button', { name: '前の資料へ' }));
+    await user.click(within(region).getByRole('button', { name: '前の資料へ' }));
+    expect(position(region)).toBe('5 / 5');
+  });
+
+  it('資料が 1 件だけなら、動かす操作は出さない', async () => {
+    install({ configured: true, documents: LIST_7.documents.slice(1, 2) });
+    const { user } = setup();
+    await openDocuments(user);
+    const region = await carousel();
+
+    expect(shownSlide(region)).toHaveTextContent('B 店の案内');
+    expect(within(region).queryByRole('button', { name: '次の資料へ' })).not.toBeInTheDocument();
+  });
+
+  it('更新日のある資料が無ければ、カルーセルは出さない', async () => {
+    install({ configured: true, documents: [summary(1, 'a.pdf', 1, 1, { updated_at: null })] });
+    const { user } = setup();
+    await openDocuments(user);
+
+    await screen.findByRole('row', { name: /a\.pdf/ });
+    expect(screen.queryByRole('region', { name: '最近更新された資料' })).not.toBeInTheDocument();
   });
 });
