@@ -32,3 +32,7 @@ playwright-report/
 
 # このマシン専用の Claude Code への指示（/tm の運用など）
 CLAUDE.local.md
+
+# GraphRAG評価の比較結果（生成物のため管理しない）
+evals/results/graph_rules_compare.json
+evals/results/graph_rules_ext_compare.json

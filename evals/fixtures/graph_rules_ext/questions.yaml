@@ -1,0 +1,653 @@
+# GraphRAG の効果を、遠い参照（ref_far）と 3 条またぎ（chain3）を増やして測り直すための質問（草案。user の承認前）。2026-11-01。
+# 作成者: Claude（検索の結果を見る前に書いた。この資料・質問の埋め込みは、まだ作っていない）。
+# 既存の評価セット（fixtures/graph_rules の gr001-gr022 と、その結果）には触れない。別の資料・別の質問で、別の計画・キャッシュ・結果に書く。
+#
+# なぜ資料も新しいか:
+#   既存の資料（工房・ラウンジ、辺 10 本）は、ref_far が 4 問、chain3 が 1 問で、辺の組み合わせをほぼ使い切っている。
+#   同じ辺に言い換えの質問を足しても、独立した標本にならない。そこで、辺の組み合わせが別の資料を 4 つ足した。
+# 資料: 市民プール・市立図書館・市民会館ホール・市民農園の利用規程（各 17〜18 条、計 69 条）。1 条 = 1 チャンクで取り込む（scripts/eval_graph.py --set graph_rules_ext）。
+#   条の番号が 4 つの資料で重なる（第1条〜第17条）。別の資料の同じ番号に辺を張らないことも確かめる。
+# 質問の数（62 問）: ref_far 20 / chain3 14 / ref_near 4 / ref_unneeded 8 / single 8 / absent 8。
+#   既存の評価セットは ref_far 4 / chain3 1 / ref_near 5 / ref_unneeded 3 / single 5 / absent 4。
+# kind（質問を書いたときの見立て。結果を見て付け替えない）:
+#   ref_far      参照元の条を引く質問。答えの後半は、参照先の条にだけあり、質問に参照先の条の見出しの語（題を「の」で分けた語）を含めない
+#                （tests/test_eval_graph.py が、この規則を機械で確かめる）。
+#   ref_near     同じだが、質問の語が参照先の条にも近い（料金と減免など。参照先がベクトルでも上位に来うる）
+#   chain3       3 つの条（A -> B -> C）にまたがる。質問は A の話題で、答えの決め手は C。GraphRAG は 1 段（参照先を 1 件）しか足さない。
+#                質問に C の見出しの語を含めない（ref_far と同じ規則）。A から C へ直接の辺は無い（テストが確かめる）
+#   ref_unneeded 参照元の条だけで答えが決まる。辺は出るが、追加の文脈は要らない（余計な文脈の影響＝誤追加を見る）
+#   single       辺のない条だけで決まる
+#   absent       資料に答えが無い（追加の文脈が付くか＝誤追加を見る）
+# 採点: ref_far / ref_near / chain3 は evidence_mode: all（参照元と参照先の両方の文が、返ったチャンクに要る。chain3 は 3 つの条すべて）。
+#   本体の上位 k 件だけで満たすか（hit_main）と、GraphRAG の追加を含めて満たすか（hit_with_graph）を分けて数える。
+# 辺の共有（独立でない部分。報告に書く）: ref_far の参照元は 20 条すべて別。chain3 の始点 A は 14 条すべて別だが、中間 B は 4 資料で
+#   計 8 条（プール 8・9、図書館 9・12、ホール 12・13、農園 12・13）を共有し、終点 C も複数の質問で共有する（質問ごとに別の文を根拠にする）。
+# 質問 ID の接頭辞は gx（evals/CLAUDE.md の表）。承認後は、質問・根拠・資料を変えない。
+
+# ---------------------------------------------------------------- 市民プール利用規程
+- id: gx001
+  question: "市内の小学校が、水泳の授業でプールを使いたいときは、いつまでに何をすればよいですか。"
+  answer: "学校の授業は団体の利用として扱われ、第4条の許可が要ります。利用日の10日前までに受付へ申請します。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "学校が授業でプールを使うときの取扱いは、第8条の団体の利用による"
+    - "20名以上の団体は、第4条の許可を受けて、コース単位で利用できる"
+    - "利用日の10日前までに受付へ申請する"
+
+- id: gx002
+  question: "夏休みの短期教室に、障害のある小学生が参加するとき、受講料はどうなりますか。"
+  answer: "受講料は水泳教室に準じ、減免は第5条によります。身体障害者手帳を持つ場合は、免除されます。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "受講料は、第9条の水泳教室に準ずる"
+    - "受講料の減免は、第5条による"
+    - "身体障害者手帳を持つ者とその付き添い1名は、利用料金を免除する"
+
+- id: gx003
+  question: "市内のスポーツ少年団が、練習中にプールの設備を壊してしまいました。どうなりますか。"
+  answer: "練習は団体の利用として扱われ、損害の弁償は第6条によります。修理に要した費用を弁償します。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "市内のスポーツ少年団の練習は、第8条の団体の利用として扱う"
+    - "団体の利用中に生じた損害の弁償は、第6条による"
+    - "修理に要した費用を弁償する"
+
+- id: gx004
+  question: "プールでテレビ番組の撮影をしたいときは、受付に出す書類に何を書けばよいですか。"
+  answer: "撮影は第4条の許可が要ります。書類には、利用の目的と人数を書き、責任者が署名します。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "プール内での撮影は、第4条の許可を得た場合に限る"
+    - "申請書には、利用の目的と人数を書き、責任者が署名する"
+
+- id: gx005
+  question: "水泳の記録会を開きたいのですが、開いてよいかどうかは、いつ分かりますか。"
+  answer: "記録会は第4条の許可が要ります。結果は、申請の日から3日以内に電話で知らされます。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "水泳大会や記録会を開くときは、第4条の許可を受けなければならない"
+    - "申請の日から3日以内に電話で知らせる"
+
+- id: gx006
+  question: "フィンを使った練習をする予定ですが、人数が変わることになりました。いつまでに知らせればよいですか。"
+  answer: "特別な器具の使用は第4条の許可が要ります。内容を変えるときは、利用日の前日までに受付へ届け出ます。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "シュノーケルやフィンなどの特別な器具の使用は、第4条の許可を得た場合に限る"
+    - "利用日の前日までに受付へ届け出る"
+
+- id: gx007
+  question: "借りたビート板をなくしてしまいました。いくら払えばよいですか。"
+  answer: "貸出品をなくしたときは第6条によります。ビート板は1枚1,500円です。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "貸出品をなくしたときは、第6条による"
+    - "ビート板が1枚1,500円"
+
+- id: gx008
+  question: "プールで転んで手すりを曲げてしまいました。直すお金は、いつまでに払えばよいですか。"
+  answer: "事故で設備が壊れたときの費用の負担は第6条によります。事故の届出の日から30日以内に納めます。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "事故で設備が壊れたときの費用の負担は、第6条による"
+    - "事故の届出の日から30日以内に納める"
+
+- id: gx009
+  question: "70歳の市民が一般の利用をするとき、料金はいくらですか。"
+  answer: "一般は1回600円で、65歳以上の市民は半額なので、300円です。"
+  category: multi_hop
+  kind: ref_near
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "一般が1回600円"
+    - "65歳以上の市民は、利用料金を半額とする"
+
+- id: gx010
+  question: "学校の授業でプールを使うとき、引率の先生はどこにいればよいですか。"
+  answer: "授業の間、プールサイドにとどまります。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence:
+    - "引率の教員は、授業の間、プールサイドにとどまる"
+
+- id: gx011
+  question: "スポーツ少年団がプールで練習できるのは、何時から何時までですか。"
+  answer: "平日の午後5時から午後7時までです。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence:
+    - "練習は、平日の午後5時から午後7時までとする"
+
+- id: gx012
+  question: "プールが休みなのは、何曜日ですか。"
+  answer: "水曜日です。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence:
+    - "水曜日は休館とする"
+
+- id: gx013
+  question: "プールのロッカーの鍵を戻すと、入れたお金はどうなりますか。"
+  answer: "硬貨が返ります。"
+  category: paraphrase
+  kind: single
+  expected_doc_ids: ["市民プール利用規程.txt"]
+  evidence:
+    - "硬貨は、鍵を戻したときに返る"
+
+- id: gx014
+  question: "プールの水温は、何度ですか。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  kind: absent
+
+- id: gx015
+  question: "来週の日曜日の花火大会は、何時から始まりますか。"
+  category: out_of_scope
+  scope_kind: off_topic
+  kind: absent
+
+# ---------------------------------------------------------------- 市立図書館利用規程
+- id: gx016
+  question: "学童保育の施設が、まとめて本を借りたいです。受付に何を持っていけばよいですか。"
+  answer: "学校への貸出しに準じ、団体貸出しのカードは第6条によります。氏名と住所を確認できるものを受付で示します。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "学童保育施設への貸出しは、第9条の学校への貸出しに準じる"
+    - "団体貸出しの利用者カードは、第6条による"
+    - "氏名と住所を確認できるものを受付で示して作る"
+
+- id: gx017
+  question: "病院の患者向け文庫の本を、返すのが遅れてしまいました。その後、どうなりますか。"
+  answer: "学校への貸出しに準じ、延滞は第8条によります。遅れた日数と同じ日数だけ、新しい貸出しが停止されます。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "病院の患者向け文庫への貸出しは、第9条の学校への貸出しに準じる"
+    - "団体貸出しの資料の延滞は、第8条による"
+    - "遅れた日数と同じ日数だけ、新しい貸出しを停止する"
+
+- id: gx018
+  question: "町内会が、上映会のために借りたDVDを割ってしまいました。いくら払うことになりますか。"
+  answer: "上映会のDVDは視聴覚資料に準じ、弁償は第7条によります。1点につき2,000円です。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "館内の上映会に使うDVDの貸出しは、第12条の視聴覚資料に準じる"
+    - "視聴覚資料を壊したときの弁償は、第7条による"
+    - "CDとDVDを壊したときの弁償は、1点につき2,000円とする"
+
+- id: gx019
+  question: "借りた本を返さないまま、1か月以上たってしまいました。どうなりますか。"
+  answer: "返却が遅れたときの取扱いは第8条によります。延滞が30日を超えると、利用者カードが失効します。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "返却が遅れたときの取扱いは、第8条による"
+    - "延滞が30日を超えたときは、利用者カードを失効させる"
+
+- id: gx020
+  question: "予約に使うカードをなくしてしまいました。作り直すのにお金はかかりますか。"
+  answer: "予約には第6条の利用者カードが要ります。再発行は1枚300円です。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "予約には、第6条の利用者カードが要る"
+    - "再発行は1枚300円とする"
+
+- id: gx021
+  question: "夜、ブックポストに返した本が、ポストの中で破れていたと言われました。どうすればよいですか。"
+  answer: "ポストの中で破損したときは第7条によります。同じ図書を購入して弁償します。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "ポストの中で破損したときの取扱いは、第7条による"
+    - "同じ図書を購入して弁償する"
+
+- id: gx022
+  question: "絶版の本を借りて、うっかり破ってしまいました。同じ本を買って返せばよいですか。"
+  answer: "絶版図書を汚したときは第7条によります。同じ本は買えないので、図書の価格の2倍を弁償します。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "絶版図書を汚したときは、第7条による"
+    - "購入できない図書の弁償額は、図書の価格の2倍とする"
+
+- id: gx023
+  question: "電子書籍の利用に使っているカードを、電車の中で落としてしまいました。まず何をすればよいですか。"
+  answer: "電子図書館は第6条のカードの番号で利用します。直ちに受付へ届け出ます。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "電子図書館は、第6条の利用者カードの番号で利用する"
+    - "カードをなくしたときは、直ちに受付へ届け出る"
+
+- id: gx024
+  question: "市外に住んでいて、市内の会社に勤めています。図書館のカードを作るには、何を示しますか。"
+  answer: "通勤・通学の者は、第6条のカードを作れます。勤務先の証明書も示します。"
+  category: multi_hop
+  kind: ref_near
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "市外に住む通勤・通学の者も、第6条の利用者カードを作ることができる"
+    - "市外の者は、勤務先または学校の証明書も示す"
+
+- id: gx025
+  question: "図書館では、一度に何冊まで借りられますか。"
+  answer: "1人につき10冊までです。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence:
+    - "1人につき10冊まで"
+
+- id: gx026
+  question: "図書館でDVDは、何点まで借りられますか。"
+  answer: "1人につき3点までです。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence:
+    - "1人につき3点まで"
+
+- id: gx027
+  question: "図書館が休みなのは、何曜日ですか。"
+  answer: "月曜日です。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence:
+    - "月曜日は休館とする"
+
+- id: gx028
+  question: "図書館の閲覧席は、一度に何時間まで使えますか。"
+  answer: "1回につき3時間までです。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["市立図書館利用規程.txt"]
+  evidence:
+    - "1回につき3時間まで"
+
+- id: gx029
+  question: "図書館の蔵書は、全部で何冊ありますか。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  kind: absent
+
+- id: gx030
+  question: "みなと市の人口は、何人ですか。"
+  category: out_of_scope
+  scope_kind: off_topic
+  kind: absent
+
+# ---------------------------------------------------------------- 市民会館ホール利用規程
+- id: gx031
+  question: "中学校の吹奏楽部が、発表会のためにホールを借ります。料金を安くしてもらうには、何を示せばよいですか。"
+  answer: "学校の発表会は公共的団体の使用として扱われ、使用料の取扱いは第10条によります。団体の登録証を示します。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "学校の発表会での使用は、第12条の公共的団体の使用として扱う"
+    - "公共的団体の使用料の取扱いは、第10条による"
+    - "減額を受けるときは、団体の登録証を示す"
+
+- id: gx032
+  question: "自治会の防災講座で借りたホールの椅子を、うっかり壊してしまいました。どうなりますか。"
+  answer: "防災講座は公共的団体の使用として扱われ、損害の賠償は第11条によります。修理に要した費用を賠償します。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "自治会の防災講座での使用は、第12条の公共的団体の使用として扱う"
+    - "公共的団体の使用中に生じた損害の賠償は、第11条による"
+    - "ホールの設備を壊したときは、修理に要した費用を賠償する"
+
+- id: gx033
+  question: "市内の美術団体が展覧会を開く予定でしたが、開催の3日前に中止が決まりました。ホールの代金は戻りますか。"
+  answer: "展覧会は展示会の使用として扱われ、取消しの使用料は第9条によります。使用日の6日前以降の取消しは、還付されません。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "市内の美術団体の展覧会は、第13条の展示会の使用として扱う"
+    - "展示会の使用の取消しに伴う使用料は、第9条による"
+    - "使用日の6日前以降の取消しは、還付しない"
+
+- id: gx034
+  question: "写真クラブが写真展の設営で、ホールの壁を傷つけてしまいました。費用は、いつまでに払えばよいですか。"
+  answer: "写真展は展示会の使用として扱われ、設営で傷つけたときは第11条によります。請求の日から1か月以内に納めます。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "写真クラブの写真展は、第13条の展示会の使用として扱う"
+    - "展示会の設営で会場を傷つけたときの取扱いは、第11条による"
+    - "賠償は、請求の日から1か月以内に納める"
+
+- id: gx035
+  question: "20日後に予定していた会議が中止になり、ホールの使用を取りやめます。代金はどうなりますか。"
+  answer: "使用料の還付は第9条によります。使用日の7日前までの取消しは、半額が還付されます。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "使用料の還付は、第9条による"
+    - "使用日の30日前までの取消しは全額、7日前までの取消しは半額を還付する"
+
+- id: gx036
+  question: "ホールの使用を取りやめることにしました。戻るお金は、いつ口座に入りますか。"
+  answer: "取消しに伴う使用料の取扱いは第9条によります。取消しの日から14日以内に、指定の口座へ振り込まれます。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "取消しに伴う使用料の取扱いは、第9条による"
+    - "取消しの日から14日以内に、指定の口座へ振り込む"
+
+- id: gx037
+  question: "借りた楽屋の鍵をなくしてしまいました。いくら払うことになりますか。"
+  answer: "楽屋の鍵をなくしたときは第11条によります。1本につき3,000円です。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "楽屋の鍵をなくしたときの取扱いは、第11条による"
+    - "楽屋の鍵をなくしたときは、1本につき3,000円を賠償する"
+
+- id: gx038
+  question: "ステージの床に重い機材を落として、へこませてしまいました。いくら払うことになりますか。"
+  answer: "床や壁を傷つけたときは第11条によります。床は1平方メートルにつき8,000円です。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "床や壁を傷つけたときの取扱いは、第11条による"
+    - "ステージの床を傷つけたときは、1平方メートルにつき8,000円を賠償する"
+
+- id: gx039
+  question: "市が開く講演会でホールを使います。代金はかかりますか。"
+  answer: "市が主催する催しの使用料は第10条によります。免除されます。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "市が主催する催しの使用料は、第10条による"
+    - "市が主催する催しは、使用料を免除する"
+
+- id: gx040
+  question: "市内の文化団体が、大ホールを夜間に借りるとき、使用料はいくらですか。"
+  answer: "大ホールは1区分40,000円で、市内の文化団体は3割減額なので、28,000円です。"
+  category: multi_hop
+  kind: ref_near
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "1区分につき40,000円"
+    - "市内の文化団体は、使用料を3割減額する"
+
+- id: gx041
+  question: "自治会がホールを借りるときの申込みは、何日前から受け付けてもらえますか。"
+  answer: "使用日の120日前から受け付けます。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence:
+    - "使用日の120日前から受け付ける"
+
+- id: gx042
+  question: "学校の発表会でホールを使えるのは、いつですか。"
+  answer: "平日の午後に限ります。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence:
+    - "平日の午後に限る"
+
+- id: gx043
+  question: "ホールは、何時まで使えますか。"
+  answer: "午後10時までです。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence:
+    - "午後10時まで"
+
+- id: gx044
+  question: "大ホールの定員は、何名ですか。"
+  answer: "800名です。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["市民会館ホール利用規程.txt"]
+  evidence:
+    - "定員は、800名とする"
+
+- id: gx045
+  question: "小ホールの定員は、何名ですか。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  kind: absent
+
+- id: gx046
+  question: "ホールにグランドピアノはありますか。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  kind: absent
+
+# ---------------------------------------------------------------- 市民農園利用規程
+- id: gx047
+  question: "祖父が借りていた畑を、孫が引き継ぎたいです。手続の受付は、いつですか。"
+  answer: "名義の引継ぎは契約の更新として扱われ、更新の申込みは第9条によります。毎年2月1日から2月20日までです。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "家族が名義を引き継ぐときの手続は、第12条の契約の更新による"
+    - "更新の申込みは、第9条による"
+    - "毎年2月1日から2月20日までに"
+
+- id: gx048
+  question: "長く入院している利用者が、契約を更新しないことにしました。畑を返すときに、育てている野菜はどうしますか。"
+  answer: "更新しないときの区画の返還は第11条によります。作物の残りを持ち帰ります。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "長期入院中の利用者の取扱いは、第12条の契約の更新による"
+    - "更新しないときの区画の返還は、第11条による"
+    - "返還の際は、作物の残りを持ち帰る"
+
+- id: gx049
+  question: "契約の途中で、経済的な支援を受けることになりました。畑の代金を安くしてもらう申請は、いつ行えばよいですか。"
+  answer: "契約の更新として扱われ、減免の申請は第10条によります。申込みのときに併せて行います。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "経済的な支援を受けるようになった利用者の取扱いは、第12条の契約の更新による"
+    - "減免を受ける者は、第10条の申請を行う"
+    - "減免の申請は、申込みのときに併せて行う"
+
+- id: gx050
+  question: "海外への転勤が決まり、契約を途中でやめます。畑に建てた小屋を片付けないまま帰国したら、どうなりますか。"
+  answer: "契約の途中終了として扱われ、区画は第11条に従って返します。撤去しないときは、市が撤去し、その費用を請求します。"
+  category: multi_hop
+  kind: chain3
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "海外へ転勤する利用者の取扱いは、第13条の契約の途中終了による"
+    - "契約を途中で終えた区画は、第11条に従って返す"
+    - "撤去しないときは、市が撤去し、その費用を請求する"
+
+- id: gx051
+  question: "友人と2人で1区画を借りたいです。希望者が多いときは、どうやって決まりますか。"
+  answer: "共同で借りるときの申込みは第9条によります。区画数を上回るときは、抽選で決めます。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "2人以上で1区画を共同で借りるときの申込みは、第9条による"
+    - "申込みが区画数を上回るときは、抽選で決める"
+
+- id: gx052
+  question: "抽選に外れて、補欠に登録しました。当選した人が期限までに代金を払わなかったら、その人の当選はどうなりますか。"
+  answer: "補欠の登録は第9条の抽選の後に行います。納めないときは、当選が取り消されます。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "補欠の登録は、第9条の抽選の後に行う"
+    - "納めないときは、当選を取り消す"
+
+- id: gx053
+  question: "畑にビニールハウスを建てて使ってきました。契約が終わるときは、いつまでに片付ければよいですか。"
+  answer: "設置した設備の取扱いは第11条によります。契約が終わる日までに、自費で撤去します。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "設置した設備の取扱いは、第11条による"
+    - "契約が終わる日までに、自費で撤去する"
+
+- id: gx054
+  question: "障害のある人を支援する団体が、畑を借りて作業をしたいです。代金はかかりますか。"
+  answer: "福祉団体の使用料は第10条によります。免除されます。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "福祉団体が利用するときの使用料は、第10条による"
+    - "福祉団体は、使用料を免除する"
+
+- id: gx055
+  question: "年額の代金を分けて払いたいのですが、いつまでに相談すればよいですか。"
+  answer: "第9条の納付期限までに市役所へ相談します。納付期限は、当選した者について3月15日です。"
+  category: multi_hop
+  kind: ref_far
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "使用料の分割払いを希望する者は、第9条の納付期限までに市役所へ相談する"
+    - "当選した者は、3月15日までに使用料を納める"
+
+- id: gx056
+  question: "72歳の市民が1区画を借りるとき、年額いくらですか。"
+  answer: "年額12,000円で、70歳以上の市民は半額なので、6,000円です。"
+  category: multi_hop
+  kind: ref_near
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence_mode: all
+  evidence:
+    - "使用料は年額12,000円とする"
+    - "70歳以上の市民は、使用料を半額とする"
+
+- id: gx057
+  question: "市民農園の1区画は、何平方メートルですか。"
+  answer: "15平方メートルです。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence:
+    - "1区画は15平方メートル"
+
+- id: gx058
+  question: "畑の名義は、家族以外の人に変えられますか。"
+  answer: "同じ世帯の家族に限ります。"
+  category: factual
+  kind: ref_unneeded
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence:
+    - "同じ世帯の家族に限る"
+
+- id: gx059
+  question: "市民農園を借りられるのは、どんな人ですか。"
+  answer: "市内に住む18歳以上の者に限ります。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence:
+    - "市内に住む18歳以上の者に限る"
+
+- id: gx060
+  question: "市民農園に、果樹は植えられますか。"
+  answer: "果樹と竹は、植えてはなりません。"
+  category: factual
+  kind: single
+  expected_doc_ids: ["市民農園利用規程.txt"]
+  evidence:
+    - "果樹と竹は、植えてはならない"
+
+- id: gx061
+  question: "市民農園に、水道はありますか。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  kind: absent
+
+- id: gx062
+  question: "市民農園の駐車場は、何台とめられますか。"
+  category: out_of_scope
+  scope_kind: on_topic_absent
+  kind: absent

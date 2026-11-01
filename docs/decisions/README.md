@@ -10,7 +10,8 @@
 | [0003](0003-django-only-for-operator-admin.md) | Django は運用者 1 人の管理画面に限る（試作は別物） | 実装済み（配備済み） |
 | [0004](0004-no-llm-gateway.md) | LLM ゲートウェイを使わず、耐障害性はアプリ内で持つ | 実装済み |
 | [0005](0005-go-sse-relay-without-prod-limit.md) | Go の SSE 中継は配備し、本番には同時数の上限を入れない | 配備済み（上限のコードは未配備） |
-| [0006](0006-graph-rag-default-off.md) | 検索の GraphRAG は既定 OFF のまま | 実装済み（既定 OFF） |
+| [0006](0006-graph-rag-default-off.md) | 検索の GraphRAG は既定 OFF のまま | 置き換え済み（0007） |
+| [0007](0007-graph-rag-default-on.md) | 検索の GraphRAG を既定 ON にする（`SEARCH_GRAPH_MAX_EXTRA`=1 のまま） | 実装済み（未プッシュ・未配備） |
 
 ## 書き方
 
