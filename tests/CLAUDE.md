@@ -42,7 +42,7 @@
 - **モックモードに固定する。** `conftest.py` は `GEMINI_API_KEY` `DATABASE_URL` を空にして import する。`.env` に実キーがあっても動く。この冒頭を変えない。
 - **API の応答にエラー本文・サーバーのパスが出ないことを、テストで確かめる**（固定メッセージ）。
 - 実 API を呼ぶ検証（`tests/real_api_*`、`npm run test:e2e:real-api`）は課金。確認なしに実行しない。
-- 既知の不安定なテスト: `test_access.py::test_the_default_role_behaves_exactly_like_access_mode_off`（再実行で通ることがある）。
+- 関係図（`/documents/{id}/graph` `/impact`）の辺には、作った時刻（`updated_at`、秒単位）が付く。2 回の応答を比べるテストは、`app.relations.extract.datetime` を固定する（`test_access.py::test_the_default_role_behaves_exactly_like_access_mode_off` が、固定しないで 2026-11-01 に約 15% 失敗していた）。
 
 ## 実行
 
