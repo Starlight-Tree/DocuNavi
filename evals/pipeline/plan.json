@@ -1,0 +1,638 @@
+{
+  "chunk_count": 421,
+  "corpus_fingerprint": "b7d44c43c4591ad86925e2d27ec23f3117b9e43f8230cbc1c088209fd94b42a7",
+  "created_at": "2026-11-01T17:57:02+09:00",
+  "fixed": {
+    "app_top_k": 2,
+    "bm25_b": 0.75,
+    "bm25_k1": 1.5,
+    "candidates": 20,
+    "configs": {
+      "all": [
+        true,
+        true,
+        true
+      ],
+      "hybrid": [
+        true,
+        false,
+        false
+      ],
+      "hybrid+graph": [
+        true,
+        false,
+        true
+      ],
+      "hybrid+rerank": [
+        true,
+        true,
+        false
+      ],
+      "vector": [
+        false,
+        false,
+        false
+      ]
+    },
+    "dimensions": 768,
+    "graph_max_extra": 1,
+    "identifier_weight": 0.5,
+    "ks": [
+      1,
+      2,
+      3,
+      5
+    ],
+    "min_similarity": 0.65,
+    "model": "gemini-embedding-2",
+    "query": "質問文そのまま（LLM による言い換えは使わない）",
+    "rerank_lexical_share": 0.5,
+    "rerank_rrf_share": 0.5,
+    "rrf_k": 60,
+    "scope": "ALL（全グループ。collection の絞り込みなし）"
+  },
+  "git_head": "ea54986",
+  "note": "検索の結果を見る前に作った。ここに写した値は、この比較の中で変えない。",
+  "question_files": [
+    "evals/fixtures/exact/questions.yaml",
+    "evals/corpora/guides/questions.yaml"
+  ],
+  "questions": [
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e001"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e002"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e003"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e004"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e005"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e006"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e007"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e008"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e009"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e010"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e011"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e012"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e013"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e014"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e015"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e016"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e017"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e018"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e019"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e020"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e021"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e022"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e023"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e024"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e025"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e026"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e027"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e028"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e029"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e030"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e031"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e032"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e033"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e034"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e035"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e036"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e037"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e038"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e039"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e040"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e041"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e042"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e043"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "ap_air_purifier_spec.pdf"
+      ],
+      "id": "e044"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e045"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e046"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "rv_robot_vacuum_spec.pdf"
+      ],
+      "id": "e047"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e048"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e049"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "notememo_release_notes.pdf"
+      ],
+      "id": "e050"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "id": "a001"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "id": "a002"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "id": "a003"
+    },
+    {
+      "answerable": true,
+      "category": "paraphrase",
+      "expected": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "id": "a004"
+    },
+    {
+      "answerable": true,
+      "category": "paraphrase",
+      "expected": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "id": "a005"
+    },
+    {
+      "answerable": true,
+      "category": "paraphrase",
+      "expected": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "id": "a006"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "id": "a007"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "a008"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "a009"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "a010"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "a011"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "id": "t001"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "id": "t002"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "id": "t003"
+    },
+    {
+      "answerable": true,
+      "category": "multi_hop",
+      "expected": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "id": "t004"
+    },
+    {
+      "answerable": true,
+      "category": "paraphrase",
+      "expected": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "id": "t005"
+    },
+    {
+      "answerable": true,
+      "category": "paraphrase",
+      "expected": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "id": "t006"
+    },
+    {
+      "answerable": true,
+      "category": "factual",
+      "expected": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "id": "t007"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "t008"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "t009"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "t010"
+    },
+    {
+      "answerable": false,
+      "category": "out_of_scope",
+      "expected": [],
+      "id": "t011"
+    }
+  ],
+  "sources": [
+    "aoba_aw820_manual.pdf",
+    "ap_air_purifier_spec.pdf",
+    "cafe_campaign.pdf",
+    "cafe_menu.pdf",
+    "cafe_store_guide.pdf",
+    "gym_guide.pdf",
+    "gym_plans.pdf",
+    "hidamari_waste_guide.pdf",
+    "notememo_release_notes.pdf",
+    "rv_robot_vacuum_spec.pdf",
+    "tsubasa_dorm_rules.pdf",
+    "ザーハード1.pdf",
+    "ザーハード2.pdf",
+    "ザーハード3.pdf"
+  ]
+}
