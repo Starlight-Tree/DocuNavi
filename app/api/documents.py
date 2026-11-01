@@ -45,7 +45,9 @@ _DETAIL_ORIGINAL_UNAVAILABLE = "元の PDF を取得できませんでした。�
 _LIST_SQL = (
     "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, d.status AS status, "
     "d.failure_reason AS failure_reason, d.pages AS pages, d.updated_at AS updated_at, "
-    "count(c.id) AS chunk_count, count(c.embedding) AS embedded_count "
+    "count(c.id) AS chunk_count, count(c.embedding) AS embedded_count, "
+    "EXISTS (SELECT 1 FROM document_images i WHERE i.document_id = d.id AND i.kind = 'hero' AND i.status = 'approved') "
+    "AS hero_image "
     "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id "
     "WHERE " + ALLOWED_FILTER_SQL + " "
     "GROUP BY d.id ORDER BY d.source, d.id LIMIT %(limit)s"
@@ -55,6 +57,12 @@ _DOCUMENT_SQL = (
     "d.failure_reason AS failure_reason, d.pages AS pages, d.updated_at AS updated_at, "
     "d.content_hash AS content_hash "
     "FROM documents d WHERE d.id = %(id)s"
+)
+# 承認済みのヒーロー画像。資料と同じ行から引く（資料の可視性の判定を、PDF の配信と同じ行に対して行うため）
+_HERO_SQL = (
+    "SELECT d.collection AS collection, i.mime_type AS mime_type, i.data AS data "
+    "FROM documents d JOIN document_images i ON i.document_id = d.id "
+    "WHERE d.id = %(id)s AND i.kind = 'hero' AND i.status = 'approved'"
 )
 _CHUNKS_SQL = (
     "SELECT c.chunk_index AS chunk_index, c.page AS page, c.page_end AS page_end, c.kind AS kind, "
@@ -77,6 +85,8 @@ class DocumentSummary(BaseModel):
     updated_at: datetime | None = None
     chunk_count: int = 0
     embedded_count: int = 0
+    # 承認済みのヒーロー画像があるか（あれば GET /documents/{id}/hero で取れる）。画像そのものは一覧に入れない
+    hero_image: bool = False
 
 
 class DocumentList(BaseModel):
@@ -136,6 +146,7 @@ def _summary(row: dict[str, Any]) -> DocumentSummary:
         updated_at=row.get("updated_at"),
         chunk_count=int(row.get("chunk_count") or 0),
         embedded_count=int(row.get("embedded_count") or 0),
+        hero_image=row.get("hero_image") is True,
     )
 
 
@@ -246,3 +257,33 @@ async def document_file(
         raise HTTPException(status_code=404, detail=_DETAIL_NO_ORIGINAL)
     headers["Content-Disposition"] = _content_disposition(document_id, source)
     return Response(content=original.data, media_type="application/pdf", headers=headers)
+
+
+_DETAIL_NO_HERO = "この資料の画像はありません。"
+_HERO_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
+
+
+@router.get("/{document_id}/hero")
+async def document_hero(
+    document_id: Annotated[int, Path(ge=1, le=_MAX_ID)],
+    access: Annotated[Access, Depends(request_access)],
+) -> Response:
+    """承認済みのヒーロー画像（資料ごとに 1 枚）。承認済みが無い・見えないグループの資料は、同じ 404（画面は灰色の代替表示のまま）。"""
+    headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+    access.require_any()
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail=_DETAIL_NOT_CONFIGURED)
+    try:
+        async with pool.connection() as conn:
+            cursor = await conn.execute(_HERO_SQL, {"id": document_id})
+            rows = await cursor.fetchall()
+    except Exception as exc:  # noqa: BLE001 - 上と同じ
+        raise _unavailable(exc) from None
+    if not rows:
+        raise HTTPException(status_code=404, detail=_DETAIL_NO_HERO)
+    access.require_visible(rows[0].get("collection"), "ヒーロー画像", _DETAIL_NO_HERO)
+    mime_type, data = rows[0].get("mime_type"), rows[0].get("data")
+    if mime_type not in _HERO_MIME_TYPES or not isinstance(data, (bytes, bytearray, memoryview)):
+        raise HTTPException(status_code=404, detail=_DETAIL_NO_HERO)
+    return Response(content=bytes(data), media_type=mime_type, headers=headers)

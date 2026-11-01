@@ -1,7 +1,11 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DocumentSummary } from '../api/documents';
+import { useHeroImage } from '../hooks/useDocuments';
 import { AUTO_ADVANCE_MS, HeroCarousel } from './HeroCarousel';
+
+vi.mock('../hooks/useDocuments', () => ({ useHeroImage: vi.fn() }));
+const heroImage = vi.mocked(useHeroImage);
 
 function doc(id: number, extra: Partial<DocumentSummary> = {}): DocumentSummary {
   return {
@@ -15,6 +19,7 @@ function doc(id: number, extra: Partial<DocumentSummary> = {}): DocumentSummary 
     updatedAt: `2026-10-0${id}T03:00:00+00:00`,
     chunkCount: 1,
     embeddedCount: 1,
+    heroImage: false,
     ...extra,
   };
 }
@@ -42,6 +47,8 @@ const advance = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
 beforeEach(() => {
   vi.useFakeTimers();
   stubMedia([]);
+  heroImage.mockReset();
+  heroImage.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -222,5 +229,36 @@ describe('HeroCarousel', () => {
     expect(track).toHaveAttribute('aria-live', 'off');
     fireEvent.click(within(region).getByRole('button', { name: '自動切り替えを停止' }));
     expect(track).toHaveAttribute('aria-live', 'polite');
+  });
+});
+
+describe('HeroCarousel の画像', () => {
+  const withImage = [doc(5, { heroImage: true }), doc(4), doc(3, { heroImage: true })];
+
+  it('画像がある資料の画像を、枠に出す（飾りなので読み上げない）。画像がない資料は取りに行かない', () => {
+    heroImage.mockImplementation((id) => `blob:image-${id}`);
+    const { region } = renderCarousel(withImage);
+
+    const images = region.querySelectorAll('img');
+    expect([...images].map((image) => image.getAttribute('src'))).toEqual(['blob:image-5', 'blob:image-3']);
+    expect(images[0]).toHaveAttribute('alt', '');
+    expect(heroImage.mock.calls.map(([id]) => id).sort()).toEqual([3, 5]);
+  });
+
+  it('まだ取れていない・取れなかった（null）間は、灰色の代替表示のまま。文字と操作は動く', () => {
+    const { region } = renderCarousel(withImage);
+
+    expect(region.querySelector('img')).toBeNull();
+    expect(region.querySelector('.hero-media svg')).not.toBeNull();
+    expect(within(region).getByRole('button', { name: '資料を開く：doc5.pdf' })).toBeEnabled();
+  });
+
+  it('画像が読めなかったとき（壊れた画像）は、灰色の代替表示に戻す', () => {
+    heroImage.mockImplementation((id) => `blob:image-${id}`);
+    const { region } = renderCarousel(withImage);
+
+    fireEvent.error(region.querySelector('img')!);
+
+    expect(region.querySelectorAll('img')).toHaveLength(1);
   });
 });

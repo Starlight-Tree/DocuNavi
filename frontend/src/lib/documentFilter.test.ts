@@ -34,6 +34,7 @@ function doc(id: number, source: string, extra: Partial<DocumentSummary> = {}): 
     updatedAt: daysAgo(10),
     chunkCount: 5,
     embeddedCount: 5,
+    heroImage: false,
     ...extra,
   };
 }

@@ -1660,8 +1660,17 @@ textarea {
   align-items: center;
   justify-content: center;
   min-width: 0;
+  overflow: hidden;
   background: var(--surface-muted);
   color: var(--text-muted);
+}
+
+/* 生成した画像。枠いっぱいに、縦横比を保って切り取る（中央寄せの構図で作る） */
+.hero-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .hero-controls {

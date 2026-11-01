@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FocusEvent, TouchEvent } from 'react';
 import type { DocumentSummary } from '../api/documents';
+import { useHeroImage } from '../hooks/useDocuments';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
 /** 1 枚を静止して見せる時間。この後、横にスライドして次へ移る。 */
@@ -49,7 +50,7 @@ function PauseIcon({ playing }: { playing: boolean }) {
   );
 }
 
-/** 画像がない間（生成は未承認）の灰色の代替表示。 */
+/** 画像がない・取れない・読めない間の灰色の代替表示。 */
 function MediaPlaceholder() {
   return (
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -57,6 +58,17 @@ function MediaPlaceholder() {
       <path d="M14 3v5h5" />
     </svg>
   );
+}
+
+/**
+ * 承認済みの画像がある資料の画像。取れない・読めないときは、灰色の代替表示のまま（失敗は画面に出さない）。
+ * 画像がある資料（`heroImage`）にだけ使う（画像がない資料は、取りに行かない）。
+ */
+function HeroImage({ documentId }: { documentId: number }) {
+  const url = useHeroImage(documentId);
+  const [broken, setBroken] = useState(false);
+  if (!url || broken) return <MediaPlaceholder />;
+  return <img className="hero-image" src={url} alt="" onError={() => setBroken(true)} />;
 }
 
 /**
@@ -159,7 +171,7 @@ export function HeroCarousel({ documents, collectionLabel, onOpen }: HeroCarouse
                     </button>
                   </div>
                   <div className="hero-media" aria-hidden="true">
-                    <MediaPlaceholder />
+                    {document.heroImage ? <HeroImage documentId={document.id} /> : <MediaPlaceholder />}
                   </div>
                 </div>
               );
