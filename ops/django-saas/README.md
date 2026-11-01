@@ -11,7 +11,7 @@ python3 -m venv .venv-django && .venv-django/bin/pip install -r ops/django-saas/
 scripts/test-postgres-up.sh                                   # 一時 Postgres 17（ポート 55432）
 .venv-django/bin/python ops/django-saas/bench/bootstrap_db.py # DB・ロール・saas / chatbot（身代わり）スキーマ
 cd ops/django-saas
-SAAS_DB_USER=postgres ../../.venv-django/bin/python manage.py test       # 70 件（テストは DB の作成が要るので postgres で動かす）
+SAAS_DB_USER=postgres ../../.venv-django/bin/python manage.py test       # 88 件（テストは DB の作成が要るので postgres で動かす）
 ../../.venv-django/bin/python manage.py seed_demo               # 架空データ（繰り返し可）。画面は manage.py runserver 127.0.0.1:8765 の /login/
 ../../.venv-django/bin/python bench/boundary.py               # マイグレーションの境界（saas_app で migrate → chatbot が不変）
 F=/tmp/django-bench; ../../.venv-django/bin/python bench/make_fixtures.py $F
@@ -29,7 +29,8 @@ cd ../.. && scripts/test-postgres-down.sh                     # 一時 Postgres 
 - `saas/management/commands/seed_demo.py`: 架空の組織・メンバー・プラン・契約・使用量を入れる（繰り返し実行できる。ローカルの試作 DB だけに使う）
 - `saas/jwt_auth.py`: `app/auth.py` と同じ規則の JWT 検証（公開鍵は JWKS のファイル。取得・取り直しは持たない）
 - `saas/views.py`: Bearer の JWT で認証する最小の API。役割（owner / admin / member / viewer）で権限を分ける
-- `saas/web_views.py` `web_urls.py` `templates/saas/`: 利用者向けの画面（ダッシュボード `/dashboard/`、所属組織 `/orgs/`、組織の詳細、メンバー管理の入口〔owner / admin だけ。中身は準備中〕）。`<style>` は base テンプレートに置き、外部の CSS・JS は使わない
+- `saas/web_views.py` `web_urls.py` `templates/saas/`: 利用者向けの画面（ダッシュボード `/dashboard/`、所属組織 `/orgs/`、組織の詳細、メンバー管理〔owner / admin だけ。追加・役割の変更・外す。規則は `saas/member_admin.py`〕）。`<style>` は base テンプレートに置き、外部の CSS・JS は使わない
+- `saas/member_admin.py`: メンバー管理の規則（誰が何を付与・変更・外せるか、プランの人数の上限、最後の owner を残す、同時操作の行ロック）。画面（`web_views.members_manage`）はこれを呼ぶだけ。API の追加（owner だけ）は変えていない
 - `saas/session_auth.py`: 画面の「いま誰か」は `current_sub(request)` だけ。試作ではセッションの `sub`（`/login/` で選ぶか UUID を入力。`SAAS_DEMO_LOGIN`、既定は DEBUG と同じ）。実際の認証にするときは、この関数を JWT の `sub` に差し替える
 - `saas/presenters.py`: 使用量の状態（余裕あり / 上限に近い〔80% 以上〕/ 上限に達した）と契約状態の文言
 - `bench/`: 境界の検査と測定のスクリプト。`bootstrap_db.py` が一時 Postgres に `saas`（Django 専用）と `chatbot`（本番の身代わりの簡略な表）を作る

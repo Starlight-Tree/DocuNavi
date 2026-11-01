@@ -1,12 +1,56 @@
 {% extends "saas/base.html" %}
-{% block title %}メンバー管理（準備中）{% endblock %}
+{% block title %}メンバー管理{% endblock %}
 {% block content %}
 <p><a href="{% url 'org_detail' org.id %}">&larr; {{ org.name }}</a></p>
-<h1>メンバー管理（準備中）</h1>
-<section class="card empty">
-  <p><strong>この画面はまだ使えません。</strong></p>
-  <p><strong>理由:</strong> メンバーの追加・役割の変更は、この試作ではまだ実装していないためです（メール招待もしません）。</p>
-  <p><strong>次にやること:</strong> 追加・変更のフォームをつなぐ段階で、<code>admin</code> にも許すかを決めます（API の「追加は <code>owner</code> だけ」は今のままです）。</p>
-  <p class="muted">あなたの役割: {{ role_label }}</p>
+<h1>メンバー管理</h1>
+{% if notice %}<p class="card" role="status">{{ notice }}</p>{% endif %}
+{% if error %}<p class="card error" role="alert">{{ error }}</p>{% endif %}
+
+<section class="card" aria-labelledby="add">
+  <h2 id="add">メンバーを追加する</h2>
+  <p class="muted">あなたの役割: {{ role_label }}　／　人数 {{ member_count }} / {{ max_members }}（プランの上限）。メール招待はしません。追加する人の識別子（UUID）を入力します。</p>
+  <form method="post" action="{% url 'members_manage' org.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add">
+    <label for="new-sub">識別子（UUID）</label>
+    <input type="text" id="new-sub" name="sub" required autocomplete="off" spellcheck="false">
+    <label for="new-role">役割</label>
+    <select id="new-role" name="role">
+      {% for r in grantable %}<option value="{{ r.value }}"{% if r.value == "viewer" %} selected{% endif %}>{{ r.label }}</option>{% endfor %}
+    </select>
+    <p><button class="button" type="submit">追加する</button></p>
+  </form>
+</section>
+
+<section class="card" aria-labelledby="list">
+  <h2 id="list">いまのメンバー</h2>
+  <ul class="members">
+    {% for m in members %}
+    <li>
+      <code>{{ m.sub }}</code>
+      <strong>{{ m.role_label }}</strong>{% if m.is_me %}<span class="tag">あなた</span>{% endif %}
+      {% if m.editable %}
+      <form method="post" action="{% url 'members_manage' org.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="set_role">
+        <input type="hidden" name="membership" value="{{ m.id }}">
+        <label class="muted" for="role-{{ m.id }}">役割</label>
+        <select id="role-{{ m.id }}" name="role">
+          {% for r in grantable %}<option value="{{ r.value }}"{% if r.value == m.role %} selected{% endif %}>{{ r.label }}</option>{% endfor %}
+        </select>
+        <button class="button" type="submit">変更する</button>
+      </form>
+      <form method="post" action="{% url 'members_manage' org.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="remove">
+        <input type="hidden" name="membership" value="{{ m.id }}">
+        <button class="button" type="submit">外す</button>
+      </form>
+      {% else %}
+      <span class="muted">変更できません（自分より強い、または同じ役割です）</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
 </section>
 {% endblock %}
