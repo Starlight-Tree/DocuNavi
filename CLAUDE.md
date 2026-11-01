@@ -163,7 +163,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
   テストが失敗しているとき、作業の途中のときは提案しない。検査は、追加行の秘密情報のパターンと、登録語
   （`scripts/check-sensitive-terms.sh origin/main..HEAD`。語は Git の管理外の `.git/sensitive-terms` に置く）。
 - **しないこと:** 強制プッシュと、公開済み履歴の書き換えはしない（必要なら相談する）。`git reset` と `git restore` は、承認を得てから行う。
-- **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、`frontend`（単体テスト・型検査・ビルド）、ワークフローの静的検査を行う。**デプロイは含まない。**
+- **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、`frontend`（単体テスト・型検査・ビルド）、Go（中継と疑似の上流の `go vet`・`-race` テスト）、ワークフローの静的検査を行う。**デプロイは含まない。**
   `main` へのプッシュで Vercel の `frontend` の本番が更新される。プッシュの承認を求めるときは、`frontend/` の変更が含まれるかを添える。Cloud Run への自動デプロイを足したら、この運用を見直す（Vercel の運用は [docs/target-architecture.md](docs/target-architecture.md)）。
 - **CI の結果の扱い:** プッシュのたびに待たない。設定・文書・拡張だけの変更は、見にも行かない。アプリ本体・テスト・Docker・`ci.yml`・`frontend/` を変えたら、
   プッシュ後に一度だけ `gh run list` で確認し、未確認でも次の独立した作業へ進む。次の作業が前のコミットの CI に依存するとき、デプロイや公開の前、

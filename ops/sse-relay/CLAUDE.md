@@ -28,7 +28,7 @@
 - **上限の 503 の `detail` は日本語の固定文。** 画面（`frontend/src/api/chat.ts` の `SERVER_DETAIL_STATUSES`）がそのまま見せる。文面や状態を変えるときは画面も確認する。
 - 本番の中継は、上限のコードを含まない古いイメージのまま（README）。コードを変えても、**デプロイしない**。配備は承認を得て、ユーザーが実行する。
 - `bench/` は、絞り込む前の中継（`GET /stream`）で測ったもの。いまの中継にはそのままでは使えない。
-- Go の版: 開発コンテナは 1.26.10、`go.mod` は 1.26、Dockerfile のビルドは `golang:1.27.2`。版を上げ下げするときは、承認を得て、`.devcontainer/` の Go の節と合わせる。
+- Go の版は 1.26.10 で揃えている（開発コンテナ `.devcontainer/Dockerfile` と `install-go.sh`、`go.mod` 2 つ、`Dockerfile` 2 つの `golang:1.26.10`。CI は `go.mod` から読む。2026-11-01 に、Dockerfile だけ `golang:1.27.2` だった食い違いを解消）。上げ下げするときは、承認を得て、これらを一度に合わせる（開発コンテナのハッシュと再ビルドはホストの作業）。
 
 ## 疑似の上流（`ops/sse-fake-upstream/`）
 
@@ -36,7 +36,7 @@ LLM・DB・認証を持たない負荷試験用の上流。`POST /chat/stream`�
 
 ## テスト
 
-CI には含まれない。変更したら、それぞれのディレクトリーで実行する。実 API・外部通信は使わない（`httptest` とループバックだけ）。
+CI（`.github/workflows/ci.yml` の `go` ジョブ）が、両方で `go vet` と `go test -race` を実行する。変更したら、それぞれのディレクトリーでも実行する。実 API・外部通信は使わない（`httptest` とループバックだけ）。
 
 ```bash
 cd ops/sse-relay && go vet ./... && go test -race -count=1 ./...

@@ -205,6 +205,34 @@ jobs:
       - name: Build
         run: npm run build
 
+  go:
+    name: Go (SSE relay and fake upstream) vet and race tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false  # 後続のステップで git の認証は使わない
+      # 版は go.mod（1.26.10）から読む。開発コンテナ・両方の Dockerfile と同じ版。標準ライブラリだけで go.sum が無いので、キャッシュは使わない
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: ops/sse-relay/go.mod
+          cache: false
+      - name: Go version matches both go.mod files
+        run: |
+          test "$(go env GOVERSION)" = "go$(awk '$1 == "go" {print $2}' ops/sse-relay/go.mod)"
+          test "$(go env GOVERSION)" = "go$(awk '$1 == "go" {print $2}' ops/sse-fake-upstream/go.mod)"
+      - name: SSE relay (go vet, go test -race)
+        working-directory: ops/sse-relay
+        run: |
+          go vet ./...
+          go test -race -count=1 ./...
+      - name: Fake upstream (go vet, go test -race)
+        working-directory: ops/sse-fake-upstream
+        run: |
+          go vet ./...
+          go test -race -count=1 ./...
+
   docker:
     name: Docker image builds and starts
     runs-on: ubuntu-latest

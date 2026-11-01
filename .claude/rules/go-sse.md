@@ -15,4 +15,4 @@ paths:
 - CORS は `CORS_ORIGINS` の完全一致だけ。`*` を許さない。上限の 503 の日本語の `detail` を変えるときは、画面（`frontend/src/api/chat.ts`）も確かめる
 - ファイルを増やさない（`Dockerfile` は `main.go` だけを `COPY` する）。分割・Go の版の変更は承認を得る。外部モジュールを足さない
 - デプロイしない（本番の中継は古いイメージのまま。配備は承認を得てユーザーが実行する）。`gcloud`・`gh` の書き込みはしない
-- 触れたら、`ops/sse-relay` と `ops/sse-fake-upstream` のそれぞれで `go vet ./... && go test -race -count=1 ./...`。CI には含まれない
+- 触れたら、`ops/sse-relay` と `ops/sse-fake-upstream` のそれぞれで `go vet ./... && go test -race -count=1 ./...`。CI の `go` ジョブも同じものを実行する
