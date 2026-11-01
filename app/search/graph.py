@@ -10,7 +10,7 @@ import re
 from collections import defaultdict
 from collections.abc import Sequence
 
-from app.search_keyword import normalize
+from app.search.keyword import normalize
 
 _DEFINES = re.compile(r"^\s*第(\d+)条", re.MULTILINE)
 _REFERS = re.compile(r"第(\d+)条")

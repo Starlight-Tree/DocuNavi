@@ -15,8 +15,8 @@ import yaml
 from app import search_pipeline, search_vector
 from app.agents.tools import _sources
 from app.scope import Scope
-from app.search_graph import build_edges
-from app.search_keyword import KeywordIndex, identifiers, tokenize
+from app.search.graph import build_edges
+from app.search.keyword import KeywordIndex, identifiers, tokenize
 from app.search_pipeline import Chunk
 from app.search_vector import Hit, VectorSearchError
 

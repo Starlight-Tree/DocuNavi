@@ -38,11 +38,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from app import search_keyword, search_pipeline, search_rerank, search_vector
+from app import search_pipeline, search_vector
 from app.ingestion import embedding
 from app.ingestion.chunker import chunk_pages
 from app.ingestion.pdf_parser import extract_pages
 from app.scope import Scope, require_scope
+from app.search import keyword as search_keyword
+from app.search import rerank as search_rerank
 from scripts import eval_vector as ev
 from scripts.eval_retrieval import CORPORA_DIR, Question, load_questions
 

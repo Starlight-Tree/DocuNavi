@@ -2,9 +2,9 @@
 
 | 環境変数 | 既定 | 中身 |
 |---|---|---|
-| `SEARCH_HYBRID` | on | キーワード（BM25。`app/search_keyword.py`）の順位をベクトルの順位と RRF で合わせる |
-| `SEARCH_RERANK` | on | 候補を語の一致で並べ直す（`app/search_rerank.py`。外部のモデルも API も使わない） |
-| `SEARCH_GRAPH` | off | 上位のチャンクが「第N条」と参照する先のチャンクを、追加の文脈として加える（`app/search_graph.py`）。2026-11-01 の実測では辺が 0 本で効果を測れなかったため、既定は off |
+| `SEARCH_HYBRID` | on | キーワード（BM25。`app/search/keyword.py`）の順位をベクトルの順位と RRF で合わせる |
+| `SEARCH_RERANK` | on | 候補を語の一致で並べ直す（`app/search/rerank.py`。外部のモデルも API も使わない） |
+| `SEARCH_GRAPH` | off | 上位のチャンクが「第N条」と参照する先のチャンクを、追加の文脈として加える（`app/search/graph.py`）。2026-11-01 の実測では辺が 0 本で効果を測れなかったため、既定は off |
 | `SEARCH_CANDIDATES` | 20 | 1 次検索の候補の数（ベクトル・キーワードそれぞれ。`top_k` より小さくはならない） |
 | `SEARCH_GRAPH_MAX_EXTRA` | 1 | `graph` で加えるチャンクの上限（0 で加えない） |
 | `SEARCH_CORPUS_TTL_SECONDS` | 60 | キーワード側が読む資料の写し（範囲ごと）を持つ秒数 |
@@ -30,9 +30,9 @@ from dataclasses import dataclass, field
 
 from app import search_vector
 from app.scope import ALLOWED_FILTER_SQL, Scope, require_scope
-from app.search_graph import build_edges
-from app.search_keyword import KeywordIndex, identifiers, normalize
-from app.search_rerank import lexical_scores
+from app.search.graph import build_edges
+from app.search.keyword import KeywordIndex, identifiers, normalize
+from app.search.rerank import lexical_scores
 from app.search_vector import Hit, VectorSearchError
 
 logger = logging.getLogger(__name__)
