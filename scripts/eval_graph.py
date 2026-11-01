@@ -10,6 +10,10 @@
     python -m scripts.eval_graph embed --apply    # 実 API。埋め込みを evals/cache/ に保存する（Git 管理外）
     python -m scripts.eval_graph run              # 保存した埋め込みだけで測る（API は呼ばない）-> evals/results/graph_rules_compare.json
 
+評価セットは `--set` で選ぶ（どのコマンドにも付ける）。既定は `graph_rules`（最初のセット。上の出力先）。`graph_rules_ext` は、遠い参照（ref_far）と
+3 条またぎ（chain3）を増やした別の資料・質問で、計画・キャッシュ・結果も別のファイルに書く（`graph_ext_plan.json`・`graph_rules_ext_embeddings.json`・
+`graph_rules_ext_compare.json`）。最初のセットの質問・計画・結果は読まず、書かない。
+
 守ること:
 - キーは環境変数 GEMINI_API_KEY からだけ読む。`.env` は読まない（dotenv を使わない）。
 - API は `embed --apply` だけ（埋め込みのみ。LLM は呼ばない）。計画は 2 回（資料 1 回、質問 1 回）、累計の上限は 3 回
@@ -67,6 +71,26 @@ RESULT_PATH = ROOT / "evals" / "results" / "graph_rules_compare.json"
 
 MAX_PLANNED_CALLS = 2
 HARD_CALL_LIMIT = 3
+
+# 評価セット。既定の `graph_rules` の値は変えない。`graph_rules_ext` は資料 69 チャンク（32 件ずつ 3 回）と質問 62 問（32 件ずつ 2 回）で、計画は 5 回、累計の上限は 6 回
+SETS: dict[str, dict[str, Any]] = {
+    "graph_rules": {
+        "corpus_dir": CORPUS_DIR,
+        "plan": PLAN_PATH,
+        "cache": CACHE_PATH,
+        "result": RESULT_PATH,
+        "planned_calls": MAX_PLANNED_CALLS,
+        "hard_limit": HARD_CALL_LIMIT,
+    },
+    "graph_rules_ext": {
+        "corpus_dir": ROOT / "evals" / "fixtures" / "graph_rules_ext",
+        "plan": ROOT / "evals" / "pipeline" / "graph_ext_plan.json",
+        "cache": ROOT / "evals" / "cache" / "graph_rules_ext_embeddings.json",
+        "result": ROOT / "evals" / "results" / "graph_rules_ext_compare.json",
+        "planned_calls": 5,
+        "hard_limit": 6,
+    },
+}
 BATCH = embedding.BATCH_SIZE
 PAUSE_SECONDS = 20  # 成功した呼び出しの後に待つ秒数（最後の呼び出しの後は待たない）
 _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
@@ -74,6 +98,27 @@ _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
 
 def _shown(path: Path) -> str:
     return path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else path.name
+
+
+def use_set(name: str) -> None:
+    """評価セットを選ぶ（資料・質問・計画・キャッシュ・結果・呼び出しの上限）。選ぶ前の既定は `graph_rules`。"""
+    global \
+        CORPUS_DIR, \
+        QUESTIONS_PATH, \
+        COLLECTION, \
+        PLAN_PATH, \
+        CACHE_PATH, \
+        RESULT_PATH, \
+        MAX_PLANNED_CALLS, \
+        HARD_CALL_LIMIT
+    if name not in SETS:
+        raise ev.EvalError(f"評価セットがありません: {name}（{', '.join(SETS)}）")
+    chosen = SETS[name]
+    CORPUS_DIR = chosen["corpus_dir"]
+    QUESTIONS_PATH = CORPUS_DIR / "questions.yaml"
+    COLLECTION = CORPUS_DIR.name
+    PLAN_PATH, CACHE_PATH, RESULT_PATH = chosen["plan"], chosen["cache"], chosen["result"]
+    MAX_PLANNED_CALLS, HARD_CALL_LIMIT = chosen["planned_calls"], chosen["hard_limit"]
 
 
 # 質問の種類（questions.yaml の kind）。GraphRAG の効果を見るのは「参照が要る」質問
@@ -126,7 +171,8 @@ def parse_articles(path: Path) -> list[tuple[int, str, str]]:
     return [(number, heading, "\n".join(body)) for number, heading, body in articles]
 
 
-def load_corpus(directory: Path = CORPUS_DIR) -> list[CorpusChunk]:
+def load_corpus(directory: Path | None = None) -> list[CorpusChunk]:
+    directory = directory or CORPUS_DIR  # 既定値は呼ぶときに決める（use_set で変わる）
     chunks: list[CorpusChunk] = []
     for path in sorted(directory.glob("*.txt")):
         for index, (number, heading, content) in enumerate(parse_articles(path)):
@@ -148,8 +194,8 @@ def load_corpus(directory: Path = CORPUS_DIR) -> list[CorpusChunk]:
     return chunks
 
 
-def load_eval_questions(path: Path = QUESTIONS_PATH) -> list[Question]:
-    return load_questions(path)
+def load_eval_questions(path: Path | None = None) -> list[Question]:
+    return load_questions(path or QUESTIONS_PATH)
 
 
 def edges_of(corpus: Sequence[CorpusChunk]) -> dict[int, list[int]]:
@@ -371,10 +417,56 @@ def cmd_embed(apply: bool) -> int:
 # ---------------------------------------------------------------- 測定
 
 
-def summarize(rows: dict[str, dict[str, Any]], questions: Sequence[Question]) -> dict[str, Any]:
+def _gold_pages(q: Question, corpus: Sequence[CorpusChunk]) -> set[tuple[str, int]]:
+    """質問の根拠を含むチャンクの（資料, 条の番号）。1 条 = 1 チャンクなので、追加された条と突き合わせられる。"""
+    chunks = as_eval_chunks(corpus)
+    return {(corpus[i].source, corpus[i].page) for ids in ev.gold_chunks(q, chunks).values() for i in ids}
+
+
+def _false_additions(
+    per: dict[str, Any], key: str, questions: Sequence[Question], gold: dict[str, set[tuple[str, int]]]
+) -> dict[str, Any]:
+    """GraphRAG の追加のうち、質問に要らなかったもの（誤追加）。
+
+    - useful: 参照が要る質問で、追加された条が根拠のチャンクだった数
+    - off_target: 参照が要る質問で、追加された条が根拠ではなかった数（本体の上位に別の参照元が入って、その参照先が足された場合など）
+    - on_unneeded: 参照が要らない質問（ref_unneeded・single）への追加。根拠は参照元だけなので、追加は全部要らない
+    - on_out_of_scope: 資料外の質問への追加
+    """
+    useful = off_target = 0
+    off_target_questions: list[str] = []
+    unneeded: dict[str, int] = {}
+    out_of_scope: dict[str, int] = {}
+    for q in questions:
+        extras = per[q.id][key]["graph"]
+        if not extras:
+            continue
+        if not q.answerable:
+            out_of_scope[q.id] = len(extras)
+        elif q.kind in DEPENDENT_KINDS:
+            wrong = [e for e in extras if (e["source"], e["page"]) not in gold[q.id]]
+            useful += len(extras) - len(wrong)
+            off_target += len(wrong)
+            if wrong:
+                off_target_questions.append(q.id)
+        else:
+            unneeded[q.id] = len(extras)
+    return {
+        "useful_extras_on_dependent": useful,
+        "off_target_extras_on_dependent": off_target,
+        "off_target_questions": off_target_questions,
+        "extras_on_unneeded": {"questions": sorted(unneeded), "extras": sum(unneeded.values())},
+        "extras_on_out_of_scope": {"questions": sorted(out_of_scope), "extras": sum(out_of_scope.values())},
+    }
+
+
+def summarize(
+    rows: dict[str, dict[str, Any]], questions: Sequence[Question], corpus: Sequence[CorpusChunk] | None = None
+) -> dict[str, Any]:
     by_id = {q.id: q for q in questions}
     answerable = [q for q in questions if q.answerable]
     absent = [q for q in questions if not q.answerable]
+    gold = {q.id: _gold_pages(q, corpus) for q in answerable} if corpus is not None else None
     groups = {name: [q for q in answerable if q.kind in kinds] for name, kinds in KIND_GROUPS.items()}
     groups["answerable"] = answerable
     summary: dict[str, Any] = {
@@ -406,7 +498,32 @@ def summarize(rows: dict[str, dict[str, Any]], questions: Sequence[Question]) ->
                 },
             }
             cfg["out_of_scope_returned"][key] = sum(1 for q in absent if per[q.id][key]["n_main"] > 0)
+            cfg["mean_returned"] = cfg.get("mean_returned", {})
+            cfg["mean_returned"][key] = round(
+                sum(per[q.id][key]["n_main"] + len(per[q.id][key]["graph"]) for q in questions) / len(questions), 3
+            )
+            if gold is not None:
+                cfg.setdefault("false_additions", {})[key] = _false_additions(per, key, questions, gold)
         summary["configs"][name] = cfg
+    # GraphRAG あり・なしの質問ごとの比較（同じ構成から graph だけを足した組）。悪化・本体の変化が無いことの確認
+    summary["graph_vs_without"] = {}
+    for without, with_graph in (("hybrid", "hybrid+graph"), ("hybrid+rerank", "all")):
+        per_k: dict[str, Any] = {}
+        for k in REPORT_KS:
+            key = str(k)
+            a, b = rows[without], rows[with_graph]
+            per_k[key] = {
+                "gained": [q.id for q in answerable if not a[q.id][key]["hit_main"] and b[q.id][key]["hit_with_graph"]],
+                "lost": [q.id for q in answerable if a[q.id][key]["hit_main"] and not b[q.id][key]["hit_with_graph"]],
+                "main_changed": [
+                    q.id
+                    for q in questions
+                    if a[q.id][key]["n_main"] != b[q.id][key]["n_main"]
+                    or a[q.id][key]["origins"] != b[q.id][key]["origins"]
+                    or a[q.id][key].get("hit_main") != b[q.id][key].get("hit_main")
+                ],
+            }
+        summary["graph_vs_without"][f"{without} -> {with_graph}"] = per_k
     return summary
 
 
@@ -427,6 +544,38 @@ def print_table(summary: dict[str, Any]) -> None:
                     continue
                 hits = summary["configs"][name][field][group]
                 print(f"    {name:14} " + " ".join(f"{_pct(hits[k], n[group]):>6}" for k in ks))
+
+
+def print_additions(summary: dict[str, Any]) -> None:
+    """GraphRAG の追加の内訳（誤追加）と、あり・なしの質問ごとの比較。`false_additions` が無い（corpus なしの）要約では何も出さない。"""
+    n = summary["n"]
+    for name in ("hybrid+graph", "all"):
+        cfg = summary["configs"][name]
+        if "false_additions" not in cfg:
+            return
+        without = "hybrid" if name == "hybrid+graph" else "hybrid+rerank"
+        print(
+            f"\n[{name}] GraphRAG の追加の内訳（参照が要る {n['dependent']} 問、要らない {n['ref_unneeded'] + n['single']} 問、資料外 {summary['n_out_of_scope']} 問）"
+        )
+        print(
+            "    k  追加が根拠だった / 根拠でなかった（問数）  参照が不要な質問への追加（問数）  資料外への追加（問数）  返却数の平均 なし→あり"
+        )
+        for k in REPORT_KS:
+            key = str(k)
+            fa = cfg["false_additions"][key]
+            print(
+                f"  {k:>3}  {fa['useful_extras_on_dependent']:>8} / {fa['off_target_extras_on_dependent']:>3}（{len(fa['off_target_questions'])} 問）"
+                f"  {fa['extras_on_unneeded']['extras']:>18}（{len(fa['extras_on_unneeded']['questions'])} 問）"
+                f"  {fa['extras_on_out_of_scope']['extras']:>12}（{len(fa['extras_on_out_of_scope']['questions'])} 問）"
+                f"  {summary['configs'][without]['mean_returned'][key]:>6.2f} → {cfg['mean_returned'][key]:.2f}"
+            )
+    print("\nGraphRAG あり・なしの質問ごとの比較（なしで根拠がそろっていたのに、ありで欠けた質問 = 悪化）")
+    for pair, per_k in summary["graph_vs_without"].items():
+        for k in REPORT_KS:
+            row = per_k[str(k)]
+            print(
+                f"  {pair:24} k={k}: 増えた {len(row['gained'])} 問、悪化 {len(row['lost'])} 問、本体の結果が変わった {len(row['main_changed'])} 問"
+            )
 
 
 def cmd_run() -> int:
@@ -461,9 +610,10 @@ def cmd_run() -> int:
                 os.environ.pop(name, None)
             else:
                 os.environ[name] = value
-    summary = summarize(measured["rows"], questions)
+    summary = summarize(measured["rows"], questions, corpus)
     sent = cache["chars_sent"]
     report = {
+        "set": CORPUS_DIR.name,
         "generated_at": datetime.now(JST).isoformat(timespec="seconds"),
         "git_head": _git_head(),
         "plan_sha256": hashlib.sha256(PLAN_PATH.read_bytes()).hexdigest(),
@@ -484,6 +634,7 @@ def cmd_run() -> int:
     RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)
     RESULT_PATH.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print_table(summary)
+    print_additions(summary)
     print("\nログ:", {k: v for k, v in measured["log"].items() if k.startswith("lines")})
     print("API:", report["api_usage"])
     print(f"-> {_shown(RESULT_PATH)}")
@@ -492,6 +643,9 @@ def cmd_run() -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="GraphRAG の評価（API は embed --apply だけ。キーは環境変数から）")
+    parser.add_argument(
+        "--set", dest="set_name", choices=sorted(SETS), default="graph_rules", help="評価セット（既定: graph_rules）"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("plan")
     emb = sub.add_parser("embed")
@@ -499,6 +653,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub.add_parser("run")
     args = parser.parse_args(argv)
     try:
+        use_set(args.set_name)
         if args.command == "plan":
             return cmd_plan()
         if args.command == "embed":
