@@ -184,9 +184,10 @@ describe('ログイン: 共有リンクの画面を保つ', () => {
     expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe('?tab=documents&doc=3&view=graph&item=a11p1');
   });
 
-  it('チャットが既定のときは、何も預けない（前に預けた分も捨てる）', async () => {
+  it('資料一覧が既定（画面の指定なし）のときは、何も預けない（前に預けた分も捨てる）', async () => {
     installFetch(() => replyResponse());
     saveReturnTo('?tab=documents&doc=9');
+    window.history.replaceState(null, '', '/');
     const { user } = setup(fakeAuth({ user: null }));
 
     await user.click(await screen.findByRole('button', { name: 'Google でログイン' }));
@@ -194,9 +195,20 @@ describe('ログイン: 共有リンクの画面を保つ', () => {
     expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBeNull();
   });
 
+  it('チャットを開いているときは、チャットを預ける（既定ではないので）', async () => {
+    installFetch(() => replyResponse());
+    window.history.replaceState(null, '', '/?tab=chat&code=secret');
+    const { user } = setup(fakeAuth({ user: null }));
+
+    await user.click(await screen.findByRole('button', { name: 'Google でログイン' }));
+
+    expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe('?tab=chat');
+  });
+
   it('ログインして戻ったら、預けた画面の状態を URL に戻し、預け場所を空にする', async () => {
     installFetch(() => replyResponse());
     saveReturnTo('?tab=documents&doc=3&view=pdf&page=2');
+    window.history.replaceState(null, '', '/');
     const auth = fakeAuth({ user: null });
     setup(auth);
     await screen.findByRole('button', { name: 'Google でログイン' });
@@ -226,6 +238,7 @@ describe('ログイン: 共有リンクの画面を保つ', () => {
   it('預けた値が壊れていても、安全な形に整えてから使う', async () => {
     installFetch(() => replyResponse());
     saveReturnTo('?tab=documents&doc=abc&evil=1');
+    window.history.replaceState(null, '', '/');
     const auth = fakeAuth({ user: null });
     setup(auth);
     await screen.findByRole('button', { name: 'Google でログイン' });

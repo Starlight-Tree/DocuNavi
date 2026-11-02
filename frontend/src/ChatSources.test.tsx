@@ -94,7 +94,7 @@ describe('出典チップ', () => {
     await user.click((await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ }))[0]!);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('資料一覧に見つかりませんでした');
-    expect(window.location.search).toBe('');
+    expect(window.location.search).toBe('?tab=chat');
   });
 
   it('抜粋の全文は、折りたたみの中に残る', async () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useAuth } from './auth/AuthContext';
+import { ChatContextBar } from './components/ChatContextBar';
 import { Composer } from './components/Composer';
 import { DocumentsView } from './components/DocumentsView';
 import { ErrorBanner } from './components/ErrorBanner';
@@ -113,6 +114,12 @@ function ChatScreen() {
 
   const scopeLabel = (name: string | null) => (name === null ? ALL_LABEL : collectionLabel(name, groups ?? undefined));
   const currentGroup = groups?.find((g) => g.name === chat.scope);
+  // 文脈バーに出す対象の資料数。範囲が分からない間・一覧を読めなかったときは出さない
+  const contextCount = !groups || chat.scopeUnknown
+    ? undefined
+    : chat.scope === null
+      ? groups.reduce((sum, g) => sum + g.documentCount, 0)
+      : currentGroup?.documentCount;
 
   return (
     <div className={signedIn ? 'app app-with-sidebar' : 'app'}>
@@ -151,6 +158,14 @@ function ChatScreen() {
           />
         )}
         <div className="chat-pane">
+          <ChatContextBar
+            targetLabel={chat.scopeUnknown ? 'この会話の設定' : scopeLabel(chat.scope)}
+            documentCount={contextCount}
+            onBack={() => {
+              setReferences(null);
+              navigate({ tab: 'documents' });
+            }}
+          />
           <MessageList
             messages={chat.messages}
             waiting={chat.waiting}

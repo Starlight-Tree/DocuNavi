@@ -39,6 +39,8 @@ export interface UrlState {
   sort: Exclude<SortKey, 'default'> | null;
 }
 
+/** 何も指定が無い状態（資料一覧）を `buildSearch` で書いた形。ログイン前に預けるときの「預けなくてよい」の判定に使う。 */
+const DEFAULT_SEARCH = '?tab=documents';
 const VIEWS: readonly DetailView[] = ['pdf', 'text', 'graph'];
 // 項の ID（例: a11p1、fn1）の形。長さと文字を絞り、変な値を状態に持ち込まない
 const ITEM_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
@@ -79,10 +81,13 @@ function normalize(state: UrlState): UrlState {
   };
 }
 
-/** URL のクエリ（`?tab=…` 形式の文字列）から状態を読む。不正な値は、安全な既定値（チャット・一覧）にする。 */
+/**
+ * URL のクエリ（`?tab=…` 形式の文字列）から状態を読む。不正な値は、安全な既定値（資料一覧）にする。
+ * `tab` が無い URL（最初に開いたとき）は資料一覧。URL は書き換えない（チャットへ移ったときに `?tab=chat` になる）。
+ */
 export function parseUrlState(search: string): UrlState {
   const params = new URLSearchParams(search);
-  const tab: Tab = params.get('tab') === 'documents' ? 'documents' : 'chat';
+  const tab: Tab = params.get('tab') === 'chat' ? 'chat' : 'documents';
   const docParam = params.get('doc');
   const viewParam = params.get('view');
   const itemParam = params.get('item');
@@ -141,12 +146,14 @@ function subscribe(onChange: () => void): () => void {
 }
 
 /**
- * いまの URL の画面の状態を、整えたクエリ（`?tab=…`）にして返す。チャットが既定のときと、不正な値だけのときは null。
+ * いまの URL の画面の状態を、整えたクエリ（`?tab=…`）にして返す。既定（資料一覧・絞り込みなし）のときと、不正な値だけのときは null。
+ * チャット（`?tab=chat`）は既定ではないので返す。
  * この画面が扱わないパラメータ（ログインの `code` など）は含めない。
  */
 export function currentStateSearch(): string | null {
   const state = parseUrlState(window.location.search);
-  return state.tab === 'chat' ? null : buildSearch('', state);
+  const search = buildSearch('', state);
+  return search === DEFAULT_SEARCH ? null : search;
 }
 
 /**
