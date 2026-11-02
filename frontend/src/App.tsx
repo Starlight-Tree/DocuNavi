@@ -126,9 +126,15 @@ function ChatScreen() {
       <Header
         mode={chat.mode ?? healthMode}
         view={view}
-        onViewChange={(tab) => {
+        onAsk={() => {
+          // 確認は出さない。いまの会話と検索範囲のまま、チャットへ移る（範囲を変えるのは、カードのボタンと入力欄の上のチップ）
           setReferences(null);
-          navigate({ tab });
+          navigate({ tab: 'chat' });
+          setFocusRequest((n) => n + 1);
+        }}
+        onGoDocuments={() => {
+          setReferences(null);
+          navigate({ tab: 'documents' });
         }}
         onNewConversation={() => {
           setReferences(null);
