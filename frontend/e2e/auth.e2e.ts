@@ -56,7 +56,7 @@ async function mockListApis(page: Page) {
 
 /** 未ログインで開いて、偽の Google ログインを通り、ログイン済みの画面になるまで待つ。 */
 async function signIn(page: Page) {
-  await page.goto('/');
+  await page.goto('/?tab=chat');
   await page.getByRole('button', { name: 'Google でログイン' }).click();
   await expect(page.locator('.user-label')).toHaveText(E2E_EMAIL);
 }

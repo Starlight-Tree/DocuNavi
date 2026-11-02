@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test';
 // シナリオ 1: 実ブラウザー → Next.js の画面（別オリジン）→ FastAPI（CORS・/chat/stream）→ 偽の検索・偽の LLM → 画面。
 // 確かめるのは配線（画面が開き、別オリジンの API から SSE のストリームが画面に届く）。回答の中身は pytest / vitest の役目。
 test('質問を送ると、偽の検索の出典つきの回答が画面に出る', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?tab=chat');
 
   const input = page.getByRole('textbox', { name: 'メッセージ' });
   await expect(input).toBeVisible();
@@ -25,7 +25,7 @@ test('質問を送ると、偽の検索の出典つきの回答が画面に出�
 const scopeChips = (page: Page) => page.getByRole('group', { name: '検索範囲' });
 
 test('範囲を選んで質問すると、その範囲の出典が出て、出典にグループ名が付く。会話の途中で別の範囲を選ぶと確認が出る', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?tab=chat');
   await expect(scopeChips(page)).toBeVisible();
   await expect(scopeChips(page).getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true');
 
@@ -65,7 +65,7 @@ test('範囲を選んで質問すると、その範囲の出典が出て、出�
 });
 
 test('範囲に資料が無いと案内が出て、「すべての資料で聞き直す」で、範囲なしの新しい会話として質問が送り直される', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?tab=chat');
   await scopeChips(page).getByRole('button', { name: '店舗案内' }).click();
   await page.getByRole('textbox', { name: 'メッセージ' }).fill('ザーハードの大気について教えて');
   await page.getByRole('button', { name: '送信' }).click();
@@ -91,7 +91,7 @@ test('資料一覧のカードは一覧を絞るだけ。「このグループ�
   await page.getByRole('button', { name: 'チャット' }).click();
   await expect(scopeChips(page).getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true');
 
-  await page.getByRole('button', { name: '資料一覧' }).click();
+  await page.getByRole('button', { name: '資料一覧', exact: true }).click();
   await cards.getByRole('button', { name: '設定資料: このグループに質問' }).click();
   await expect(page.getByRole('alertdialog')).toBeHidden(); // 会話が無いので、確認なしで切り替わる
   await expect(page).toHaveURL(/tab=chat/);
@@ -100,12 +100,12 @@ test('資料一覧のカードは一覧を絞るだけ。「このグループ�
 });
 
 test('会話があるときの「このグループに質問」は、資料一覧の上に確認を出す。Esc で閉じるとボタンにフォーカスが戻り、範囲は変わらない', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?tab=chat');
   await page.getByRole('textbox', { name: 'メッセージ' }).fill('ザーハードの大気について教えて');
   await page.getByRole('button', { name: '送信' }).click();
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
 
-  await page.getByRole('button', { name: '資料一覧' }).click();
+  await page.getByRole('button', { name: '資料一覧', exact: true }).click();
   const ask = page.getByRole('button', { name: '店舗案内: このグループに質問' });
   await ask.click();
   const dialog = page.getByRole('alertdialog');
@@ -132,7 +132,7 @@ test('グループの一覧を読めなくても、「すべて」での質問�
       body: JSON.stringify({ detail: '資料グループの情報がまだ用意されていません。' }),
     }),
   );
-  await page.goto('/');
+  await page.goto('/?tab=chat');
   await expect(page.getByText('グループの一覧を読み込めませんでした。')).toBeVisible();
   await expect(scopeChips(page).getByRole('button', { name: '設定資料' })).toHaveCount(0);
 
@@ -140,7 +140,7 @@ test('グループの一覧を読めなくても、「すべて」での質問�
   await page.getByRole('button', { name: '送信' }).click();
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
 
-  await page.getByRole('button', { name: '資料一覧' }).click();
+  await page.getByRole('button', { name: '資料一覧', exact: true }).click();
   await expect(page.getByRole('group', { name: '種別で絞り込み' })).toBeVisible();
   await expect(page.getByRole('button', { name: /このグループに質問/ })).toHaveCount(0);
 });

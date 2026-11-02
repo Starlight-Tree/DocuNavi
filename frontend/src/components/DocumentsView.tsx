@@ -78,8 +78,8 @@ interface DocumentTableProps {
   /** URL で指定された、一覧の検索・絞り込み・並び替え。 */
   filter: DocumentFilter;
   onFilterChange: (next: Partial<DocumentFilter>, mode?: NavigateMode) => void;
-  /** 「このグループに質問」。検索範囲を変える。渡さなければ、ボタンは出さない。 */
-  onAskGroup?: ((collection: string, trigger: HTMLElement) => void) | undefined;
+  /** 「このグループに質問」「すべての資料に質問」（null は「すべて」）。検索範囲を変える。渡さなければ、ボタンは出さない。 */
+  onAskGroup?: ((collection: string | null, trigger: HTMLElement) => void) | undefined;
   onRetry: () => void;
   onOpen: (document: DocumentSummary) => void;
 }
@@ -349,7 +349,7 @@ function DocumentChunks({ document, view, page, onViewChange, onBack }: Document
  * 資料一覧（読み取り専用）。DB に保存された資料を、文書ごとに、チャンクの全文まで見せる。
  * 開いている資料・表示・関係図の項は、URL が決める（戻る・再読み込み・共有で戻れる）。
  */
-export function DocumentsView({ onAskGroup }: { onAskGroup?: ((collection: string, trigger: HTMLElement) => void) | undefined } = {}) {
+export function DocumentsView({ onAskGroup }: { onAskGroup?: ((collection: string | null, trigger: HTMLElement) => void) | undefined } = {}) {
   const { doc, view, page, collection, query, status, pageBand, updatedBand, sort, navigate } = useUrlState();
   const filter: DocumentFilter = { query: query ?? '', status, pages: pageBand, updated: updatedBand, sort: sort ?? 'default' };
   // 画面の条件（DocumentFilter）を、URL の状態（UrlState）に直して書く。空のキーワードと既定の並び順は、URL から外す
