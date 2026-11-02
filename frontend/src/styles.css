@@ -140,6 +140,25 @@ textarea {
   white-space: nowrap;
 }
 
+/* 狭い幅では、題名の下に操作を回す。ログイン中はメールアドレス・ログアウト・「質問する」が並び、1 段に収まらない */
+@media (max-width: 520px) {
+  .app-header {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'title'
+      'actions';
+  }
+
+  .app-header-actions {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .user-label {
+    min-width: 0;
+  }
+}
+
 /* 動作モードは開発者向けの表示。利用者の目に留まらないよう、小さく・薄くしておく */
 .mode-badge {
   padding: 0 0.45rem;
