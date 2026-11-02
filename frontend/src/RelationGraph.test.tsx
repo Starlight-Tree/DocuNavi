@@ -154,7 +154,7 @@ async function open(name: string) {
       <App />
     </AuthProvider>,
   );
-  await user.click(await screen.findByRole('button', { name: '資料一覧' }));
+  await user.click(await screen.findByRole('button', { name: /資料一覧へ/ }));
   await user.click(await screen.findByRole('button', { name }));
   return user;
 }

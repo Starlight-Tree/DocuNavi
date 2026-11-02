@@ -270,15 +270,15 @@ describe('参照資料カード（回答の下）と専用ページ', () => {
     await waitFor(() => expect(window.location.search).toBe('?tab=documents&doc=7&view=pdf&page=4'));
   });
 
-  it('専用ページから別のタブへ移ったら、チャットに戻ったときは会話が出る', async () => {
+  it('専用ページからロゴで資料一覧へ移り、「質問する」でチャットに戻ったときは会話が出る', async () => {
     installRefs(CONTEXT4, SOURCES4);
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
     await user.click(await screen.findByRole('button', { name: '参照資料をすべて見る →' }));
 
-    await user.click(screen.getByRole('button', { name: '資料一覧' }));
-    await user.click(screen.getByRole('button', { name: 'チャット' }));
+    await user.click(screen.getByRole('link', { name: 'ドキュナビ' }));
+    await user.click(screen.getByRole('button', { name: '質問する' }));
 
     expect(screen.queryByRole('main', { name: '参照資料' })).not.toBeInTheDocument();
     expect(screen.getByRole('log', { name: '会話' })).toBeVisible();
