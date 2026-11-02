@@ -80,7 +80,7 @@ function setup(auth: FakeAuth | null = null) {
 }
 
 async function openDocuments(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: '資料一覧' }));
+  await user.click(await screen.findByRole('button', { name: /資料一覧へ/ }));
 }
 
 describe('資料一覧: 画面', () => {
@@ -110,19 +110,33 @@ describe('資料一覧: 画面', () => {
     expect(screen.queryByRole('textbox', { name: 'メッセージ' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '新しい会話' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'チャット' }));
+    await user.click(screen.getByRole('button', { name: '質問する' }));
     expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveValue('書きかけの質問');
   });
 
-  it('いま開いている画面を、タブに示す', async () => {
+  it('ヘッダーにタブは無い。資料一覧では「質問する」、チャットでは「新しい会話」を出す', async () => {
     installDocsFetch(() => jsonResponse(LIST));
     const { user } = setup();
-    expect(await screen.findByRole('button', { name: 'チャット' })).toHaveAttribute('aria-current', 'page');
+    expect(await screen.findByRole('button', { name: '新しい会話' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: '質問する' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: '表示する画面' })).not.toBeInTheDocument();
 
     await openDocuments(user);
 
-    expect(screen.getByRole('button', { name: '資料一覧' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('button', { name: 'チャット' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('button', { name: '質問する' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: '新しい会話' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: '表示する画面' })).not.toBeInTheDocument();
+  });
+
+  it('ロゴは資料一覧へ戻るリンク。チャットからも、資料の詳細からも、一覧に戻る', async () => {
+    installDocsFetch(() => jsonResponse(LIST));
+    const { user } = setup();
+
+    await user.click(await screen.findByRole('link', { name: 'ドキュナビ' }));
+
+    expect(window.location.search).toBe('?tab=documents');
+    expect(await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'メッセージ' })).not.toBeInTheDocument();
   });
 
   it('DB が設定されていないときは、文書 0 件とは別の案内を出す', async () => {
@@ -133,7 +147,7 @@ describe('資料一覧: 画面', () => {
 
     expect(await screen.findByText(MSG_NOT_CONFIGURED)).toBeInTheDocument();
     expect(screen.queryByText(MSG_NO_DOCUMENTS)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '資料一覧' })).toBeInTheDocument(); // タブは残る
+    expect(screen.getByRole('button', { name: '質問する' })).toBeInTheDocument(); // 資料が無くても、チャットへ移る導線は残る
   });
 
   it('文書が 0 件のときは、「登録された資料はありません」を出す', async () => {
@@ -638,7 +652,7 @@ describe('画面の状態は URL が持つ', () => {
     window.history.back();
 
     expect(await screen.findByRole('textbox', { name: 'メッセージ' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'チャット' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: '新しい会話' })).toBeVisible(); // チャットに戻った（タブは無いので、ヘッダーの切り替わりで見る）
   });
 
   it('資料を開くと doc が付き、再読み込みしても同じ資料が開く。一覧に戻ると doc が外れる', async () => {
@@ -665,7 +679,7 @@ describe('画面の状態は URL が持つ', () => {
     setup();
 
     expect(await screen.findByText('第1条 本文')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '資料一覧' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: '質問する' })).toBeVisible(); // 資料の画面（チャットではない）
   });
 
   it('一覧に無い資料の ID は、一覧を出して、URL から外す（履歴は増やさない）', async () => {
@@ -976,7 +990,6 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
   });
 
   it('資料を開くと一覧の条件は URL から外れ、ブラウザーの「戻る」で、条件つきの一覧に戻る', async () => {
-    window.history.replaceState(null, '', '/');
     install();
     const user = await openList();
     await user.type(keyword(), '入寮');

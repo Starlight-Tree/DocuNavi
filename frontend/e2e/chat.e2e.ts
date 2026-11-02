@@ -88,10 +88,10 @@ test('資料一覧のカードは一覧を絞るだけ。「このグループ�
   // カードを選んでも、チャットの検索範囲は変わらない
   await cards.getByRole('button', { name: /^店舗案内/, pressed: false }).first().click();
   await expect(page).toHaveURL(/collection=cafe/);
-  await page.getByRole('button', { name: 'チャット' }).click();
+  await page.getByRole('button', { name: '質問する', exact: true }).click();
   await expect(scopeChips(page).getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true');
 
-  await page.getByRole('button', { name: '資料一覧', exact: true }).click();
+  await page.getByRole('button', { name: '資料一覧へ' }).click();
   await cards.getByRole('button', { name: '設定資料: このグループに質問' }).click();
   await expect(page.getByRole('alertdialog')).toBeHidden(); // 会話が無いので、確認なしで切り替わる
   await expect(page).toHaveURL(/tab=chat/);
@@ -105,7 +105,7 @@ test('会話があるときの「このグループに質問」は、資料一�
   await page.getByRole('button', { name: '送信' }).click();
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
 
-  await page.getByRole('button', { name: '資料一覧', exact: true }).click();
+  await page.getByRole('button', { name: '資料一覧へ' }).click();
   const ask = page.getByRole('button', { name: '店舗案内: このグループに質問' });
   await ask.click();
   const dialog = page.getByRole('alertdialog');
@@ -140,7 +140,28 @@ test('グループの一覧を読めなくても、「すべて」での質問�
   await page.getByRole('button', { name: '送信' }).click();
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
 
-  await page.getByRole('button', { name: '資料一覧', exact: true }).click();
+  await page.getByRole('button', { name: '資料一覧へ' }).click();
   await expect(page.getByRole('group', { name: '種別で絞り込み' })).toBeVisible();
   await expect(page.getByRole('button', { name: /このグループに質問/ })).toHaveCount(0);
+});
+
+test('最初の画面は資料一覧で、タブは無い。「質問する」でチャットへ、ロゴで資料一覧へ戻り、入力途中の文は残る', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('group', { name: /資料グループ/ })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/); // URL は書き換えない
+  await expect(page.getByRole('navigation', { name: '表示する画面' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '新しい会話' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: '質問する', exact: true }).click();
+  await expect(page).toHaveURL(/tab=chat/);
+  await expect(page.getByRole('button', { name: '新しい会話' })).toBeVisible();
+  const input = page.getByRole('textbox', { name: 'メッセージ' });
+  await expect(input).toBeFocused();
+  await input.fill('書きかけ');
+
+  await page.getByRole('link', { name: 'ドキュナビ' }).click();
+  await expect(page).toHaveURL(/tab=documents/);
+  await expect(page.getByRole('group', { name: /資料グループ/ })).toBeVisible();
+  await page.getByRole('button', { name: '質問する', exact: true }).click();
+  await expect(input).toHaveValue('書きかけ');
 });
