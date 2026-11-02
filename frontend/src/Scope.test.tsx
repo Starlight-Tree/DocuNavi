@@ -186,7 +186,7 @@ describe('検索範囲: 選択と送信', () => {
     const { user } = setup();
     await user.click(await chip('設定資料'));
 
-    expect(window.location.search).toBe('');
+    expect(window.location.search).toBe('?tab=chat');
     expect(window.localStorage.length).toBe(0);
   });
 });
@@ -363,6 +363,25 @@ describe('検索範囲: 資料一覧とは別のもの', () => {
     await ask(user, '営業時間は？');
     await screen.findByText(DEFAULT_REPLY);
     expect(chatBodies[0]).toEqual({ message: '営業時間は？', collection: 'cafe' });
+  });
+
+  it('「すべて」カードの「すべての資料に質問」で、チャットへ移り、範囲を「すべて」にして入力欄にフォーカスを置く', async () => {
+    const { chatBodies } = install();
+    const { user } = setup();
+    // 先に別のグループを選んでおく（「すべて」へ切り替わることを確かめる）
+    await user.click(await chip('設定資料'));
+    await openDocuments(user);
+
+    await user.click(within(await cards()).getByRole('button', { name: 'すべて: すべての資料に質問' }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(window.location.search).toBe('?tab=chat');
+    await waitFor(() => expect(input()).toHaveFocus());
+    expect(await chip('すべて')).toHaveAttribute('aria-pressed', 'true');
+
+    await ask(user, '全体の質問');
+    await screen.findByText(DEFAULT_REPLY);
+    expect(chatBodies[0]).toEqual({ message: '全体の質問' });
   });
 
   it('会話があるとき、「このグループに質問」は資料一覧の上に確認を出す。Esc で閉じるとボタンにフォーカスが戻り、範囲は変わらない', async () => {
@@ -678,5 +697,49 @@ describe('検索範囲: 保存済みの会話', () => {
     await user.click(await chip('設定資料'));
 
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+  });
+});
+
+describe('資料一覧が最初の画面。チャットの上に、質問の対象と戻る導線を出す', () => {
+  it('画面の指定が無い URL は資料一覧を開く。URL は書き換えない', async () => {
+    install();
+    window.history.replaceState(null, '', '/');
+    setup();
+
+    expect(await screen.findByRole('group', { name: /資料グループ/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: '資料一覧' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('textbox', { name: 'メッセージ', hidden: true })).not.toBeVisible();
+    expect(window.location.search).toBe('');
+  });
+
+  it('チャットの上に「何について質問か」を出す。範囲を変えると追従する', async () => {
+    install();
+    const { user } = setup();
+
+    expect(await screen.findByText('すべての資料（5件）')).toBeVisible();
+    await user.click(await chip('設定資料'));
+    expect(screen.getByText('設定資料（3件）')).toBeVisible();
+    expect(screen.queryByText('すべての資料（5件）')).not.toBeInTheDocument();
+  });
+
+  it('グループの一覧を読めないときは、件数を出さない', async () => {
+    install({ collections: () => errorResponse(503, '資料グループを取得できませんでした。') });
+    setup();
+
+    expect(await screen.findByText('すべての資料')).toBeVisible();
+    expect(screen.queryByText(/件）/)).not.toBeInTheDocument();
+  });
+
+  it('「資料一覧へ」で資料一覧に戻る。入力途中の文は、チャットに戻ったときも残る', async () => {
+    install();
+    const { user } = setup();
+    await user.type(input(), '書きかけ');
+
+    await user.click(await screen.findByRole('button', { name: /資料一覧へ/ }));
+
+    expect(window.location.search).toBe('?tab=documents');
+    expect(await screen.findByRole('group', { name: /資料グループ/ })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'チャット' }));
+    expect(input()).toHaveValue('書きかけ');
   });
 });

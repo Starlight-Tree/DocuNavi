@@ -9,8 +9,8 @@ interface CollectionCardsProps {
   totalCount: number;
   /** カードを選ぶ。資料の一覧を絞り込むだけで、チャットの検索範囲は変えない。 */
   onFilter: (collection: string | null) => void;
-  /** 「このグループに質問」。検索範囲を変える、ただ 1 つの操作。渡さなければ、ボタンは出さない。 */
-  onAsk?: ((collection: string, trigger: HTMLElement) => void) | undefined;
+  /** 「このグループに質問」「すべての資料に質問」。検索範囲を変える、ただ 1 つの操作（null は「すべて」）。渡さなければ、ボタンは出さない。 */
+  onAsk?: ((collection: string | null, trigger: HTMLElement) => void) | undefined;
 }
 
 /** 資料一覧の上の、資料グループのカード。選ぶと一覧が絞られ、「このグループに質問」でチャットの検索範囲が変わる。 */
@@ -23,6 +23,16 @@ export function CollectionCards({ collections, active, totalCount, onFilter, onA
           <span className="collection-card-description">すべての資料</span>
           <span className="collection-card-meta">資料 {totalCount} 件</span>
         </button>
+        {onAsk && (
+          <button
+            type="button"
+            className="btn btn-small collection-card-ask"
+            aria-label="すべて: すべての資料に質問"
+            onClick={(event) => onAsk(null, event.currentTarget)}
+          >
+            すべての資料に質問
+          </button>
+        )}
       </div>
       {collections.map((collection) => {
         const preparing = isPreparing(collection);

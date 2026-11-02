@@ -1880,6 +1880,36 @@ textarea {
   font-weight: 600;
 }
 
+/* チャットの上の帯。メッセージの一覧だけがスクロールするので、置くだけで固定される */
+.chat-context-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.9rem;
+}
+
+.chat-context-back {
+  font-size: 0.9rem;
+}
+
+.chat-context-target {
+  color: var(--text-muted);
+}
+
+.chat-context-chip {
+  margin-right: 0.25rem;
+  padding: 0.1rem 0.7rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* 入力欄の上のチップ。上の枠線は、チップの帯が持つ（入力欄の枠線は外す） */
 .scope-chips {
   display: flex;
