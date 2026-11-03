@@ -1,0 +1,1214 @@
+/* UI モックの見た目。色・ボタン・フォーカスは、本体の styles.css のトークンと .btn を使う。クラス名は mk- で始め、本体と衝突させない */
+
+:root {
+  --mk-side: 14rem;
+  --mk-panel: 24rem;
+  --mk-ok: #1d6b3f;
+  --mk-ok-bg: #e5f3ea;
+  --mk-wait: #7a5600;
+  --mk-wait-bg: #fbf1d6;
+  --mk-err: #8f1f1f;
+  --mk-err-bg: #fdecec;
+  --mk-mark: #fff0b3;
+  --mk-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mk-ok: #7fd5a0;
+    --mk-ok-bg: #16301f;
+    --mk-wait: #f0cd72;
+    --mk-wait-bg: #382d10;
+    --mk-err: #ffb4b4;
+    --mk-err-bg: #3a1c20;
+    --mk-mark: #5a4a12;
+    --mk-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
+  }
+}
+
+.mk-shell [hidden],
+.mk-shell[hidden] {
+  display: none !important;
+}
+
+/* ---- 全体 ---- */
+
+.mk-shell {
+  display: grid;
+  grid-template-columns: var(--mk-side) minmax(0, 1fr);
+  height: 100dvh;
+  min-width: 64rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.mk-shell-panel {
+  grid-template-columns: var(--mk-side) minmax(0, 1fr) var(--mk-panel);
+}
+
+.mk-main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.mk-view {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.mk-icon-btn {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mk-icon-btn:hover:not(:disabled) {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.mk-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.mk-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.mk-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.mk-note {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.mk-badge-mock {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.mk-section-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.mk-spinner {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  flex: none;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: mk-spin 0.9s linear infinite;
+}
+
+@keyframes mk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-spinner {
+    animation-duration: 3s;
+  }
+}
+
+/* ---- 状態バッジ ---- */
+
+.mk-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mk-status-ready {
+  background: var(--mk-ok-bg);
+  color: var(--mk-ok);
+}
+
+.mk-status-processing {
+  background: var(--mk-wait-bg);
+  color: var(--mk-wait);
+}
+
+.mk-status-failed {
+  background: var(--mk-err-bg);
+  color: var(--mk-err);
+}
+
+/* ---- サイドバー ---- */
+
+.mk-sidebar {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem 0.75rem 0.75rem;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.mk-brand {
+  padding: 0 0.5rem 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.mk-new {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  text-align: left;
+}
+
+.mk-nav,
+.mk-history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mk-nav-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.mk-nav-item:hover {
+  background: var(--surface-muted);
+}
+
+.mk-nav-item[aria-current='page'] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.mk-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.mk-side-title {
+  margin: 1rem 0 0.25rem;
+  padding: 0 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mk-side-note {
+  margin: 0;
+  padding: 0 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.mk-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.mk-history-item {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  padding: 0.4rem 0.6rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.mk-history-item:hover {
+  background: var(--surface-muted);
+}
+
+.mk-history-item[aria-current='true'] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.mk-history-title {
+  overflow: hidden;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mk-history-time {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.mk-side-foot {
+  margin-top: auto;
+  padding-top: 0.75rem;
+}
+
+.mk-mock-note {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.mk-mock-note strong {
+  display: block;
+  color: var(--text);
+}
+
+/* ---- チャット ---- */
+
+.mk-chat {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.mk-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.mk-chat-title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mk-messages {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.mk-messages-inner,
+.mk-composer-wrap,
+.mk-empty-inner {
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.mk-messages-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem 1.5rem 1rem;
+}
+
+.mk-msg-user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.mk-bubble {
+  max-width: 85%;
+  margin: 0;
+  padding: 0.55rem 0.9rem;
+  border-radius: 1rem 1rem 0.25rem 1rem;
+  background: var(--user-bg);
+  color: var(--user-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mk-msg-assistant {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.mk-answer-text {
+  margin: 0;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.mk-cite {
+  display: inline-grid;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  margin: 0 0.15rem;
+  padding: 0 0.25rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  vertical-align: 0.1em;
+  cursor: pointer;
+}
+
+.mk-cite:hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.mk-cite-num {
+  display: inline-grid;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.35rem;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.mk-sources {
+  width: 100%;
+}
+
+.mk-sources-title {
+  margin: 0 0 0.3rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mk-sources ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mk-source {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.mk-source:hover {
+  border-color: var(--accent);
+}
+
+.mk-source[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.mk-source-name {
+  overflow: hidden;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mk-source-loc {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.mk-system {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.mk-pending {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.mk-composer-wrap {
+  padding: 0 1.5rem 1.25rem;
+}
+
+.mk-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.mk-composer:focus-within {
+  border-color: var(--accent);
+}
+
+.mk-input {
+  width: 100%;
+  resize: none;
+  border: 0;
+  background: transparent;
+  line-height: 1.6;
+}
+
+.mk-input:focus-visible {
+  outline: none;
+}
+
+.mk-composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mk-composer-tools {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mk-scope-btn {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mk-scope-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.mk-scope-value {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.mk-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.mk-notices:empty {
+  display: none;
+}
+
+.mk-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--mk-wait-bg);
+  color: var(--mk-wait);
+  font-size: 0.85rem;
+}
+
+.mk-notice-warn {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+}
+
+.mk-chat-empty {
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.mk-empty-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-bottom: 6vh;
+}
+
+.mk-hero {
+  margin: 0;
+  font-size: 1.9rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.mk-hero-sub {
+  margin: 0 0 0.5rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.mk-empty-inner .mk-hint {
+  text-align: center;
+}
+
+/* ---- 資料画面 ---- */
+
+.mk-docs {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+}
+
+.mk-docs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.mk-page-title {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.mk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
+.mk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.mk-field label {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.mk-text {
+  min-width: 14rem;
+  height: 2.4rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.mk-result-count {
+  margin: 0 0 0.45rem auto;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.mk-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.mk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.mk-table th,
+.mk-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.mk-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.mk-table thead th {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mk-table tbody th {
+  min-width: 9rem;
+  font-weight: 600;
+}
+
+/* 種別・追加日時は折り返さない（右パネルを開いても読める） */
+.mk-table td:nth-child(2),
+.mk-table td:nth-child(4) {
+  white-space: nowrap;
+}
+
+.mk-table tbody tr:hover {
+  background: color-mix(in srgb, var(--surface-muted) 60%, transparent);
+}
+
+.mk-table tbody tr[data-selected='true'] {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.mk-table .mk-link {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.mk-table .mk-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.mk-col-actions {
+  width: 3rem;
+  text-align: right !important;
+}
+
+.mk-row-error {
+  display: block;
+  max-width: 13rem;
+  margin-top: 0.3rem;
+  color: var(--mk-err);
+  font-size: 0.8rem;
+}
+
+.mk-row-error .mk-retry {
+  margin-left: 0.5rem;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.mk-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 3rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.mk-empty-state p {
+  margin: 0;
+}
+
+.mk-empty-title {
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+/* ---- 行の操作メニュー ---- */
+
+.mk-menu {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  min-width: 13rem;
+  flex-direction: column;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  box-shadow: var(--mk-shadow);
+}
+
+.mk-menu-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.mk-menu-item:hover:not(:disabled),
+.mk-menu-item:focus-visible {
+  background: var(--surface-muted);
+}
+
+.mk-menu-item:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.mk-menu-hint {
+  font-size: 0.72rem;
+}
+
+.mk-menu-danger {
+  color: var(--mk-err);
+}
+
+/* ---- 右パネル ---- */
+
+.mk-panel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.mk-panel:focus-visible {
+  outline-offset: -3px;
+}
+
+.mk-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mk-eyebrow {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mk-panel-title {
+  margin: 0;
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+
+.mk-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem 1rem;
+  margin: 0;
+}
+
+.mk-meta dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mk-meta dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.9rem;
+}
+
+.mk-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mk-preview {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.mk-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mk-preview-head .mk-section-title {
+  margin: 0;
+}
+
+.mk-pager {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.mk-cite-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.mk-preview-body {
+  max-height: 22rem;
+  padding: 0.75rem 0.9rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--bg);
+}
+
+.mk-preview-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.mk-para {
+  margin: 0 0 0.7rem;
+  line-height: 1.8;
+}
+
+.mk-para mark {
+  display: block;
+  padding: 0.35rem 0.5rem;
+  border-left: 4px solid var(--impact-direct);
+  border-radius: 0.3rem;
+  background: var(--mk-mark);
+  color: inherit;
+}
+
+.mk-mark-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* ---- ダイアログ ---- */
+
+.mk-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(10 14 12 / 0.45);
+}
+
+.mk-modal {
+  display: flex;
+  width: 100%;
+  max-height: calc(100dvh - 3rem);
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--surface);
+  box-shadow: var(--mk-shadow);
+}
+
+.mk-modal-narrow {
+  max-width: 28rem;
+}
+
+.mk-modal-wide {
+  max-width: 36rem;
+}
+
+.mk-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.25rem 0.5rem;
+}
+
+.mk-modal-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.mk-modal-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.5rem 1.25rem 1rem;
+  overflow-y: auto;
+}
+
+.mk-modal-body p {
+  margin: 0;
+}
+
+.mk-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.mk-count-line {
+  margin: 0 auto 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.mk-btn-danger {
+  border-color: var(--mk-err);
+  background: var(--mk-err);
+  color: var(--surface);
+  font-weight: 700;
+}
+
+.mk-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1.5rem 1rem;
+  border: 2px dashed var(--border);
+  border-radius: 0.75rem;
+  background: var(--bg);
+  text-align: center;
+}
+
+.mk-drop[data-active='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+
+.mk-drop-title {
+  font-weight: 700;
+}
+
+.mk-problems {
+  margin: 0;
+  padding: 0.5rem 0.75rem 0.5rem 1.5rem;
+  border-radius: 0.5rem;
+  background: var(--mk-err-bg);
+  color: var(--mk-err);
+  font-size: 0.85rem;
+}
+
+.mk-picked {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+}
+
+.mk-picked li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.3rem 0.4rem 0.3rem 0.75rem;
+}
+
+.mk-picked li + li {
+  border-top: 1px solid var(--border);
+}
+
+.mk-picked-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mk-picked-meta {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.mk-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mk-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  cursor: pointer;
+}
+
+.mk-radio:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.mk-radio > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.mk-bulk {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.mk-scope-list {
+  max-height: 16rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+}
+
+.mk-scope-item {
+  padding: 0.45rem 0.75rem;
+}
+
+.mk-scope-item + .mk-scope-item {
+  border-top: 1px solid var(--border);
+}
+
+.mk-scope-item label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+
+.mk-scope-item[data-disabled='true'] label {
+  cursor: default;
+}
+
+.mk-scope-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mk-reason {
+  margin: 0.1rem 0 0 1.6rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* ---- 通知 ---- */
+
+.mk-toasts {
+  position: fixed;
+  z-index: 50;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  max-width: 24rem;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mk-toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.6rem 0.5rem 0.6rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  box-shadow: var(--mk-shadow);
+  font-size: 0.88rem;
+}
+
+.mk-toast-error {
+  border-color: var(--mk-err);
+  color: var(--mk-err);
+}

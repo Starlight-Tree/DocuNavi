@@ -40,6 +40,18 @@ npm run dev                  # http://localhost:3000
 `API_PROXY_TARGET` へ転送します（`next.config.ts` の rewrites）。ブラウザーからは同じオリジンに見えるので、バックエンド側の CORS 設定は要りません。
 Compose の `frontend` サービスも、この形（`API_PROXY_TARGET=http://api:8000`）で動きます。
 
+## UI モック（`/mock`）
+
+PC 向けの画面の整理案（左サイドバー + チャット / 資料 + 右パネル）を、サンプルデータで操作できる試作です。`src/mock/` に閉じていて、本体の画面・認証・API には触れません
+（通信も保存もしない。再読み込みで初期状態に戻る。回答は定型文）。`UI_MOCK=1` で起動・ビルドしたときだけ開き、それ以外（Vercel の本番を含む）では `/` へ戻ります（`next.config.ts`）。
+
+```bash
+cd frontend
+UI_MOCK=1 npm run dev        # http://localhost:3000/mock（?view=documents で資料画面から開く）
+```
+
+資料の取り込みは時間で進みます（追加から約 4.5 秒で利用可能。ファイル名に「エラー」を含むと失敗し、再試行で成功）。
+
 ## スクリプト
 
 | コマンド | 内容 |
