@@ -52,6 +52,12 @@ UI_MOCK=1 npm run dev        # http://localhost:3000/mock（?view=documents で�
 
 資料の取り込みは時間で進みます（追加から約 4.5 秒で利用可能。ファイル名に「エラー」を含むと失敗し、再試行で成功）。
 
+### 対象・資料種別のモック（`/mock/classification`）
+
+資料の分類「対象」「資料種別」を足した画面の案（2026-11-03。**本体には未反映。承認後に入れる**）。`src/mock/classification/` に閉じた、架空データの試作で、本体の部品（`Composer` `MessageList` `AppSidebar` と本体の CSS）を使う。
+資料ライブラリ（検索・対象・資料種別 + 「詳細フィルター」）と、チャットの上の帯の質問対象メニューを確かめる。上の帯のラジオで、旧 URL（`?collection=`）・旧グループの会話・対象が使えない会話の状態に切り替える。
+`UI_MOCK=1 npm run dev` で `http://localhost:3000/mock/classification`。
+
 ## スクリプト
 
 | コマンド | 内容 |

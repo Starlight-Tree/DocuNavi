@@ -1,0 +1,255 @@
+/* 「対象」「資料種別」の UI モック専用。本体の色・変数（styles.css / shell.css）をそのまま使い、足りない部品だけを cm- で足す。 */
+
+.cm-root {
+  display: flex;
+  height: 100dvh;
+  min-width: 64rem;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.cm-shell {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+/* 確認用の切り替え（本体には無い）。画面の外の操作だと分かるよう、上に細い帯で置く */
+.cm-scenarios {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  padding: 0.4rem 1rem;
+  border-bottom: 1px dashed var(--border);
+  background: var(--surface-muted);
+  font-size: 0.82rem;
+}
+
+.cm-scenarios-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.cm-scenarios-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.cm-scenario {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.cm-scenario[data-checked='true'] {
+  border-color: var(--accent);
+  background: var(--surface-muted);
+  font-weight: 700;
+}
+
+.cm-scenario:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.cm-scenarios-list input {
+  margin: 0;
+}
+
+.cm-scenario-hint {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* ---- 資料ライブラリ ---- */
+
+/* 主な操作は 3 つ（検索・対象・資料種別）+ 詳細フィルターのボタン。詳細の欄は、開いたときだけ次の行に出る */
+.cm-filter .document-filter-field select {
+  max-width: 14rem;
+}
+
+.cm-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.4rem;
+}
+
+.cm-detail {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.cm-detail[hidden] {
+  display: none;
+}
+
+.cm-badge {
+  min-width: 1.3rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.3rem;
+  text-align: center;
+}
+
+/* 旧フィルター（?collection=）が有効だと、一覧の上で知らせ、解除できる */
+.cm-legacy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin: 0 0 0.6rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--ws-wait, var(--border));
+  border-radius: var(--radius);
+  background: var(--ws-wait-bg, var(--surface-muted));
+  font-size: 0.88rem;
+}
+
+.cm-legacy p {
+  margin: 0;
+}
+
+.cm-legacy code {
+  font-size: 0.82rem;
+}
+
+.cm-doc-title {
+  display: block;
+  font-weight: 600;
+}
+
+.cm-doc-source {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+/* ---- チャットの質問対象の帯 ---- */
+
+.cm-bar {
+  position: relative;
+  column-gap: 0.75rem;
+}
+
+.cm-bar-label {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.cm-menu-wrap {
+  position: relative;
+}
+
+.cm-target-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.2rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cm-target-btn:disabled {
+  border-color: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.cm-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  min-width: 20rem;
+  max-height: 22rem;
+  margin: 0;
+  padding: 0.3rem;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.15);
+}
+
+.cm-menu-item {
+  display: grid;
+  grid-template-columns: 1.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cm-menu-item:hover:not(:disabled),
+.cm-menu-item:focus-visible {
+  background: var(--surface-muted);
+}
+
+.cm-menu-item:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.cm-menu-check {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.cm-menu-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cm-menu-note,
+.cm-menu-count,
+.cm-bar-hint {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.cm-bar-hint {
+  margin-left: auto;
+}
+
+.cm-notice {
+  margin-inline: var(--chat-pad);
+}
+
+.cm-empty {
+  margin-inline: var(--chat-pad);
+}
