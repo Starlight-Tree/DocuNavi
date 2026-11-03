@@ -26,11 +26,13 @@ from app.ingestion.embedding import (
     DIMENSIONS,
     MAX_INPUT_CHARS,
     MODEL,
+    VERTEX_ENV,
     ApiBudget,
     EmbedReport,
     GeminiEmbedder,
     PostgresEmbeddingStore,
     embed_pending,
+    use_vertex,
 )
 
 _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
@@ -73,8 +75,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("DATABASE_URL が要ります（未設定です）。", file=sys.stderr)
         return 2
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if args.apply and api_key in _PLACEHOLDER_KEYS:
-        print("--apply には GEMINI_API_KEY が要ります（未設定です）。", file=sys.stderr)
+    if args.apply and api_key in _PLACEHOLDER_KEYS and not use_vertex():
+        print(
+            f"--apply には GEMINI_API_KEY が要ります（未設定です）。Vertex AI で呼ぶなら {VERTEX_ENV}=true と ADC が要ります。",
+            file=sys.stderr,
+        )
         return 2
 
     import psycopg

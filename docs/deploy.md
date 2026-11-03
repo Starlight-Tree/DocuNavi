@@ -4,7 +4,7 @@
 
 **資料の検索が DB のベクトル検索になったため（[search-design.md](search-design.md)）、本物の LLM のデプロイには `DATABASE_URL` が必須です**
 （下の C。「任意」ではありません）。さらに、質問の埋め込みは API キーで呼ぶので、**A（Vertex AI）でも `GEMINI_API_KEY` の Secret が要ります**
-（B の Secret の作り方）。本番では `GEMINI_API_KEY` と `DATABASE_URL` を Secret Manager から注入して稼働させています。
+（B の Secret の作り方。`EMBEDDING_USE_VERTEXAI=true` にした場合は、埋め込みも Vertex AI になりキーは不要。[configuration.md](configuration.md) の「埋め込みを Vertex AI で呼ぶ」。本番は未切り替え）。本番では `GEMINI_API_KEY` と `DATABASE_URL` を Secret Manager から注入して稼働させています。
 本番の Cloud Run（`docunavi-00025-qey`）には `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認）、LLM は B（キー）の経路です。Secret の参照の中身は**要確認**です。
 
 **デプロイの方針:** GCP の操作は原則 gcloud CLI で行います。Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は導入しません。
