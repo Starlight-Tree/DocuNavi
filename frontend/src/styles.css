@@ -89,27 +89,6 @@ textarea {
 
 /* ---- レイアウト ---- */
 
-.app {
-  display: flex;
-  flex-direction: column;
-  height: 100dvh;
-  max-width: 60rem;
-  margin: 0 auto;
-  background: var(--bg);
-}
-
-.app-header {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas: 'title actions';
-  align-items: center;
-  gap: 0.5rem 1rem;
-  padding: 0.75rem 1rem;
-  padding-top: max(0.75rem, env(safe-area-inset-top));
-  border-bottom: 1px solid var(--border);
-  background: transparent;
-}
-
 .app-title {
   grid-area: title;
   margin: 0;
@@ -121,42 +100,6 @@ textarea {
 .app-title a {
   color: inherit;
   text-decoration: none;
-}
-
-.app-header-actions {
-  display: flex;
-  grid-area: actions;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.user-label {
-  max-width: 14rem;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 狭い幅では、題名の下に操作を回す。ログイン中はメールアドレス・ログアウト・「質問する」が並び、1 段に収まらない */
-@media (max-width: 520px) {
-  .app-header {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'title'
-      'actions';
-  }
-
-  .app-header-actions {
-    flex-wrap: wrap;
-    min-width: 0;
-  }
-
-  .user-label {
-    min-width: 0;
-  }
 }
 
 /* 動作モードは開発者向けの表示。利用者の目に留まらないよう、小さく・薄くしておく */
@@ -734,10 +677,6 @@ textarea {
 }
 
 @media (max-width: 420px) {
-  .app-header {
-    padding-inline: 0.75rem;
-  }
-
   .message-list {
     padding: 0.75rem;
   }
@@ -783,11 +722,6 @@ textarea {
 
 .chat-layout[hidden] {
   display: none;
-}
-
-/* 会話の一覧がある間は、本文の幅は変えずに、その分だけ全体を広げる */
-.app-with-sidebar {
-  max-width: 78rem;
 }
 
 .thread-sidebar {
@@ -1071,7 +1005,7 @@ textarea {
   min-width: 12rem;
 }
 
-/* 表示の切り替え（元PDF / AI用テキスト / 関係図）。上のタブと同じ、分割ボタンの形にする */
+/* 表示の切り替え（元のPDF / 抽出テキスト / 関係図）。分割ボタンの形にする */
 .view-switch {
   display: inline-flex;
   gap: 0.15rem;

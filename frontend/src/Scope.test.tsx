@@ -332,7 +332,7 @@ describe('検索範囲: 資料一覧とは別のもの', () => {
     const group = await cards();
 
     await user.click(within(group).getByRole('button', { name: /^設定資料(?!:)/ }));
-    await user.click(screen.getByRole('button', { name: '質問する' }));
+    await user.click(screen.getByRole('link', { name: 'チャット' }));
 
     expect(await chip('すべて')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('検索範囲: すべての資料')).toBeInTheDocument();
@@ -403,7 +403,7 @@ describe('検索範囲: 資料一覧とは別のもの', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(button).toHaveFocus();
     expect(window.location.search).toBe('?tab=documents');
-    await user.click(screen.getByRole('button', { name: '質問する' }));
+    await user.click(screen.getByRole('link', { name: 'チャット' }));
     expect(await chip('すべて')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(DEFAULT_REPLY)).toBeInTheDocument();
   });
@@ -707,7 +707,7 @@ describe('資料一覧が最初の画面。チャットの上に、質問の対�
     setup();
 
     expect(await screen.findByRole('group', { name: /資料グループ/ })).toBeVisible();
-    expect(screen.getByRole('button', { name: '質問する' })).toBeVisible();
+    expect(screen.getByRole('link', { name: '資料' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('textbox', { name: 'メッセージ', hidden: true })).not.toBeVisible();
     expect(window.location.search).toBe('');
   });
@@ -739,7 +739,7 @@ describe('資料一覧が最初の画面。チャットの上に、質問の対�
 
     expect(window.location.search).toBe('?tab=documents');
     expect(await screen.findByRole('group', { name: /資料グループ/ })).toBeVisible();
-    await user.click(screen.getByRole('button', { name: '質問する' }));
+    await user.click(screen.getByRole('link', { name: 'チャット' }));
     expect(input()).toHaveValue('書きかけ');
   });
 });

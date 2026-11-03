@@ -59,10 +59,10 @@ export function Modal({ title, description, initialFocus, closeOnBackdrop = true
   };
 
   return (
-    <div className="mk-backdrop" onMouseDown={(event) => closeOnBackdrop && event.target === event.currentTarget && onClose()}>
+    <div className="ws-backdrop" onMouseDown={(event) => closeOnBackdrop && event.target === event.currentTarget && onClose()}>
       <div
         ref={rootRef}
-        className={`mk-modal mk-modal-${width}`}
+        className={`ws-modal ws-modal-${width}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -70,11 +70,11 @@ export function Modal({ title, description, initialFocus, closeOnBackdrop = true
         tabIndex={-1}
         onKeyDown={handleKeyDown}
       >
-        <header className="mk-modal-head">
-          <h2 id={titleId} className="mk-modal-title">
+        <header className="ws-modal-head">
+          <h2 id={titleId} className="ws-modal-title">
             {title}
           </h2>
-          <button type="button" className="mk-icon-btn" aria-label="閉じる" onClick={onClose}>
+          <button type="button" className="ws-icon-btn" aria-label="閉じる" onClick={onClose}>
             ×
           </button>
         </header>

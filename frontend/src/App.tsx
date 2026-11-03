@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useAuth } from './auth/AuthContext';
+import { AppSidebar } from './components/AppSidebar';
 import { ChatContextBar } from './components/ChatContextBar';
 import { Composer } from './components/Composer';
 import { DocumentsView } from './components/DocumentsView';
 import { ErrorBanner } from './components/ErrorBanner';
-import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
 import { MessageList } from './components/MessageList';
+import { PanelHost } from './components/PanelHost';
 import { ReferencesView } from './components/ReferencesView';
 import { ScopeChips } from './components/ScopeChips';
 import { ScopeConfirm } from './components/ScopeConfirm';
 import { ThreadSidebar } from './components/ThreadSidebar';
 import { useBackendMode } from './hooks/useBackendMode';
 import { useChat } from './hooks/useChat';
+import { useDocumentList } from './hooks/useDocuments';
 import {
   CollectionCatalogContext,
   useCollectionCatalog,
@@ -49,7 +51,12 @@ function ChatScreen() {
   const { state, signOut } = useAuth();
   const signedIn = state.status === 'signedIn';
   // 開いている画面は URL が決める（戻る・再読み込み・共有で戻れる）
-  const { tab: view, navigate } = useUrlState();
+  const { tab: view, doc, navigate } = useUrlState();
+  // 資料の一覧は、資料一覧のタブと右のパネル（どちらも資料を出す）が共有する。どちらも出ていない間は取らない
+  const panelOpen = doc !== null;
+  const [documentList, reloadDocuments] = useDocumentList(view === 'documents' || panelOpen);
+  // 右のパネルの拡大（CSS だけ。パネルもチャットも作り直さない）。閉じたら戻す
+  const [expanded, setExpanded] = useState(false);
   const [pendingScope, setPendingScope] = useState<PendingScope | null>(null);
   // 参照資料の専用ページに出す、ひとつの回答の出典。null ならチャット。URL には載せない（会話の中身は再読み込みで残らないため）
   const [references, setReferences] = useState<SourceDoc[] | null>(null);
@@ -121,123 +128,148 @@ function ChatScreen() {
       ? groups.reduce((sum, g) => sum + g.documentCount, 0)
       : currentGroup?.documentCount;
 
+  const goChat = () => {
+    setReferences(null);
+    navigate({ tab: 'chat' });
+    setFocusRequest((n) => n + 1);
+  };
+
   return (
-    <div className={signedIn ? 'app app-with-sidebar' : 'app'}>
-      <Header
-        mode={chat.mode ?? healthMode}
+    <div
+      className={panelOpen ? 'ws-shell ws-shell-panel' : 'ws-shell'}
+      data-expanded={panelOpen && expanded ? 'true' : undefined}
+    >
+      <AppSidebar
         view={view}
-        onAsk={() => {
-          // 確認は出さない。いまの会話と検索範囲のまま、チャットへ移る（範囲を変えるのは、カードのボタンと入力欄の上のチップ）
-          setReferences(null);
-          navigate({ tab: 'chat' });
-          setFocusRequest((n) => n + 1);
+        mode={chat.mode ?? healthMode}
+        userLabel={state.status === 'signedIn' ? (state.user.email ?? 'ログイン中') : undefined}
+        onSignOut={signedIn ? () => void signOut() : undefined}
+        onNewConversation={() => {
+          // いまの会話と検索範囲を閉じて、チャットで新しく始める
+          chat.reset();
+          goChat();
         }}
+        // 確認は出さない。いまの会話と検索範囲のまま、チャットへ移る（範囲を変えるのは、カードのボタンと入力欄の上のチップ）
+        onGoChat={goChat}
         onGoDocuments={() => {
           setReferences(null);
           navigate({ tab: 'documents' });
         }}
-        onNewConversation={() => {
-          setReferences(null);
-          chat.reset();
-        }}
-        userLabel={state.status === 'signedIn' ? (state.user.email ?? 'ログイン中') : undefined}
-        onSignOut={signedIn ? () => void signOut() : undefined}
+        history={
+          signedIn ? (
+            <ThreadSidebar
+              state={threads.state}
+              currentId={chat.threadId}
+              busy={chat.pending}
+              onSelect={(threadId) => {
+                // 資料一覧を見ていても、選んだ会話はチャットで開く
+                setReferences(null);
+                if (view !== 'chat') navigate({ tab: 'chat' });
+                chat.resume(threadId);
+              }}
+              onDelete={removeThread}
+              onRetry={threads.reload}
+            />
+          ) : undefined
+        }
       />
-      {pendingScope && (
-        <ScopeConfirm
-          targetLabel={scopeLabel(pendingScope.collection)}
-          generating={chat.pending}
-          onConfirm={confirmScope}
-          onCancel={cancelScope}
-        />
-      )}
-      {/* 資料一覧を開いている間も、チャットは隠すだけで残す（生成中の回答・入力途中の文・スクロール位置を失わない） */}
-      <div className="chat-layout" hidden={view !== 'chat' || references !== null}>
-        {signedIn && (
-          <ThreadSidebar
-            state={threads.state}
-            currentId={chat.threadId}
-            busy={chat.pending}
-            onSelect={chat.resume}
-            onDelete={removeThread}
-            onRetry={threads.reload}
+      {/* 拡大中は、パネルが上に重なる。下のチャット・資料一覧は作り直さず、操作と読み上げだけ外す */}
+      <div className="ws-main" inert={panelOpen && expanded}>
+        {pendingScope && (
+          <ScopeConfirm
+            targetLabel={scopeLabel(pendingScope.collection)}
+            generating={chat.pending}
+            onConfirm={confirmScope}
+            onCancel={cancelScope}
           />
         )}
-        <div className="chat-pane">
-          <ChatContextBar
-            targetLabel={chat.scopeUnknown ? 'この会話の設定' : scopeLabel(chat.scope)}
-            documentCount={contextCount}
+        {/* 資料一覧を開いている間も、チャットは隠すだけで残す（生成中の回答・入力途中の文・スクロール位置を失わない） */}
+        <div className="chat-layout" hidden={view !== 'chat' || references !== null}>
+          <div className="chat-pane">
+            <ChatContextBar
+              targetLabel={chat.scopeUnknown ? 'この会話の設定' : scopeLabel(chat.scope)}
+              documentCount={contextCount}
+              onBack={() => {
+                setReferences(null);
+                navigate({ tab: 'documents' });
+              }}
+            />
+            <MessageList
+              messages={chat.messages}
+              waiting={chat.waiting}
+              phase={chat.phase}
+              busy={chat.pending}
+              resumed={chat.threadId !== null && chat.messages.length === 0}
+              history={chat.history}
+              onExample={chat.pending ? undefined : chat.send}
+              onAskAll={groups ? chat.askAgainInAll : undefined}
+              onShowReferences={setReferences}
+            />
+            {chat.error && (
+              <ErrorBanner
+                error={chat.error}
+                disabled={chat.pending}
+                onRetry={chat.retry}
+                onNewConversation={groups ? chat.reset : undefined}
+              />
+            )}
+            {chat.scopeMismatch && (
+              <p className="scope-warning" role="status">
+                {MSG_SCOPE_MISMATCH}
+              </p>
+            )}
+            {(groups || catalog.state.status === 'error') && (
+              <ScopeChips
+                collections={groups ?? []}
+                status={groups ? 'ready' : 'unavailable'}
+                value={chat.scope}
+                unknown={chat.scopeUnknown}
+                disabled={chat.pending}
+                onSelect={(collection, trigger) => requestScope(collection, trigger, false)}
+                onRetry={catalog.reload}
+              />
+            )}
+            <Composer
+              pending={chat.pending}
+              onSend={chat.send}
+              onStop={chat.stop}
+              scopeLabel={groups ? (chat.scopeUnknown ? 'この会話の設定' : scopeLabel(chat.scope)) : undefined}
+              scopeNote={
+                groups
+                  ? currentGroup && currentGroup.readyCount === 0
+                    ? '資料はまだありません'
+                    : chat.hasConversation
+                      ? 'この会話で固定'
+                      : undefined
+                  : undefined
+              }
+            />
+          </div>
+        </div>
+        {view === 'chat' && references !== null && (
+          <ReferencesView
+            sources={references}
             onBack={() => {
               setReferences(null);
-              navigate({ tab: 'documents' });
+              setFocusRequest((n) => n + 1);
             }}
           />
-          <MessageList
-            messages={chat.messages}
-            waiting={chat.waiting}
-            phase={chat.phase}
-            busy={chat.pending}
-            resumed={chat.threadId !== null && chat.messages.length === 0}
-            history={chat.history}
-            onExample={chat.pending ? undefined : chat.send}
-            onAskAll={groups ? chat.askAgainInAll : undefined}
-            onShowReferences={setReferences}
+        )}
+        {view === 'documents' && (
+          <DocumentsView
+            state={documentList}
+            onReload={reloadDocuments}
+            onAskGroup={groups ? (collection, trigger) => requestScope(collection, trigger, true) : undefined}
           />
-          {chat.error && (
-            <ErrorBanner
-              error={chat.error}
-              disabled={chat.pending}
-              onRetry={chat.retry}
-              onNewConversation={groups ? chat.reset : undefined}
-            />
-          )}
-          {chat.scopeMismatch && (
-            <p className="scope-warning" role="status">
-              {MSG_SCOPE_MISMATCH}
-            </p>
-          )}
-          {(groups || catalog.state.status === 'error') && (
-            <ScopeChips
-              collections={groups ?? []}
-              status={groups ? 'ready' : 'unavailable'}
-              value={chat.scope}
-              unknown={chat.scopeUnknown}
-              disabled={chat.pending}
-              onSelect={(collection, trigger) => requestScope(collection, trigger, false)}
-              onRetry={catalog.reload}
-            />
-          )}
-          <Composer
-            pending={chat.pending}
-            onSend={chat.send}
-            onStop={chat.stop}
-            scopeLabel={groups ? (chat.scopeUnknown ? 'この会話の設定' : scopeLabel(chat.scope)) : undefined}
-            scopeNote={
-              groups
-                ? currentGroup && currentGroup.readyCount === 0
-                  ? '資料はまだありません'
-                  : chat.hasConversation
-                    ? 'この会話で固定'
-                    : undefined
-                : undefined
-            }
-          />
-        </div>
+        )}
       </div>
-      {view === 'chat' && references !== null && (
-        <ReferencesView
-          sources={references}
-          onBack={() => {
-            setReferences(null);
-            setFocusRequest((n) => n + 1);
-          }}
-        />
-      )}
-      {view === 'documents' && (
-        <DocumentsView
-          onAskGroup={groups ? (collection, trigger) => requestScope(collection, trigger, true) : undefined}
-        />
-      )}
+      <PanelHost
+        list={documentList}
+        onReload={reloadDocuments}
+        expanded={expanded}
+        onToggleExpand={() => setExpanded((v) => !v)}
+        onClosed={() => setExpanded(false)}
+      />
     </div>
   );
 }

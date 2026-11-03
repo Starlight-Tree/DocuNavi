@@ -6,7 +6,8 @@ import type { PageBand, SortKey, UpdatedBand } from './documentFilter';
  * 画面の状態（タブ・資料・表示の切り替え・関係図で選んだ項）を、URL のクエリに持たせる。
  * 戻る・進む・再読み込み・URL の共有で、同じ画面に戻れる。
  *
- * 例: /?tab=documents&doc=3&view=graph&item=a11p1 、/?tab=documents&doc=3&view=pdf&page=2 、/?tab=documents&collection=cafe 、
+ * 資料（`doc`）は右のパネルに開く。チャット（`tab=chat`）でも資料一覧（`tab=documents`）でも開け、タブを移ってもパネルは残る。
+ * 例: /?tab=documents&doc=3&view=graph&item=a11p1 、/?tab=documents&doc=3&view=pdf&page=2 、/?tab=chat&doc=3&view=text&chunk=4&page=2 、/?tab=documents&collection=cafe 、
  *     /?tab=documents&q=入寮+規程&status=ready&pages=few&updated=week&sort=updated（一覧の検索・絞り込み・並び替え）
  * チャットの入力途中の文・開閉・スクロール位置など、一時的な状態は URL に置かない（トークンなどの秘密も置かない）。
  * 一覧のキーワード（`q`）は、共有・再読み込みで同じ一覧に戻すために載せる（公開してよい文だけを想定。長さは QUERY_MAX_LENGTH まで）。
@@ -21,13 +22,15 @@ export interface UrlState {
   doc: number | null;
   /** 資料の詳細の表示。指定が無ければ null（画面側が既定を決める）。 */
   view: DetailView | null;
-  /** 関係図で選んだ項の ID。 */
+  /** 関係図で選んだ項の ID。表示を切り替えても残す（関係図に戻ったとき、選んだ項が戻る）。 */
   item: string | null;
-  /** 元の PDF で開くページ（1 始まり）。表示が PDF のときだけ意味がある。 */
+  /** 元の PDF で開くページ（1 始まり）。出典が持つページで、表示を切り替えても残す（「元のPDF」に切り替えたとき、そのページを開く）。 */
   page: number | null;
-  /** 一覧の絞り込み（資料群の名前）。一覧を見ているときだけ意味がある。 */
+  /** 抽出テキストで根拠として強調するチャンクの番号（`chunk_index`）。出典を押して開いたときだけ付く。 */
+  chunk: number | null;
+  /** 一覧の絞り込み（資料群の名前）。資料一覧のタブだけで意味がある。 */
   collection: string | null;
-  /** 一覧のキーワード。空・空白だけは null。一覧を見ているときだけ意味がある（以下の 4 つも同じ）。 */
+  /** 一覧のキーワード。空・空白だけは null。資料一覧のタブだけで意味がある（以下の 4 つも同じ）。 */
   query: string | null;
   /** 一覧の状態の絞り込み（`ready` など）。 */
   status: string | null;
@@ -46,6 +49,7 @@ const VIEWS: readonly DetailView[] = ['pdf', 'text', 'graph'];
 const ITEM_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
 const DOC_PATTERN = /^[1-9]\d{0,9}$/;
 const PAGE_PATTERN = /^[1-9]\d{0,3}$/;
+const CHUNK_PATTERN = /^(?:0|[1-9]\d{0,5})$/;
 // 資料群の名前の形（DB の制約と同じ）
 const COLLECTION_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
 // 状態の名前の形（`ready` `failed` など）
@@ -58,21 +62,22 @@ function cleanQuery(value: string | null): string | null {
   return value;
 }
 
-/** 状態として意味が通るように整える。資料が無ければ表示も項も無く、関係図でなければ項は無い。絞り込みは一覧だけ。 */
+/**
+ * 状態として意味が通るように整える。資料が無ければ表示も項もページもチャンクも無い。
+ * 一覧の絞り込みは、資料一覧のタブだけ（資料を開いていても、一覧は横に残るので持つ）。
+ */
 function normalize(state: UrlState): UrlState {
-  const doc = state.tab === 'documents' ? state.doc : null;
+  const doc = state.doc;
   const view = doc === null ? null : state.view;
-  const item = view === 'graph' ? state.item : null;
-  const page = view === 'pdf' ? state.page : null;
-  const inList = state.tab === 'documents' && doc === null;
-  const collection = inList ? state.collection : null;
+  const inList = state.tab === 'documents';
   return {
     tab: state.tab,
     doc,
     view,
-    item,
-    page,
-    collection,
+    item: doc === null ? null : state.item,
+    page: doc === null ? null : state.page,
+    chunk: doc === null ? null : state.chunk,
+    collection: inList ? state.collection : null,
     query: inList ? state.query : null,
     status: inList ? state.status : null,
     pageBand: inList ? state.pageBand : null,
@@ -92,6 +97,7 @@ export function parseUrlState(search: string): UrlState {
   const viewParam = params.get('view');
   const itemParam = params.get('item');
   const pageParam = params.get('page');
+  const chunkParam = params.get('chunk');
   const collectionParam = params.get('collection');
   const statusParam = params.get('status');
   const pagesParam = params.get('pages');
@@ -103,6 +109,7 @@ export function parseUrlState(search: string): UrlState {
     view: VIEWS.find((v) => v === viewParam) ?? null,
     item: itemParam !== null && ITEM_PATTERN.test(itemParam) ? itemParam : null,
     page: pageParam !== null && PAGE_PATTERN.test(pageParam) ? Number(pageParam) : null,
+    chunk: chunkParam !== null && CHUNK_PATTERN.test(chunkParam) ? Number(chunkParam) : null,
     collection: collectionParam !== null && COLLECTION_PATTERN.test(collectionParam) ? collectionParam : null,
     query: cleanQuery(params.get('q')),
     status: statusParam !== null && STATUS_PATTERN.test(statusParam) ? statusParam : null,
@@ -112,9 +119,15 @@ export function parseUrlState(search: string): UrlState {
   });
 }
 
-/** いまのクエリに `next` を重ねた、新しいクエリを作る。この画面が扱わないパラメータは、そのまま残す。 */
+/**
+ * いまのクエリに `next` を重ねた、新しいクエリを作る。この画面が扱わないパラメータは、そのまま残す。
+ * 別の資料へ移るとき（`doc` が変わるとき）は、前の資料の表示・ページ・チャンク・項を引き継がない（`next` で指定したものだけ）。
+ */
 export function buildSearch(current: string, next: Partial<UrlState>): string {
-  const state = normalize({ ...parseUrlState(current), ...next });
+  const base = parseUrlState(current);
+  const docChanged = next.doc !== undefined && next.doc !== base.doc;
+  const carried = docChanged ? { ...base, view: null, item: null, page: null, chunk: null } : base;
+  const state = normalize({ ...carried, ...next });
   const params = new URLSearchParams(current);
   params.set('tab', state.tab);
   const set = (key: string, value: string | number | null) => {
@@ -125,6 +138,7 @@ export function buildSearch(current: string, next: Partial<UrlState>): string {
   set('view', state.view);
   set('item', state.item);
   set('page', state.page);
+  set('chunk', state.chunk);
   set('collection', state.collection);
   set('q', state.query);
   set('status', state.status);
@@ -174,7 +188,8 @@ export type NavigateMode = 'push' | 'replace';
 
 /**
  * URL を画面の状態の唯一の出どころとして読み、書き換える。
- * 意味のある遷移（タブ・資料・表示・項）は push（戻るで元に戻る）。不正な値を直すときだけ replace（履歴を増やさない）。
+ * 意味のある遷移（タブ・資料の開閉と切り替え・表示・項）は push（戻るで元に戻る）。同じ状態への移動は何もしない（履歴を増やさない）。
+ * 不正な値を直すときと、連続した入力（一覧のキーワードなど）の途中は replace。
  */
 export function useUrlState(): UrlState & {
   navigate: (next: Partial<UrlState>, mode?: NavigateMode) => void;

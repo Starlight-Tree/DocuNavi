@@ -65,6 +65,30 @@ export function findSourcePage(chunks: ReadonlyArray<{ content: string; page: nu
   return hit?.page ?? null;
 }
 
+/** 抜粋とチャンクを突き合わせるときの、短い側の最小の長さ（空白を除く）。短い文は、無関係なチャンクにも含まれてしまう。 */
+const MIN_MATCH_LENGTH = 10;
+
+/**
+ * 出典の抜粋が、資料のどのチャンクから来たかを探して、そのチャンクの番号（`chunkIndex`）を返す。見つからなければ null。
+ * 見つからないときは何も強調しない（近そうなチャンクを当てずっぽうに選ばない）。
+ * 複数のチャンクに一致したときは、検索が返したページ（knownPage）と合うものを先にし、無ければ最初の 1 つ。
+ */
+export function findSourceChunk(
+  chunks: ReadonlyArray<{ chunkIndex: number; content: string; page: number | null }>,
+  excerpt: string,
+  knownPage?: number,
+): number | null {
+  const target = squash(excerpt);
+  if (target.length < MIN_MATCH_LENGTH) return null;
+  const hits = chunks.filter((chunk) => {
+    const content = squash(chunk.content);
+    if (content.length < MIN_MATCH_LENGTH) return false;
+    return target.includes(content) || content.includes(target);
+  });
+  const hit = (knownPage === undefined ? undefined : hits.find((chunk) => chunk.page === knownPage)) ?? hits[0];
+  return hit?.chunkIndex ?? null;
+}
+
 const isPage = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 1;
 
 /**

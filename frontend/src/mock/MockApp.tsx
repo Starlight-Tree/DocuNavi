@@ -8,7 +8,7 @@ import { DeleteDialog, SettingsDialog } from './SimpleDialogs';
 import { Sidebar } from './Sidebar';
 import { UploadDialog } from './UploadDialog';
 import type { View } from './types';
-import './mock.css';
+
 
 /** ?view=documents で、資料画面から開ける（再読み込みしても、いまの画面に戻れる）。 */
 function readInitialView(): View {
@@ -50,14 +50,14 @@ function Shell() {
 
   return (
     <>
-      <div className={panel ? 'mk-shell mk-shell-panel' : 'mk-shell'} inert={dialog !== null}>
+      <div className={panel ? 'ws-shell ws-shell-panel' : 'ws-shell'} inert={dialog !== null}>
         <Sidebar />
-        <main className="mk-main">
-          <div className="mk-view" hidden={view !== 'chat'}>
+        <main className="ws-main">
+          <div className="ws-view" hidden={view !== 'chat'}>
             <ChatView />
           </div>
           {view === 'documents' && (
-            <div className="mk-view">
+            <div className="ws-view">
               <DocumentsView />
             </div>
           )}
@@ -65,11 +65,11 @@ function Shell() {
         {panel && <DocumentPanel key={panelKey} target={panel} />}
       </div>
 
-      <div className="mk-toasts" role="status" aria-live="polite">
+      <div className="ws-toasts" role="status" aria-live="polite">
         {state.toasts.map((toast) => (
-          <p key={toast.id} className={`mk-toast mk-toast-${toast.tone}`}>
+          <p key={toast.id} className={`ws-toast ws-toast-${toast.tone}`}>
             <span>{toast.text}</span>
-            <button type="button" className="mk-icon-btn" aria-label="通知を閉じる" onClick={() => dispatch({ type: 'dismissToast', id: toast.id })}>
+            <button type="button" className="ws-icon-btn" aria-label="通知を閉じる" onClick={() => dispatch({ type: 'dismissToast', id: toast.id })}>
               ×
             </button>
           </p>

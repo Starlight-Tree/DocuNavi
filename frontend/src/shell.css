@@ -1,52 +1,53 @@
-/* UI モックの見た目。色・ボタン・フォーカスは、本体の styles.css のトークンと .btn を使う。クラス名は mk- で始め、本体と衝突させない */
+/* 新レイアウト（左サイドバー・メイン・右パネル）の共通の見た目。本体の画面と UI モック（src/mock）が使う。クラス名は ws- で始める。
+   元は UI モックの見た目: 色・ボタン・フォーカスは、本体の styles.css のトークンと .btn を使う。クラス名は ws- で始め、本体と衝突させない */
 
 :root {
-  --mk-side: 14rem;
-  --mk-panel: 24rem;
-  --mk-ok: #1d6b3f;
-  --mk-ok-bg: #e5f3ea;
-  --mk-wait: #7a5600;
-  --mk-wait-bg: #fbf1d6;
-  --mk-err: #8f1f1f;
-  --mk-err-bg: #fdecec;
-  --mk-mark: #fff0b3;
-  --mk-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
+  --ws-side: 14rem;
+  --ws-panel: 24rem;
+  --ws-ok: #1d6b3f;
+  --ws-ok-bg: #e5f3ea;
+  --ws-wait: #7a5600;
+  --ws-wait-bg: #fbf1d6;
+  --ws-err: #8f1f1f;
+  --ws-err-bg: #fdecec;
+  --ws-mark: #fff0b3;
+  --ws-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --mk-ok: #7fd5a0;
-    --mk-ok-bg: #16301f;
-    --mk-wait: #f0cd72;
-    --mk-wait-bg: #382d10;
-    --mk-err: #ffb4b4;
-    --mk-err-bg: #3a1c20;
-    --mk-mark: #5a4a12;
-    --mk-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
+    --ws-ok: #7fd5a0;
+    --ws-ok-bg: #16301f;
+    --ws-wait: #f0cd72;
+    --ws-wait-bg: #382d10;
+    --ws-err: #ffb4b4;
+    --ws-err-bg: #3a1c20;
+    --ws-mark: #5a4a12;
+    --ws-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
   }
 }
 
-.mk-shell [hidden],
-.mk-shell[hidden] {
+.ws-shell [hidden],
+.ws-shell[hidden] {
   display: none !important;
 }
 
 /* ---- 全体 ---- */
 
-.mk-shell {
+.ws-shell {
   display: grid;
-  grid-template-columns: var(--mk-side) minmax(0, 1fr);
+  grid-template-columns: var(--ws-side) minmax(0, 1fr);
   height: 100dvh;
   min-width: 64rem;
   background: var(--bg);
   color: var(--text);
 }
 
-.mk-shell-panel {
-  grid-template-columns: var(--mk-side) minmax(0, 1fr) var(--mk-panel);
+.ws-shell-panel {
+  grid-template-columns: var(--ws-side) minmax(0, 1fr) var(--ws-panel);
 }
 
-.mk-main {
+.ws-main {
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -54,14 +55,14 @@
   background: var(--bg);
 }
 
-.mk-view {
+.ws-view {
   display: flex;
   min-height: 0;
   flex: 1;
   flex-direction: column;
 }
 
-.mk-icon-btn {
+.ws-icon-btn {
   display: inline-grid;
   width: 2rem;
   height: 2rem;
@@ -76,17 +77,17 @@
   cursor: pointer;
 }
 
-.mk-icon-btn:hover:not(:disabled) {
+.ws-icon-btn:hover:not(:disabled) {
   background: var(--surface-muted);
   color: var(--text);
 }
 
-.mk-icon-btn:disabled {
+.ws-icon-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 
-.mk-link {
+.ws-link {
   padding: 0;
   border: 0;
   background: none;
@@ -97,13 +98,13 @@
   text-underline-offset: 0.15em;
 }
 
-.mk-hint {
+.ws-hint {
   margin: 0;
   color: var(--text-muted);
   font-size: 0.8rem;
 }
 
-.mk-note {
+.ws-note {
   margin: 0;
   padding: 0.6rem 0.75rem;
   border-radius: 0.5rem;
@@ -112,7 +113,7 @@
   font-size: 0.85rem;
 }
 
-.mk-badge-mock {
+.ws-badge-mock {
   display: inline-block;
   padding: 0.05rem 0.5rem;
   border: 1px dashed var(--border);
@@ -122,13 +123,13 @@
   white-space: nowrap;
 }
 
-.mk-section-title {
+.ws-section-title {
   margin: 0 0 0.4rem;
   font-size: 0.85rem;
   font-weight: 700;
 }
 
-.mk-spinner {
+.ws-spinner {
   display: inline-block;
   width: 0.7rem;
   height: 0.7rem;
@@ -136,24 +137,24 @@
   border: 2px solid currentColor;
   border-right-color: transparent;
   border-radius: 50%;
-  animation: mk-spin 0.9s linear infinite;
+  animation: ws-spin 0.9s linear infinite;
 }
 
-@keyframes mk-spin {
+@keyframes ws-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mk-spinner {
+  .ws-spinner {
     animation-duration: 3s;
   }
 }
 
 /* ---- 状態バッジ ---- */
 
-.mk-status {
+.ws-status {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -164,24 +165,24 @@
   white-space: nowrap;
 }
 
-.mk-status-ready {
-  background: var(--mk-ok-bg);
-  color: var(--mk-ok);
+.ws-status-ready {
+  background: var(--ws-ok-bg);
+  color: var(--ws-ok);
 }
 
-.mk-status-processing {
-  background: var(--mk-wait-bg);
-  color: var(--mk-wait);
+.ws-status-processing {
+  background: var(--ws-wait-bg);
+  color: var(--ws-wait);
 }
 
-.mk-status-failed {
-  background: var(--mk-err-bg);
-  color: var(--mk-err);
+.ws-status-failed {
+  background: var(--ws-err-bg);
+  color: var(--ws-err);
 }
 
 /* ---- サイドバー ---- */
 
-.mk-sidebar {
+.ws-sidebar {
   display: flex;
   min-height: 0;
   flex-direction: column;
@@ -192,27 +193,27 @@
   background: var(--surface);
 }
 
-.mk-brand {
+.ws-brand {
   padding: 0 0.5rem 0.5rem;
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: 0.01em;
 }
 
-.mk-new {
+.ws-new {
   width: 100%;
   margin-bottom: 0.5rem;
   text-align: left;
 }
 
-.mk-nav,
-.mk-history {
+.ws-nav,
+.ws-history {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.mk-nav-item {
+.ws-nav-item {
   display: flex;
   width: 100%;
   align-items: center;
@@ -226,18 +227,18 @@
   text-align: left;
 }
 
-.mk-nav-item:hover {
+.ws-nav-item:hover {
   background: var(--surface-muted);
 }
 
-.mk-nav-item[aria-current='page'] {
+.ws-nav-item[aria-current='page'] {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent);
   font-weight: 700;
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.mk-count {
+.ws-count {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -246,7 +247,7 @@
   font-weight: 400;
 }
 
-.mk-side-title {
+.ws-side-title {
   margin: 1rem 0 0.25rem;
   padding: 0 0.6rem;
   color: var(--text-muted);
@@ -254,20 +255,20 @@
   font-weight: 700;
 }
 
-.mk-side-note {
+.ws-side-note {
   margin: 0;
   padding: 0 0.6rem;
   color: var(--text-muted);
   font-size: 0.85rem;
 }
 
-.mk-history {
+.ws-history {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
 }
 
-.mk-history-item {
+.ws-history-item {
   display: flex;
   width: 100%;
   flex-direction: column;
@@ -279,33 +280,33 @@
   text-align: left;
 }
 
-.mk-history-item:hover {
+.ws-history-item:hover {
   background: var(--surface-muted);
 }
 
-.mk-history-item[aria-current='true'] {
+.ws-history-item[aria-current='true'] {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.mk-history-title {
+.ws-history-title {
   overflow: hidden;
   font-size: 0.9rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.mk-history-time {
+.ws-history-time {
   color: var(--text-muted);
   font-size: 0.72rem;
 }
 
-.mk-side-foot {
+.ws-side-foot {
   margin-top: auto;
   padding-top: 0.75rem;
 }
 
-.mk-mock-note {
+.ws-mock-note {
   margin: 0.5rem 0 0;
   padding: 0.5rem 0.6rem;
   border: 1px dashed var(--border);
@@ -315,21 +316,21 @@
   line-height: 1.5;
 }
 
-.mk-mock-note strong {
+.ws-mock-note strong {
   display: block;
   color: var(--text);
 }
 
 /* ---- チャット ---- */
 
-.mk-chat {
+.ws-chat {
   display: flex;
   min-height: 0;
   flex: 1;
   flex-direction: column;
 }
 
-.mk-chat-head {
+.ws-chat-head {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -337,7 +338,7 @@
   border-bottom: 1px solid var(--border);
 }
 
-.mk-chat-title {
+.ws-chat-title {
   margin: 0;
   overflow: hidden;
   font-size: 1rem;
@@ -345,33 +346,33 @@
   white-space: nowrap;
 }
 
-.mk-messages {
+.ws-messages {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
 }
 
-.mk-messages-inner,
-.mk-composer-wrap,
-.mk-empty-inner {
+.ws-messages-inner,
+.ws-composer-wrap,
+.ws-empty-inner {
   width: 100%;
   max-width: 48rem;
   margin: 0 auto;
 }
 
-.mk-messages-inner {
+.ws-messages-inner {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
   padding: 1.5rem 1.5rem 1rem;
 }
 
-.mk-msg-user {
+.ws-msg-user {
   display: flex;
   justify-content: flex-end;
 }
 
-.mk-bubble {
+.ws-bubble {
   max-width: 85%;
   margin: 0;
   padding: 0.55rem 0.9rem;
@@ -382,20 +383,20 @@
   overflow-wrap: anywhere;
 }
 
-.mk-msg-assistant {
+.ws-msg-assistant {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.5rem;
 }
 
-.mk-answer-text {
+.ws-answer-text {
   margin: 0;
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
 
-.mk-cite {
+.ws-cite {
   display: inline-grid;
   min-width: 1.3rem;
   height: 1.3rem;
@@ -412,11 +413,11 @@
   cursor: pointer;
 }
 
-.mk-cite:hover {
+.ws-cite:hover {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
-.mk-cite-num {
+.ws-cite-num {
   display: inline-grid;
   min-width: 1.15rem;
   height: 1.15rem;
@@ -429,18 +430,18 @@
   font-weight: 700;
 }
 
-.mk-sources {
+.ws-sources {
   width: 100%;
 }
 
-.mk-sources-title {
+.ws-sources-title {
   margin: 0 0 0.3rem;
   color: var(--text-muted);
   font-size: 0.75rem;
   font-weight: 700;
 }
 
-.mk-sources ul {
+.ws-sources ul {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -449,7 +450,7 @@
   list-style: none;
 }
 
-.mk-source {
+.ws-source {
   display: inline-flex;
   max-width: 100%;
   align-items: center;
@@ -462,17 +463,17 @@
   text-align: left;
 }
 
-.mk-source:hover {
+.ws-source:hover {
   border-color: var(--accent);
 }
 
-.mk-source[aria-pressed='true'] {
+.ws-source[aria-pressed='true'] {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   box-shadow: 0 0 0 1px var(--accent);
 }
 
-.mk-source-name {
+.ws-source-name {
   overflow: hidden;
   font-size: 0.88rem;
   font-weight: 600;
@@ -480,20 +481,20 @@
   white-space: nowrap;
 }
 
-.mk-source-loc {
+.ws-source-loc {
   color: var(--text-muted);
   font-size: 0.78rem;
   white-space: nowrap;
 }
 
-.mk-system {
+.ws-system {
   margin: 0;
   color: var(--text-muted);
   font-size: 0.8rem;
   text-align: center;
 }
 
-.mk-pending {
+.ws-pending {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -501,11 +502,11 @@
   color: var(--text-muted);
 }
 
-.mk-composer-wrap {
+.ws-composer-wrap {
   padding: 0 1.5rem 1.25rem;
 }
 
-.mk-composer {
+.ws-composer {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -515,11 +516,11 @@
   background: var(--surface);
 }
 
-.mk-composer:focus-within {
+.ws-composer:focus-within {
   border-color: var(--accent);
 }
 
-.mk-input {
+.ws-input {
   width: 100%;
   resize: none;
   border: 0;
@@ -527,103 +528,103 @@
   line-height: 1.6;
 }
 
-.mk-input:focus-visible {
+.ws-input:focus-visible {
   outline: none;
 }
 
-.mk-composer-bar {
+.ws-composer-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
 }
 
-.mk-composer-tools {
+.ws-composer-tools {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.mk-scope-btn {
+.ws-scope-btn {
   display: inline-flex;
   max-width: 100%;
   align-items: center;
   gap: 0.4rem;
 }
 
-.mk-scope-label {
+.ws-scope-label {
   color: var(--text-muted);
   font-size: 0.8rem;
 }
 
-.mk-scope-value {
+.ws-scope-value {
   overflow: hidden;
   font-weight: 700;
   text-overflow: ellipsis;
 }
 
-.mk-notices {
+.ws-notices {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   margin-bottom: 0.5rem;
 }
 
-.mk-notices:empty {
+.ws-notices:empty {
   display: none;
 }
 
-.mk-notice {
+.ws-notice {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin: 0;
   padding: 0.4rem 0.75rem;
   border-radius: 0.5rem;
-  background: var(--mk-wait-bg);
-  color: var(--mk-wait);
+  background: var(--ws-wait-bg);
+  color: var(--ws-wait);
   font-size: 0.85rem;
 }
 
-.mk-notice-warn {
+.ws-notice-warn {
   background: var(--surface-muted);
   color: var(--text-muted);
 }
 
-.mk-chat-empty {
+.ws-chat-empty {
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
 }
 
-.mk-empty-inner {
+.ws-empty-inner {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   padding-bottom: 6vh;
 }
 
-.mk-hero {
+.ws-hero {
   margin: 0;
   font-size: 1.9rem;
   font-weight: 700;
   text-align: center;
 }
 
-.mk-hero-sub {
+.ws-hero-sub {
   margin: 0 0 0.5rem;
   color: var(--text-muted);
   text-align: center;
 }
 
-.mk-empty-inner .mk-hint {
+.ws-empty-inner .ws-hint {
   text-align: center;
 }
 
 /* ---- 資料画面 ---- */
 
-.mk-docs {
+.ws-docs {
   display: flex;
   min-height: 0;
   flex: 1;
@@ -633,38 +634,38 @@
   overflow-y: auto;
 }
 
-.mk-docs-head {
+.ws-docs-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.mk-page-title {
+.ws-page-title {
   margin: 0;
   font-size: 1.4rem;
 }
 
-.mk-toolbar {
+.ws-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 0.75rem 1rem;
 }
 
-.mk-field {
+.ws-field {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
 }
 
-.mk-field label {
+.ws-field label {
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 600;
 }
 
-.mk-text {
+.ws-text {
   min-width: 14rem;
   height: 2.4rem;
   padding: 0.4rem 0.6rem;
@@ -675,96 +676,96 @@
   font: inherit;
 }
 
-.mk-result-count {
+.ws-result-count {
   margin: 0 0 0.45rem auto;
   color: var(--text-muted);
   font-size: 0.85rem;
 }
 
-.mk-table-wrap {
+.ws-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   background: var(--surface);
 }
 
-.mk-table {
+.ws-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.92rem;
 }
 
-.mk-table th,
-.mk-table td {
+.ws-table th,
+.ws-table td {
   padding: 0.6rem 0.75rem;
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: middle;
 }
 
-.mk-table tbody tr:last-child > * {
+.ws-table tbody tr:last-child > * {
   border-bottom: 0;
 }
 
-.mk-table thead th {
+.ws-table thead th {
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 700;
   white-space: nowrap;
 }
 
-.mk-table tbody th {
+.ws-table tbody th {
   min-width: 9rem;
   font-weight: 600;
 }
 
 /* 種別・追加日時は折り返さない（右パネルを開いても読める） */
-.mk-table td:nth-child(2),
-.mk-table td:nth-child(4) {
+.ws-table td:nth-child(2),
+.ws-table td:nth-child(4) {
   white-space: nowrap;
 }
 
-.mk-table tbody tr:hover {
+.ws-table tbody tr:hover {
   background: color-mix(in srgb, var(--surface-muted) 60%, transparent);
 }
 
-.mk-table tbody tr[data-selected='true'] {
+.ws-table tbody tr[data-selected='true'] {
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.mk-table .mk-link {
+.ws-table .ws-link {
   color: var(--text);
   font-weight: 600;
   text-decoration: none;
 }
 
-.mk-table .mk-link:hover {
+.ws-table .ws-link:hover {
   color: var(--accent);
   text-decoration: underline;
 }
 
-.mk-col-actions {
+.ws-col-actions {
   width: 3rem;
   text-align: right !important;
 }
 
-.mk-row-error {
+.ws-row-error {
   display: block;
   max-width: 13rem;
   margin-top: 0.3rem;
-  color: var(--mk-err);
+  color: var(--ws-err);
   font-size: 0.8rem;
 }
 
-.mk-row-error .mk-retry {
+.ws-row-error .ws-retry {
   margin-left: 0.5rem;
   color: var(--accent);
   font-weight: 600;
   text-decoration: underline;
 }
 
-.mk-empty-state {
+.ws-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -776,11 +777,11 @@
   text-align: center;
 }
 
-.mk-empty-state p {
+.ws-empty-state p {
   margin: 0;
 }
 
-.mk-empty-title {
+.ws-empty-title {
   color: var(--text);
   font-size: 1.05rem;
   font-weight: 700;
@@ -788,7 +789,7 @@
 
 /* ---- 行の操作メニュー ---- */
 
-.mk-menu {
+.ws-menu {
   position: fixed;
   z-index: 30;
   display: flex;
@@ -798,10 +799,10 @@
   border: 1px solid var(--border);
   border-radius: 0.6rem;
   background: var(--surface);
-  box-shadow: var(--mk-shadow);
+  box-shadow: var(--ws-shadow);
 }
 
-.mk-menu-item {
+.ws-menu-item {
   display: flex;
   flex-direction: column;
   padding: 0.45rem 0.65rem;
@@ -812,27 +813,27 @@
   text-align: left;
 }
 
-.mk-menu-item:hover:not(:disabled),
-.mk-menu-item:focus-visible {
+.ws-menu-item:hover:not(:disabled),
+.ws-menu-item:focus-visible {
   background: var(--surface-muted);
 }
 
-.mk-menu-item:disabled {
+.ws-menu-item:disabled {
   color: var(--text-muted);
   cursor: not-allowed;
 }
 
-.mk-menu-hint {
+.ws-menu-hint {
   font-size: 0.72rem;
 }
 
-.mk-menu-danger {
-  color: var(--mk-err);
+.ws-menu-danger {
+  color: var(--ws-err);
 }
 
 /* ---- 右パネル ---- */
 
-.mk-panel {
+.ws-panel {
   display: flex;
   min-height: 0;
   flex-direction: column;
@@ -843,53 +844,53 @@
   background: var(--surface);
 }
 
-.mk-panel:focus-visible {
+.ws-panel:focus-visible {
   outline-offset: -3px;
 }
 
-.mk-panel-head {
+.ws-panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.mk-eyebrow {
+.ws-eyebrow {
   color: var(--text-muted);
   font-size: 0.75rem;
   font-weight: 700;
 }
 
-.mk-panel-title {
+.ws-panel-title {
   margin: 0;
   font-size: 1.15rem;
   overflow-wrap: anywhere;
 }
 
-.mk-meta {
+.ws-meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.6rem 1rem;
   margin: 0;
 }
 
-.mk-meta dt {
+.ws-meta dt {
   color: var(--text-muted);
   font-size: 0.72rem;
   font-weight: 700;
 }
 
-.mk-meta dd {
+.ws-meta dd {
   margin: 0.1rem 0 0;
   font-size: 0.9rem;
 }
 
-.mk-panel-actions {
+.ws-panel-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.mk-preview {
+.ws-preview {
   display: flex;
   min-height: 0;
   flex-direction: column;
@@ -898,17 +899,17 @@
   border-top: 1px solid var(--border);
 }
 
-.mk-preview-head {
+.ws-preview-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.mk-preview-head .mk-section-title {
+.ws-preview-head .ws-section-title {
   margin: 0;
 }
 
-.mk-pager {
+.ws-pager {
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -916,7 +917,7 @@
   font-size: 0.85rem;
 }
 
-.mk-cite-line {
+.ws-cite-line {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -925,7 +926,7 @@
   font-weight: 600;
 }
 
-.mk-preview-body {
+.ws-preview-body {
   max-height: 22rem;
   padding: 0.75rem 0.9rem;
   overflow-y: auto;
@@ -934,33 +935,33 @@
   background: var(--bg);
 }
 
-.mk-preview-heading {
+.ws-preview-heading {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
 }
 
-.mk-para {
+.ws-para {
   margin: 0 0 0.7rem;
   line-height: 1.8;
 }
 
-.mk-para mark {
+.ws-para mark {
   display: block;
   padding: 0.35rem 0.5rem;
   border-left: 4px solid var(--impact-direct);
   border-radius: 0.3rem;
-  background: var(--mk-mark);
+  background: var(--ws-mark);
   color: inherit;
 }
 
-.mk-mark-label {
+.ws-mark-label {
   font-size: 0.75rem;
   font-weight: 700;
 }
 
 /* ---- ダイアログ ---- */
 
-.mk-backdrop {
+.ws-backdrop {
   position: fixed;
   z-index: 40;
   inset: 0;
@@ -970,7 +971,7 @@
   background: rgb(10 14 12 / 0.45);
 }
 
-.mk-modal {
+.ws-modal {
   display: flex;
   width: 100%;
   max-height: calc(100dvh - 3rem);
@@ -978,30 +979,30 @@
   border: 1px solid var(--border);
   border-radius: 0.9rem;
   background: var(--surface);
-  box-shadow: var(--mk-shadow);
+  box-shadow: var(--ws-shadow);
 }
 
-.mk-modal-narrow {
+.ws-modal-narrow {
   max-width: 28rem;
 }
 
-.mk-modal-wide {
+.ws-modal-wide {
   max-width: 36rem;
 }
 
-.mk-modal-head {
+.ws-modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.9rem 1.25rem 0.5rem;
 }
 
-.mk-modal-title {
+.ws-modal-title {
   margin: 0;
   font-size: 1.1rem;
 }
 
-.mk-modal-body {
+.ws-modal-body {
   display: flex;
   min-height: 0;
   flex: 1;
@@ -1011,11 +1012,11 @@
   overflow-y: auto;
 }
 
-.mk-modal-body p {
+.ws-modal-body p {
   margin: 0;
 }
 
-.mk-modal-foot {
+.ws-modal-foot {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1024,20 +1025,20 @@
   border-top: 1px solid var(--border);
 }
 
-.mk-count-line {
+.ws-count-line {
   margin: 0 auto 0 0;
   color: var(--text-muted);
   font-size: 0.85rem;
 }
 
-.mk-btn-danger {
-  border-color: var(--mk-err);
-  background: var(--mk-err);
+.ws-btn-danger {
+  border-color: var(--ws-err);
+  background: var(--ws-err);
   color: var(--surface);
   font-weight: 700;
 }
 
-.mk-drop {
+.ws-drop {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1049,25 +1050,25 @@
   text-align: center;
 }
 
-.mk-drop[data-active='true'] {
+.ws-drop[data-active='true'] {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, var(--bg));
 }
 
-.mk-drop-title {
+.ws-drop-title {
   font-weight: 700;
 }
 
-.mk-problems {
+.ws-problems {
   margin: 0;
   padding: 0.5rem 0.75rem 0.5rem 1.5rem;
   border-radius: 0.5rem;
-  background: var(--mk-err-bg);
-  color: var(--mk-err);
+  background: var(--ws-err-bg);
+  color: var(--ws-err);
   font-size: 0.85rem;
 }
 
-.mk-picked {
+.ws-picked {
   display: flex;
   flex-direction: column;
   margin: 0;
@@ -1077,18 +1078,18 @@
   border-radius: 0.6rem;
 }
 
-.mk-picked li {
+.ws-picked li {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 0.3rem 0.4rem 0.3rem 0.75rem;
 }
 
-.mk-picked li + li {
+.ws-picked li + li {
   border-top: 1px solid var(--border);
 }
 
-.mk-picked-name {
+.ws-picked-name {
   min-width: 0;
   flex: 1;
   overflow: hidden;
@@ -1097,13 +1098,13 @@
   white-space: nowrap;
 }
 
-.mk-picked-meta {
+.ws-picked-meta {
   color: var(--text-muted);
   font-size: 0.8rem;
   white-space: nowrap;
 }
 
-.mk-radios {
+.ws-radios {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -1112,7 +1113,7 @@
   border: 0;
 }
 
-.mk-radio {
+.ws-radio {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
@@ -1122,23 +1123,23 @@
   cursor: pointer;
 }
 
-.mk-radio:has(input:checked) {
+.ws-radio:has(input:checked) {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 
-.mk-radio > span {
+.ws-radio > span {
   display: flex;
   flex-direction: column;
 }
 
-.mk-bulk {
+.ws-bulk {
   display: flex;
   gap: 1rem;
   font-size: 0.85rem;
 }
 
-.mk-scope-list {
+.ws-scope-list {
   max-height: 16rem;
   margin: 0;
   padding: 0;
@@ -1148,26 +1149,26 @@
   border-radius: 0.6rem;
 }
 
-.mk-scope-item {
+.ws-scope-item {
   padding: 0.45rem 0.75rem;
 }
 
-.mk-scope-item + .mk-scope-item {
+.ws-scope-item + .ws-scope-item {
   border-top: 1px solid var(--border);
 }
 
-.mk-scope-item label {
+.ws-scope-item label {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   cursor: pointer;
 }
 
-.mk-scope-item[data-disabled='true'] label {
+.ws-scope-item[data-disabled='true'] label {
   cursor: default;
 }
 
-.mk-scope-name {
+.ws-scope-name {
   min-width: 0;
   flex: 1;
   overflow: hidden;
@@ -1175,7 +1176,7 @@
   white-space: nowrap;
 }
 
-.mk-reason {
+.ws-reason {
   margin: 0.1rem 0 0 1.6rem;
   color: var(--text-muted);
   font-size: 0.78rem;
@@ -1183,7 +1184,7 @@
 
 /* ---- 通知 ---- */
 
-.mk-toasts {
+.ws-toasts {
   position: fixed;
   z-index: 50;
   right: 1rem;
@@ -1194,7 +1195,7 @@
   gap: 0.5rem;
 }
 
-.mk-toast {
+.ws-toast {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1204,11 +1205,165 @@
   border: 1px solid var(--border);
   border-radius: 0.6rem;
   background: var(--surface);
-  box-shadow: var(--mk-shadow);
+  box-shadow: var(--ws-shadow);
   font-size: 0.88rem;
 }
 
-.mk-toast-error {
-  border-color: var(--mk-err);
-  color: var(--mk-err);
+.ws-toast-error {
+  border-color: var(--ws-err);
+  color: var(--ws-err);
+}
+
+/* ---- 本体の画面（左サイドバー・メイン・右パネル）----
+   UI モックは上の定義をそのまま使う。以下は、本体の画面のための追加と上書き */
+
+.ws-shell {
+  position: relative;
+}
+
+/* 資料のパネルは、PDF を読めるよう、モックより少し広くする */
+.ws-shell-panel {
+  grid-template-columns: var(--ws-side) minmax(0, 1fr) clamp(26rem, 36vw, 38rem);
+}
+
+.ws-side-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.ws-side-foot .mode-badge {
+  align-self: flex-start;
+}
+
+.ws-user {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 会話の履歴は、サイドバーの残りの高さを使って、中だけをスクロールする */
+.ws-sidebar .thread-sidebar {
+  flex: 1;
+  width: auto;
+  padding: 0.75rem 0 0;
+  border-right: 0;
+}
+
+.ws-sidebar .thread-open {
+  padding-right: 2.75rem;
+}
+
+/* チャットは、広い画面でも読みやすい幅に収めて中央に置く */
+.ws-main > .chat-layout {
+  justify-content: center;
+}
+
+.ws-main > .chat-layout > .chat-pane {
+  max-width: 56rem;
+}
+
+.ws-main > .documents {
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+}
+
+.documents-row[aria-current='true'] {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* パネルの拡大は CSS だけ。同じ要素を、メインの上に重ねる（チャット・PDF・関係図を作り直さない） */
+.ws-panel-expanded {
+  position: absolute;
+  z-index: 5;
+  inset: 0 0 0 var(--ws-side);
+}
+
+.ws-panel-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ws-panel .view-switch {
+  align-self: flex-start;
+  margin-bottom: 0;
+}
+
+.ws-panel .document-meta {
+  margin: 0;
+}
+
+.ws-view-body {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ws-panel .pdf-frame {
+  height: max(24rem, calc(100dvh - 15rem));
+}
+
+/* 抽出テキストで、出典の根拠にしたチャンク */
+.chunk-focus {
+  border-left: 4px solid var(--accent);
+  background: var(--ws-mark);
+}
+
+.chunk-focus mark {
+  background: transparent;
+  color: inherit;
+}
+
+.chunk-cite {
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.35rem;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* 狭い幅（スマホ）は、崩れないことの確認だけ。サイドバーを上に積み、パネルは全面に重ねる */
+@media (max-width: 1023px) {
+  .ws-shell {
+    min-width: 0;
+    height: auto;
+    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .ws-shell-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ws-sidebar {
+    max-height: 14rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ws-main {
+    min-height: 70dvh;
+  }
+
+  .ws-panel {
+    position: fixed;
+    z-index: 5;
+    inset: 0;
+  }
+}
+
+/* サイドバーのロゴと画面の切り替えは、リンクだが、見た目は文字・ボタンのまま（色と下線を変えない） */
+.ws-brand a,
+.ws-nav-item {
+  color: inherit;
+  text-decoration: none;
 }

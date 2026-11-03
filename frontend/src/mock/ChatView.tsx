@@ -15,13 +15,13 @@ const BLOCK_NOTE = {
 function AnswerText({ message, onOpen }: { message: MockMessage; onOpen: (index: number) => void }) {
   const parts = message.text.split(/(\[\d+\])/);
   return (
-    <p className="mk-answer-text">
+    <p className="ws-answer-text">
       {parts.map((part, i) => {
         const match = /^\[(\d+)\]$/.exec(part);
         const index = match ? Number(match[1]) - 1 : -1;
         if (match && message.sources?.[index]) {
           return (
-            <button key={i} type="button" className="mk-cite" aria-label={`出典${match[1]}を開く`} onClick={() => onOpen(index)}>
+            <button key={i} type="button" className="ws-cite" aria-label={`出典${match[1]}を開く`} onClick={() => onOpen(index)}>
               {match[1]}
             </button>
           );
@@ -89,24 +89,24 @@ export function ChatView() {
     state.panel?.docId === source.docId && state.panel.focus?.page === source.page && state.panel.focus.para === source.para;
 
   const composer = (
-    <form className="mk-composer" onSubmit={handleSubmit}>
-      <label htmlFor="mk-input" className="visually-hidden">
+    <form className="ws-composer" onSubmit={handleSubmit}>
+      <label htmlFor="ws-input" className="visually-hidden">
         質問
       </label>
       <textarea
         ref={inputRef}
-        id="mk-input"
-        className="mk-input"
+        id="ws-input"
+        className="ws-input"
         rows={empty ? 3 : 2}
         value={draft}
         maxLength={MAX_LENGTH}
         placeholder="資料について質問を入力（Enter で送信 / Shift+Enter で改行）"
-        aria-describedby="mk-scope-line"
+        aria-describedby="ws-scope-line"
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={handleKeyDown}
       />
-      <div className="mk-composer-bar">
-        <div className="mk-composer-tools">
+      <div className="ws-composer-bar">
+        <div className="ws-composer-tools">
           <button
             type="button"
             className="btn btn-secondary"
@@ -116,12 +116,12 @@ export function ChatView() {
           </button>
           <button
             type="button"
-            className="btn btn-secondary mk-scope-btn"
+            className="btn btn-secondary ws-scope-btn"
             aria-haspopup="dialog"
             onClick={() => dispatch({ type: 'openDialog', dialog: { type: 'scope' } })}
           >
-            <span className="mk-scope-label">質問対象</span>
-            <span id="mk-scope-line" className="mk-scope-value">
+            <span className="ws-scope-label">質問対象</span>
+            <span id="ws-scope-line" className="ws-scope-value">
               {scopeLabel(state, thread.scope)}
             </span>
             <span aria-hidden="true">▾</span>
@@ -135,73 +135,73 @@ export function ChatView() {
   );
 
   const notices = (
-    <div className="mk-notices" role="status" aria-live="polite">
+    <div className="ws-notices" role="status" aria-live="polite">
       {waitingUploads.length > 0 && (
-        <p className="mk-notice">
-          <span className="mk-spinner" aria-hidden="true" />
+        <p className="ws-notice">
+          <span className="ws-spinner" aria-hidden="true" />
           「{waitingUploads[0]?.name}」{waitingUploads.length > 1 ? `ほか${waitingUploads.length - 1}件` : ''}を取り込み中です。完了後に質問対象になります。
         </p>
       )}
-      {block === 'waiting' || block === 'no-docs' ? <p className="mk-notice mk-notice-warn">{BLOCK_NOTE[block]}</p> : null}
+      {block === 'waiting' || block === 'no-docs' ? <p className="ws-notice ws-notice-warn">{BLOCK_NOTE[block]}</p> : null}
     </div>
   );
 
   if (empty) {
     return (
-      <div className="mk-chat mk-chat-empty">
-        <div className="mk-empty-inner">
-          <h1 className="mk-hero">何を調べますか？</h1>
-          <p className="mk-hero-sub">登録した資料について質問できます。取り込み済みの資料だけが質問対象になります。</p>
+      <div className="ws-chat ws-chat-empty">
+        <div className="ws-empty-inner">
+          <h1 className="ws-hero">何を調べますか？</h1>
+          <p className="ws-hero-sub">登録した資料について質問できます。取り込み済みの資料だけが質問対象になります。</p>
           {composer}
           {notices}
-          <p className="mk-hint">UI モックです。回答は定型文で、実際の検索・生成はしません。</p>
+          <p className="ws-hint">UI モックです。回答は定型文で、実際の検索・生成はしません。</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mk-chat">
-      <header className="mk-chat-head">
-        <h1 className="mk-chat-title">{thread.title}</h1>
-        <span className="mk-badge-mock">UI モック</span>
+    <div className="ws-chat">
+      <header className="ws-chat-head">
+        <h1 className="ws-chat-title">{thread.title}</h1>
+        <span className="ws-badge-mock">UI モック</span>
       </header>
-      <div ref={listRef} className="mk-messages" role="log" aria-label="会話" aria-live="polite">
-        <div className="mk-messages-inner">
+      <div ref={listRef} className="ws-messages" role="log" aria-label="会話" aria-live="polite">
+        <div className="ws-messages-inner">
           {thread.messages.map((message) => {
             if (message.role === 'system') {
               return (
-                <p key={message.id} className="mk-system">
+                <p key={message.id} className="ws-system">
                   {message.text}
                 </p>
               );
             }
             if (message.role === 'user') {
               return (
-                <div key={message.id} className="mk-msg mk-msg-user">
-                  <p className="mk-bubble">{message.text}</p>
+                <div key={message.id} className="ws-msg ws-msg-user">
+                  <p className="ws-bubble">{message.text}</p>
                 </div>
               );
             }
             const sources = message.sources ?? [];
             return (
-              <div key={message.id} className="mk-msg mk-msg-assistant">
+              <div key={message.id} className="ws-msg ws-msg-assistant">
                 <AnswerText message={message} onOpen={(i) => sources[i] && openSource(sources[i], i + 1)} />
-                <span className="mk-badge-mock" title="定型の回答です。実際の検索・生成はしていません">
+                <span className="ws-badge-mock" title="定型の回答です。実際の検索・生成はしていません">
                   モック応答
                 </span>
                 {sources.length > 0 && (
-                  <div className="mk-sources">
-                    <h3 className="mk-sources-title">出典</h3>
+                  <div className="ws-sources">
+                    <h3 className="ws-sources-title">出典</h3>
                     <ul>
                       {sources.map((source, i) => (
                         <li key={`${source.docId}-${source.page}-${source.para}`}>
-                          <button type="button" className="mk-source" aria-pressed={isOpen(source)} onClick={() => openSource(source, i + 1)}>
-                            <span className="mk-cite-num" aria-hidden="true">
+                          <button type="button" className="ws-source" aria-pressed={isOpen(source)} onClick={() => openSource(source, i + 1)}>
+                            <span className="ws-cite-num" aria-hidden="true">
                               {i + 1}
                             </span>
-                            <span className="mk-source-name">{source.docName}</span>
-                            <span className="mk-source-loc">{source.location}</span>
+                            <span className="ws-source-name">{source.docName}</span>
+                            <span className="ws-source-loc">{source.location}</span>
                           </button>
                         </li>
                       ))}
@@ -212,14 +212,14 @@ export function ChatView() {
             );
           })}
           {thread.pending && (
-            <p className="mk-msg mk-pending" role="status">
-              <span className="mk-spinner" aria-hidden="true" />
+            <p className="ws-msg ws-pending" role="status">
+              <span className="ws-spinner" aria-hidden="true" />
               回答を作成しています（モック）…
             </p>
           )}
         </div>
       </div>
-      <div className="mk-composer-wrap">
+      <div className="ws-composer-wrap">
         {notices}
         {composer}
       </div>

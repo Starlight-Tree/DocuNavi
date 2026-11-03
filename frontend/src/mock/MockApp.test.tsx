@@ -89,7 +89,7 @@ describe('質問・回答・出典', () => {
     render(<MockApp />);
     await user.type(screen.getByLabelText('質問'), '経費の締め日はいつ？');
     await user.click(screen.getByRole('button', { name: '送信' }));
-    expect(screen.getByText('経費の締め日はいつ？', { selector: '.mk-bubble' })).toBeInTheDocument();
+    expect(screen.getByText('経費の締め日はいつ？', { selector: '.ws-bubble' })).toBeInTheDocument();
     expect(screen.getByText(/回答を作成しています/)).toBeInTheDocument();
 
     const [source] = await screen.findAllByRole('button', { name: /経費精算ガイド\.pdf/ }, { timeout: REPLY_DELAY_MS + 2000 });
@@ -103,11 +103,11 @@ describe('質問・回答・出典', () => {
     expect(mark).toHaveTextContent('発生日の翌月5日まで');
     expect(source).toHaveAttribute('aria-pressed', 'true');
     // 会話は残っている
-    expect(screen.getByText('経費の締め日はいつ？', { selector: '.mk-bubble' })).toBeInTheDocument();
+    expect(screen.getByText('経費の締め日はいつ？', { selector: '.ws-bubble' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
-    expect(screen.getByText('経費の締め日はいつ？', { selector: '.mk-bubble' })).toBeInTheDocument();
+    expect(screen.getByText('経費の締め日はいつ？', { selector: '.ws-bubble' })).toBeInTheDocument();
   });
 
   it('資料詳細と出典は、同じパネルで表示する', async () => {
@@ -135,7 +135,7 @@ describe('アップロードと取り込み', () => {
     expect(within(dialog).getByRole('button', { name: '追加' })).toBeDisabled();
     expect(within(dialog).getByText(/会話だけの一時的な添付はありません/)).toBeInTheDocument();
 
-    const input = within(dialog).getByTestId('mk-file-input');
+    const input = within(dialog).getByTestId('ws-file-input');
     await user.upload(input, [new File(['x'], '新製品の資料.pdf'), new File(['x'], '禁止.exe')]);
     expect(within(dialog).getByRole('alert')).toHaveTextContent('禁止.exe');
     expect(within(dialog).getByText('新製品の資料.pdf')).toBeInTheDocument();
@@ -167,7 +167,7 @@ describe('アップロードと取り込み', () => {
     await user.click(screen.getByRole('button', { name: /資料を追加/ }));
     const dialog = screen.getByRole('dialog', { name: '資料を追加' });
     expect(within(dialog).getByText(/この会話の質問対象にも入ります/)).toBeInTheDocument();
-    await user.upload(within(dialog).getByTestId('mk-file-input'), new File(['x'], '追加資料.docx'));
+    await user.upload(within(dialog).getByTestId('ws-file-input'), new File(['x'], '追加資料.docx'));
     await user.click(within(dialog).getByRole('button', { name: '1件を追加' }));
 
     expect(screen.getByRole('button', { name: /質問対象/ })).toHaveTextContent('選択した資料 2件');

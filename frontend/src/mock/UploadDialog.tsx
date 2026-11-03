@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
-import { Modal } from './Modal';
+import { Modal } from '../components/Modal';
 import { ACCEPT_ATTRIBUTE, ACCEPTED_EXTENSIONS, MAX_UPLOAD_FILES, formatSize, isAcceptedName, kindOf } from './data';
 import { useMock } from './MockProvider';
 
@@ -63,9 +63,9 @@ export function UploadDialog({ origin, onClose }: { origin: 'chat' | 'documents'
 
   return (
     <Modal title="資料を追加" description="ファイルを選び、追加を押すと、資料に保存して取り込みを始めます（モック）。" width="wide" onClose={onClose}>
-      <div className="mk-modal-body">
+      <div className="ws-modal-body">
         <div
-          className="mk-drop"
+          className="ws-drop"
           data-active={dragging ? 'true' : undefined}
           onDragEnter={(event) => {
             event.preventDefault();
@@ -75,17 +75,17 @@ export function UploadDialog({ origin, onClose }: { origin: 'chat' | 'documents'
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
         >
-          <p className="mk-drop-title">ここにファイルをドラッグ＆ドロップ</p>
-          <p className="mk-hint">または</p>
+          <p className="ws-drop-title">ここにファイルをドラッグ＆ドロップ</p>
+          <p className="ws-hint">または</p>
           <button type="button" className="btn btn-secondary" onClick={() => inputRef.current?.click()}>
             ファイルを選択
           </button>
-          <input ref={inputRef} type="file" multiple accept={ACCEPT_ATTRIBUTE} className="visually-hidden" tabIndex={-1} aria-hidden="true" data-testid="mk-file-input" onChange={onPick} />
-          <p className="mk-hint">対応: {ACCEPTED_EXTENSIONS.join(' / ')}（一度に{MAX_UPLOAD_FILES}件まで）</p>
+          <input ref={inputRef} type="file" multiple accept={ACCEPT_ATTRIBUTE} className="visually-hidden" tabIndex={-1} aria-hidden="true" data-testid="ws-file-input" onChange={onPick} />
+          <p className="ws-hint">対応: {ACCEPTED_EXTENSIONS.join(' / ')}（一度に{MAX_UPLOAD_FILES}件まで）</p>
         </div>
 
         {problems.length > 0 && (
-          <ul className="mk-problems" role="alert">
+          <ul className="ws-problems" role="alert">
             {problems.map((text) => (
               <li key={text}>{text}</li>
             ))}
@@ -93,20 +93,20 @@ export function UploadDialog({ origin, onClose }: { origin: 'chat' | 'documents'
         )}
 
         {files.length > 0 && (
-          <section aria-labelledby="mk-picked-title">
-            <h3 id="mk-picked-title" className="mk-section-title">
+          <section aria-labelledby="ws-picked-title">
+            <h3 id="ws-picked-title" className="ws-section-title">
               選んだファイル（{files.length}件）
             </h3>
-            <ul className="mk-picked">
+            <ul className="ws-picked">
               {files.map((file) => (
                 <li key={file.key}>
-                  <span className="mk-picked-name">{file.name}</span>
-                  <span className="mk-picked-meta">
+                  <span className="ws-picked-name">{file.name}</span>
+                  <span className="ws-picked-meta">
                     {kindOf(file.name)} ・ {formatSize(file.size)}
                   </span>
                   <button
                     type="button"
-                    className="mk-icon-btn"
+                    className="ws-icon-btn"
                     aria-label={`「${file.name}」を外す`}
                     onClick={() => setFiles(files.filter((f) => f.key !== file.key))}
                   >
@@ -118,14 +118,14 @@ export function UploadDialog({ origin, onClose }: { origin: 'chat' | 'documents'
           </section>
         )}
 
-        <p id={noteId} className="mk-note">
+        <p id={noteId} className="ws-note">
           追加した資料は「資料」に保存され、ほかの会話でも使えます。会話だけの一時的な添付はありません。
           {origin === 'chat' && 'この会話の質問対象にも入ります（取り込みが終わるまでは質問に使えません）。'}
           <br />
           モック: ファイルの内容は読み取らず、外部へ送信しません。ファイル名に「エラー」を含むと、取り込みの失敗を試せます。
         </p>
       </div>
-      <footer className="mk-modal-foot">
+      <footer className="ws-modal-foot">
         <button type="button" className="btn btn-secondary" onClick={onClose}>
           キャンセル
         </button>

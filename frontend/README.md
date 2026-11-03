@@ -99,7 +99,7 @@ frontend/
     ├── auth/                 # Google ログイン（Supabase Auth）。types.ts = 窓口の型、supabase.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
     ├── hooks/                # useChat（AI SDK の useChat を包む）、useBackendMode、useCollections、useDocuments、useThreads、useLoaded（取得状態 Loaded と認証つき fetch の共通部品）
     ├── lib/                  # relationGraph（関係図の選び方・並べ方・影響の分類）、sources（出典の取り出し）、storage、urlState、markdown ほか
-    ├── components/           # Header / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen / DocumentsView / ThreadSidebar / RelationGraphView ほか
+    ├── components/           # AppSidebar / DocumentPanel / PanelHost / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen / DocumentsView / ThreadSidebar / RelationGraphView ほか
     ├── App.tsx, Root.tsx, styles.css
     └── test/                 # テストの共通設定とヘルパー
 ```

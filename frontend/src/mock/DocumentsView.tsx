@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { StatusBadge } from './StatusBadge';
-import { STATUS_LABEL, formatDateTime } from './data';
+import { STATUS_LABEL, StatusBadge } from '../components/StatusBadge';
+import { formatDateTime } from './data';
 import { useMock } from './MockProvider';
 import type { DocStatus, MockDoc } from './types';
 
@@ -95,7 +95,7 @@ function RowMenu({ doc, actions }: { doc: MockDoc; actions: MenuAction[] }) {
       <button
         ref={buttonRef}
         type="button"
-        className="mk-icon-btn mk-row-menu-btn"
+        className="ws-icon-btn ws-row-menu-btn"
         aria-label={`「${doc.name}」の操作`}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -110,7 +110,7 @@ function RowMenu({ doc, actions }: { doc: MockDoc; actions: MenuAction[] }) {
           id={menuId}
           role="menu"
           aria-label={`「${doc.name}」の操作`}
-          className="mk-menu"
+          className="ws-menu"
           style={{ top: pos.top, right: pos.right }}
           onKeyDown={handleKeyDown}
         >
@@ -119,7 +119,7 @@ function RowMenu({ doc, actions }: { doc: MockDoc; actions: MenuAction[] }) {
               key={action.key}
               type="button"
               role="menuitem"
-              className={action.danger ? 'mk-menu-item mk-menu-danger' : 'mk-menu-item'}
+              className={action.danger ? 'ws-menu-item ws-menu-danger' : 'ws-menu-item'}
               disabled={action.disabled}
               onClick={() => {
                 // ダイアログが閉じたとき、この行のボタンへ戻れるよう、先にフォーカスを戻す
@@ -128,7 +128,7 @@ function RowMenu({ doc, actions }: { doc: MockDoc; actions: MenuAction[] }) {
               }}
             >
               {action.label}
-              {action.hint && <span className="mk-menu-hint">{action.hint}</span>}
+              {action.hint && <span className="ws-menu-hint">{action.hint}</span>}
             </button>
           ))}
         </div>
@@ -162,22 +162,22 @@ export function DocumentsView() {
   ];
 
   return (
-    <div className="mk-docs">
-      <header className="mk-docs-head">
-        <h1 className="mk-page-title">資料</h1>
+    <div className="ws-docs">
+      <header className="ws-docs-head">
+        <h1 className="ws-page-title">資料</h1>
         <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'openDialog', dialog: { type: 'upload', origin: 'documents' } })}>
           ＋ 資料を追加
         </button>
       </header>
 
-      <div className="mk-toolbar">
-        <div className="mk-field">
-          <label htmlFor="mk-doc-search">資料名で検索</label>
-          <input id="mk-doc-search" type="search" className="mk-text" value={query} placeholder="例: 契約" onChange={(event) => setQuery(event.target.value)} />
+      <div className="ws-toolbar">
+        <div className="ws-field">
+          <label htmlFor="ws-doc-search">資料名で検索</label>
+          <input id="ws-doc-search" type="search" className="ws-text" value={query} placeholder="例: 契約" onChange={(event) => setQuery(event.target.value)} />
         </div>
-        <div className="mk-field">
-          <label htmlFor="mk-doc-status">状態</label>
-          <select id="mk-doc-status" className="mk-text" value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}>
+        <div className="ws-field">
+          <label htmlFor="ws-doc-status">状態</label>
+          <select id="ws-doc-status" className="ws-text" value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}>
             {FILTERS.map((f) => (
               <option key={f.value} value={f.value}>
                 {f.label}
@@ -185,22 +185,22 @@ export function DocumentsView() {
             ))}
           </select>
         </div>
-        <p className="mk-result-count" role="status">
+        <p className="ws-result-count" role="status">
           {total === 0 ? '' : `${total}件中 ${rows.length}件を表示`}
         </p>
       </div>
 
       {total === 0 ? (
-        <div className="mk-empty-state">
-          <p className="mk-empty-title">まだ資料がありません</p>
+        <div className="ws-empty-state">
+          <p className="ws-empty-title">まだ資料がありません</p>
           <p>資料を追加すると、取り込みのあとで、チャットから質問できます。</p>
           <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'openDialog', dialog: { type: 'upload', origin: 'documents' } })}>
             ＋ 資料を追加
           </button>
         </div>
       ) : rows.length === 0 ? (
-        <div className="mk-empty-state">
-          <p className="mk-empty-title">条件に合う資料がありません</p>
+        <div className="ws-empty-state">
+          <p className="ws-empty-title">条件に合う資料がありません</p>
           <p>検索語や状態を変えてみてください。</p>
           {filtered && (
             <button
@@ -216,8 +216,8 @@ export function DocumentsView() {
           )}
         </div>
       ) : (
-        <div className="mk-table-wrap">
-          <table className="mk-table">
+        <div className="ws-table-wrap">
+          <table className="ws-table">
             <caption className="visually-hidden">登録済みの資料（追加日時の新しい順）</caption>
             <thead>
               <tr>
@@ -225,7 +225,7 @@ export function DocumentsView() {
                 <th scope="col">ファイル種別</th>
                 <th scope="col">状態</th>
                 <th scope="col">追加日時</th>
-                <th scope="col" className="mk-col-actions">
+                <th scope="col" className="ws-col-actions">
                   <span className="visually-hidden">操作</span>
                 </th>
               </tr>
@@ -236,7 +236,7 @@ export function DocumentsView() {
                 return (
                   <tr key={doc.id} data-selected={selected ? 'true' : undefined}>
                     <th scope="row">
-                      <button type="button" className="mk-link" aria-current={selected ? 'true' : undefined} onClick={() => open(doc)}>
+                      <button type="button" className="ws-link" aria-current={selected ? 'true' : undefined} onClick={() => open(doc)}>
                         {doc.name}
                       </button>
                     </th>
@@ -244,16 +244,16 @@ export function DocumentsView() {
                     <td>
                       <StatusBadge status={doc.status} />
                       {doc.status === 'failed' && (
-                        <span className="mk-row-error">
+                        <span className="ws-row-error">
                           {doc.failureReason ?? '取り込みに失敗しました。'}
-                          <button type="button" className="mk-link mk-retry" onClick={() => dispatch({ type: 'retry', docId: doc.id, now: Date.now() })}>
+                          <button type="button" className="ws-link ws-retry" onClick={() => dispatch({ type: 'retry', docId: doc.id, now: Date.now() })}>
                             再試行
                           </button>
                         </span>
                       )}
                     </td>
                     <td>{formatDateTime(doc.addedAt)}</td>
-                    <td className="mk-col-actions">
+                    <td className="ws-col-actions">
                       <RowMenu doc={doc} actions={actionsFor(doc)} />
                     </td>
                   </tr>

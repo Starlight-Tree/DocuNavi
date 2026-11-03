@@ -56,12 +56,6 @@ export function formatSize(bytes: number | null): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export const STATUS_LABEL = {
-  ready: '利用可能',
-  processing: '取り込み中',
-  failed: 'エラー',
-} as const;
-
 /** 取り込み中の資料が質問対象に選べない理由。 */
 export const UNSELECTABLE_REASON = {
   processing: '取り込み中のため選べません（完了後に選べます）',
