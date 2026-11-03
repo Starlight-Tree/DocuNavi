@@ -1,0 +1,86 @@
+# つばさ大学学生寮（架空）の共通設定。既存の資料 evals/corpora/guides/source/tsubasa_dorm_rules.md（入寮規程）と矛盾しないように起こした。
+# 事実（facts）にある数値・日付・時刻だけが、生成した本文に出てよい。足す・直すと version が変わる。
+target: tsubasa-dorm
+label: つばさ大学学生寮
+existing_documents: 1
+revision: 2026年11月1日改訂
+premise: つばさ大学の学生寮は、ひばり棟・つばめ棟・かもめ棟の 3 棟でできている。運営は学生支援課が行い、各棟に寮監が 1 名いる。
+contacts: []
+forbidden: [東京大学, 早稲田, 慶應, 京都大学]
+extra_numbers: []
+
+facts:
+  - {id: scope, tags: [core, overview], text: "つばさ大学学生寮（以下「寮」という。）は、ひばり棟、つばめ棟及びかもめ棟の3棟で構成する。"}
+  - {id: capacity, tags: [core, overview, apply], text: "各棟の定員は、ひばり棟が120名、つばめ棟が100名、かもめ棟が60名。"}
+  - {id: operation, tags: [core, overview], text: "寮の運営は、学生支援課が行う。各棟には、寮監を1名置く。"}
+  - {id: eligible, tags: [apply], text: "入寮できる者は、本学の学部学生で、自宅から本学までの通学時間が片道90分以上のもの。大学院生は、通学時間にかかわらず入寮を申し込める。"}
+  - {id: apply-deadline, tags: [apply], text: "入寮の申込みは、入寮を希望する年度の2月28日までに、学生支援課へ申込書を提出して行う。"}
+  - {id: apply-late, tags: [apply], text: "申込みの期限を過ぎた申込みは、空きがある場合に限り、4月10日まで受け付ける。"}
+  - {id: apply-docs, tags: [apply], text: "申込書には、住民票の写し1通と、保護者の同意書を添える。"}
+  - {id: result-date, tags: [apply], text: "入寮の可否は、3月10日までに通知する。"}
+  - {id: room-lottery, tags: [apply, life], text: "居室は、抽選で割り当てる。ただし、車いすを使う者には、1階の居室を優先して割り当てる。"}
+  - {id: move-in, tags: [apply], text: "入寮日は4月1日。ただし、遠方からの入学者は、3月28日から入寮できる。"}
+  - {id: period, tags: [apply, overview], text: "入寮期間は1年。入寮期間は更新でき、更新は2回までなので、最長で3年間入寮できる。"}
+  - {id: renew, tags: [apply], text: "更新を希望する者は、入寮期間が満了する年の12月20日までに申請する。"}
+  - {id: leave-of-absence, tags: [apply, moveout], text: "休学する者は、休学の開始日までに退寮する。ただし、病気のため休学する者は、学生支援課長の許可を受けて、入寮を続けることができる。許可を受けた場合も、休学中の寮費は、全額を納める。"}
+  - {id: fee-room, tags: [fee], text: "寮費は月額で、ひばり棟の個室は38,000円、つばめ棟の二人部屋は1人につき24,000円、かもめ棟の個室は45,000円。"}
+  - {id: fee-common, tags: [fee], text: "共益費は月額6,500円で、棟にかかわらず同額。居室の電気料金は共益費に含まれず、居室ごとのメーターの値に応じて請求する。"}
+  - {id: fee-pay, tags: [fee], text: "寮費及び共益費は、毎月25日までに、翌月分を納める。納入が2か月続けて遅れたときは、退寮を命じることがある。"}
+  - {id: deposit, tags: [fee, moveout], text: "入寮する者は、入寮時に保証金50,000円を納める。保証金は退寮時に返還するが、修繕や清掃に要した費用は差し引く。"}
+  - {id: fee-moveout, tags: [fee, moveout], text: "退寮する月の寮費は、原則として全額。ただし、月の15日までに退寮したときは半額。"}
+  - {id: fee-relief, tags: [fee], text: "経済的な理由により納入が困難な者には、学生支援課長は寮費の3割を減免できる。申請は毎年5月31日まで。"}
+  - {id: curfew, tags: [life], text: "門限は、午後11時。ただし、実習やアルバイトのため帰寮が遅れる者は、前日までに届け出れば午前0時まで認める。"}
+  - {id: overnight, tags: [life], text: "外泊は、前日までに寮監へ届け出る。連続して7日を超える外泊は、事前に学生支援課の許可を受ける。"}
+  - {id: visitors, tags: [life], text: "来訪者は、午前9時から午後8時までの間に限り、共用の談話室で面会できる。来訪者を居室に入れてはならない。"}
+  - {id: appliances, tags: [life, safety], text: "居室の電気器具の消費電力は、合計1,200W以内。火気を使う調理器具は持ち込めない。"}
+  - {id: laundry, tags: [life], text: "共用の洗濯室は、午前7時から午後10時まで使える。午後10時以降は静かにする。"}
+  - {id: cleaning, tags: [life], text: "共用部分の清掃は、階ごとの当番制で週1回行う。"}
+  - {id: drill, tags: [safety], text: "避難訓練は、毎年4月と10月に行う。"}
+  - {id: moveout-notice, tags: [moveout], text: "退寮するときは、退寮予定日の30日前までに、退寮届を学生支援課へ提出する。"}
+  - {id: moveout-day, tags: [moveout], text: "退寮日の午前10時までに、居室を清掃して寮監に明け渡す。"}
+  - {id: key-lost, tags: [moveout, safety, life], text: "鍵を紛失したときは、直ちに寮監へ届け出る。"}
+  - {id: violation, tags: [safety, life], text: "規程に違反した者には、警告を行う。警告を3回受けた者には、退寮を命じる。"}
+  - {id: effective, tags: [overview], text: "入寮規程は、2026年4月1日から施行している。"}
+  - {id: not-documented, tags: [overview, life], text: "共用洗濯室の使用料、食事の料金、ペットの可否は、定められていない。"}
+
+kinds:
+  - id: application-guide
+    doc_type: manual
+    title: "{label} 入寮申込みの手引き（{variant}）"
+    tags: [apply]
+    variants: [申込みの流れ, 必要な書類, 結果の通知と入寮日, 遠方からの入学者と更新]
+    chars: [1200, 2600]
+    outline: [この手引きについて, 手順, 期限, 注意すること]
+    style: 学生向けの、やさしい丁寧な文体（です・ます）。
+  - id: fee-rules
+    doc_type: regulation
+    title: "{label} 寮費に関する細則（{variant}）"
+    tags: [fee]
+    variants: [寮費と共益費, 納入と遅れたとき, 保証金, 減免]
+    chars: [1200, 2600]
+    outline: [目的, 定義, 本文の各条, 附則]
+    style: 規程の文体。「第N条」で条を立て、である調。
+  - id: life-rules
+    doc_type: regulation
+    title: "{label} 寮生活に関する細則（{variant}）"
+    tags: [life]
+    variants: [門限と外泊, 来訪者, 居室の電気器具, 共用部分の使い方]
+    chars: [1200, 2600]
+    outline: [目的, 本文の各条, 違反したとき, 附則]
+    style: 規程の文体。「第N条」で条を立て、である調。
+  - id: moveout-guide
+    doc_type: manual
+    title: "{label} 退寮の手引き（{variant}）"
+    tags: [moveout]
+    variants: [退寮の届け出, 退寮日にすること, 寮費と保証金の精算, 休学するとき]
+    chars: [1200, 2600]
+    outline: [この手引きについて, 手順, 期限, 注意すること]
+    style: 学生向けの、やさしい丁寧な文体（です・ます）。
+  - id: safety-manual
+    doc_type: manual
+    title: "{label} 防災・安全のしおり（{variant}）"
+    tags: [safety, life]
+    variants: [避難訓練, 火気と電気の安全, 鍵と居室の管理, 違反と警告]
+    chars: [1200, 2600]
+    outline: [このしおりについて, 守ること, 迷ったとき, 連絡先の考え方]
+    style: 学生向けの、やさしい丁寧な文体（です・ます）。連絡先の電話番号は書かない。

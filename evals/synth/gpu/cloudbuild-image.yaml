@@ -1,0 +1,8 @@
+# ジョブのイメージを作って Artifact Registry へ置く（未実行）。
+#   gcloud builds submit evals/synth --config evals/synth/gpu/cloudbuild-image.yaml \
+#     --substitutions=_IMAGE=<リージョン>-docker.pkg.dev/<プロジェクト>/synth/gen:<タグ>,_VLLM_IMAGE=<土台>
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "gpu/Dockerfile", "--build-arg", "VLLM_IMAGE=${_VLLM_IMAGE}", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]
+timeout: 1800s
