@@ -1,0 +1,90 @@
+# ザーハード（架空の惑星）の共通設定。既存の資料 evals/fixtures/zahard_txt/ザーハード1〜3.txt の内容と矛盾しないように起こした。
+# 既存の資料に数値はほとんど無い（酸素濃度が地球の 1/10 以下、など）。ここの数値は、この bible で初めて決めた架空の設定。
+# 事実（facts）にある数値・日付・時刻だけが、生成した本文に出てよい。足す・直すと version が変わる。
+target: zahard
+label: ザーハード
+existing_documents: 3
+revision: 2026年11月1日改訂
+premise: 未知の惑星ザーハードは、遥か彼方の銀河の端にある。古い異星人文明（ザーハリアン）の遺跡と、惑星の中心部の異常なエネルギー源を巡って、探査団が競っている。
+contacts: []
+forbidden: [地球防衛軍, スター・ウォーズ, ガンダム]
+extra_numbers: []
+
+facts:
+  - {id: place, tags: [core, overview], text: "未知の惑星ザーハードは、遥か彼方の銀河の端に位置しており、その存在自体が数世代にわたる探査団によっても解明されていない。"}
+  - {id: special, tags: [core, overview, energy], text: "この惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えている。"}
+  - {id: air, tags: [environment, expedition, equipment], text: "ザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存できない。探査団は必ず高度な生命維持装置を装備する。"}
+  - {id: air-gas, tags: [environment, hazard], text: "大気には、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれている。硫化水素や二酸化炭素を呼吸すると、中毒症状を引き起こす恐れがある。"}
+  - {id: temp, tags: [environment, expedition], text: "日中と夜間の温度差が激しく、昼間は高温、夜間は極寒になる。昼間の最高は約62℃、夜間の最低は約−48℃。"}
+  - {id: day-length, tags: [environment, expedition], text: "ザーハードの1日は、約31時間。昼と夜は、それぞれ約15時間半ずつ続く。"}
+  - {id: terrain, tags: [environment, terrain, expedition], text: "惑星の表面には広大な砂漠地帯が広がっており、幾つかの巨大な岩山がそびえている。砂丘が続き、移動が困難なので、探査には高機動の車両が必要。"}
+  - {id: rocks, tags: [terrain, energy], text: "岩山の内部には、未知の鉱物やエネルギー源が埋蔵されている可能性があり、探査隊によって絶えず探索されている。"}
+  - {id: vehicle, tags: [equipment, terrain, expedition], text: "砂漠の探査に使う高機動の車両の最高速度は、約90km/h。砂丘では、安全のため約40km/hまで落とす決まりになっている。"}
+  - {id: oxygen-unit, tags: [equipment, expedition, hazard], text: "酸素供給装置は、連続して約72時間動く。探査団の隊員は、予備のボンベを2本持つ。"}
+  - {id: team-size, tags: [expedition], text: "探査団の編成は、最低でも12名。隊員は、必ず2名以上の組で行動する。"}
+  - {id: first-expedition, tags: [history, expedition, timeline], text: "ザーハードへの最初の探査団が降り立ったのは、2087年。それ以来、これまでに23の探査団が派遣された。"}
+  - {id: compete, tags: [expedition, history, energy], text: "ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられている。冒険者たちも、遺跡を探索し、未知の技術を解明しようと集まっている。"}
+  - {id: ruins-exist, tags: [core, ruins, history], text: "惑星には非常に古い文明が存在した形跡があり、その文明の遺跡が砂漠の中に埋もれている。遺跡には、未解読の象形文字や高度な機械が数多く発見されている。"}
+  - {id: zahalian, tags: [ruins, zahalian, history], text: "遺跡の多くは異星人によって築かれたと考えられている。中でも最も注目されているのは、「ザーハリアン文明」と呼ばれる異星人種族の遺跡。"}
+  - {id: zahalian-tech, tags: [zahalian, energy, ruins], text: "ザーハリアンは、惑星全体のエネルギー源を利用する技術を持っていた。エネルギーを収集するための高度な装置を用い、惑星の中心部にある巨大なエネルギー源から力を得ていた。"}
+  - {id: zahalian-ship, tags: [zahalian, history], text: "ザーハリアンは、エネルギー源を使って異星間を移動する宇宙船を開発し、他の惑星へも進出していた。"}
+  - {id: collapse, tags: [zahalian, history, timeline], text: "ザーハリアンの文明は、数千年以上前に繁栄を誇った。しかし、何らかの原因で崩壊した。崩壊は、約4,200年前と考えられている。"}
+  - {id: collapse-cause, tags: [zahalian, ruins, history], text: "遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられている。"}
+  - {id: ruins-structure, tags: [ruins, hazard], text: "遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されている。確認されている最も深い遺跡は、地下7層まで続く。"}
+  - {id: ruins-defense, tags: [ruins, hazard, zahalian], text: "ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛ける。"}
+  - {id: ruins-count, tags: [ruins, timeline], text: "これまでに位置が確認された遺跡は、全部で46か所。調査が済んだ遺跡は、そのうちの9か所にとどまる。"}
+  - {id: glyph, tags: [ruins, glossary], text: "遺跡の壁に刻まれた象形文字は、いまだに解読されていない。解読できれば、エネルギー源を制御する技術の理解が進むと期待されている。"}
+  - {id: legacy, tags: [ruins, history, energy], text: "遺跡を解明することで、エネルギー源を制御する技術を理解し、他の文明に転用できる可能性がある。得られる知識や技術の量は計り知れない。"}
+  - {id: energy-core, tags: [core, energy], text: "ザーハードの最大の魅力は、未知のエネルギー源。惑星の中心部には異常なエネルギーが放出されており、その源を探し求める者が絶えない。"}
+  - {id: energy-artificial, tags: [energy, zahalian], text: "探査団の調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置だと考えられている。"}
+  - {id: energy-kind, tags: [energy], text: "このエネルギー源は、異常に高い出力の放射線を放出し、その周囲に強力な磁場を形成している。磁場は、地表から約400km上空まで及ぶ。"}
+  - {id: energy-mech, tags: [energy], text: "エネルギー源は、惑星の内部からエネルギーを引き出し、それを外部に供給するしくみを持つ。未知のエネルギー粒子が生成され、惑星の核心部から放出されている。"}
+  - {id: energy-danger, tags: [energy, hazard], text: "適切に制御しないと、エネルギーが暴走し、惑星そのものに大きな被害を与える恐れがある。出力が通常の3倍を超えると、探査団の観測装置が警報を出す。"}
+  - {id: guardian, tags: [energy, hazard, ruins], text: "エネルギー源を守るために設置された守護機構があり、その内部には様々な罠や防御システムがある。守護機構は非常に高度で、侵入者に対して攻撃的に働く。"}
+  - {id: control-promise, tags: [energy, history], text: "エネルギー源を制御できれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現する、と期待されている。"}
+  - {id: glossary-zahalian, tags: [glossary], text: "「ザーハリアン」は、ザーハードの遺跡を築いた異星人種族の名前。"}
+  - {id: glossary-core, tags: [glossary], text: "「エネルギー源」は、惑星の中心部にある、異常な出力を放つ人工の装置のこと。"}
+  - {id: glossary-guardian, tags: [glossary], text: "「守護機構」は、エネルギー源や遺跡を守る防衛システムの総称。"}
+  - {id: glossary-expedition, tags: [glossary, expedition], text: "「探査団」は、ザーハードを調べるために派遣された調査隊。必ず高度な生命維持装置を装備する。"}
+
+kinds:
+  - id: field-guide
+    doc_type: setting
+    title: "{label} 探査団の手引き（{variant}）"
+    tags: [expedition, environment, equipment, terrain]
+    variants: [初めて降り立つ隊員向け, 砂漠地帯の移動, 夜間の行動, 酸素供給装置の運用]
+    chars: [1200, 2600]
+    outline: [この手引きについて, 環境, 装備と手順, 気をつけること]
+    style: 探査団の隊員向けの、落ち着いた丁寧な文体（です・ます）。
+  - id: ruins-guide
+    doc_type: setting
+    title: "{label} 遺跡ガイド（{variant}）"
+    tags: [ruins, zahalian, hazard]
+    variants: [遺跡の構造, 防衛機構, 未解読の象形文字, 調査の進み具合]
+    chars: [1200, 2600]
+    outline: [この資料について, 遺跡の特徴, 危険と対策, わかっていないこと]
+    style: 設定資料の文体（です・ます）。
+  - id: chronicle
+    doc_type: setting
+    title: "{label} 歴史と年表（{variant}）"
+    tags: [history, timeline, zahalian]
+    variants: [文明の繁栄と崩壊, 探査の歴史, エネルギー源をめぐる競争, 遺跡の発見]
+    chars: [1200, 2600]
+    outline: [この資料について, 出来事の流れ, 年表, まとめ]
+    style: 設定資料の文体（です・ます）。年表は表で示してよい。
+  - id: energy-brief
+    doc_type: setting
+    title: "{label} エネルギー源の解説（{variant}）"
+    tags: [energy, hazard, zahalian]
+    variants: [種類と放射線, 磁場, 供給のしくみ, 暴走の危険]
+    chars: [1200, 2600]
+    outline: [この資料について, 特徴, 危険と対策, わかっていないこと]
+    style: 設定資料の文体（です・ます）。
+  - id: glossary
+    doc_type: setting
+    title: "{label} 用語集（{variant}）"
+    tags: [glossary, ruins, energy, expedition]
+    variants: [人と文明, 装置と場所, 現象と危険, 探査の用語]
+    chars: [1200, 2600]
+    outline: [この用語集について, 用語と説明, 関連する用語, 注意]
+    style: 用語集の文体。見出しの下に用語ごとの短い段落を置く。

@@ -36,3 +36,6 @@ CLAUDE.local.md
 # GraphRAG評価の比較結果（生成物のため管理しない）
 evals/results/graph_rules_compare.json
 evals/results/graph_rules_ext_compare.json
+
+# 生成物（evals/synth: テスト用の架空資料。本番の検索に混ぜない。コミットしない）
+/evals/synth/out/

@@ -1,0 +1,93 @@
+# みなとコーヒー（架空のカフェチェーン）の共通設定。既存の資料 evals/corpora/cafe/source/ の事実と矛盾しないように起こした。
+# 事実（facts）にある数値・日付・時刻だけが、生成した本文に出てよい（validate.py の数値の突合）。足す・直すと version が変わる。
+target: minato-coffee
+label: みなとコーヒー
+existing_documents: 1
+revision: 2026年11月1日改訂
+premise: みなとコーヒーは、みなと市とその周辺に 12 店舗を持つ架空のカフェチェーン。港のように人が集まる場所をつくることを理念にしている。
+contacts: []
+forbidden: [スターバックス, ドトール, タリーズ, コメダ, ブルーボトル, 東京, 大阪]
+extra_numbers: []
+
+facts:
+  - {id: stores, tags: [core, overview, store], text: "みなとコーヒーは、みなと市とその周辺で12店舗を運営している。エリアは港町・駅前・丘の上・湖畔の4つ。"}
+  - {id: founding, tags: [core, overview, history], text: "創業は2011年4月（港町）。2026年4月で創業満15年。最初の店は港町本店。"}
+  - {id: history-stores, tags: [history, store], text: "2014年10月に駅前中央店、2018年6月に丘の上公園店（丘の上エリアの1号店）、2021年8月に湖畔テラス店（湖畔エリアの1号店）、2024年3月に12店舗目の湖畔ボート小屋店を開業した。"}
+  - {id: history-services, tags: [history, member, mobile], text: "2016年9月にポイント会員制度「みなとクラブ」を、2022年4月に公式アプリとモバイルオーダーを始めた。"}
+  - {id: philosophy, tags: [core, overview], text: "理念は「港のように、人が集まる場所をつくる」こと。どの店舗も、最寄りの駅やバス停から徒歩5分以内にある。"}
+  - {id: blend, tags: [core, menu, beans], text: "看板商品は、深煎りの豆を3種類ブレンドした「みなとブレンド」（略称 MB）。豆はブラジル・コロンビア・エチオピアの3か国産。"}
+  - {id: roastery, tags: [menu, beans, staff, delivery], text: "豆は港町の自社工房（2019年4月に稼働開始）で焙煎する。工房の焙煎機は2台で、1日あたりの焙煎量は最大で400kg。味と香りの確認を毎日行い、その記録を1年間保管する。"}
+  - {id: delivery, tags: [menu, beans, delivery, store], text: "焙煎した豆は、週に2回、金曜日と土曜日の午前中に各店へ届ける。"}
+  - {id: seasonal, tags: [menu, beans, event], text: "季節のブレンドは、3か月ごとに年4回切り替わる。切り替える日には、会員向けの試飲会を各店で開き、参加は無料。"}
+  - {id: xmas, tags: [menu, event], text: "毎年12月1日から12月25日まで、クリスマス限定のドリンクを全店で提供する。限定ドリンクは、数がなくなり次第、その日の販売を終える。"}
+  - {id: price-blend, tags: [menu, price], text: "みなとブレンドの価格（税込）は、Sサイズが380円、Mサイズが450円、Lサイズが520円。"}
+  - {id: price-latte, tags: [menu, price], text: "カフェラテの価格（税込）は、Mサイズが500円、Lサイズが570円。Sサイズの用意はない。"}
+  - {id: price-seasonal, tags: [menu, price], text: "季節のブレンドの価格（税込）は、Mサイズが480円。"}
+  - {id: price-xmas, tags: [menu, price, event], text: "クリスマス限定ドリンクの価格（税込）は、Mサイズが550円。"}
+  - {id: last-order, tags: [core, usage, store, staff], text: "ラストオーダーは原則として閉店の30分前。ただし、湖畔ボート小屋店は閉店の15分前。"}
+  - {id: mobile, tags: [mobile, usage], text: "モバイルオーダー（略称 MO）は、公式アプリから事前に注文と支払いができる仕組みで、原則として全店で利用できる。注文の受け取りは、各店のカウンターで行う。"}
+  - {id: mobile-exception, tags: [mobile, usage, store], text: "港町灯台店では、店内の通信環境の都合により、モバイルオーダーを利用できない。"}
+  - {id: mobile-pickup, tags: [mobile], text: "モバイルオーダーの注文は、注文から30分以内に受け取る。受け取りがなかった注文は、取り消す。"}
+  - {id: mobile-points, tags: [mobile, member], text: "ポイントは、モバイルオーダーの会計でも、店頭と同じようにたまる。"}
+  - {id: parking, tags: [usage, store], text: "駐車場は原則として設けていない。ただし、湖畔テラス店には10台分の専用駐車場がある。ほかの店舗では、近隣の有料駐車場を利用してもらう。"}
+  - {id: pets, tags: [usage, store, staff], text: "ペットの同伴は原則としてテラス席に限る。ただし、身体障害者補助犬は店内の席にも同伴できる。テイクアウト（略称 TO）は全店で利用できる。"}
+  - {id: member-basic, tags: [member, usage], text: "みなとクラブ（略称 MC）は、入会費も年会費も無料。会計100円（税込）ごとに1ポイントがたまる。"}
+  - {id: member-expire, tags: [member], text: "ポイントの有効期限は、最後に利用した日から12か月。"}
+  - {id: member-ticket, tags: [member], text: "たまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できる。無料券は、会員証を店頭で提示すると使える。会員証は、公式アプリの画面でも表示できる。"}
+  - {id: member-ticket-term, tags: [member], text: "無料券の有効期限は、交換した日から3か月。無料券の対象は、Mサイズまでのドリンク。"}
+  - {id: member-withdraw, tags: [member], text: "みなとクラブの退会は、公式アプリから申し込める。退会すると、残っているポイントと未使用の無料券はなくなる。"}
+  - {id: hours-earliest, tags: [store, usage], text: "朝の開店が最も早いのは港町市場前店で、6時30分（表では6:30〜18:00）。営業時間は24時間制で書く。"}
+  - {id: hours-two, tags: [store], text: "営業時間は、駅前中央店が7:00〜22:00（15時間）、湖畔テラス店が9:00〜20:00（11時間）。"}
+  - {id: closed-days, tags: [core, store, usage], text: "定休日は原則として店舗ごとに週に1日。ただし、表で「なし」の店舗（港町本店・駅前中央店・駅前西口店・湖畔テラス店の4店）は年中無休。"}
+  - {id: closed-sunday, tags: [store], text: "日曜日が定休日の店舗は、港町市場前店と丘の上学園前店。"}
+  - {id: seats, tags: [store], text: "座席数が最も多いのは湖畔テラス店の76席（次いで港町本店68席）。全店の合計は498席。座席数は店内席とテラス席の合計で、2026年4月1日時点。"}
+  - {id: area-minato, tags: [store, area], text: "港町エリアの店舗は、港町本店（68席）、港町ベイ店（42席）、港町市場前店（30席）、港町灯台店（24席）の4店。港や市場の近くにある。"}
+  - {id: area-station, tags: [store, area], text: "駅前エリアの店舗は、駅前中央店（54席）、駅前西口店（36席）、駅前東口店（40席）の3店。"}
+  - {id: area-hill, tags: [store, area], text: "丘の上エリアの店舗は、丘の上公園店（48席）、丘の上学園前店（32席）、丘の上展望店（28席）の3店。公園や学校の近くにある。"}
+  - {id: area-lake, tags: [store, area], text: "湖畔エリアの店舗は、湖畔テラス店（76席）と湖畔ボート小屋店（20席）の2店。湖の景色を楽しめる。"}
+  - {id: training-manager, tags: [staff], text: "各店には、店長とバリスタを置いている。店長は、本部が年2回開く研修を受ける。研修は、抽出の技術と接客の2つを中心に行う。"}
+  - {id: training-barista, tags: [staff], text: "バリスタは、入社後の3か月間に、工房での研修を受ける。この研修を修了すると、店頭でドリンクを提供できるようになる。"}
+  - {id: voice, tags: [staff, usage], text: "お客様の声は、各店のスタッフが受け付ける。いただいたご意見は、月に1回、本部で集計して店づくりに生かしている。"}
+  - {id: not-documented, tags: [usage], text: "電話番号は公開していない。問い合わせは、各店のスタッフか、公式アプリから受け付ける。"}
+
+kinds:
+  - id: store-overview
+    doc_type: store-guide
+    title: "{label} 店舗のご案内（{variant}）"
+    tags: [store, area, usage]
+    variants: [港町エリア, 駅前エリア, 丘の上エリア, 湖畔エリア]
+    chars: [1200, 2600]
+    outline: [このエリアの店舗, 営業時間と定休日, ご利用にあたって, 座席と設備]
+    style: 来店客向けの、やさしい丁寧な文体（です・ます）。
+  - id: menu-guide
+    doc_type: store-guide
+    title: "{label} メニューのご案内（{variant}）"
+    tags: [menu, price, beans]
+    variants: [ドリンクの価格, 豆と焙煎, 季節のブレンド, クリスマス限定]
+    chars: [1200, 2600]
+    outline: [この案内について, 商品の紹介, 価格, 豆とお届け]
+    style: 来店客向けの、やさしい丁寧な文体（です・ます）。
+  - id: member-terms
+    doc_type: regulation
+    title: "{label} みなとクラブ会員規約（{variant}）"
+    tags: [member, mobile]
+    variants: [入会と退会, ポイントの付与, 無料券の交換, 有効期限と失効]
+    chars: [1200, 2600]
+    outline: [目的, 定義, 本文の各条, 附則]
+    style: 規約の文体。「第N条」で条を立て、である調。
+  - id: mobile-order-guide
+    doc_type: manual
+    title: "{label} モバイルオーダー利用ガイド（{variant}）"
+    tags: [mobile, usage, member]
+    variants: [注文の流れ, 支払いとポイント, 受け取り, 利用できない店舗とお困りのとき]
+    chars: [1200, 2600]
+    outline: [このガイドについて, 手順, 注意すること, お困りのとき]
+    style: 手順は番号を付けて 1 文ずつ。です・ます調。
+  - id: staff-manual
+    doc_type: manual
+    title: "{label} 店舗スタッフ向けマニュアル（{variant}）"
+    tags: [staff, store, usage]
+    variants: [開店の準備, ラストオーダーと閉店, お客様の声への対応, 研修の受け方]
+    chars: [1200, 2600]
+    outline: [目的, 基本の動き, 守ること, 迷ったとき]
+    style: 社内向けの、簡潔な丁寧語。

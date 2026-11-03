@@ -1,0 +1,19 @@
+# モデルの重み（BF16 の元モデル、約 72GB）を Hugging Face から Cloud Storage へ写す（未実行。ソースなしで実行する）。
+#   gcloud builds submit --no-source --config evals/synth/gpu/cloudbuild-weights.yaml \
+#     --substitutions=_BUCKET=<バケット名>,_REPO=Qwen/Qwen3.6-35B-A3B,_REV=<コミット>
+steps:
+  - name: python:3.12-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        pip install -q huggingface_hub==0.34.4
+        python -c "from huggingface_hub import snapshot_download; snapshot_download('${_REPO}', revision='${_REV}', local_dir='/workspace/model')"
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args: ["-c", "gcloud storage cp -r /workspace/model/* gs://${_BUCKET}/models/qwen3.6-35b-a3b/"]
+options:
+  machineType: E2_HIGHCPU_8
+  diskSizeGb: 200
+timeout: 3600s
