@@ -106,7 +106,9 @@
 		"vscode": {
 			"settings": {
 				"containers.containers.label": "ContainerName",
-				"containers.containers.description": ["Status"]
+				"containers.containers.description": ["Status"],
+				// VS Code の AI 機能（GitHub Copilot のチャットなど）を、この開発コンテナでは無効にする（ユーザーが決定、2026-11-02）。Claude Code の拡張は別物
+				"chat.disableAIFeatures": true
 			},
 			"extensions": [
 				"anthropic.claude-code",
