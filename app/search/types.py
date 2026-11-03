@@ -10,6 +10,7 @@ class Hit(NamedTuple):
     `collection` は資料のグループ（`documents.collection`。未設定なら None）。画面の出典に添えるだけで、LLM には渡さない。
     `origin` は拾った経路（`app/search/pipeline.py` が付ける。`vector` / `keyword` / `vector+keyword` / `graph`。ベクトル検索だけのときは None）。
     `similarity` は、キーワードだけで拾った箇所と `graph` の箇所では None。
+    `target` は資料の対象（`documents.target`。未分類なら None）。画面の出典に添える・対象で絞った検索の結果を確かめるためのもので、LLM には渡さない。
     """
 
     source: str
@@ -19,6 +20,7 @@ class Hit(NamedTuple):
     similarity: float | None = None
     collection: str | None = None
     origin: str | None = None
+    target: str | None = None
 
 
 class VectorSearchError(RuntimeError):

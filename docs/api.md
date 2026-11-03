@@ -23,7 +23,8 @@
 |---|---|
 | `message` | 必須。前後の空白を除いて 1〜2000 文字 |
 | `thread_id` | 省略可。`[A-Za-z0-9_-]` で 128 文字以内。省略すると UUID が採番される。同じ値を送ると会話が続く（`AUTH_MODE=required` では、同じ利用者の中だけ） |
-| `collection` | 省略可。検索対象の資料のグループ（`documents.collection` の識別名。`[A-Za-z0-9_-]` で 1〜40 文字）。空文字は 422。下の「検索対象」を参照 |
+| `collection` | 省略可。検索対象の資料のグループ（`documents.collection` の識別名。`[A-Za-z0-9_-]` で 1〜40 文字）。空文字は 422。下の「検索対象」を参照。**旧方式**（互換のために残す。画面は `target` を使う） |
+| `target` | 省略可。質問の対象（`documents.target` の識別名。`[a-z0-9][a-z0-9-]*` で 1〜40 文字）。空文字・大文字・`collection` との同時指定は 422。下の「質問の対象」を参照 |
 
 ### 検索対象（`collection`）
 
@@ -54,6 +55,22 @@
 }
 ```
 
+### 質問の対象（`target`）と、`collection` との関係
+
+資料の「対象」（`documents.target`。例: `zahard`・`minato-coffee`・`tsubasa-dorm`・`aoba-aw820`）で、質問の範囲を絞る。検索は **権限の範囲 ∩ 対象**（対象を選んでも権限は広がらない）。
+一覧は `GET /targets`。会話ごとに固定で、会話の状態（チェックポイント）に残る。固定するのは**対象の識別子だけ**で、資料の集合ではない（続きの質問は、そのときの分類で探す）。
+
+| 送る値 | 新しい会話 | 続きの会話 |
+|---|---|---|
+| どちらも省略 | 絞らない | 保存された範囲を復元する（`collection` も `target` も） |
+| `target` だけ | その対象で固定。見えない・存在しない・資料のない対象は 403 | 保存と同じなら通す。違えば 409（保存が「絞らない」・旧 `collection` の会話も 409） |
+| `collection` だけ | 旧方式で固定 | 保存と同じなら通す。違えば 409（保存が `target` の会話も 409） |
+| 両方 | 422 | 422 |
+
+`target` の保存された会話で `collection` を送る、またはその逆は、変換せず 409。旧 `collection` の会話は、`target` を足されても範囲を変えない。
+続きの会話の対象が空になった（資料が別の対象へ移った）ときは 200 で、検索は 0 件（`hit_count: 0`）。応答の `target` は、この会話の対象（`null` は絞らない）。
+詳細・分類の変更・ロールバックは [configuration.md](configuration.md) の「対象と資料種別」。
+
 `collection` はこの会話の検索対象（`null` は「すべて」）、`hit_count` は今回のターンの検索で（類似度のしきい値を超えて）拾ったチャンクの数です。
 検索しなかったターン（モックモード・入力ガードの拒否・検索が要らない質問）は `null` で、検索して 0 件だった `0` とは別です。画面は「該当する資料がありません」を、
 `collection` の指定があって `hit_count` が `0` のときだけ出します（検索の失敗は `hit_count` ではなく、下のエラーで伝わります）。
@@ -65,8 +82,9 @@
 
 | ステータス | 原因 |
 |---|---|
-| 422 | 入力検証エラー（空のメッセージ、長すぎる `message`、不正な `thread_id`・`collection` など） |
-| 409 | 続きの会話に、会話の検索対象と違う `collection` を送った（検索対象は会話ごとに固定）。`detail` はグループ名を載せない固定文 |
+| 422 | 入力検証エラー（空のメッセージ、長すぎる `message`、不正な `thread_id`・`collection`・`target`、`target` と `collection` の同時指定など） |
+| 409 | 続きの会話に、会話の検索対象と違う `collection` / `target` を送った（検索対象は会話ごとに固定）。`detail` は名前を載せない固定文 |
+| 403（対象） | 新しい会話で、`target` が見える資料のない対象（見えない・存在しない・資料のない対象は同じ）。`指定された対象は利用できません。`。名前は載せない |
 | 403 | `ACCESS_MODE=enforce` で、`collection` が利用者の見えないグループ（存在しないグループも同じ）、続きの会話に保存された検索対象が見えなくなった、または見えるグループが 0 件（`利用できる資料がありません。`）。グループ名は載せない |
 | 503 | `ACCESS_MODE=enforce` で、利用者の見えるグループを引けなかった（`資料の利用権限を確認できませんでした。…`）。制限なしには倒れない |
 | 429 | LLM のレート制限。上流が待ち時間を返した場合は `Retry-After` ヘッダ付き |
@@ -99,7 +117,7 @@ data: {"type":"data-status","data":{"phase":"generating"},"transient":true}
 data: {"type":"text-start","id":"text-0"}
 data: {"type":"text-delta","id":"text-0","delta":"ザーハードの大気は…"}
 data: {"type":"text-end","id":"text-0"}
-data: {"type":"message-metadata","messageMetadata":{"context":"[ザーハード1.pdf]\n…","sources":[{"name":"ザーハード1.pdf","page":1,"page_end":null,"weak":false,"collection":"zahard"}],"collection":null,"hit_count":1}}
+data: {"type":"message-metadata","messageMetadata":{"context":"[ザーハード1.pdf]\n…","sources":[{"name":"ザーハード1.pdf","page":1,"page_end":null,"weak":false,"collection":"zahard","target":"zahard"}],"collection":null,"target":null,"hit_count":1}}
 data: {"type":"finish"}
 data: [DONE]
 ```
@@ -113,7 +131,8 @@ data: [DONE]
   最後のテキスト部分は、`/chat` の `reply` と同じ文です。
 - **`message-metadata` の `context`**: `/chat` の `context` と同じ（今回のターンで検索された設定資料。完了の直前に届く）。
 - **`message-metadata` の `collection` と `hit_count`**: `/chat` と同じ意味（この会話の検索対象と、今回のターンの検索で拾ったチャンクの数。検索していなければ `hit_count` は `null`）。
-- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, weak, collection}`。`collection` はその資料のグループ（未設定なら `null`）。`page` は DB の `chunks.page`（PDF の 1 始まりのページ）、
+- **`message-metadata` の `target`**: この会話の質問の対象（`null` は絞らない）。`sources` の各 `target` は、回答を作った時点のその資料の対象（未分類は `null`。あとで分類が変わっても変わらない）。
+- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, weak, collection, target}`。`collection` はその資料のグループ（未設定なら `null`）。`page` は DB の `chunks.page`（PDF の 1 始まりのページ）、
   `page_end` はページをまたぐ表の最終ページ（またがなければ `null`）。値が不正なとき（1 未満・整数でない・`page_end` が `page` 以下）は `null`。
   各要素の `weak` は、同じ検索の 1 位との類似度の差が 0.05（`app/agents/tools.py` の `WEAK_GAP`）を超える 2 件目以降で `true`。画面は出典カードに出さない
   （LLM が受け取った抜粋は変えず、折りたたみの一覧には残る）。類似度が無いときと 1 件目は `false`。
@@ -154,10 +173,11 @@ data: [DONE]
   本文が空のものは除く。履歴に無い会話は 404（required では他人の会話も同じ 404）。
 
   ```json
-  {"messages": [{"role": "user", "text": "ザーハードの大気は？"}, {"role": "assistant", "text": "…"}], "collection": "zahard"}
+  {"messages": [{"role": "user", "text": "ザーハードの大気は？"}, {"role": "assistant", "text": "…"}], "collection": null, "target": "zahard", "scope_unavailable": false}
   ```
 
-  `collection` はこの会話の検索対象（`null` は「すべて」。検索対象の項目が無い古い会話も `null`）。続きの会話で `/chat` に送る値は、これと同じか省略にする（違うと 409）。
+  `collection` は旧方式の検索対象、`target` は質問の対象（どちらも `null` は絞らない。項目が無い古い会話も `null`）。続きの会話で `/chat` に送る値は、これと同じか省略にする（違うと 409）。
+  保存された範囲が、いま見えない・資料が無いときは、その名前を返さず（`null`）、`scope_unavailable` を `true` にする（「絞らない」と区別するため）。続きを送ると、サーバーは保存された範囲のまま探す。
 
   回答の出典（`sources`）は、会話の状態に直近の 1 回分しか無い（毎ターン作り直す）ので返さない。
 - **`DELETE /threads/{thread_id}`:** 会話を 1 件消す。成功は 204（本文なし）。`thread_id` の形式は `/chat` と同じ（`:` を含むと 422）。
@@ -197,7 +217,7 @@ data: [DONE]
 
 ```json
 {"configured": true, "documents": [{"id": 1, "source": "tsubasa_dorm_rules.pdf",
-  "title": "つばさ大学学生寮 入寮規程", "collection": "guides", "status": "ready", "failure_reason": null,
+  "title": "つばさ大学学生寮 入寮規程", "collection": "guides", "target": "tsubasa-dorm", "doc_type": "regulation", "status": "ready", "failure_reason": null,
   "pages": 3, "updated_at": "2026-10-18T09:00:00Z", "chunk_count": 3, "embedded_count": 3}]}
 ```
 
@@ -206,6 +226,8 @@ data: [DONE]
 - **`collection`:** 資料群の名前（`storage/pdf/<名前>/` のディレクトリ名。`cafe` / `guides` / `zahard` など）。未設定、または形（英数字・`_`・`-`、40 文字まで）が
   合わない値は `null`。取り込み（`python -m app.ingestion`）が、入力のディレクトリ名（`--collection` で上書き）を保存します。
   日本語の表示名（設定資料・店舗案内・規程・取扱説明書）は画面が持ち、API は名前だけを返します。一覧の絞り込みも画面側で行います。
+- **`target` / `doc_type`:** 資料の対象（`documents.target`）と資料種別（`documents.doc_type`）の識別名。未分類は `null`。表示名は `GET /targets` と `GET /doc-types`。
+  閲覧権限は変えない（権限は `collection` が決める）。一覧の絞り込みは画面側で行う。
 - **`GET /documents`:** 文書ごとの情報とチャンク数、埋め込み済みの数。`configured` が `false` のときは、`DATABASE_URL` が空で資料の DB を
   使っていません（エラーではなく 200。`documents` は空）。`configured: true` で `documents` が空なら、DB はあるが文書が 0 件です。
 - **`GET /documents/{id}/chunks`:** その文書のチャンクを `chunk_index` 順に、`page`・`page_end`・`kind`・`heading`・`content`（全文）・
@@ -244,6 +266,20 @@ data: [DONE]
 - **エラー:** 表が無い（マイグレーション 0006 の前）ときは、固定メッセージ「資料グループの情報がまだ用意されていません。」の 503。
   そのほかの DB の失敗は、固定メッセージの 503（例外の内容・接続先は含まない）。表が空なのはエラーではない。
 - **認証:** `/documents` と同じ（`AUTH_MODE=required` では Bearer が要る）。`Cache-Control: no-store`。書き込みの API はない（POST などは 405）。
+
+## `GET /targets`、`GET /doc-types`
+
+資料の分類（対象・資料種別）の一覧（読み取り専用）。画面が、表示名・説明・資料の数を出すために読む。
+
+```json
+{"configured": true, "targets": [{"name": "zahard", "label": "ザーハード", "description": "…", "sort_order": 10, "document_count": 3, "ready_count": 3}]}
+{"configured": true, "doc_types": [{"name": "setting", "label": "設定資料", "description": "…", "sort_order": 10, "document_count": 3, "ready_count": 3}]}
+```
+
+- **見える資料のある分類だけ**を返す（資料が 1 件も見えない対象・種別は、存在しないのと同じに出さない）。件数も、利用者が見える資料（`ACCESS_MODE=enforce` なら、見えるグループの資料）だけを数える。
+- `document_count` は見える資料の数（取り込み中も含む）、`ready_count` は検索の対象になる資料（`status = 'ready'`）の数。0 の対象は「準備中」と出せる。未分類の資料は、どの分類にも数えない。
+- `sort_order` の小さい順、同じなら名前順。`configured: false` は `DATABASE_URL` が空（エラーではなく 200）。表・列が無い（M1 の前）ときは固定メッセージの 503。見えるグループが 0 件なら 403。
+- 認証・`Cache-Control: no-store`・書き込み不可は `/collections` と同じ。分類の設定は運用者の SQL（[configuration.md](configuration.md) の「対象と資料種別」）。
 
 ## `GET /documents/{id}/graph`、`GET /documents/{id}/impact`
 

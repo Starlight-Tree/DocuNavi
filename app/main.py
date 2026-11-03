@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse  # noqa: E402
 
 from app.access import verify_access_config  # noqa: E402
 from app.agents.graph import is_mock_mode  # noqa: E402
+from app.api.classifications import router as classifications_router  # noqa: E402
 from app.api.collections import router as collections_router  # noqa: E402
 from app.api.documents import router as documents_router  # noqa: E402
 from app.api.graph import router as graph_router  # noqa: E402
@@ -78,6 +79,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(documents_router)
 app.include_router(collections_router)
+app.include_router(classifications_router)
 app.include_router(threads_router)
 app.include_router(graph_router)
 

@@ -32,6 +32,7 @@ MIGRATIONS = Path(__file__).resolve().parent.parent / "supabase" / "migrations"
 ROLE_MIGRATION = "20261026045921_role_collection_access.sql"
 COLLECTIONS_MIGRATION = "20261025205258_document_collections.sql"
 IMAGES_MIGRATION = "20261101150000_document_images.sql"  # 資料一覧の SQL が document_images を読む
+CLASSIFICATION_MIGRATION = "20261103150000_document_classification.sql"  # 資料一覧の SQL が target / doc_type を読む
 
 CAFE_USER = str(uuid.uuid4())  # cafe だけのロール
 MULTI_USER = str(uuid.uuid4())  # cafe と guides のロール
@@ -66,6 +67,7 @@ def seeded(db):  # noqa: F811
         _apply_migration(admin, COLLECTIONS_MIGRATION, schema)
         _apply_migration(admin, ROLE_MIGRATION, schema)
         _apply_migration(admin, IMAGES_MIGRATION, schema)
+        _apply_migration(admin, CLASSIFICATION_MIGRATION, schema)
         for source, collection in (
             ("zahard_world.pdf", "zahard"),
             ("cafe_hours.pdf", "cafe"),

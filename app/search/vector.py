@@ -24,7 +24,7 @@ from typing import Any
 from app.agents.resilience import KeySwitch, call_with_key_switch, key_switch_hold_seconds, paid_api_key
 from app.history import get_pool
 from app.ingestion import embedding
-from app.scope import ALLOWED_FILTER_SQL, Scope, require_scope
+from app.scope import ALLOWED_FILTER_SQL, TARGET_FILTER_SQL, Scope, require_scope
 from app.search.types import Hit, VectorSearchError
 
 # ログの絞り込み（ロガー名）を、移動前の app.search_vector のまま保つ
@@ -38,13 +38,14 @@ EMBED_TIMEOUT_SECONDS = 10.0
 _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
 
 _SEARCH_SQL = (
-    "SELECT d.source AS source, d.collection AS collection, c.heading AS heading, c.content AS content, "
-    "c.page AS page, c.page_end AS page_end, "
+    "SELECT d.source AS source, d.collection AS collection, d.target AS target, c.heading AS heading, "
+    "c.content AS content, c.page AS page, c.page_end AS page_end, "
     "1 - (c.embedding OPERATOR(extensions.<=>) %(q)s::extensions.vector(768)) AS sim "
     "FROM chunks c JOIN documents d ON d.id = c.document_id "
     "WHERE d.status = 'ready' AND c.embedding IS NOT NULL "
     "AND (%(collection)s::text IS NULL OR d.collection = %(collection)s::text) "
     f"AND {ALLOWED_FILTER_SQL} "
+    f"AND {TARGET_FILTER_SQL} "
     "AND c.embedding_model = %(model)s AND c.embedding_dimensions = %(dims)s "
     "ORDER BY c.embedding OPERATOR(extensions.<=>) %(q)s::extensions.vector(768), d.source, c.chunk_index "
     "LIMIT %(k)s"
@@ -144,7 +145,9 @@ def _chunk_text(heading: str | None, content: str) -> str:
     return f"{heading}\n{content}" if heading else content
 
 
-async def search(query: str, top_k: int, collection: str | None = None, *, scope: Scope) -> list[Hit]:
+async def search(
+    query: str, top_k: int, collection: str | None = None, *, scope: Scope, target: str | None = None
+) -> list[Hit]:
     """類似度がしきい値以上のチャンクを、近い順に上位 top_k 件、`Hit`（ファイル名・本文・ページ）で返す。
 
     `scope` は必須（キーワード専用）。検索できるグループの範囲で、`Scope.ALL` を明示したときだけ全資料を探す。渡し忘れ・`None`・
@@ -152,6 +155,8 @@ async def search(query: str, top_k: int, collection: str | None = None, *, scope
     もう一度確かめる（SQL の条件を誤っても、範囲外のグループの本文は返さない）。
     `collection` を渡すと、さらにそのグループ（`documents.collection`）の資料だけを探す（範囲の外のグループなら空）。None は範囲の全資料。
     存在しないグループは、エラーではなく空の結果になる。
+    `target` を渡すと、さらにその対象（`documents.target`）の資料だけを探す（権限の範囲 ∩ 対象。範囲の外の資料は、対象に入っていても出ない）。
+    None は対象で絞らない（従来どおり）。存在しない対象は空の結果。返ってきた行の対象も確かめる。
     """
     scope = require_scope(scope)
     if top_k <= 0 or not query.strip():
@@ -168,6 +173,7 @@ async def search(query: str, top_k: int, collection: str | None = None, *, scope
         "dims": embedding.DIMENSIONS,
         "k": top_k,
         "collection": collection,
+        "target": target,
         "allowed": scope.sql_names(),
     }
     async with pool.connection() as conn:
@@ -181,12 +187,15 @@ async def search(query: str, top_k: int, collection: str | None = None, *, scope
             row.get("page_end"),
             float(row["sim"]),
             row.get("collection"),
+            None,
+            row.get("target"),
         )
         for row in rows
         if float(row["sim"]) >= MIN_SIMILARITY
     ]
     scope.log_shadow("検索", (hit.collection for hit in hits))
-    return [hit for hit in hits if scope.allows(hit.collection)]
+    # SQL の条件を誤っても、範囲外のグループと、指定した対象以外の資料は返さない
+    return [hit for hit in hits if scope.allows(hit.collection) and (target is None or hit.target == target)]
 
 
 async def verify() -> None:

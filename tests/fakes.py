@@ -71,9 +71,15 @@ class FakeSearch:
     FILE_NAMES = frozenset(name for _, name, _, _ in CHUNKS)
 
     async def __call__(
-        self, query: str, top_k: int = 2, collection: str | None = None, *, scope: Scope | None = None
+        self,
+        query: str,
+        top_k: int = 2,
+        collection: str | None = None,
+        *,
+        scope: Scope | None = None,
+        target: str | None = None,
     ) -> list[Hit]:
-        # scope は受け取るだけで見ない（範囲を見る偽物は GroupedFakeSearch）。collection も従来どおり見ない
+        # scope と target は受け取るだけで見ない（範囲を見る偽物は GroupedFakeSearch）。collection も従来どおり見ない
         hits = [
             Hit(name, text, page) for keywords, name, text, page in self.CHUNKS if any(k in query for k in keywords)
         ]
@@ -91,7 +97,13 @@ class ScopedFakeSearch(FakeSearch):
     COLLECTION = "zahard"
 
     async def __call__(
-        self, query: str, top_k: int = 2, collection: str | None = None, *, scope: Scope | None = None
+        self,
+        query: str,
+        top_k: int = 2,
+        collection: str | None = None,
+        *,
+        scope: Scope | None = None,
+        target: str | None = None,
     ) -> list[Hit]:
         hits = await super().__call__(query, top_k)
         if collection is not None and collection != self.COLLECTION:

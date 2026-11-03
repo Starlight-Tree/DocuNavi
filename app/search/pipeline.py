@@ -28,7 +28,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from app.scope import ALLOWED_FILTER_SQL, Scope, require_scope
+from app.scope import ALLOWED_FILTER_SQL, TARGET_FILTER_SQL, Scope, require_scope
 from app.search import vector as search_vector
 from app.search.graph import build_edges
 from app.search.keyword import KeywordIndex, identifiers, normalize
@@ -45,15 +45,21 @@ RERANK_RRF_SHARE = 0.5
 _TRUE = {"on", "1", "true", "yes"}
 _FALSE = {"off", "0", "false", "no"}
 
-_CORPUS_SQL = (
-    "SELECT d.source AS source, d.collection AS collection, c.heading AS heading, c.content AS content, "
-    "c.page AS page, c.page_end AS page_end "
+_CORPUS_WHERE = (
     "FROM chunks c JOIN documents d ON d.id = c.document_id "
     "WHERE d.status = 'ready' AND c.embedding IS NOT NULL "
     "AND (%(collection)s::text IS NULL OR d.collection = %(collection)s::text) "
     f"AND {ALLOWED_FILTER_SQL} "
-    "ORDER BY d.source, c.chunk_index"
+    f"AND {TARGET_FILTER_SQL} "
 )
+_CORPUS_SQL = (
+    "SELECT d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, "
+    "c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end "
+    + _CORPUS_WHERE
+    + "ORDER BY d.source, c.chunk_index"
+)
+# 写しに入っている資料の ID（`_CORPUS_SQL` と同じ条件）。対象を指定した検索で、写しが古くなっていないかを毎回確かめる軽い SQL
+_MEMBERSHIP_SQL = "SELECT DISTINCT d.id AS document_id " + _CORPUS_WHERE + "ORDER BY d.id"
 
 
 # ---- フラグ ----
@@ -121,6 +127,8 @@ class Chunk:
     page: int | None
     page_end: int | None
     collection: str | None
+    target: str | None = None
+    document_id: int | None = None
 
     @property
     def key(self) -> tuple[str, str]:
@@ -132,6 +140,8 @@ class Corpus:
 
     def __init__(self, chunks: list[Chunk]) -> None:
         self.chunks = chunks
+        # 写しに入っている資料の ID（対象を指定した検索で、分類が変わっていないかを確かめるのに使う）
+        self.membership = tuple(sorted({chunk.document_id for chunk in chunks if chunk.document_id is not None}))
         texts = [chunk.text for chunk in chunks]
         self.index = KeywordIndex(texts)
         self.normalized = [normalize(text) for text in texts]
@@ -139,15 +149,15 @@ class Corpus:
         self.edges = build_edges([chunk.source for chunk in chunks], texts)
 
 
-_CACHE: dict[tuple[tuple[str, ...] | None, str | None], tuple[float, Corpus]] = {}
+_CACHE: dict[tuple[tuple[str, ...] | None, str | None, str | None], tuple[float, Corpus]] = {}
 _CACHE_LIMIT = 32
 
 
-async def _fetch_chunks(scope: Scope, collection: str | None) -> list[Chunk]:
+async def _fetch_chunks(scope: Scope, collection: str | None, target: str | None = None) -> list[Chunk]:
     pool = search_vector.get_pool()
     if pool is None:
         raise VectorSearchError("DB の接続プールが開いていません")
-    params = {"collection": collection, "allowed": scope.sql_names()}
+    params = {"collection": collection, "target": target, "allowed": scope.sql_names()}
     async with pool.connection() as conn:
         cursor = await conn.execute(_CORPUS_SQL, params)
         rows = await cursor.fetchall()
@@ -158,20 +168,45 @@ async def _fetch_chunks(scope: Scope, collection: str | None) -> list[Chunk]:
             row.get("page"),
             row.get("page_end"),
             row.get("collection"),
+            row.get("target"),
+            row.get("document_id"),
         )
         for row in rows
-        if scope.allows(row.get("collection"))  # SQL の条件を誤っても、範囲外のグループは持たない
+        # SQL の条件を誤っても、範囲外のグループと、指定した対象以外の資料は持たない
+        if scope.allows(row.get("collection")) and (target is None or row.get("target") == target)
     ]
 
 
-async def _corpus(scope: Scope, collection: str | None, ttl: float) -> Corpus:
+async def _membership(scope: Scope, collection: str | None, target: str) -> tuple[int, ...]:
+    """いま、この範囲・対象に入る資料の ID（昇順）。"""
+    pool = search_vector.get_pool()
+    if pool is None:
+        raise VectorSearchError("DB の接続プールが開いていません")
+    params = {"collection": collection, "target": target, "allowed": scope.sql_names()}
+    async with pool.connection() as conn:
+        cursor = await conn.execute(_MEMBERSHIP_SQL, params)
+        rows = await cursor.fetchall()
+    return tuple(row["document_id"] for row in rows)
+
+
+async def _corpus(scope: Scope, collection: str | None, ttl: float, target: str | None = None) -> Corpus:
+    """検索できる範囲（・対象）のチャンクの写し。写しは `ttl` 秒持つ。
+
+    対象を指定した検索では、写しを使う前に、いまその対象に入る資料の ID が写しと同じかを毎回確かめる（軽い SQL 1 回）。
+    運用者が SQL で資料の対象を変えても、TTL を待たずに次の検索から写しを作り直す（別の対象の資料を、キーワード側で混ぜない）。
+    対象を指定しない検索は、従来どおり TTL だけで更新する。
+    """
     names = scope.sql_names()
-    key = (None if names is None else tuple(names), collection)
+    key = (None if names is None else tuple(names), collection, target)
     now = time.monotonic()
     cached = _CACHE.get(key)
     if cached is not None and ttl > 0 and now - cached[0] < ttl:
-        return cached[1]
-    corpus = Corpus(await _fetch_chunks(scope, collection))
+        if target is None or cached[1].membership == await _membership(scope, collection, target):
+            return cached[1]
+    # 対象を指定するときだけ引数に足す（指定しない呼び出しは、従来と同じ形のまま）
+    corpus = Corpus(
+        await (_fetch_chunks(scope, collection) if target is None else _fetch_chunks(scope, collection, target))
+    )
     if len(_CACHE) >= _CACHE_LIMIT:
         _CACHE.pop(min(_CACHE, key=lambda k: _CACHE[k][0]))
     _CACHE[key] = (now, corpus)
@@ -208,7 +243,7 @@ class _Cand:
 
 def _to_hit(cand: _Cand, origin: str) -> Hit:
     chunk = cand.chunk
-    return Hit(chunk.source, chunk.text, chunk.page, chunk.page_end, cand.sim, chunk.collection, origin)
+    return Hit(chunk.source, chunk.text, chunk.page, chunk.page_end, cand.sim, chunk.collection, origin, chunk.target)
 
 
 def _fmt(value: float | None, digits: int = 3) -> str:
@@ -228,11 +263,18 @@ def _order_key(cand: _Cand) -> tuple[float, float, float]:
     return (-cand.score, float(cand.vec_rank if cand.vec_rank is not None else 1e9), float(cand.kw_rank or 1e9))
 
 
-async def search(query: str, top_k: int, collection: str | None = None, *, scope: Scope) -> list[Hit]:
-    """`search_vector.search` と同じ引数・同じ規則（scope は必須、範囲外は返さない）で、フラグに応じて検索を重ねる。"""
+async def search(
+    query: str, top_k: int, collection: str | None = None, *, scope: Scope, target: str | None = None
+) -> list[Hit]:
+    """`search_vector.search` と同じ引数・同じ規則（scope は必須、範囲外は返さない）で、フラグに応じて検索を重ねる。
+
+    `target` は、ベクトル側・キーワード側（BM25 の写し）・GraphRAG の参照先のすべてに効く（権限の範囲 ∩ 対象）。None は従来どおり。
+    """
     flags = Flags.from_env()
+    # 対象を指定したときだけ引数に足す（指定しない呼び出しは、従来と同じ形のまま）
+    extra = {} if target is None else {"target": target}
     if not flags.any:
-        hits = await search_vector.search(query, top_k, collection, scope=scope)
+        hits = await search_vector.search(query, top_k, collection, scope=scope, **extra)
         _log_vector_only(query, top_k, hits)
         return hits
     scope = require_scope(scope)
@@ -243,12 +285,12 @@ async def search(query: str, top_k: int, collection: str | None = None, *, scope
     started = time.perf_counter()
     pool_size = max(top_k, flags.candidates)
 
-    vector_hits = await search_vector.search(query, pool_size, collection, scope=scope)
-    corpus = await _corpus(scope, collection, flags.corpus_ttl)
+    vector_hits = await search_vector.search(query, pool_size, collection, scope=scope, **extra)
+    corpus = await _corpus(scope, collection, flags.corpus_ttl, target)
 
     cands: dict[tuple[str, str], _Cand] = {}
     for rank, hit in enumerate(vector_hits, start=1):
-        chunk = Chunk(hit.source, hit.text, hit.page, hit.page_end, hit.collection)
+        chunk = Chunk(hit.source, hit.text, hit.page, hit.page_end, hit.collection, hit.target)
         cands[chunk.key] = _Cand(chunk, corpus.position.get(chunk.key), sim=hit.similarity, vec_rank=rank)
     vector_count = len(cands)
 
