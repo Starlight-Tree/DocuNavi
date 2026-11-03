@@ -1223,7 +1223,7 @@
 
 /* 資料のパネルは、PDF を読めるよう、モックより少し広くする */
 .ws-shell-panel {
-  grid-template-columns: var(--ws-side) minmax(0, 1fr) clamp(26rem, 36vw, 38rem);
+  grid-template-columns: var(--ws-side) minmax(0, 1fr) clamp(26rem, 33vw, 38rem);
 }
 
 .ws-side-foot {
@@ -1253,23 +1253,32 @@
   border-right: 0;
 }
 
+/* 削除ボタンの分の右の余白は、ボタンが見えるとき（触れた・フォーカス・開いている会話）だけ取る。ふだんは題名に幅を使う */
 .ws-sidebar .thread-open {
+  padding-right: 0.6rem;
+}
+
+.ws-sidebar .thread-item:hover .thread-open,
+.ws-sidebar .thread-item:focus-within .thread-open,
+.ws-sidebar .thread-item[data-current='true'] .thread-open {
   padding-right: 2.75rem;
 }
 
-/* チャットは、広い画面でも読みやすい幅に収めて中央に置く */
-.ws-main > .chat-layout {
-  justify-content: center;
-}
-
+/* チャットは、本文の幅（--chat-w）を中央に置く。本文・帯・入力欄の左右の余白は、同じ式（styles.css の --chat-pad）で揃える */
 .ws-main > .chat-layout > .chat-pane {
-  max-width: 56rem;
+  max-width: none;
 }
 
 .ws-main > .documents {
   width: 100%;
   max-width: 72rem;
   margin-inline: auto;
+  padding: 1.25rem 1.5rem 2rem;
+}
+
+/* 右のパネルを開いている間は、一覧の余白を詰める（表の幅を確保する） */
+.ws-shell-panel .ws-main > .documents {
+  padding-inline: 1rem;
 }
 
 .documents-row[aria-current='true'] {
@@ -1366,4 +1375,154 @@
 .ws-nav-item {
   color: inherit;
   text-decoration: none;
+}
+
+/* ---- 資料ライブラリ（ツールバー・質問の対象・テーブル）---- */
+
+.docs-title {
+  margin: 0 0 1rem;
+  font-size: 1.4rem;
+  line-height: 1.4;
+}
+
+/* 件数の行の右端。質問の対象（グループ）と、質問の操作。一覧の絞り込みとは別の操作だと、近くの注記で示す */
+.document-filter-trailing {
+  margin-left: auto;
+}
+
+.docs-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+}
+
+.docs-ask-target {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.docs-ask-label {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.docs-ask-note {
+  margin: 0 0 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.documents-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.documents-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.documents-table th,
+.documents-table td {
+  padding: 0.6rem 0.65rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.documents-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.documents-table thead th {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.documents-table th[scope='row'] {
+  min-width: 9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.documents-table td {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* グループ名は長いので、幅が足りなければ折り返す（横スクロールに頼らない） */
+.documents-table td[data-collection] {
+  min-width: 6rem;
+  white-space: normal;
+}
+
+.documents-table .col-num {
+  text-align: right;
+}
+
+.documents-row {
+  cursor: pointer;
+}
+
+.documents-row:hover {
+  background: color-mix(in srgb, var(--surface-muted) 60%, transparent);
+}
+
+.document-open {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.document-open:hover .document-name {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.doc-missing {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.doc-status-reason {
+  display: block;
+  max-width: 12rem;
+  margin-top: 0.2rem;
+  color: var(--ws-err);
+  font-size: 0.78rem;
+  white-space: normal;
+}
+
+/* 抽出テキストで、出典の箇所を特定できなかったとき */
+.chunk-miss {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--ws-wait-bg);
+  color: var(--ws-wait);
+  font-size: 0.85rem;
+}
+
+/* 一覧の絞り込みの欄。選択肢の長さで幅が決まるので、上限を置く（右のパネルを開いた幅でも、2 行に収める） */
+.document-filter-field select {
+  max-width: 10rem;
+}
+
+/* 会話の履歴の取得に失敗したとき: 読み込み中・0 件の案内と見分けがつくよう、エラーの色にする */
+.ws-sidebar .thread-sidebar-note [role='alert'] {
+  margin: 0 0 0.4rem;
+  color: var(--ws-err);
 }

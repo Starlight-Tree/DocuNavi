@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import { MAX_MESSAGE_LENGTH } from '../api/chat';
 
@@ -20,6 +20,15 @@ export function Composer({ pending, onSend, onStop, scopeLabel, scopeNote }: Com
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const canSend = !pending && draft.trim().length > 0;
+
+  // 長い文でも全体が見えるよう、入力に合わせて高さを伸ばす（上限は CSS の max-height。超えたら中でスクロールする）。
+  // 高さを測れない環境（scrollHeight が 0）では、CSS の既定のままにする
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.style.height = 'auto';
+    if (input.scrollHeight > 0) input.style.height = `${input.scrollHeight}px`;
+  }, [draft]);
 
   const submit = () => {
     if (!onSend(draft)) return;
@@ -61,7 +70,7 @@ export function Composer({ pending, onSend, onStop, scopeLabel, scopeNote }: Com
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleKeyDown}
           maxLength={MAX_MESSAGE_LENGTH}
-          rows={2}
+          rows={1}
           placeholder="メッセージを入力（Enter で送信 / Shift+Enter で改行）"
           aria-describedby={scopeLabel !== undefined ? 'composer-scope message-counter' : 'message-counter'}
         />

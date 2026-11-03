@@ -161,6 +161,43 @@ describe('チャット UI: 入力', () => {
   });
 });
 
+describe('チャット UI: 見た目の区別・入力欄', () => {
+  it('質問は淡い背景のまとまり（message-question）、回答は枠で囲まない本文（markdown）として別の要素になる', async () => {
+    installFetch(() => replyResponse({ reply: 'ここに回答が入ります。' }));
+    const { user } = setup();
+
+    await sendMessage(user, '質問です');
+
+    const question = (await screen.findByText('質問です')).closest('article') as HTMLElement;
+    const answer = (await screen.findByText('ここに回答が入ります。')).closest('article') as HTMLElement;
+    expect(question).toHaveClass('message-user');
+    expect(question.querySelector('.message-question')).toHaveTextContent('質問です');
+    expect(answer).toHaveClass('message-assistant');
+    expect(answer.querySelector('.message-question')).toBeNull();
+    expect(answer.querySelector('.markdown')).toHaveTextContent('ここに回答が入ります。');
+    // 読み上げでは、誰の発言かが分かる
+    expect(within(question).getByText(/あなた/)).toBeInTheDocument();
+    expect(within(answer).getByText(/アシスタント/)).toBeInTheDocument();
+  });
+
+  it('入力欄は、長い文に合わせて高さを伸ばす（上限は CSS）。送ると元の高さに戻る。文字数の上限と残りは変わらない', async () => {
+    const scrollHeight = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get');
+    installFetch(() => replyResponse());
+    const { user, input } = setup();
+    scrollHeight.mockReturnValue(96);
+
+    await user.type(input, '長い質問');
+    expect((input as HTMLTextAreaElement).style.height).toBe('96px');
+    expect(screen.getByText('4 / 2000')).toBeInTheDocument();
+
+    scrollHeight.mockReturnValue(48);
+    await user.keyboard('{Enter}');
+    await screen.findByText(DEFAULT_REPLY);
+    expect((input as HTMLTextAreaElement).style.height).toBe('48px');
+    scrollHeight.mockRestore();
+  });
+});
+
 describe('チャット UI: 送信中', () => {
   it('送信中は待機表示を出し、2 通目を送れない（入力は残る）', async () => {
     const gate = deferred<Response>();
@@ -296,7 +333,7 @@ describe('チャット UI: エラー', () => {
 });
 
 describe('チャット UI: 参照した設定資料', () => {
-  it('出典の見出しがある context だけ、閉じた <details> で表示する', async () => {
+  it('出典の見出しがある context だけ、回答の下の「参照資料」に資料名で出す（抜粋はチップの説明）', async () => {
     installFetch(() =>
       replyResponse({
         context: '[ザーハード1.txt]\n大気の主成分は二酸化炭素。\n\n[ザーハード2.txt]\n探査団は三名。',
@@ -306,18 +343,13 @@ describe('チャット UI: 参照した設定資料', () => {
 
     await sendMessage(user, '大気は？');
 
-    const summary = await screen.findByText(/参照した設定資料/);
-    const details = summary.closest('details');
-    expect(details).not.toBeNull();
-    expect(details).not.toHaveAttribute('open');
-    expect(within(details as HTMLElement).getByText('ザーハード1.txt')).toBeInTheDocument();
-    expect(within(details as HTMLElement).getByText('ザーハード2.txt')).toBeInTheDocument();
-    expect(
-      within(details as HTMLElement).getByText('大気の主成分は二酸化炭素。'),
-    ).toBeInTheDocument();
-
-    await user.click(summary);
-    expect(details).toHaveAttribute('open');
+    const region = await screen.findByRole('region', { name: '参照資料' });
+    const chips = within(region).getAllByRole('button');
+    expect(chips.map((chip) => chip.textContent)).toEqual(['ザーハード1.txt↗', 'ザーハード2.txt↗']);
+    expect(chips[0]).toHaveAccessibleDescription('大気の主成分は二酸化炭素。');
+    expect(chips[1]).toHaveAccessibleDescription('探査団は三名。');
+    // 折りたたみの抜粋一覧は出さない（詳細は右のパネルで読む）
+    expect(region.querySelector('details')).toBeNull();
   });
 
   it('「該当なし」の定型文は出典として表示しない', async () => {
@@ -327,7 +359,7 @@ describe('チャット UI: 参照した設定資料', () => {
     await sendMessage(user, '無関係な質問');
 
     await screen.findByText(DEFAULT_REPLY);
-    expect(screen.queryByText(/参照した設定資料/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
     expect(screen.queryByText(NOT_FOUND)).not.toBeInTheDocument();
   });
 
@@ -345,11 +377,11 @@ describe('チャット UI: 参照した設定資料', () => {
     await sendMessage(user, '二つ目');
     await screen.findByText('返答2');
 
-    expect(screen.getAllByText(/参照した設定資料/)).toHaveLength(1);
+    expect(screen.getAllByRole('region', { name: '参照資料' })).toHaveLength(1);
     const first = screen.getByText('返答1').closest('article') as HTMLElement;
     const second = screen.getByText('返答2').closest('article') as HTMLElement;
-    expect(within(first).getByText(/参照した設定資料/)).toBeInTheDocument();
-    expect(within(second).queryByText(/参照した設定資料/)).not.toBeInTheDocument();
+    expect(within(first).getByRole('region', { name: '参照資料' })).toBeInTheDocument();
+    expect(within(second).queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
   });
 });
 
@@ -430,7 +462,7 @@ describe('チャット UI: 会話の管理', () => {
     // 「新しい会話」で通常の案内に戻る
     await second.user.click(screen.getByRole('button', { name: '新しい会話' }));
     expect(screen.queryByTestId('resumed-notice')).not.toBeInTheDocument();
-    expect(screen.getByText(/質問してみましょう/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '何を調べますか？' })).toBeInTheDocument();
   });
 
   it('新規の会話では「前回の続き」を出さない', () => {
@@ -438,7 +470,7 @@ describe('チャット UI: 会話の管理', () => {
     setup();
 
     expect(screen.queryByTestId('resumed-notice')).not.toBeInTheDocument();
-    expect(screen.getByText(/質問してみましょう/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '何を調べますか？' })).toBeInTheDocument();
   });
 
   it('保存されていた thread_id が不正な形式なら使わない', async () => {
@@ -514,11 +546,47 @@ describe('チャット UI: ストリーミング', () => {
     stream.finish();
 
     // 完了すると、出典とコピーが付き、停止ボタンは消える
-    expect(await screen.findByText(/参照した設定資料/)).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: '参照資料' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'この回答をコピー' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument();
     expect(log).toHaveAttribute('aria-busy', 'false');
     expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('stream-th');
+  });
+
+  it('生成中は末尾へ追従する。遡って読んでいる間は動かさず、末尾の近くへ戻ると、また追従する', async () => {
+    const stream = controlledSse();
+    installFetch(() => stream.response);
+    const { user } = setup();
+    const log = screen.getByRole('log');
+    // jsdom はレイアウトを持たないので、スクロールの寸法を決めておく（全体 1000・見える高さ 400）
+    Object.defineProperty(log, 'scrollHeight', { configurable: true, get: () => 1000 });
+    Object.defineProperty(log, 'clientHeight', { configurable: true, get: () => 400 });
+
+    await sendMessage(user, '長い話');
+    stream.push(START);
+    stream.push({ type: 'text-start', id: 't0' });
+    stream.push({ type: 'text-delta', id: 't0', delta: 'あ' });
+    await within(log).findByText('あ');
+    expect(log.scrollTop).toBe(1000); // 末尾にいる間は、新しい本文に合わせて末尾へ
+
+    // 上へ遡って読んでいる（末尾から 500px 離れた）間は、本文が増えても動かさない
+    log.scrollTop = 100;
+    fireEvent.scroll(log);
+    stream.push({ type: 'text-delta', id: 't0', delta: 'い' });
+    await within(log).findByText('あい');
+    expect(log.scrollTop).toBe(100);
+
+    // 末尾から 80px 以内へ戻ると、また追従する
+    log.scrollTop = 540;
+    fireEvent.scroll(log);
+    stream.push({ type: 'text-delta', id: 't0', delta: 'う' });
+    await within(log).findByText('あいう');
+    expect(log.scrollTop).toBe(1000);
+
+    stream.push({ type: 'text-end', id: 't0' });
+    stream.push({ type: 'finish' });
+    stream.finish();
+    await waitFor(() => expect(log).toHaveAttribute('aria-busy', 'false'));
   });
 
   it('「停止」で生成を中断し、それまでに届いた本文は残す（エラーにしない）', async () => {

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -67,7 +67,7 @@ let urlCount: number;
 /** `install` に渡すと、サーバーが出典のページを送らない（古い応答）。 */
 const NO_SOURCES = Symbol('no sources');
 
-function install({ sources = SOURCES, list = LIST }: { sources?: unknown; list?: unknown } = {}) {
+function install({ sources = SOURCES, list = LIST, context = CONTEXT }: { sources?: unknown; list?: unknown; context?: string } = {}) {
   files = [];
   vi.stubGlobal(
     'fetch',
@@ -75,7 +75,7 @@ function install({ sources = SOURCES, list = LIST }: { sources?: unknown; list?:
       const url = String(input);
       if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'gemini' });
       if (url.endsWith('/collections')) return jsonResponse({ configured: false, collections: [] });
-      if (url.includes('/chat/stream')) return replyResponse({ reply: '2 月 28 日までです。', context: CONTEXT, sources: sources === NO_SOURCES ? undefined : sources });
+      if (url.includes('/chat/stream')) return replyResponse({ reply: '2 月 28 日までです。', context, sources: sources === NO_SOURCES ? undefined : sources });
       if (url === '/documents') return jsonResponse(list);
       if (url.endsWith('/file')) {
         files.push(url);
@@ -128,7 +128,9 @@ describe('出典を押して右のパネルを開く', () => {
 
     expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=3&chunk=1');
     expect(panel.getByRole('button', { name: '抽出テキスト' })).toHaveAttribute('aria-pressed', 'true');
-    expect(panel.getByText('PDFから抽出したテキストです。')).toBeVisible();
+    expect(panel.getByText('PDFから抽出したテキストです。レイアウトや図は含まれません。')).toBeVisible();
+    // 根拠の箇所が見つかったときは、「特定できなかった」とは出さない
+    expect(panel.queryByText(/箇所を特定できなかった/)).not.toBeInTheDocument();
     const marked = document.querySelectorAll('[data-focus="true"]');
     expect(marked).toHaveLength(1);
     expect(marked[0]).toHaveTextContent('第5条 入寮の申込みは、2 月 28 日までに行う。');
@@ -405,5 +407,81 @@ describe('パネルのフォーカス', () => {
     await user.click(screen.getByRole('button', { name: 'パネルを閉じる' }));
     expect(open).toHaveFocus();
     expect(window.location.search).toBe('?tab=documents');
+  });
+});
+
+describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
+  const tabs = (panel: ReturnType<typeof within>) =>
+    within(panel.getByRole('group', { name: '表示の切り替え' })).getAllByRole('button').map((b) => b.textContent);
+
+  it('タブは「抽出テキスト」「元のPDF」の順。関係図は、対応する資料（入寮規程）にだけ付く', async () => {
+    install();
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    const panel = await openCitation(user, 1);
+    expect(tabs(panel)).toEqual(['抽出テキスト', '元のPDF', '関係図']);
+
+    // 関係図の無い資料（カフェ）には、タブも、案内の文も出さない
+    await user.click(screen.getByRole('link', { name: '資料' }));
+    await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
+    const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
+    // 一覧から開いたときは、元のPDF（あれば）から。出典のハイライトに依存せず、資料全体を見る
+    await cafe.findByTitle('cafe_store_guide.pdf の元PDF');
+    expect(tabs(cafe)).toEqual(['抽出テキスト', '元のPDF']);
+    expect(cafe.queryByText(/関係図は/)).not.toBeInTheDocument();
+  });
+
+  it('資料名の下に、ページ数と更新日時を出す。更新日時の記録が無い資料は「記録なし」と出す（日時を作らない）', async () => {
+    install({ list: { configured: true, documents: [summary(7, 'tsubasa_dorm_rules.pdf'), summary(8, 'cafe_store_guide.pdf', { updated_at: null })] } });
+    window.history.replaceState(null, '', '/?tab=documents&doc=7');
+    render(<App />);
+
+    const panel = within(await findPanel());
+    expect((await panel.findByText('4 ページ')).parentElement).toHaveTextContent(/更新 2026\/10\/18/);
+
+    cleanup();
+    window.history.replaceState(null, '', '/?tab=documents&doc=8');
+    render(<App />);
+    const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
+    expect((await cafe.findByText('4 ページ')).parentElement).toHaveTextContent('更新 記録なし');
+    expect(cafe.getByText('記録なし')).toHaveAttribute('title', 'この資料には、更新日時の記録がありません');
+  });
+
+  it('出典の根拠の箇所を特定できなかったときは、強調を付けず、その旨を示す。ほかの資料を開いたときは引き継がない', async () => {
+    // 抜粋が、資料のどのチャンクとも合わない（ページは、サーバーが返した値がある）
+    install({ context: '[tsubasa_dorm_rules.pdf]\n全く別の文章が、ここに入っています。', sources: [{ name: 'tsubasa_dorm_rules.pdf', page: 2, page_end: null, weak: false }] });
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    const panel = await openCitation(user, 0);
+
+    // ページは、サーバーが返した値（2）だけを持つ。箇所は推測せず、何も強調しない
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=2');
+    expect(await panel.findByRole('status')).toHaveTextContent('出典の箇所を特定できなかったため、強調は付けていません');
+    expect(document.querySelectorAll('[data-focus="true"]')).toHaveLength(0);
+    expect(panel.queryByText('根拠の箇所')).not.toBeInTheDocument();
+    // 資料全体は読める（2 つのチャンクが出る）
+    expect(panel.getAllByRole('listitem')).toHaveLength(2);
+
+    // 資料一覧から別の資料を開いたときは、この案内を引き継がない
+    await user.click(screen.getByRole('link', { name: '資料' }));
+    await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
+    const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
+    await cafe.findByTitle('cafe_store_guide.pdf の元PDF');
+    expect(cafe.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('「元のPDF」には、元のPDFをそのまま表示していることと、出典のページを書く。ページが無い出典では、ページを書かない', async () => {
+    install();
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+    const panel = await openCitation(user, 1);
+
+    await user.click(panel.getByRole('button', { name: '元のPDF' }));
+    expect(await panel.findByText('元のPDFをそのまま表示しています。 出典のページ（p.3）を開いています。')).toBeInTheDocument();
   });
 });

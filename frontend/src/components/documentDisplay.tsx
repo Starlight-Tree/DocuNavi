@@ -20,6 +20,15 @@ const DATE_FORMAT = new Intl.DateTimeFormat('ja-JP', {
   minute: '2-digit',
 });
 
+const DAY_FORMAT = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+/** 一覧の列に出す、日付だけの表記。記録が無い・読めないときは null（呼び出し側が、欠けていることが分かる表示にする）。 */
+export function formatDay(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : DAY_FORMAT.format(date);
+}
+
 export function formatDate(value: string | null): string {
   if (!value) return '-';
   const date = new Date(value);
@@ -38,6 +47,19 @@ export function DocumentName({ document }: { document: DocumentSummary }) {
       {document.title && <span className="document-file">{document.source}</span>}
     </>
   );
+}
+
+/** 更新日時。記録が無いときは、「-」ではなく、欠けていることが分かる文言にする（日時を作らない）。 */
+export function UpdatedAt({ value, withTime = false }: { value: string | null; withTime?: boolean }) {
+  const text = withTime ? formatDate(value) : formatDay(value);
+  if (!text || text === '-') {
+    return (
+      <span className="doc-missing" title="この資料には、更新日時の記録がありません">
+        記録なし
+      </span>
+    );
+  }
+  return <time dateTime={value ?? undefined}>{text}</time>;
 }
 
 export function pageLabel(chunk: ChunkItem): string | null {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchDocumentChunks, fetchDocumentHero, fetchDocumentPdf, fetchDocuments } from '../api/documents';
+import { fetchDocumentChunks, fetchDocumentPdf, fetchDocuments } from '../api/documents';
 import type { DocumentDetail, DocumentList } from '../api/documents';
 import { fetchImpact, fetchRelationGraph } from '../api/graph';
 import type { Impact, RelationGraph } from '../api/graph';
@@ -53,30 +53,6 @@ export function useDocumentPdf(id: number | null): [Loaded<{ url: string }>, () 
   return [state, reload];
 }
 
-/**
- * 資料のヒーロー画像（GET /documents/{id}/hero）を取って、表示用の Blob URL にする。画像が無い・取れない間は null
- * （失敗は画面に出さず、呼び出し側が灰色の代替表示のままにする）。Blob URL は、取り直すとき・画面を離れるときに解放する。
- */
-export function useHeroImage(id: number): string | null {
-  const fetcher = useAuthedJsonFetch();
-  const load = useCallback((signal: AbortSignal) => fetchDocumentHero(fetcher, id, signal), [fetcher, id]);
-  const [state] = useLoaded(load);
-  const blob = state.status === 'ready' ? state.data : null;
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!blob) {
-      setUrl(null);
-      return;
-    }
-    const created = URL.createObjectURL(blob);
-    setUrl(created);
-    return () => URL.revokeObjectURL(created);
-  }, [blob]);
-
-  return url;
-}
-
 /** 入寮規程の関係図（GET /documents/{id}/graph）。 */
 export function useRelationGraph(id: number): [Loaded<RelationGraph>, () => void] {
   const fetcher = useAuthedJsonFetch();
@@ -123,7 +99,7 @@ export function useOpenSource(): (
         } catch {
           // 根拠の箇所が分からなくても、資料は開く
         }
-        signalPanelOpen(opener ?? null, true);
+        signalPanelOpen(opener ?? null, true, chunk === null ? document.id : null);
         navigate({ doc: document.id, view: 'text', page: knownPage ?? null, chunk, item: null });
         return 'opened';
       } catch {

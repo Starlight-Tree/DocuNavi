@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { PAGE_BANDS, QUERY_MAX_LENGTH, SORT_KEYS, SORT_LABELS, UPDATED_BANDS, isFiltered } from '../lib/documentFilter';
 import type { DocumentFilter, FacetOption, PageBand, UpdatedBand } from '../lib/documentFilter';
 
@@ -10,12 +11,16 @@ export interface DocumentFilterOptions {
 
 interface DocumentFilterBarProps {
   filter: DocumentFilter;
+  /** 資料グループでの絞り込み（一覧に表示する資料を絞るだけ。チャットの質問対象は変えない）。渡さなければ、欄を出さない。 */
+  group?: { value: string | null; options: FacetOption[]; onChange: (value: string | null) => void } | undefined;
   options: DocumentFilterOptions;
   /** 条件に合う資料の数（並び替えの前後で変わらない）。 */
   resultCount: number;
   /** 条件を変える。`replace` は、入力の途中のように、履歴を増やしたくない変更。 */
   onChange: (next: Partial<DocumentFilter>, mode?: 'push' | 'replace') => void;
   onClear: () => void;
+  /** 件数の行の右端に置くもの（「質問」の操作など）。 */
+  trailing?: ReactNode;
 }
 
 interface FacetSelectProps<T extends string> {
@@ -47,7 +52,7 @@ function FacetSelect<T extends string>({ label, value, options, onSelect }: Face
  * 資料一覧の、検索・絞り込み・並び替え（1 行）と、件数。状態は持たない（URL が持つ）。
  * キーワードの入力欄だけ、日本語の変換中の文字が URL の往復で崩れないよう、手元の文字を持ち、URL が外から変わったときに合わせる。
  */
-export function DocumentFilterBar({ filter, options, resultCount, onChange, onClear }: DocumentFilterBarProps) {
+export function DocumentFilterBar({ filter, group, options, resultCount, onChange, onClear, trailing }: DocumentFilterBarProps) {
   const [text, setText] = useState(filter.query);
   useEffect(() => {
     setText(filter.query);
@@ -57,18 +62,19 @@ export function DocumentFilterBar({ filter, options, resultCount, onChange, onCl
     <>
       <section className="document-filter" aria-label="資料の検索・絞り込み・並び替え">
         <label className="document-filter-field document-filter-query">
-          <span className="document-filter-label">キーワード（空白で AND）</span>
+          <span className="document-filter-label">資料名で検索（空白で AND）</span>
           <input
             type="search"
             value={text}
             maxLength={QUERY_MAX_LENGTH}
-            placeholder="文書名・ファイル名・種別"
+            placeholder="資料名・ファイル名"
             onChange={(event) => {
               setText(event.target.value);
               onChange({ query: event.target.value }, 'replace');
             }}
           />
         </label>
+        {group && <FacetSelect label="グループ" value={group.value} options={group.options} onSelect={group.onChange} />}
         <FacetSelect label="状態" value={filter.status} options={options.status} onSelect={(status) => onChange({ status })} />
         <FacetSelect
           label="ページ数"
@@ -103,6 +109,7 @@ export function DocumentFilterBar({ filter, options, resultCount, onChange, onCl
             条件をクリア
           </button>
         )}
+        {trailing && <div className="document-filter-trailing">{trailing}</div>}
       </div>
     </>
   );

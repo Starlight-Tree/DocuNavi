@@ -9,7 +9,6 @@ import { ErrorBanner } from './components/ErrorBanner';
 import { LoginScreen } from './components/LoginScreen';
 import { MessageList } from './components/MessageList';
 import { PanelHost } from './components/PanelHost';
-import { ReferencesView } from './components/ReferencesView';
 import { ScopeChips } from './components/ScopeChips';
 import { ScopeConfirm } from './components/ScopeConfirm';
 import { ThreadSidebar } from './components/ThreadSidebar';
@@ -24,7 +23,6 @@ import {
 } from './hooks/useCollections';
 import { useThreads } from './hooks/useThreads';
 import { collectionLabel } from './lib/collections';
-import type { SourceDoc } from './lib/sources';
 import { useUrlState } from './lib/urlState';
 
 const ALL_LABEL = 'すべての資料';
@@ -58,8 +56,6 @@ function ChatScreen() {
   // 右のパネルの拡大（CSS だけ。パネルもチャットも作り直さない）。閉じたら戻す
   const [expanded, setExpanded] = useState(false);
   const [pendingScope, setPendingScope] = useState<PendingScope | null>(null);
-  // 参照資料の専用ページに出す、ひとつの回答の出典。null ならチャット。URL には載せない（会話の中身は再読み込みで残らないため）
-  const [references, setReferences] = useState<SourceDoc[] | null>(null);
   // 範囲を切り替えたあと、入力欄へフォーカスを移す依頼（チャットの画面が見えてから移す）
   const [focusRequest, setFocusRequest] = useState(0);
   const focusedRequest = useRef(0);
@@ -129,7 +125,6 @@ function ChatScreen() {
       : currentGroup?.documentCount;
 
   const goChat = () => {
-    setReferences(null);
     navigate({ tab: 'chat' });
     setFocusRequest((n) => n + 1);
   };
@@ -151,26 +146,21 @@ function ChatScreen() {
         }}
         // 確認は出さない。いまの会話と検索範囲のまま、チャットへ移る（範囲を変えるのは、カードのボタンと入力欄の上のチップ）
         onGoChat={goChat}
-        onGoDocuments={() => {
-          setReferences(null);
-          navigate({ tab: 'documents' });
-        }}
+        onGoDocuments={() => navigate({ tab: 'documents' })}
         history={
-          signedIn ? (
-            <ThreadSidebar
-              state={threads.state}
-              currentId={chat.threadId}
-              busy={chat.pending}
-              onSelect={(threadId) => {
-                // 資料一覧を見ていても、選んだ会話はチャットで開く
-                setReferences(null);
-                if (view !== 'chat') navigate({ tab: 'chat' });
-                chat.resume(threadId);
-              }}
-              onDelete={removeThread}
-              onRetry={threads.reload}
-            />
-          ) : undefined
+          // ログインを使わない構成でも、欄は出す（出せない理由を示す。何も無いのと区別がつかないため）
+          <ThreadSidebar
+            state={threads.state}
+            currentId={chat.threadId}
+            busy={chat.pending}
+            onSelect={(threadId) => {
+              // 資料一覧を見ていても、選んだ会話はチャットで開く
+              if (view !== 'chat') navigate({ tab: 'chat' });
+              chat.resume(threadId);
+            }}
+            onDelete={removeThread}
+            onRetry={threads.reload}
+          />
         }
       />
       {/* 拡大中は、パネルが上に重なる。下のチャット・資料一覧は作り直さず、操作と読み上げだけ外す */}
@@ -184,15 +174,12 @@ function ChatScreen() {
           />
         )}
         {/* 資料一覧を開いている間も、チャットは隠すだけで残す（生成中の回答・入力途中の文・スクロール位置を失わない） */}
-        <div className="chat-layout" hidden={view !== 'chat' || references !== null}>
+        <div className="chat-layout" hidden={view !== 'chat'}>
           <div className="chat-pane">
             <ChatContextBar
               targetLabel={chat.scopeUnknown ? 'この会話の設定' : scopeLabel(chat.scope)}
               documentCount={contextCount}
-              onBack={() => {
-                setReferences(null);
-                navigate({ tab: 'documents' });
-              }}
+              onBack={() => navigate({ tab: 'documents' })}
             />
             <MessageList
               messages={chat.messages}
@@ -203,7 +190,6 @@ function ChatScreen() {
               history={chat.history}
               onExample={chat.pending ? undefined : chat.send}
               onAskAll={groups ? chat.askAgainInAll : undefined}
-              onShowReferences={setReferences}
             />
             {chat.error && (
               <ErrorBanner
@@ -246,19 +232,11 @@ function ChatScreen() {
             />
           </div>
         </div>
-        {view === 'chat' && references !== null && (
-          <ReferencesView
-            sources={references}
-            onBack={() => {
-              setReferences(null);
-              setFocusRequest((n) => n + 1);
-            }}
-          />
-        )}
         {view === 'documents' && (
           <DocumentsView
             state={documentList}
             onReload={reloadDocuments}
+            chatTargetLabel={chat.scopeUnknown ? 'この会話の設定' : scopeLabel(chat.scope)}
             onAskGroup={groups ? (collection, trigger) => requestScope(collection, trigger, true) : undefined}
           />
         )}

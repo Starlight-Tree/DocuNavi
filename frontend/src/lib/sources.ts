@@ -136,10 +136,25 @@ export function formatPages(page: number | undefined, pageEnd: number | undefine
   return pageEnd === undefined ? `p.${page}` : `p.${page}–${pageEnd}`;
 }
 
-/** 回答の下に並べる参照資料のカードの最大数。残りは、参照資料の専用ページで見る。 */
-export const REFERENCE_PREVIEW_LIMIT = 3;
+/** 回答の下の「参照資料」に、最初から並べる数。残りは「ほか n 件」で開く。 */
+export const REFERENCE_LIST_LIMIT = 5;
 
 /** 参照資料として見せる出典（`weak` を除く）。`index` は、元の出典の並びでの添字（番号は `index + 1`）。 */
 export function referenceCards(sources: SourceDoc[]): Array<{ source: SourceDoc; index: number }> {
   return sources.map((source, index) => ({ source, index })).filter(({ source }) => !source.weak);
+}
+
+/**
+ * 回答の下の「参照資料」に出す出典（`weak` を除く）。資料名・ページ・抜粋のすべてが同じものだけを 1 つにまとめる。
+ * 同じ資料でも、ページか抜粋が違えば別の根拠なので、まとめない。`index` は、元の出典の並びでの添字。
+ * 出典は回答全体に対するもので、どの文の根拠かは分からない（文との対応は、ここでは作らない）。
+ */
+export function referenceItems(sources: SourceDoc[]): Array<{ source: SourceDoc; index: number }> {
+  const seen = new Set<string>();
+  return referenceCards(sources).filter(({ source }) => {
+    const key = [source.name, source.page ?? '', source.pageEnd ?? '', squash(source.text)].join('\u0000');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

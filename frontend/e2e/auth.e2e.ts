@@ -19,6 +19,8 @@ const DOCUMENTS = [
   embedded_count: 1,
 }));
 
+let THREADS: Array<{ thread_id: string; title: string; created_at: string; updated_at: string }> = [];
+
 /** 別オリジンの API に見せかけた偽の応答。プリフライト（OPTIONS）には、要求されたヘッダーを許す応答を返す。 */
 async function fulfillCors(route: Route, json: unknown) {
   const request = route.request();
@@ -50,7 +52,7 @@ async function mockListApis(page: Page) {
   );
   await page.route(
     (url) => url.pathname === '/threads',
-    (route) => fulfillCors(route, { threads: [] }),
+    (route) => fulfillCors(route, { threads: THREADS }),
   );
 }
 
@@ -162,4 +164,42 @@ test('トークンを更新できないと、ログイン画面に戻り、送�
   const keys = await page.evaluate(() => Object.keys(window.localStorage));
   expect(keys.some((key) => SESSION_KEY.test(key))).toBe(false);
   expect(supabase.leaks).toEqual([]);
+});
+
+test('ログインすると、会話の履歴がサイドバーに出る。0 件と取得の失敗は、別の表示になり、再読み込みで取り直せる', async ({ page, context }) => {
+  await installSupabaseMock(context);
+  await mockListApis(page);
+  const stamp = '2026-10-19T05:30:00+00:00';
+  THREADS = [
+    { thread_id: 'th-1', title: 'ザーハードの大気について', created_at: stamp, updated_at: stamp },
+    { thread_id: 'th-2', title: '入寮の申込みについて', created_at: stamp, updated_at: stamp },
+  ];
+  await signIn(page);
+
+  // 履歴あり: サイドバーの中に、題名が並ぶ（高さや CSS で見えなくならない）
+  const history = page.getByRole('complementary', { name: '会話の一覧' });
+  await expect(history.getByRole('heading', { name: '会話の履歴' })).toBeVisible();
+  await expect(history.getByTitle('ザーハードの大気について')).toBeVisible();
+  await expect(history.getByTitle('入寮の申込みについて')).toBeVisible();
+
+  // 0 件: 案内を出す（読み込み中でも失敗でもない）
+  THREADS = [];
+  await page.reload();
+  await expect(page.getByRole('complementary', { name: '会話の一覧' }).getByText('まだ会話がありません。質問を送ると、ここに並びます。')).toBeVisible();
+
+  // 取得の失敗: 固定のメッセージと「再読み込み」。押すと取り直し、履歴が出る
+  let failing = true;
+  await page.route(
+    (url) => url.pathname === '/threads',
+    (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillCors(route, {});
+      return failing ? fulfillStatusCors(route, 500, { detail: 'x' }) : fulfillCors(route, { threads: [{ thread_id: 'th-3', title: '取り直した会話', created_at: stamp, updated_at: stamp }] });
+    },
+  );
+  await page.reload();
+  const failed = page.getByRole('complementary', { name: '会話の一覧' });
+  await expect(failed.getByRole('alert')).toBeVisible();
+  failing = false;
+  await failed.getByRole('button', { name: '再読み込み' }).click();
+  await expect(failed.getByTitle('取り直した会話')).toBeVisible();
 });

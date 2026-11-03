@@ -3,16 +3,19 @@ import type { KeyboardEvent } from 'react';
 import { MSG_PDF_UNAVAILABLE } from '../api/documents';
 import type { DocumentSummary } from '../api/documents';
 import { GRAPH_SOURCE } from '../api/graph';
+import { useCollectionCatalog } from '../hooks/useCollections';
 import { useDocumentChunks, useDocumentPdf } from '../hooks/useDocuments';
-import { takePendingFocus, usePanelCiteSeq, usePanelOpenSeq } from '../lib/panelSignal';
+import { collectionLabel } from '../lib/collections';
+import { takePendingFocus, usePanelCiteSeq, usePanelCitationMiss, usePanelOpenSeq } from '../lib/panelSignal';
 import type { DetailView } from '../lib/urlState';
-import { DocumentName, displayName, formatDate, pageLabel } from './documentDisplay';
+import { DocumentName, UpdatedAt, displayName, pageLabel } from './documentDisplay';
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
 
 export const PANEL_ID = 'ws-panel';
-export const MSG_NO_GRAPH = '関係図は、入寮規程だけで見られます（ほかの資料は、まだ対応していません）。';
-export const MSG_EXTRACTED = 'PDFから抽出したテキストです。';
+export const MSG_EXTRACTED = 'PDFから抽出したテキストです。レイアウトや図は含まれません。';
+export const MSG_ORIGINAL_PDF = '元のPDFをそのまま表示しています。';
+export const MSG_CITE_MISS = '出典の箇所を特定できなかったため、強調は付けていません。資料全体を読めます。';
 export const MSG_EXTRACTED_OTHER = '資料から抽出したテキストです。';
 
 /** 元の PDF。ブラウザー内蔵の PDF 表示（iframe）に、認証付きで取った PDF の Blob URL を渡す。 */
@@ -58,6 +61,11 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
   const ref = useRef<HTMLElement>(null);
   const openSeq = usePanelOpenSeq();
   const cite = usePanelCiteSeq();
+  const citationMiss = usePanelCitationMiss() === document.id && chunk === null;
+  const { state: catalog } = useCollectionCatalog();
+  const groupName = document.collection
+    ? collectionLabel(document.collection, catalog.status === 'ready' ? catalog.data.collections : undefined)
+    : null;
 
   const originalPdf = state.status === 'ready' && state.data.originalPdf;
   // 関係図は入寮規程だけ。サーバーが元の PDF から計算するので、元の PDF が使えるときだけ出す
@@ -116,8 +124,11 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
         <DocumentName document={document} />
       </h2>
       <p className="document-meta">
+        {groupName && <span>{groupName}</span>}
         {document.pages !== null && <span>{`${document.pages} ページ`}</span>}
-        <span>{`更新 ${formatDate(document.updatedAt)}`}</span>
+        <span>
+          更新 <UpdatedAt value={document.updatedAt} withTime />
+        </span>
       </p>
       {state.status !== 'ready' ? (
         <Status state={state} onRetry={reload} />
@@ -125,11 +136,11 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
         <>
           {originalPdf ? (
             <div className="view-switch" role="group" aria-label="表示の切り替え">
-              <button type="button" className="btn btn-secondary" aria-pressed={mode === 'pdf'} onClick={() => onViewChange('pdf')}>
-                元のPDF
-              </button>
               <button type="button" className="btn btn-secondary" aria-pressed={mode === 'text'} onClick={() => onViewChange('text')}>
                 抽出テキスト
+              </button>
+              <button type="button" className="btn btn-secondary" aria-pressed={mode === 'pdf'} onClick={() => onViewChange('pdf')}>
+                元のPDF
               </button>
               {hasGraph && (
                 <button type="button" className="btn btn-secondary" aria-pressed={mode === 'graph'} onClick={() => onViewChange('graph')}>
@@ -140,10 +151,10 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
           ) : (
             <p className="documents-summary">{MSG_PDF_UNAVAILABLE}</p>
           )}
-          {originalPdf && !hasGraph && <p className="documents-summary">{MSG_NO_GRAPH}</p>}
 
           {originalPdf && seen.has('pdf') && (
             <div className="ws-view-body" hidden={mode !== 'pdf'}>
+              <p className="documents-summary">{page === null ? MSG_ORIGINAL_PDF : `${MSG_ORIGINAL_PDF} 出典のページ（p.${page}）を開いています。`}</p>
               <OriginalPdf document={document} page={page} cite={cite} />
             </div>
           )}
@@ -154,6 +165,11 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
           )}
           {seen.has('text') && (
             <div className="ws-view-body" hidden={mode !== 'text'}>
+              {citationMiss && (
+                <p className="chunk-miss" role="status">
+                  {MSG_CITE_MISS}
+                </p>
+              )}
               <div className="chunk-toolbar">
                 <p className="documents-summary">
                   {showDev
