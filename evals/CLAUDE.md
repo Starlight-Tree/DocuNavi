@@ -14,6 +14,10 @@
 - `storage/pdf/zahard/` は `fixtures/zahard_pdf/` の `make_pdf.py` で作る。質問は `evals/questions.yaml`。
 - `cache/` は Git 管理外（実 API で作った埋め込みの保存先）。コミットしない。
 
+## synth/（テスト用の架空資料の一括生成）
+
+アプリの検索対象ではない。出力は `synth/out/`（Git 管理外）で、`storage/` `corpora/` `fixtures/` には置かない。GPU・有料の手順は承認が要る（`synth/README.md`、`synth/gpu/README.md`）。
+
 ## PDF の前提
 
 - 質問の `evidence` は PDF の見た目から書かれている。抽出結果に無ければ、`--allow-missing-evidence` を付けない限り、終了コード 2 で止まる（黙って無効にしない）。

@@ -1,0 +1,4 @@
+# PDF 化（render.py）だけが使う。アプリの依存（requirements*.txt）には入れない。一時的な仮想環境へ入れる:
+#   python3 -m venv /tmp/synth-env && /tmp/synth-env/bin/pip install -r evals/synth/requirements.txt pypdf pyyaml
+# 版は、既存の PDF（evals/fixtures/zahard_pdf/README.md）を作った版。
+reportlab==5.0.1
