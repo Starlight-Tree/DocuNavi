@@ -193,6 +193,68 @@ def test_the_budget_stops_the_call_before_it_is_sent():
     assert len(models.calls) == 1
 
 
+# ---- Vertex AI の経路（SDK は偽物。EMBEDDING_USE_VERTEXAI） ----
+
+
+def _record_clients(monkeypatch):
+    from google import genai
+
+    created: list[dict] = []
+
+    class RecordingClient:
+        def __init__(self, **kwargs):
+            created.append(kwargs)
+
+    monkeypatch.setattr(genai, "Client", RecordingClient)
+    return created
+
+
+def test_the_api_key_path_is_the_default_and_ignores_the_llm_vertex_variable(monkeypatch):
+    created = _record_clients(monkeypatch)
+    monkeypatch.delenv("EMBEDDING_USE_VERTEXAI", raising=False)
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    embedding.make_client("test-key", 1000)
+    (kwargs,) = created
+    assert kwargs["vertexai"] is False and kwargs["api_key"] == "test-key"
+    assert "project" not in kwargs and "location" not in kwargs
+
+
+def test_vertex_ai_uses_adc_with_the_global_location_and_no_api_key(monkeypatch):
+    created = _record_clients(monkeypatch)
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
+    monkeypatch.delenv("EMBEDDING_VERTEX_LOCATION", raising=False)
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    embedding.make_client("must-not-be-used", 1000)
+    (kwargs,) = created
+    assert kwargs["vertexai"] is True
+    assert "api_key" not in kwargs
+    assert kwargs["project"] is None and kwargs["location"] == "global"
+    assert kwargs["http_options"].retry_options.attempts == 1
+
+
+def test_vertex_ai_takes_the_project_and_location_from_the_environment(monkeypatch):
+    created = _record_clients(monkeypatch)
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "1")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "some-project")
+    monkeypatch.setenv("EMBEDDING_VERTEX_LOCATION", "us")
+    embedding.make_client(None, 1000)
+    (kwargs,) = created
+    assert (kwargs["project"], kwargs["location"]) == ("some-project", "us")
+
+
+@pytest.mark.parametrize("value", ["", "false", "0", "no"])
+def test_vertex_ai_is_off_unless_the_variable_is_truthy(monkeypatch, value):
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", value)
+    assert embedding.use_vertex() is False
+
+
+def test_the_embedder_is_built_without_a_key_on_vertex_ai(monkeypatch):
+    created = _record_clients(monkeypatch)
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
+    GeminiEmbedder(None, ApiBudget(1))
+    assert created[0]["vertexai"] is True
+
+
 # ---- embed_pending ----
 
 
@@ -299,6 +361,15 @@ def test_apply_needs_a_real_api_key(_env, monkeypatch, capsys):
     monkeypatch.setenv("GEMINI_API_KEY", "your_api_key_here")
     assert cli.main(["--apply"]) == 2
     assert "GEMINI_API_KEY" in capsys.readouterr().err
+
+
+def test_apply_on_vertex_ai_does_not_need_an_api_key(_env, monkeypatch, capsys):
+    # キーの検査を通り、そのあとの DB 接続で失敗する（1）。キーが無いための終了（2）にはならない
+    monkeypatch.setenv("DATABASE_URL", "postgresql://unused.invalid/db")
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
+    assert cli.main(["--apply"]) == 1
+    assert "GEMINI_API_KEY" not in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("flag", ["--max-chunks", "--max-calls"])

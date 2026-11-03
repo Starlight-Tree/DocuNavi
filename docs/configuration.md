@@ -10,6 +10,8 @@
 | `GEMINI_API_KEY` | （空） | 空または `your_api_key_here` のときはモックモード（資料を検索せず、固定の返答）。本物の LLM では、質問の埋め込み（資料の検索）にも使う。Vertex AI で LLM を使う場合も、埋め込みのために要る |
 | `GOOGLE_GENAI_USE_VERTEXAI` | （空） | `true` で Vertex AI を使う。キー不要で ADC（Cloud Run ならサービスアカウント）で認証し、キーの有無にかかわらずモックにならない |
 | `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` | （空） | Vertex AI 利用時のプロジェクトとロケーション。未設定なら SDK が ADC やメタデータサーバーから解決する |
+| `EMBEDDING_USE_VERTEXAI` | （空） | `true` で、埋め込み（取り込みと質問の両方。`gemini-embedding-2`・768 次元のまま）を Vertex AI で呼ぶ。ADC 認証でキーは使わず、有料キーへの切り替えも無い。LLM 用の `GOOGLE_GENAI_USE_VERTEXAI` とは独立（どちらも他方を変えない）。**既定は空 = API キー。本番を切り替える前に `scripts/check_vertex_embedding.py` で確かめる**（下の「埋め込みを Vertex AI で呼ぶ」） |
+| `EMBEDDING_VERTEX_LOCATION` | `global` | 上の Vertex AI のロケーション。`gemini-embedding-2` は global・us・eu で提供（公式のモデルページ）。プロジェクトは `GOOGLE_CLOUD_PROJECT` |
 | `GEMINI_MODEL` | `gemini-3.1-flash-lite` | モデル名の上書き（Vertex AI はリージョンごとに提供モデルが違う） |
 | `GEMINI_FALLBACK_MODEL` | （空） | 主モデルの試行が一時的な失敗で尽きたときだけ、このモデルで 1 回試す（下記「主モデルが落ちたとき」）。空なら使わない。**本番（Cloud Run）では 2026-10-21 から `gemini-3.5-flash-lite` で有効**（実 API で履歴の引き継ぎを確かめた。実際に切り替わった回はまだ見ていない。下記「検証の状況」） |
 | `GEMINI_FALLBACK_HOLD_SECONDS` | `60` | `GEMINI_FALLBACK_MODEL` を使うとき、フォールバックに切り替えたあとの何秒間、主モデルを飛ばして最初からフォールバックを呼ぶか（下記）。`0` で無効（毎回、主モデルから試す）。不正値・負数は既定値に戻る |
@@ -35,7 +37,7 @@
   コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。対象は DB の `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループの文書のチャンクだけ。下の「検索の範囲」）で、ローカルの PDF は読みません。
   返す形は `[ファイル名]\n見出し\n本文` です。
 - **必要なもの。** 本物の LLM では `DATABASE_URL`（履歴と同じ接続プールを借りる。`DATABASE_POOL_MAX_SIZE` は共有）と `GEMINI_API_KEY`（質問の埋め込み用。
-  Vertex AI で LLM を使う場合も、埋め込みは API キーで呼ぶ）。DB には、`python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で、
+  Vertex AI で LLM を使う場合も、埋め込みは API キーで呼ぶ。`EMBEDDING_USE_VERTEXAI=true` のときだけ、埋め込みは Vertex AI で、キーは要らない）。DB には、`python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で、
   `storage/pdf/<資料群の名前>/` の PDF を取り込み・埋め込み済みであること。ディレクトリ名は `documents.collection`（資料のグループ）になります。
 - **検索の範囲。** `/chat` と `/chat/stream` は、任意の `collection`（グループの識別名）を受け付けます。会話ごとに検索の範囲は固定され（最初の発言で決まる）、
   同じ会話に違う範囲を送ると 409 になります。`collection` を省略した場合は、従来どおり DB の全資料が対象です。仕様は [api.md](api.md) の「検索対象（`collection`）」。
@@ -486,6 +488,20 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 - **未検証:** 本物の 429 での切り替え（偽の 429 で確かめただけ）。日次の上限（RPD）と毎分の上限を区別して保持を変えること
   （`RetryInfo` の待ち時間を読むこと）はしていない。無料キーの入力が製品改善に使われる点は、切り替えても変わらない
   （有料に回るのは 429 のときだけ）ので、他の人が個人情報を入れる段階になったら、無料キーを主にしない。
+
+## 埋め込みを Vertex AI で呼ぶ
+
+`EMBEDDING_USE_VERTEXAI=true` で、取り込み（`python -m app.ingestion.embed`）と質問の埋め込みの両方が Vertex AI になる（実装: `app/ingestion/embedding.py` の `make_client`）。
+モデル（`gemini-embedding-2`）・次元（768）・入力の形（前置き）は変えない。DB の `embedding_model` `embedding_dimensions` も同じ値のまま。
+
+- **実装・テスト済み（偽の SDK）:** 経路の切り替え、キー不要、ロケーション、有料キーへ切り替えないこと。既定（空）では従来と同じ。
+- **未確認（実 API が要る。本番に切り替える前に確かめる）:**
+  1. Vertex AI が、複数の `Content` を 1 回で渡したときに 1 本ずつのベクトルを返すか（公式のモデルページに記載が無く、第三者の文書は「1 件ずつ」と書く）。返らないと、取り込みは `EmbeddingError`（数が合わない）で止まる。壊れた値は保存しない。
+  2. API キー経路と Vertex AI のベクトルが同じ空間か（コサイン類似度）。同じなら、保存済みのベクトルはそのまま使える。違うなら、全チャンクを作り直す。
+  3. ADC の用意、請求先とプロジェクトへのひも付け、Vertex AI API の有効化、実行する ID の `roles/aiplatform.user`（Cloud Run のサービスアカウント）。
+  4. 質問の遅延（`EMBED_TIMEOUT_SECONDS` = 10 秒に収まるか）と、`global` のエンドポイントの割り当て。
+- **確かめ方:** `python -m scripts.check_vertex_embedding --project <プロジェクト>`（Vertex AI だけ。API キー不要・実 API を 3 回呼ぶ。運用者が実行。上の 1 と 4 の目安が分かる）。上の 2（既存ベクトルとの互換性）は `--compare-api`（`GEMINI_API_KEY` が要り、API キー経路を 1 回余分に呼ぶ）を付けたときだけ測る。
+- **戻し方:** `EMBEDDING_USE_VERTEXAI` を外す（Cloud Run なら環境変数の更新）。ベクトルを作り直していなければ、データの戻しは要らない。
 
 ## クライアントの切断
 

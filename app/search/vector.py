@@ -13,6 +13,7 @@ DB は既存の接続プール（`app/history.py` の `get_pool()`）を借り�
   例外の文字列には接続先・URL・本文が入りうるので、ログには型の名前だけを残す。
 - 埋め込みの呼び出しは 1 回だけ（SDK の再試行は切る）で、上限は `EMBED_TIMEOUT_SECONDS`。質問ごとに API を 1 回呼ぶ。
   `GEMINI_API_KEY_PAID` があるときだけ、無料キーが 429 だったときに有料キーで 1 回やり直す。
+- `EMBEDDING_USE_VERTEXAI=true` なら、埋め込みを Vertex AI（ADC 認証・同じモデルと 768 次元）で呼ぶ。API キーも有料キーへの切り替えも使わない。
 """
 
 import asyncio
@@ -65,27 +66,21 @@ _key_switch: KeySwitch | None = None
 
 
 def _api_key() -> str:
+    """質問の埋め込みに使う API キー。Vertex AI（`EMBEDDING_USE_VERTEXAI`）のときは要らず、空文字を返す。"""
+    if embedding.use_vertex():
+        return ""
     key = os.environ.get("GEMINI_API_KEY", "").strip()
     if key in _PLACEHOLDER_KEYS:
         raise VectorSearchError(
-            "質問の埋め込みには GEMINI_API_KEY が要ります（LLM を Vertex AI で使う場合も、埋め込みは API キーで呼びます）"
+            "質問の埋め込みには GEMINI_API_KEY が要ります（LLM を Vertex AI で使う場合も、埋め込みは API キーで呼びます。"
+            f"埋め込みを Vertex AI で呼ぶなら {embedding.VERTEX_ENV}=true と ADC が要ります）"
         )
     return key
 
 
 def _new_client(api_key: str) -> Any:
-    from google import genai
-    from google.genai import types
-
-    return genai.Client(
-        # Vertex AI の環境変数（GOOGLE_GENAI_USE_VERTEXAI）が真でも、埋め込みは API キーで呼ぶ（キーを Vertex に送らない）
-        vertexai=False,
-        api_key=api_key,
-        # 再試行しない（attempts=1）。timeout はミリ秒
-        http_options=types.HttpOptions(
-            timeout=int(EMBED_TIMEOUT_SECONDS * 1000), retry_options=types.HttpRetryOptions(attempts=1)
-        ),
-    )
+    # 経路（API キーか Vertex AI か）は embedding.make_client が決める。GOOGLE_GENAI_USE_VERTEXAI（LLM 用）では変わらない
+    return embedding.make_client(api_key or None, int(EMBED_TIMEOUT_SECONDS * 1000))
 
 
 def _get_client() -> Any:
@@ -131,7 +126,7 @@ async def embed_query(query: str) -> list[float]:
     GEMINI_API_KEY_PAID があるときだけ、無料キーが 429（レート制限）だったときに有料キーで 1 回やり直す
     （LLM と同じ方針。ここは再試行しないので、429 はすぐ切り替わる）。400/401/403 や一時的な失敗では切り替えない。
     """
-    if not paid_api_key():
+    if embedding.use_vertex() or not paid_api_key():  # Vertex AI は ADC 認証で、有料キーへの切り替えは無い
         return await _embed(_get_client(), query)
     return await call_with_key_switch(
         lambda: _embed(_get_client(), query),
