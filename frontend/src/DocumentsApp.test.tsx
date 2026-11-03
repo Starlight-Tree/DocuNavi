@@ -6,8 +6,8 @@ import { AuthProvider } from './auth/AuthContext';
 import {
   MSG_NOT_CONFIGURED,
   MSG_NO_DOCUMENTS,
-  MSG_NO_DOCUMENTS_IN_GROUP,
   MSG_NO_MATCH,
+  MSG_NO_MATCH_LEGACY,
 } from './components/DocumentsView';
 import { fakeAuth } from './test/auth';
 import type { FakeAuth } from './test/auth';
@@ -54,12 +54,18 @@ type Route = (url: string, init: RequestInit, call: number) => Response | Promis
  * /health と /documents 系を差し替える。/chat/stream には何も返さない（呼ばれたら失敗させる）。
  * 資料グループの一覧（/collections）は、渡さなければ「DB を使っていない」を返す（呼び出しの回数には数えない）。
  */
-function installDocsFetch(route: Route, collections?: () => Response | Promise<Response>) {
+function installDocsFetch(
+  route: Route,
+  collections?: () => Response | Promise<Response>,
+  classifications?: { targets?: () => Response | Promise<Response>; docTypes?: () => Response | Promise<Response> },
+) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'mock' });
     if (url.endsWith('/collections')) return collections ? collections() : jsonResponse({ configured: false, collections: [] });
+    if (url.endsWith('/targets')) return classifications?.targets ? classifications.targets() : jsonResponse({ configured: false, targets: [] });
+    if (url.endsWith('/doc-types')) return classifications?.docTypes ? classifications.docTypes() : jsonResponse({ configured: false, doc_types: [] });
     if (url.endsWith('/threads')) return jsonResponse({ threads: [] }); // 会話の一覧（ログイン中だけ）。資料の呼び出しには数えない
     calls.push({ url, init: init ?? {} });
     return route(url, init ?? {}, calls.length);
@@ -703,137 +709,212 @@ describe('画面の状態は URL が持つ', () => {
   });
 });
 
-describe('資料一覧: 種別（資料群）', () => {
-  const GROUPED = {
+describe('資料一覧: 対象と資料種別', () => {
+  const CLASSIFIED = {
     configured: true,
     documents: [
-      summary(1, 'tsubasa_dorm_rules.pdf', 3, 3, { collection: 'guides' }),
-      summary(2, 'aoba_aw820_manual.pdf', 35, 35, { collection: 'guides' }),
-      summary(3, 'cafe_store_guide.pdf', 30, 30, { collection: 'cafe' }),
-      summary(4, 'ザーハード1.pdf', 4, 4, { collection: 'zahard' }),
+      summary(1, 'tsubasa_dorm_rules.pdf', 3, 3, { collection: 'guides', target: 'tsubasa-dorm', doc_type: 'regulation' }),
+      summary(2, 'aoba_aw820_manual.pdf', 35, 35, { collection: 'guides', target: 'aoba-aw820', doc_type: 'manual' }),
+      summary(3, 'cafe_store_guide.pdf', 30, 30, { collection: 'cafe', target: 'minato-coffee', doc_type: 'store-guide' }),
+      summary(4, 'ザーハード1.pdf', 4, 4, { collection: 'zahard', target: 'zahard', doc_type: 'setting' }),
       summary(5, 'loose.pdf', 1, 1, { collection: null }),
     ],
   };
-  // GET /collections の応答（表示名・説明・並び順は、サーバーが持つ）
+  const item = (name: string, label: string, order: number, count: number) => ({
+    name,
+    label,
+    description: '',
+    sort_order: order,
+    document_count: count,
+    ready_count: count,
+  });
+  // GET /targets・GET /doc-types の応答（表示名・並び順は、サーバーが持つ）
+  const TARGET_CATALOG = {
+    configured: true,
+    targets: [
+      item('zahard', 'ザーハード', 10, 1),
+      item('minato-coffee', 'みなとコーヒー', 20, 1),
+      item('tsubasa-dorm', 'つばさ大学学生寮', 30, 1),
+      item('aoba-aw820', 'あおば電機 AW-820', 40, 1),
+    ],
+  };
+  const TYPE_CATALOG = {
+    configured: true,
+    doc_types: [item('setting', '設定資料', 10, 1), item('store-guide', '店舗案内', 20, 1), item('regulation', '規程', 30, 1), item('manual', '取扱説明書', 40, 1)],
+  };
+  // GET /collections の応答（旧フィルターの表示名にだけ使う）
   const GROUP_CATALOG = {
     configured: true,
     collections: [
-      { name: 'zahard', label: '設定資料', description: 'ザーハードに関する設定資料です。', sort_order: 10, registered: true, document_count: 1, ready_count: 1 },
-      { name: 'cafe', label: '店舗案内', description: '', sort_order: 20, registered: true, document_count: 1, ready_count: 1 },
-      { name: 'guides', label: '規程・取扱説明書', description: '', sort_order: 30, registered: true, document_count: 2, ready_count: 2 },
+      { name: 'cafe', label: '店舗案内（旧）', description: '', sort_order: 20, registered: true, document_count: 1, ready_count: 1 },
+      { name: 'guides', label: '規程・取扱説明書（旧）', description: '', sort_order: 30, registered: true, document_count: 2, ready_count: 2 },
     ],
   };
-  const groupSelect = () => screen.getByRole('combobox', { name: 'グループ' });
-  const names = () => screen.getAllByRole('row').slice(1).map((row) => row.textContent ?? '');
-
-  it('「グループ」の列に表示名（グループの一覧の label）を出し、未設定の資料には「未設定」と出す', async () => {
+  const targetSelect = () => screen.getByRole('combobox', { name: '対象' });
+  const typeSelect = () => screen.getByRole('combobox', { name: '資料種別' });
+  const names = () => screen.queryAllByRole('row').slice(1).map((row) => row.textContent ?? '');
+  const install = (collections = false) =>
     installDocsFetch(
-      () => jsonResponse(GROUPED),
-      () => jsonResponse(GROUP_CATALOG),
+      () => jsonResponse(CLASSIFIED),
+      collections ? () => jsonResponse(GROUP_CATALOG) : undefined,
+      { targets: () => jsonResponse(TARGET_CATALOG), docTypes: () => jsonResponse(TYPE_CATALOG) },
     );
+
+  it('「対象」「資料種別」の列に表示名（一覧の label）を出し、未分類の資料には「未分類」と出す。グループの列は無い', async () => {
+    install();
     const { user } = setup();
     await openDocuments(user);
 
     const dorm = await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
-    expect(within(dorm).getByText('規程・取扱説明書')).toBeInTheDocument();
-    expect(within(screen.getByRole('row', { name: /ザーハード1\.pdf/ })).getByText('設定資料')).toBeInTheDocument();
-    expect(within(screen.getByRole('row', { name: /cafe_store_guide\.pdf/ })).getByText('店舗案内')).toBeInTheDocument();
-    const loose = screen.getByRole('row', { name: /loose\.pdf/ });
-    expect(within(loose).getByText('未設定')).toBeInTheDocument();
+    expect(within(dorm).getByText('つばさ大学学生寮')).toBeInTheDocument();
+    expect(within(dorm).getByText('規程')).toBeInTheDocument();
+    const zahard = screen.getByRole('row', { name: /ザーハード1\.pdf/ });
+    expect(within(zahard).getByText('ザーハード')).toBeInTheDocument();
+    expect(within(zahard).getByText('設定資料')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /loose\.pdf/ })).getAllByText('未分類')).toHaveLength(2);
+    expect(screen.queryByRole('columnheader', { name: 'グループ' })).not.toBeInTheDocument();
   });
 
-  it('グループの一覧を使えない（未設定）ときの選択肢は、一覧にある資料群を名前順で出し、選ぶとその資料群だけを残す。URL にも載る', async () => {
-    installDocsFetch(() => jsonResponse(GROUPED));
+  it('対象と資料種別の選択肢は、一覧の順に並び、件数が付く。未分類の資料があれば「未分類」で絞れる。選ぶと URL に載る', async () => {
+    install();
     const { user } = setup();
     await openDocuments(user);
     await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
 
-    // 固定の表示名は持たない。グループの一覧が無いときは、識別名のまま出す
-    expect(within(groupSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
+    expect(within(targetSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
       'すべて (5)',
-      'cafe (1)',
-      'guides (2)',
-      'zahard (1)',
+      'ザーハード (1)',
+      'みなとコーヒー (1)',
+      'つばさ大学学生寮 (1)',
+      'あおば電機 AW-820 (1)',
+      '未分類 (1)',
     ]);
-    expect(groupSelect()).toHaveValue('');
-    expect(names()).toHaveLength(5);
+    expect(targetSelect()).toHaveValue('');
 
-    await user.selectOptions(groupSelect(), 'guides');
+    await user.selectOptions(targetSelect(), 'tsubasa-dorm');
+    expect(names()).toHaveLength(1);
+    expect(names()[0]).toMatch(/tsubasa_dorm_rules\.pdf/);
+    expect(window.location.search).toBe('?tab=documents&target=tsubasa-dorm');
+    // 資料種別の件数は、対象の条件を残して数える
+    expect(within(typeSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'すべて (1)',
+      '設定資料 (0)',
+      '店舗案内 (0)',
+      '規程 (1)',
+      '取扱説明書 (0)',
+      '未分類 (0)',
+    ]);
 
-    expect(names().join('|')).toMatch(/tsubasa_dorm_rules\.pdf.*\|.*aoba_aw820_manual\.pdf/);
-    expect(names()).toHaveLength(2);
-    expect(window.location.search).toBe('?tab=documents&collection=guides');
-    expect(groupSelect()).toHaveValue('guides');
+    await user.selectOptions(targetSelect(), '');
+    await user.selectOptions(typeSelect(), '_none');
+    expect(names()).toHaveLength(1);
+    expect(names()[0]).toMatch(/loose\.pdf/);
+    expect(window.location.search).toBe('?tab=documents&type=_none');
+  });
 
-    await user.selectOptions(groupSelect(), '');
+  it('分類の一覧を使えない（旧サーバー）ときも、一覧にある識別名で選べる。固定の表示名は持たない', async () => {
+    installDocsFetch(() => jsonResponse(CLASSIFIED));
+    const { user } = setup();
+    await openDocuments(user);
+    await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
+
+    expect(within(targetSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'すべて (5)',
+      'aoba-aw820 (1)',
+      'minato-coffee (1)',
+      'tsubasa-dorm (1)',
+      'zahard (1)',
+      '未分類 (1)',
+    ]);
+    await user.selectOptions(targetSelect(), 'zahard');
+    expect(names()).toHaveLength(1);
+  });
+
+  it('URL の対象・資料種別で開いた共有リンクは、その資料だけを見せる。一覧に無い対象は、全件に戻さず 0 件にして、選択を残す', async () => {
+    install();
+    window.history.replaceState(null, '', '/?tab=documents&target=minato-coffee&type=store-guide');
+    setup();
+    await screen.findByRole('row', { name: /cafe_store_guide\.pdf/ });
+    expect(names()).toHaveLength(1);
+    expect(targetSelect()).toHaveValue('minato-coffee');
+    expect(typeSelect()).toHaveValue('store-guide');
+
+    cleanup();
+    window.history.replaceState(null, '', '/?tab=documents&target=gone');
+    setup();
+    expect(await screen.findByText(MSG_NO_MATCH)).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(targetSelect()).toHaveValue('gone');
+  });
+
+  it('旧 URL（?collection=）は黙って捨てず、「旧フィルターが有効です」と出して、その旧グループの資料だけを見せる。解除すると全件に戻る', async () => {
+    install(true);
+    window.history.replaceState(null, '', '/?tab=documents&collection=cafe');
+    const { user } = setup();
+    await screen.findByRole('row', { name: /cafe_store_guide\.pdf/ });
+
+    const banner = screen.getByText(/旧フィルターが有効です/).closest('.legacy-filter') as HTMLElement;
+    expect(within(banner).getByText(/旧グループ「店舗案内（旧）」/)).toBeInTheDocument();
+    expect(names()).toHaveLength(1);
+
+    await user.click(within(banner).getByRole('button', { name: '旧フィルターを解除' }));
+    expect(screen.queryByText(/旧フィルターが有効です/)).not.toBeInTheDocument();
     expect(names()).toHaveLength(5);
     expect(window.location.search).toBe('?tab=documents');
   });
 
-  it('グループの一覧を読めたときは、表示名と資料の数で選べる。準備中のグループには「準備中」と付く', async () => {
-    installDocsFetch(
-      () => jsonResponse(GROUPED),
-      () =>
-        jsonResponse({
-          configured: true,
-          collections: [...GROUP_CATALOG.collections, { name: 'draft', label: '下書き', description: '', sort_order: 40, registered: true, document_count: 0, ready_count: 0 }],
-        }),
-    );
-    const { user } = setup();
-    await openDocuments(user);
-    await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
+  it('旧フィルターと対象が同時にあるときは、AND で重ね、どちらも表示する。当てはまる資料が無ければ、その旨を出す', async () => {
+    install(true);
+    window.history.replaceState(null, '', '/?tab=documents&collection=guides&target=aoba-aw820');
+    setup();
+    await screen.findByRole('row', { name: /aoba_aw820_manual\.pdf/ });
 
-    expect(within(groupSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
-      'すべて (5)',
-      '設定資料 (1)',
-      '店舗案内 (1)',
-      '規程・取扱説明書 (2)',
-      '下書き (0)',
-    ]);
-    await user.selectOptions(groupSelect(), 'zahard');
     expect(names()).toHaveLength(1);
-    expect(window.location.search).toBe('?tab=documents&collection=zahard');
+    expect(targetSelect()).toHaveValue('aoba-aw820');
+    const banner = screen.getByText(/旧フィルターが有効です/).closest('.legacy-filter') as HTMLElement;
+    expect(banner).toHaveTextContent('対象・資料種別の選択とあわせて');
+    // 選択肢も件数も、旧フィルターで絞った資料の中で数える（cafe の資料の対象は、選択肢に出ない）
+    expect(within(targetSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'すべて (2)',
+      'つばさ大学学生寮 (1)',
+      'あおば電機 AW-820 (1)',
+    ]);
+
+    // 旧グループ guides と、対象 minato-coffee の両方に当てはまる資料は無い（URL の指定は、全件に戻さず、0 件にして残す）
+    cleanup();
+    window.history.replaceState(null, '', '/?tab=documents&collection=guides&target=minato-coffee');
+    setup();
+    expect(await screen.findByText(MSG_NO_MATCH_LEGACY)).toBeInTheDocument();
+    expect(screen.getByText(/旧フィルターが有効です/)).toBeInTheDocument();
+    expect(targetSelect()).toHaveValue('minato-coffee');
   });
 
-  it('URL の絞り込みで開いた共有リンクは、その資料群だけを見せる。一覧に無い名前は絞り込みなしと同じ', async () => {
-    installDocsFetch(() => jsonResponse(GROUPED));
-    window.history.replaceState(null, '', '/?tab=documents&collection=cafe');
-    setup();
-    await screen.findByRole('row', { name: /cafe_store_guide\.pdf/ });
-    expect(names()).toHaveLength(1);
-    expect(groupSelect()).toHaveValue('cafe');
-
-    cleanup();
+  it('旧フィルターに当てはまる資料が 1 件も無い名前でも、黙って全件に戻さず、旧フィルターを出す', async () => {
+    install(true);
     window.history.replaceState(null, '', '/?tab=documents&collection=nothing');
     setup();
-    await screen.findByRole('row', { name: /cafe_store_guide\.pdf/ });
-    expect(names()).toHaveLength(5);
-    expect(groupSelect()).toHaveValue('');
-  });
-
-  it('資料群が 1 つも無い（古いサーバー・未設定）ときは、絞り込みを出さない', async () => {
-    installDocsFetch(() => jsonResponse(LIST));
-    const { user } = setup();
-    await openDocuments(user);
-    await screen.findAllByRole('row', { name: /pdf/ });
-    expect(screen.queryByRole('combobox', { name: 'グループ' })).not.toBeInTheDocument();
+    expect(await screen.findByText(MSG_NO_MATCH_LEGACY)).toBeInTheDocument();
+    expect(screen.getByText(/旧フィルターが有効です/)).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('資料を開いても、一覧は絞り込んだまま横に残る。戻ると、パネルだけが閉じる', async () => {
-    installDocsFetch((url) =>
-      jsonResponse(url === '/documents' ? GROUPED : { document: GROUPED.documents[2], chunks: [chunk(0, '本文')] }),
+    installDocsFetch(
+      (url) => jsonResponse(url === '/documents' ? CLASSIFIED : { document: CLASSIFIED.documents[2], chunks: [chunk(0, '本文')] }),
+      undefined,
+      { targets: () => jsonResponse(TARGET_CATALOG), docTypes: () => jsonResponse(TYPE_CATALOG) },
     );
     const { user } = setup();
     await openDocuments(user);
-    await user.selectOptions(await screen.findByRole('combobox', { name: 'グループ' }), 'cafe');
+    await user.selectOptions(await screen.findByRole('combobox', { name: '対象' }), 'minato-coffee');
 
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: /cafe_store_guide\.pdf を開く/ }));
     (await panel()).getByRole('heading', { level: 2 });
-    expect(window.location.search).toBe('?tab=documents&collection=cafe&doc=3');
+    expect(window.location.search).toBe('?tab=documents&target=minato-coffee&doc=3');
     expect(names()).toHaveLength(1);
 
     window.history.back();
-    await waitFor(() => expect(window.location.search).toBe('?tab=documents&collection=cafe'));
+    await waitFor(() => expect(window.location.search).toBe('?tab=documents&target=minato-coffee'));
     expect(screen.queryByRole('complementary', { name: /^資料:/ })).not.toBeInTheDocument();
     expect(names()).toHaveLength(1);
   });
@@ -846,27 +927,27 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
   const LIST_5 = {
     configured: true,
     documents: [
-      summary(1, 'aoba_aw820_manual.pdf', 6, 6, { collection: 'guides', pages: 4, updated_at: ago(32) }),
-      summary(2, 'cafe_store_guide.pdf', 5, 5, { collection: 'cafe', pages: 4, updated_at: ago(14) }),
-      summary(3, 'tsubasa_dorm_rules.pdf', 3, 3, { collection: 'guides', pages: 3, title: 'つばさ大学学生寮 入寮規程', updated_at: ago(14) }),
-      summary(4, 'ザーハード1.pdf', 2, 2, { collection: 'zahard', pages: 1, updated_at: ago(10) }),
-      summary(5, 'ザーハード2.pdf', 0, 0, { collection: 'zahard', pages: 1, status: 'failed', updated_at: ago(1) }),
+      summary(1, 'aoba_aw820_manual.pdf', 6, 6, { collection: 'guides', target: 'aoba-aw820', doc_type: 'manual', pages: 4, updated_at: ago(32) }),
+      summary(2, 'cafe_store_guide.pdf', 5, 5, { collection: 'cafe', target: 'minato-coffee', doc_type: 'store-guide', pages: 4, updated_at: ago(14) }),
+      summary(3, 'tsubasa_dorm_rules.pdf', 3, 3, { collection: 'guides', target: 'tsubasa-dorm', doc_type: 'regulation', pages: 3, title: 'つばさ大学学生寮 入寮規程', updated_at: ago(14) }),
+      summary(4, 'ザーハード1.pdf', 2, 2, { collection: 'zahard', target: 'zahard', doc_type: 'setting', pages: 1, updated_at: ago(10) }),
+      summary(5, 'ザーハード2.pdf', 0, 0, { collection: 'zahard', target: 'zahard', doc_type: 'setting', pages: 1, status: 'failed', updated_at: ago(1) }),
     ],
   };
-  const CATALOG = {
+  const entry = (name: string, label: string, order: number) => ({ name, label, description: '', sort_order: order, document_count: 1, ready_count: 1 });
+  const TARGETS = {
     configured: true,
-    collections: [
-      { name: 'zahard', label: '設定資料', description: '', sort_order: 10, registered: true, document_count: 2, ready_count: 1 },
-      { name: 'cafe', label: '店舗案内', description: '', sort_order: 20, registered: true, document_count: 1, ready_count: 1 },
-      { name: 'guides', label: '規程・取扱説明書', description: '', sort_order: 30, registered: true, document_count: 2, ready_count: 2 },
-      { name: 'draft', label: '準備中の資料', description: '', sort_order: 40, registered: true, document_count: 0, ready_count: 0 },
-    ],
+    targets: [entry('zahard', 'ザーハード', 10), entry('minato-coffee', 'みなとコーヒー', 20), entry('tsubasa-dorm', 'つばさ大学学生寮', 30), entry('aoba-aw820', 'あおば電機 AW-820', 40)],
+  };
+  const TYPES = {
+    configured: true,
+    doc_types: [entry('setting', '設定資料', 10), entry('store-guide', '店舗案内', 20), entry('regulation', '規程', 30), entry('manual', '取扱説明書', 40)],
   };
   const install = () =>
-    installDocsFetch(
-      () => jsonResponse(LIST_5),
-      () => jsonResponse(CATALOG),
-    );
+    installDocsFetch(() => jsonResponse(LIST_5), undefined, {
+      targets: () => jsonResponse(TARGETS),
+      docTypes: () => jsonResponse(TYPES),
+    });
   const names = () => screen.queryAllByRole('row').slice(1).map((row) => row.textContent ?? '');
   // 各行のファイル名（題名があるときは補助の行、無ければ文書名がファイル名）
   const files = () =>
@@ -877,6 +958,8 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
   const keyword = () => screen.getByRole('searchbox', { name: /資料名で検索/ });
   const select = (name: string) => screen.getByRole('combobox', { name });
   const result = () => screen.getByRole('status');
+  // 状態・ページ数・更新・並び替えは「詳細フィルター」の中。開いてから操作する
+  const openDetail = (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole('button', { name: /詳細フィルター/ }));
 
   async function openList() {
     const { user } = setup();
@@ -885,11 +968,18 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     return user;
   }
 
-  it('資料名の検索・グループ・状態・ページ数・更新・並び替えと、件数を出す。絞り込みが無ければ「条件をクリア」は出さない', async () => {
+  it('主な操作は検索・対象・資料種別で、状態・ページ数・更新・並び替えは「詳細フィルター」の中。件数を出し、絞り込みが無ければ「条件をクリア」は出さない', async () => {
     install();
-    await openList();
+    const user = await openList();
 
     expect(keyword()).toHaveValue('');
+    expect(select('対象')).toHaveValue('');
+    expect(select('資料種別')).toHaveValue('');
+    const toggle = screen.getByRole('button', { name: /詳細フィルター/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('combobox', { name: '状態' })).not.toBeInTheDocument(); // 閉じている間は、操作にも読み上げにも出ない
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(select('状態')).toHaveValue('');
     expect(select('並び替え')).toHaveValue('default');
     expect(result()).toHaveTextContent('5 件の資料が見つかりました');
@@ -899,7 +989,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(files()).toEqual(['aoba_aw820_manual.pdf', 'cafe_store_guide.pdf', 'tsubasa_dorm_rules.pdf', 'ザーハード1.pdf', 'ザーハード2.pdf']);
   });
 
-  it('キーワードは、題名・ファイル名・種別の表示名を探し、空白（全角も）で AND になる。打っている間は履歴を増やさず、URL に載る', async () => {
+  it('キーワードは、題名・ファイル名・対象と資料種別の表示名を探し、空白（全角も）で AND になる。打っている間は履歴を増やさず、URL に載る', async () => {
     install();
     const user = await openList();
     const length = window.history.length;
@@ -916,12 +1006,12 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(names()).toHaveLength(5);
     expect(window.location.search).toBe('?tab=documents');
 
-    await user.type(keyword(), '設定資料'); // 種別の表示名（グループの一覧の label）
+    await user.type(keyword(), '設定資料'); // 資料種別の表示名（一覧の label）
     expect(files()).toEqual(['ザーハード1.pdf', 'ザーハード2.pdf']);
 
     await user.clear(keyword());
-    await user.type(keyword(), '規程　取扱'); // 全角の空白 = AND（種別「規程・取扱説明書」）
-    expect(files()).toEqual(['aoba_aw820_manual.pdf', 'tsubasa_dorm_rules.pdf']);
+    await user.type(keyword(), '取扱　あおば'); // 全角の空白 = AND（資料種別「取扱説明書」と対象「あおば電機 AW-820」）
+    expect(files()).toEqual(['aoba_aw820_manual.pdf']);
   });
 
   it('一致が無いときは、見つからない旨と案内を出す（一覧の表は出さない）。「条件をクリア」で全件に戻る', async () => {
@@ -942,6 +1032,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
   it('状態・ページ数・更新は、選ぶと絞り、選択肢に件数が付く。URL に載り、戻るで元に戻る', async () => {
     install();
     const user = await openList();
+    await openDetail(user);
 
     expect(within(select('状態')).getAllByRole('option').map((o) => o.textContent)).toEqual([
       'すべて (5)',
@@ -981,6 +1072,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
   it('並び替えは、既定ではサーバーの順で、選ぶと並び替わり URL に載る。既定に戻すと URL から外れる', async () => {
     install();
     const user = await openList();
+    await openDetail(user);
 
     await user.selectOptions(select('並び替え'), 'updated');
     expect(files()).toEqual(['ザーハード2.pdf', 'ザーハード1.pdf', 'cafe_store_guide.pdf', 'tsubasa_dorm_rules.pdf', 'aoba_aw820_manual.pdf']);
@@ -997,16 +1089,32 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(window.location.search).toBe('?tab=documents');
   });
 
-  it('URL の条件で開いた共有リンクは、その条件で絞り・並べ、入力欄にも出る。種別の絞り込みとも併用できる', async () => {
+  it('URL の条件で開いた共有リンクは、その条件で絞り・並べ、入力欄にも出る。有効な詳細フィルターは、閉じずに見せる。旧フィルターとも併用できる', async () => {
     install();
-    window.history.replaceState(null, '', '/?tab=documents&collection=guides&q=%E8%A6%8F%E7%A8%8B&status=ready&sort=name');
+    window.history.replaceState(null, '', '/?tab=documents&collection=guides&q=%E5%AF%AE&status=ready&sort=name');
     setup();
     await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
 
-    expect(keyword()).toHaveValue('規程');
+    expect(keyword()).toHaveValue('寮');
+    // 状態の条件が有効なので、詳細フィルターは開いたまま（見えない条件で絞られた一覧にしない）。件数のバッジが付き、閉じられない
+    const toggle = screen.getByRole('button', { name: /詳細フィルター/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toBeDisabled();
+    expect(within(toggle).getByLabelText('1 件の条件が有効')).toBeInTheDocument();
     expect(select('状態')).toHaveValue('ready');
     expect(select('並び替え')).toHaveValue('name');
+    expect(files()).toEqual(['tsubasa_dorm_rules.pdf']);
+  });
+
+  it('対象・資料種別も、詳細フィルターの条件と同じ「条件をクリア」で外れる。並び替えと旧フィルターは残す', async () => {
+    install();
+    window.history.replaceState(null, '', '/?tab=documents&collection=guides&target=aoba-aw820&type=manual&sort=name');
+    setup();
+    await screen.findByRole('row', { name: /aoba_aw820_manual\.pdf/ });
+
+    await userEvent.setup().click(screen.getByRole('button', { name: '条件をクリア' }));
     expect(files()).toEqual(['aoba_aw820_manual.pdf', 'tsubasa_dorm_rules.pdf']);
+    expect(window.location.search).toBe('?tab=documents&collection=guides&sort=name');
   });
 
   it('「条件をクリア」は、グループの絞り込みと並び替えは残す', async () => {
@@ -1019,15 +1127,6 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: '条件をクリア' }));
     expect(files()).toEqual(['aoba_aw820_manual.pdf', 'tsubasa_dorm_rules.pdf']);
     expect(window.location.search).toBe('?tab=documents&collection=guides&sort=name');
-  });
-
-  it('資料が 1 件も無いグループでは、これまでの案内を出す。表は出さず、グループの選択は残す（ほかのグループへ戻れる）', async () => {
-    install();
-    window.history.replaceState(null, '', '/?tab=documents&collection=draft');
-    setup();
-    expect(await screen.findByText(MSG_NO_DOCUMENTS_IN_GROUP)).toBeInTheDocument();
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'グループ' })).toHaveValue('draft');
   });
 
   it('資料を開いても一覧の条件は URL に残り、ブラウザーの「戻る」で、パネルだけが閉じる', async () => {
@@ -1077,6 +1176,7 @@ describe('資料一覧: ヒーローは出さず、最近更新した資料は�
     await openDocuments(user);
     await screen.findByRole('row', { name: /a\.pdf/ });
 
+    await user.click(screen.getByRole('button', { name: /詳細フィルター/ }));
     await user.selectOptions(screen.getByRole('combobox', { name: '並び替え' }), 'updated');
 
     const files = screen.getAllByRole('row').slice(1).map((row) => (row.querySelector('.document-file') ?? row.querySelector('.document-name'))?.textContent);
@@ -1090,46 +1190,40 @@ describe('資料一覧: テーブル', () => {
   const TABLE_LIST = {
     configured: true,
     documents: [
-      summary(1, 'a.pdf', 4, 4, { title: 'A の資料', collection: 'guides', pages: 6, updated_at: new Date(Date.now() - DAY).toISOString() }),
+      summary(1, 'a.pdf', 4, 4, { title: 'A の資料', collection: 'guides', target: 'tsubasa-dorm', doc_type: 'regulation', pages: 6, updated_at: new Date(Date.now() - DAY).toISOString() }),
       summary(2, 'b.pdf', 0, 0, { collection: null, pages: null, updated_at: null, status: 'failed', failure_reason: '読み取れませんでした' }),
     ],
   };
-  const CATALOG = {
-    configured: true,
-    collections: [{ name: 'guides', label: '規程・取扱説明書', description: '', sort_order: 1, registered: true, document_count: 1, ready_count: 1 }],
+  const classifications = {
+    targets: () => jsonResponse({ configured: true, targets: [{ name: 'tsubasa-dorm', label: 'つばさ大学学生寮', description: '', sort_order: 1, document_count: 1, ready_count: 1 }] }),
+    docTypes: () => jsonResponse({ configured: true, doc_types: [{ name: 'regulation', label: '規程', description: '', sort_order: 1, document_count: 1, ready_count: 1 }] }),
   };
 
-  it('列は、API にある情報だけ（資料名・グループ・状態・ページ数・更新日時）。チャンク数の列や、API に無い追加日時・サイズは作らない', async () => {
-    installDocsFetch(
-      () => jsonResponse(TABLE_LIST),
-      () => jsonResponse(CATALOG),
-    );
+  it('列は、API にある情報だけ（資料名・対象・資料種別・状態・ページ数・更新日時）。チャンク数の列や、API に無い追加日時・サイズは作らない', async () => {
+    installDocsFetch(() => jsonResponse(TABLE_LIST), undefined, classifications);
     const { user } = setup();
     await openDocuments(user);
     await screen.findByRole('row', { name: /a\.pdf/ });
 
     const head = screen.getAllByRole('columnheader').map((th) => th.textContent);
-    expect(head).toEqual(['資料名', 'グループ', '状態', 'ページ数', '更新日時']);
+    expect(head).toEqual(['資料名', '対象', '資料種別', '状態', 'ページ数', '更新日時']);
 
     const row = screen.getByRole('row', { name: /a\.pdf/ });
     const cells = within(row).getAllByRole('cell');
-    expect(cells.map((c) => c.textContent)).toEqual(['規程・取扱説明書', '✓取り込み済み', '6', expect.stringMatching(/^\d{4}\/\d{2}\/\d{2}$/)]);
+    expect(cells.map((c) => c.textContent)).toEqual(['つばさ大学学生寮', '規程', '✓取り込み済み', '6', expect.stringMatching(/^\d{4}\/\d{2}\/\d{2}$/)]);
     // 資料名のボタンが、詳細を開く入口（題名を主に、ファイル名を補助に出す）
     expect(within(row).getByRole('button', { name: 'A の資料 を開く' })).toHaveTextContent('a.pdf');
   });
 
   it('更新日時やページ数の記録が無い資料は、欠けていることが分かる表示にする（日時を作らない）。失敗の理由は状態の下に出す', async () => {
-    installDocsFetch(
-      () => jsonResponse(TABLE_LIST),
-      () => jsonResponse(CATALOG),
-    );
+    installDocsFetch(() => jsonResponse(TABLE_LIST), undefined, classifications);
     const { user } = setup();
     await openDocuments(user);
     const row = await screen.findByRole('row', { name: /b\.pdf/ });
 
     expect(within(row).getByText('記録なし')).toHaveAttribute('title', 'この資料には、更新日時の記録がありません');
     expect(within(row).getByText('—')).toHaveAttribute('title', 'ページ数の記録がありません');
-    expect(within(row).getByText('未設定')).toBeInTheDocument();
+    expect(within(row).getAllByText('未分類')).toHaveLength(2);
     expect(within(row).getByText('取り込み失敗')).toBeInTheDocument();
     expect(within(row).getByText('読み取れませんでした')).toBeInTheDocument();
     expect(row.querySelector('time')).toBeNull();

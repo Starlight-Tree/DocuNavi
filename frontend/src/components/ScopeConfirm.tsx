@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { KeyboardEvent } from 'react';
 
 interface ScopeConfirmProps {
-  /** 切り替え先の表示名（「すべての資料」など）。 */
+  /** 切り替え先の表示名（「すべての資料」・対象の表示名）。 */
   targetLabel: string;
   /** 回答を作っている途中か。そうなら、生成を止めることも伝える。 */
   generating: boolean;
@@ -11,7 +11,7 @@ interface ScopeConfirmProps {
 }
 
 /**
- * 検索範囲は会話ごとに固定なので、会話があるときに範囲を変えるには、新しい会話にする。その確認の帯。
+ * 質問対象は会話ごとに固定なので、会話があるときに変えるには、新しい会話にする。その確認の帯。
  * 開いたら、安全な「いまの会話を続ける」にフォーカスを置く。Esc で閉じる（範囲は変えない）。Tab は帯の中を循環する。
  * 閉じたあとのフォーカスは、呼び出し側が開く前の位置へ戻す。
  */
@@ -53,10 +53,10 @@ export function ScopeConfirm({ targetLabel, generating, onConfirm, onCancel }: S
     >
       <div className="scope-confirm-text">
         <p id="scope-confirm-title" className="scope-confirm-title">
-          検索範囲を「{targetLabel}」に変えますか？
+          質問対象を「{targetLabel}」に変えますか？
         </p>
         <p id="scope-confirm-body" className="scope-confirm-body">
-          検索範囲は会話ごとに固定なので、新しい会話に切り替えます。いまの会話は閉じます（ログイン中は、一覧から開き直せます）。
+          質問対象は会話ごとに固定なので、新しい会話に切り替えます。いまの会話は閉じます（ログイン中は、一覧から開き直せます）。
           {generating && '回答を作っている途中なので、生成も止めます。'}
         </p>
       </div>

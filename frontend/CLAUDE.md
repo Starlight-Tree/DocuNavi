@@ -12,8 +12,8 @@ Vercel が配信する画面。`main` へのプッシュで本番が更新され
 | 画面の骨格 | `src/Root.tsx` `src/App.tsx` | プロバイダーの組み立て、タブ・URL に応じた画面の切り替え | API の呼び出し |
 | コンポーネント | `src/components/` | 表示と入力。状態は props で受ける | `fetch`、環境変数、Supabase |
 | hooks | `src/hooks/` | 取得・状態・副作用。`api/` と `lib/` を組み合わせる | JSX |
-| 共通の部品 | `src/hooks/useLoaded.ts` | `Loaded<T>`（loading / error / ready）、`useLoaded`、`useAuthedJsonFetch`。資料・会話・資料グループの hooks が共有する | 個別の API の知識 |
-| APIクライアント | `src/api/` | `fetch`、応答の検証、固定のエラー文、型（`chat` `collections` `documents` `graph` `threads`） | React、状態 |
+| 共通の部品 | `src/hooks/useLoaded.ts` | `Loaded<T>`（loading / error / ready）、`useLoaded`、`useAuthedJsonFetch`。資料・会話・資料グループ・対象と資料種別の hooks が共有する | 個別の API の知識 |
+| APIクライアント | `src/api/` | `fetch`、応答の検証、固定のエラー文、型（`chat` `collections` `classifications` `documents` `graph` `threads`） | React、状態 |
 | 認証 | `src/auth/` | Supabase Auth（`supabase.ts` だけが SDK を持つ）、トークン付き `fetch`（`authFetch.ts`）、ログイン状態（`AuthContext.tsx`） | チャットの知識 |
 | 純粋な関数 | `src/lib/` | 出典の取り出し、関係図の計算、URL・ストレージ、整形。React に依存しない（`markdown.tsx` を除く） | 通信 |
 | テスト | `src/**/*.test.ts(x)`、`src/test/`、`e2e/` | 単体・UI は Vitest（`fetch` を差し替える）。E2E は Playwright（偽の LLM・偽の検索） | 実 API |
@@ -25,9 +25,11 @@ Vercel が配信する画面。`main` へのプッシュで本番が更新され
 ## 守ること
 
 - **`NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。** 入れてよいのは Supabase の URL と publishable key、API・中継の URL だけ。secret key・`DATABASE_URL`・`GEMINI_API_KEY` を入れない。読むのは `api/chat.ts`（API・中継の URL）と `auth/supabase.ts` だけ。
-- **サーバーのエラー本文を画面に出さない。** 固定のメッセージにする（`api/` の `ChatApiError`）。ただし、サーバーが固定の日本語の `detail` を返す 401 / 429 / 500 / 502 / 503 / 504 は、その文をそのまま見せる（`api/chat.ts` の `SERVER_DETAIL_STATUSES`。503 は `ops/sse-relay/` の上限の文面と対）。
+- **サーバーのエラー本文を画面に出さない。** 固定のメッセージにする（`api/` の `ChatApiError`）。ただし、サーバーが固定の日本語の `detail` を返す 401 / 403 / 429 / 500 / 502 / 503 / 504 は、その文をそのまま見せる（`api/chat.ts` の `SERVER_DETAIL_STATUSES`。503 は `ops/sse-relay/` の上限の文面と対）。
 - **返答は HTML として解釈しない。** `dangerouslySetInnerHTML` を使わない。
-- **履歴・資料グループの権限はサーバーが決める。** 画面で隠すだけにしない。資料グループの絞り込みの意味は `GET /collections` に従う。
+- **履歴・資料グループの権限はサーバーが決める。** 画面で隠すだけにしない。権限の単位は資料グループ（`collection`）のまま。チャットの質問対象は「対象」（`target`。`GET /targets`）で、検索は「見える資料 ∩ 対象」。
+  対象と資料種別（`GET /doc-types`）の表示名・件数はサーバーが持つ（固定で持たない）。旧グループ（`collection`）の会話は、保存された範囲のまま続け、新しくは選べず、対象に自動で変えない。
+  `useChat` の範囲は `{all | target | collection}`。対象と `collection` は同時に送らない（サーバーが 422）。旧 `?collection=` の URL は、資料一覧の「旧フィルター」として知らせ、解除できる（対象と同時なら AND）。
 - **二重送信を防ぐ**（`useChat.ts` の `pendingRef`）。**停止は切断**（サーバーが LLM 呼び出しを取り消す）。この 2 つを壊さない。
 - **依存を足さない・上げない**（`package.json` と `package-lock.json`）。変えるときは承認を得る。
 - **デプロイしない。** 本番は `main` へのプッシュ（承認が要る）で更新される。`vercel` の書き込み系 MCP・CLI を使わない。
@@ -37,7 +39,7 @@ Vercel が配信する画面。`main` へのプッシュで本番が更新され
 ```bash
 cd frontend
 npm run typecheck
-npm test                                        # Vitest 326 件（2026-11-01）
+npm test                                        # Vitest 490 件（2026-11-04）
 NEXT_DIST_DIR=.next-verify npm run build        # コンテナの next dev の .next を壊さないよう、出力先を分ける
 ```
 

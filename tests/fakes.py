@@ -87,14 +87,15 @@ class FakeSearch:
 
 
 class ScopedFakeSearch(FakeSearch):
-    """検索範囲（資料のグループ）を見る偽の検索。E2E の偽サーバー（tests/e2e_server.py）だけが使う。
+    """質問対象（対象）と旧グループを見る偽の検索。E2E の偽サーバー（tests/e2e_server.py）だけが使う。
 
-    FakeSearch の資料に、グループ（zahard）を付ける。`collection` が渡されたら、そのグループの資料だけを返す
-    （グループが違えば 0 件になるので、画面の「該当する資料がありません」の案内を確かめられる）。
-    FakeSearch そのものは変えない（ほかのテストは、出典の collection が None であることを前提にしている）。
+    FakeSearch の資料に、グループ（zahard）と対象（zahard）を付ける。`collection` か `target` が渡されたら、一致する資料だけを返す
+    （違えば 0 件になるので、画面の「該当する資料がありません」の案内を確かめられる）。
+    FakeSearch そのものは変えない（ほかのテストは、出典の collection・target が None であることを前提にしている）。
     """
 
     COLLECTION = "zahard"
+    TARGET = "zahard"
 
     async def __call__(
         self,
@@ -108,7 +109,9 @@ class ScopedFakeSearch(FakeSearch):
         hits = await super().__call__(query, top_k)
         if collection is not None and collection != self.COLLECTION:
             return []
-        return [hit._replace(collection=self.COLLECTION) for hit in hits]
+        if target is not None and target != self.TARGET:
+            return []
+        return [hit._replace(collection=self.COLLECTION, target=self.TARGET) for hit in hits]
 
 
 class GroupedFakeSearch:

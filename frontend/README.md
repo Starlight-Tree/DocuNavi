@@ -54,7 +54,7 @@ UI_MOCK=1 npm run dev        # http://localhost:3000/mock（?view=documents で�
 
 ### 対象・資料種別のモック（`/mock/classification`）
 
-資料の分類「対象」「資料種別」を足した画面の案（2026-11-03。**本体には未反映。承認後に入れる**）。`src/mock/classification/` に閉じた、架空データの試作で、本体の部品（`Composer` `MessageList` `AppSidebar` と本体の CSS）を使う。
+資料の分類「対象」「資料種別」を足した画面の案（2026-11-03。承認済みで、本体（`src/components/DocumentFilterBar.tsx` `ChatContextBar.tsx` など）へ移した。モックは残す）。`src/mock/classification/` に閉じた、架空データの試作で、本体の部品（`Composer` `MessageList` `AppSidebar` と本体の CSS）を使う。
 資料ライブラリ（検索・対象・資料種別 + 「詳細フィルター」）と、チャットの上の帯の質問対象メニューを確かめる。上の帯のラジオで、旧 URL（`?collection=`）・旧グループの会話・対象が使えない会話の状態に切り替える。
 `UI_MOCK=1 npm run dev` で `http://localhost:3000/mock/classification`。
 
@@ -101,7 +101,7 @@ frontend/
 ├── next.config.ts            # API の転送（rewrites）・ビルドの出力先
 ├── playwright.config.ts, e2e/
 └── src/
-    ├── api/                  # chat.ts（トランスポート用の fetch と /health）、collections.ts、documents.ts、threads.ts、graph.ts
+    ├── api/                  # chat.ts（トランスポート用の fetch と /health）、collections.ts、classifications.ts（/targets・/doc-types）、documents.ts、threads.ts、graph.ts
     ├── auth/                 # Google ログイン（Supabase Auth）。types.ts = 窓口の型、supabase.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
     ├── hooks/                # useChat（AI SDK の useChat を包む）、useBackendMode、useCollections、useDocuments、useThreads、useLoaded（取得状態 Loaded と認証つき fetch の共通部品）
     ├── lib/                  # relationGraph（関係図の選び方・並べ方・影響の分類）、sources（出典の取り出し）、storage、urlState、markdown ほか
