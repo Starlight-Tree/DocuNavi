@@ -354,6 +354,49 @@ def test_the_embedding_client_is_always_the_api_key_one_even_when_the_llm_uses_v
     assert kwargs["vertexai"] is False and kwargs["api_key"] == "test-key"
 
 
+def test_the_query_embedding_can_use_vertex_ai_without_any_key(monkeypatch):
+    from google import genai
+
+    created: list[dict[str, Any]] = []
+
+    class RecordingClient:
+        def __init__(self, **kwargs: Any) -> None:
+            created.append(kwargs)
+
+    monkeypatch.setattr(genai, "Client", RecordingClient)
+    monkeypatch.setattr(search_vector, "_client", None)
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    try:
+        search_vector._get_client()
+    finally:
+        search_vector._client = None
+    ((kwargs,),) = [(c,) for c in created]
+    assert kwargs["vertexai"] is True and "api_key" not in kwargs and kwargs["location"] == "global"
+
+
+def test_vertex_ai_never_switches_to_the_paid_key(monkeypatch):
+    # Vertex AI は ADC 認証で、無料キーの 429 という概念が無い。有料キーがあっても、429 で別経路に回らない
+    class RateLimited(Exception):
+        code = 429
+
+    calls: list[str] = []
+
+    async def fake_embed(client: Any, query: str) -> list[float]:
+        calls.append(client)
+        raise RateLimited()
+
+    monkeypatch.setattr(search_vector, "_embed", fake_embed)
+    monkeypatch.setattr(search_vector, "_get_client", lambda: "vertex")
+    monkeypatch.setattr(search_vector, "_get_paid_client", lambda: "paid")
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
+    monkeypatch.setenv("GEMINI_API_KEY_PAID", "paid-key")
+    with pytest.raises(RateLimited):
+        asyncio.run(search_vector.embed_query("質問"))
+    assert calls == ["vertex"]
+
+
 def test_the_embedding_needs_an_api_key(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "")
     with pytest.raises(search_vector.VectorSearchError, match="GEMINI_API_KEY"):

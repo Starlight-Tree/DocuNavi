@@ -18,6 +18,7 @@ extensions スキーマは無いので、検索のSQLでは `OPERATOR(extensions
 
 import hashlib
 import math
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -32,6 +33,40 @@ MAX_INPUT_CHARS = (
 )
 # 標準料金（1M トークンあたりの米ドル、2026-10-18 に公式の料金ページで確認。無料枠の対象でもある）。**概算用**で、強制はしない
 PRICE_PER_MILLION_TOKENS = 0.20
+
+
+# 埋め込みを Vertex AI（ADC 認証。API キーは使わない）で呼ぶかどうか。LLM の GOOGLE_GENAI_USE_VERTEXAI とは別の変数にする
+# （LLM だけを切り替えずに済むように。真でも偽でも、モデルと次元は同じで、保存済みのベクトルはそのまま使う）
+VERTEX_ENV = "EMBEDDING_USE_VERTEXAI"
+VERTEX_LOCATION_ENV = "EMBEDDING_VERTEX_LOCATION"
+# gemini-embedding-2 の提供先は global・us・eu（公式のモデルページ。リージョン指定は不可）
+DEFAULT_VERTEX_LOCATION = "global"
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def use_vertex() -> bool:
+    return os.environ.get(VERTEX_ENV, "").strip().lower() in _TRUTHY
+
+
+def make_client(api_key: str | None, timeout_ms: int) -> Any:
+    """埋め込み用の SDK クライアント（取り込みと質問で共通）。再試行しない（attempts=1）。timeout はミリ秒。
+
+    `use_vertex()` が真なら Vertex AI（`GOOGLE_CLOUD_PROJECT` があれば使い、無ければ ADC から解決。ロケーションは
+    `EMBEDDING_VERTEX_LOCATION`、既定は global）。偽なら API キー。どちらも `vertexai` を明示して、
+    `GOOGLE_GENAI_USE_VERTEXAI`（LLM 用）が埋め込みの経路を勝手に変えないようにする。
+    """
+    from google import genai
+    from google.genai import types
+
+    http_options = types.HttpOptions(timeout=timeout_ms, retry_options=types.HttpRetryOptions(attempts=1))
+    if use_vertex():
+        return genai.Client(
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip() or None,
+            location=os.environ.get(VERTEX_LOCATION_ENV, "").strip() or DEFAULT_VERTEX_LOCATION,
+            http_options=http_options,
+        )
+    return genai.Client(vertexai=False, api_key=api_key, http_options=http_options)
 
 
 class EmbeddingError(RuntimeError):
@@ -87,17 +122,13 @@ def check_vectors(vectors: Sequence[Sequence[float]], expected: int) -> list[lis
 
 
 class GeminiEmbedder:
-    def __init__(self, api_key: str, budget: ApiBudget) -> None:
-        from google import genai
+    def __init__(self, api_key: str | None, budget: ApiBudget) -> None:
         from google.genai import types
 
         self._types = types
         self._budget = budget
-        self._client = genai.Client(
-            api_key=api_key,
-            # 再試行しない（attempts=1）。回数を数えられなくなるため。timeout はミリ秒
-            http_options=types.HttpOptions(timeout=60_000, retry_options=types.HttpRetryOptions(attempts=1)),
-        )
+        # api_key は Vertex AI のとき使わない（None でよい）
+        self._client = make_client(api_key, 60_000)
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         types = self._types
