@@ -211,6 +211,7 @@ def test_success_passes_stripped_message_and_keeps_response_shape(client, use_gr
         "context": "ctx",
         "mode": "mock",
         "collection": None,
+        "target": None,
         "hit_count": None,
     }
     assert graph.calls[0]["state"]["messages"][0].content == "ザーハードとは？"

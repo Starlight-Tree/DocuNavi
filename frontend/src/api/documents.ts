@@ -14,6 +14,10 @@ export interface DocumentSummary {
   title: string | null;
   /** 資料群の名前（zahard / cafe / guides など）。未設定、または項目が無い応答（古いサーバー）は null。 */
   collection: string | null;
+  /** 対象の識別名（zahard / minato-coffee など）。未分類、または項目が無い応答（古いサーバー）は null。 */
+  target: string | null;
+  /** 資料種別の識別名（setting / manual など）。未分類、または項目が無い応答（古いサーバー）は null。 */
+  docType: string | null;
   status: string;
   failureReason: string | null;
   pages: number | null;
@@ -69,6 +73,8 @@ function parseSummary(value: unknown): DocumentSummary | null {
   const pages = nullableNumber(value.pages);
   const title = nullableString(value.title);
   const collection = nullableString(value.collection);
+  const target = nullableString(value.target);
+  const docType = nullableString(value.doc_type);
   const failureReason = nullableString(value.failure_reason);
   const updatedAt = nullableString(value.updated_at);
   if (
@@ -80,6 +86,8 @@ function parseSummary(value: unknown): DocumentSummary | null {
     pages === undefined ||
     title === undefined ||
     collection === undefined ||
+    target === undefined ||
+    docType === undefined ||
     failureReason === undefined ||
     updatedAt === undefined
   ) {
@@ -90,6 +98,8 @@ function parseSummary(value: unknown): DocumentSummary | null {
     source: value.source,
     title: title?.trim() || null,
     collection: collection?.trim() || null,
+    target: target?.trim() || null,
+    docType: docType?.trim() || null,
     status: value.status,
     failureReason,
     pages,

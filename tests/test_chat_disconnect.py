@@ -284,6 +284,7 @@ def test_a_normal_request_is_unaffected_and_leaves_no_tasks(serve, caplog):
         "context": "",
         "mode": "mock",
         "collection": None,
+        "target": None,
         "hit_count": None,
     }
     assert (llm.calls, llm.cancelled, llm.finished) == (1, 0, 1)

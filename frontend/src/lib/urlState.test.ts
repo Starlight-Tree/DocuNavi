@@ -3,7 +3,7 @@ import { afterEach } from 'vitest';
 import { buildSearch, currentStateSearch, parseUrlState, replaceUrlState } from './urlState';
 
 // 一覧の検索・絞り込み・並び替えが無いときの状態
-const NO_LIST_FILTER = { query: null, status: null, pageBand: null, updatedBand: null, sort: null };
+const NO_LIST_FILTER = { query: null, target: null, docType: null, status: null, pageBand: null, updatedBand: null, sort: null };
 
 describe('parseUrlState', () => {
   it('何も無ければ資料一覧（URL は書き換えない）', () => {
@@ -115,7 +115,33 @@ describe('buildSearch', () => {
   });
 });
 
-describe('一覧の絞り込み（collection）', () => {
+describe('一覧の絞り込み（対象と資料種別）', () => {
+  it('対象（target）と資料種別（type）は、資料一覧のタブだけで読む。識別名の形と、未分類（_none）だけを通す', () => {
+    const state = parseUrlState('?tab=documents&target=zahard&type=setting');
+    expect([state.target, state.docType]).toEqual(['zahard', 'setting']);
+    expect(parseUrlState('?tab=documents&target=_none&type=_none')).toMatchObject({ target: '_none', docType: '_none' });
+    expect(parseUrlState('?tab=chat&target=zahard&type=setting')).toMatchObject({ target: null, docType: null });
+    for (const bad of ['', 'Zahard', '-a', 'a b', 'a_b', `${'x'.repeat(41)}`, '_other']) {
+      expect(parseUrlState(`?tab=documents&target=${encodeURIComponent(bad)}`).target).toBeNull();
+      expect(parseUrlState(`?tab=documents&type=${encodeURIComponent(bad)}`).docType).toBeNull();
+    }
+  });
+
+  it('書き出して読み直すと同じ。解除すると外れる。旧フィルター（collection）と同時でも、どちらも残す', () => {
+    expect(buildSearch('?tab=documents', { target: 'zahard', docType: 'setting' })).toBe('?tab=documents&target=zahard&type=setting');
+    expect(buildSearch('?tab=documents&target=zahard&type=setting', { target: null })).toBe('?tab=documents&type=setting');
+    expect(buildSearch('?tab=documents&collection=guides', { target: 'aoba-aw820' })).toBe(
+      '?tab=documents&collection=guides&target=aoba-aw820',
+    );
+    expect(parseUrlState('?tab=documents&collection=guides&target=aoba-aw820')).toMatchObject({
+      collection: 'guides',
+      target: 'aoba-aw820',
+    });
+    expect(buildSearch('?tab=documents&target=zahard&collection=cafe', { tab: 'chat' })).toBe('?tab=chat');
+  });
+});
+
+describe('一覧の絞り込み（collection。旧フィルター）', () => {
   it('資料一覧のタブだけで読む（チャットには無い。資料を開いていても、一覧は横に残るので持つ）', () => {
     expect(parseUrlState('?tab=documents&collection=cafe').collection).toBe('cafe');
     expect(parseUrlState('?tab=chat&collection=cafe').collection).toBeNull();

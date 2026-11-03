@@ -14,10 +14,17 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
-from pydantic import BaseModel, Field, StringConstraints, field_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 from starlette.background import BackgroundTask
 
-from app.access import Access, request_access
+from app.access import (
+    DETAIL_FORBIDDEN_TARGET,
+    DETAIL_UNAVAILABLE,
+    Access,
+    AccessUnavailable,
+    request_access,
+    target_is_visible,
+)
 from app.agents.graph import STREAM_TOKENS_KEY, build_graph, is_mock_mode
 from app.api.ui_stream import DONE, KEEPALIVE, UI_STREAM_HEADERS, UIMessageStream, encode
 from app.auth import conversation_key, current_user
@@ -53,6 +60,9 @@ _DETAIL_SCOPE_CHANGED = (
 )
 # 検索対象（資料のグループ）の識別名。documents.collection と同じ形（supabase/migrations/20261018175020）
 COLLECTION_PATTERN = r"^[A-Za-z0-9_-]{1,40}$"
+# 質問の対象（documents.target）の識別名。document_targets.name と同じ形（supabase/migrations/20261103150000）
+TARGET_PATTERN = r"^[a-z0-9][a-z0-9-]{0,39}$"
+_DETAIL_BOTH_SCOPES = "target と collection は同時に指定できません。"
 
 
 def _optional_classes(*specs: tuple[str, str]) -> tuple[type[BaseException], ...]:
@@ -109,9 +119,26 @@ class ChatRequest(BaseModel):
         pattern=COLLECTION_PATTERN,
         description=(
             "検索対象の資料のグループ（documents.collection の識別名）。省略は、新しい会話なら「すべて」、"
-            "続きの会話ならその会話の検索対象のまま。会話ごとに固定で、続きの会話で違う値を送ると 409"
+            "続きの会話ならその会話の検索対象のまま。会話ごとに固定で、続きの会話で違う値を送ると 409。"
+            "旧方式（互換のために残す）。画面は target を使う。target と同時には指定できない（422）"
         ),
     )
+    target: str | None = Field(
+        default=None,
+        pattern=TARGET_PATTERN,
+        description=(
+            "質問の対象（documents.target の識別名）。省略は、新しい会話なら「対象を絞らない」、"
+            "続きの会話ならその会話の対象のまま。会話ごとに固定で、続きの会話で違う値（保存が対象なし・旧 collection の会話を含む）を送ると 409。"
+            "新しい会話で、見えない・存在しない・資料のない対象を送ると 403。collection と同時には指定できない（422）"
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _one_scope(self) -> "ChatRequest":
+        # 対象と旧グループは、同時に指定できない（新しい会話でも続きの会話でも）。黙って片方を捨てると、範囲が広がるため
+        if self.target is not None and self.collection is not None:
+            raise ValueError(_DETAIL_BOTH_SCOPES)
+        return self
 
     @field_validator("thread_id", mode="before")
     @classmethod
@@ -125,7 +152,10 @@ class ChatResponse(BaseModel):
     thread_id: str
     context: str = Field(description="回答の根拠として検索された設定資料（未検索なら空）")
     mode: str = Field(description="実行モード。mock = ダミー応答 / gemini = 本物の LLM")
-    collection: str | None = Field(default=None, description="この会話の検索対象の資料のグループ。null は「すべて」")
+    collection: str | None = Field(
+        default=None, description="この会話の検索対象の資料のグループ（旧方式）。null は絞らない"
+    )
+    target: str | None = Field(default=None, description="この会話の質問の対象（documents.target）。null は絞らない")
     hit_count: int | None = Field(
         default=None, description="今ターンの検索で拾ったチャンクの数。検索していなければ null（0 件とは別）"
     )
@@ -235,17 +265,21 @@ def classify_llm_error(exc: BaseException) -> HTTPException:
     return HTTPException(status_code=502, detail=_DETAIL_UPSTREAM)
 
 
-async def _check_scope(graph: Any, config: dict, requested: str | None, access: Access) -> None:
+async def _check_scope(
+    graph: Any, config: dict, requested: str | None, access: Access, requested_target: str | None = None
+) -> None:
     """続きの会話の検索対象を確かめる。
 
-    - 会話に保存された検索対象が、いま見えないグループなら 403（固定文。グループ名は載せない）。
-    - 送られた collection が会話の検索対象と違えば 409（固定文。グループ名は載せない）。
+    - 会話に保存された検索対象（collection）が、いま見えないグループなら 403（固定文。グループ名は載せない）。
+    - 送られた collection / target が会話の検索対象と違えば 409（固定文。名前は載せない）。保存が「対象なし」でも、違う指定は 409。
+    - 新しい会話で target が送られたら、その対象に見える資料があるかを確かめ、無ければ 403（固定文。見えない・存在しない・資料のない対象は同じ）。
+      続きの会話の対象は、確かめ直さない（資料が移って空になっても、会話は続けられる。検索は 0 件になり、画面が知らせる）。
 
     検索対象は会話ごとに固定で、最初の発言でグラフの状態（チェックポイント）に残る。省略（None）は何も主張しないので、
     アクセス制御で範囲を絞っていないときは、読まずに通す（検索対象は tools ノードが状態から復元する）。
     この項目が無い古い会話は「すべて」として扱う。履歴の保存先の失敗は、`classify_llm_error` と同じ固定文の HTTPException にする。
     """
-    if requested is None and not access.restricts and access.scope.shadow is None:
+    if requested is None and requested_target is None and not access.restricts and access.scope.shadow is None:
         return
     try:
         snapshot = await graph.aget_state(config)
@@ -255,17 +289,31 @@ async def _check_scope(graph: Any, config: dict, requested: str | None, access: 
         raise failure from None
     values = snapshot.values or {}
     if not values.get("messages"):
-        return  # 新しい会話（まだ何も保存されていない）
+        # 新しい会話（まだ何も保存されていない）。対象を指定したなら、見える資料のある対象かを確かめる
+        if requested_target is not None:
+            await _require_visible_target(access, requested_target)
+        return
     current = values.get("collection")
     access.check_collection(current, "会話の検索対象")
     if requested is not None and current != requested:
         raise HTTPException(status_code=409, detail=_DETAIL_SCOPE_CHANGED)
+    if requested_target is not None and values.get("target") != requested_target:
+        raise HTTPException(status_code=409, detail=_DETAIL_SCOPE_CHANGED)
 
 
-def _turn_inputs(message: str, collection: str | None) -> dict:
+async def _require_visible_target(access: Access, target: str) -> None:
+    try:
+        visible = await target_is_visible(access.scope, target)
+    except AccessUnavailable:
+        raise HTTPException(status_code=503, detail=DETAIL_UNAVAILABLE) from None
+    if not visible:
+        raise HTTPException(status_code=403, detail=DETAIL_FORBIDDEN_TARGET)
+
+
+def _turn_inputs(message: str, collection: str | None, target: str | None = None) -> dict:
     """1 ターンの入力。context・sources・hit_count は直近のターンの検索結果だけを返したいので、毎ターン空に戻す。
 
-    collection は、送られたときだけ入れる（省略なら入れない。続きの会話の検索対象は、状態に残っているものを使う）。
+    collection と target は、送られたときだけ入れる（省略なら入れない。続きの会話の検索対象は、状態に残っているものを使う）。
     """
     inputs: dict[str, Any] = {
         "messages": [HumanMessage(content=message)],
@@ -275,6 +323,8 @@ def _turn_inputs(message: str, collection: str | None) -> dict:
     }
     if collection is not None:
         inputs["collection"] = collection
+    if target is not None:
+        inputs["target"] = target
     return inputs
 
 
@@ -349,8 +399,8 @@ async def chat(
     gone: asyncio.Future | None = None
     try:
         graph = get_graph(mode == "mock")
-        await _check_scope(graph, config, req.collection, access)
-        work = asyncio.ensure_future(graph.ainvoke(_turn_inputs(req.message, req.collection), config))
+        await _check_scope(graph, config, req.collection, access, req.target)
+        work = asyncio.ensure_future(graph.ainvoke(_turn_inputs(req.message, req.collection, req.target), config))
         # 本文は読み終えているので、ここから切断を監視できる。切断が先に来たら、待っても受け取る相手が
         # いない LLM 呼び出し（ヘッジの追加試行を含む）を取り消す
         gone = asyncio.ensure_future(_until_disconnect(request))
@@ -383,6 +433,7 @@ async def chat(
         context=result.get("context", ""),
         mode=mode,
         collection=result.get("collection"),
+        target=result.get("target"),
         hit_count=result.get("hit_count"),
     )
 
@@ -523,7 +574,7 @@ async def chat_stream(
             ACCESS_SCOPE_KEY: access.scope,
         }
     }
-    inputs = _turn_inputs(req.message, req.collection)
+    inputs = _turn_inputs(req.message, req.collection, req.target)
     started = time.monotonic()
     try:
         graph = get_graph(mode == "mock")
@@ -534,7 +585,7 @@ async def chat_stream(
         _log_stream_failure(exc, failure, thread_id)
         raise failure from exc
     # 検索対象の不一致（409）と見えないグループ（403）は、レスポンスを始める前に HTTP で返す（422・401 と同じ）
-    await _check_scope(graph, config, req.collection, access)
+    await _check_scope(graph, config, req.collection, access, req.target)
     run = _GraphRun(graph, inputs, config, request, llm_timeout_seconds())
 
     return StreamingResponse(
