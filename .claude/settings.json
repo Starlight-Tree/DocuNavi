@@ -1,4 +1,5 @@
 {
+  "outputStyle": "Concise",
   "env": {
     "VERCEL_PLUGIN_TELEMETRY": "off",
     "CLAUDE_CODE_PLUGIN_PREFER_HTTPS": "1"
