@@ -14,6 +14,7 @@ interface ThreadSidebarProps {
 }
 
 export const MSG_NO_THREADS = 'まだ会話がありません。質問を送ると、ここに並びます。';
+export const MSG_THREADS_UNAVAILABLE = 'ログインを使わない構成では、会話の一覧を表示できません。';
 
 function formatTime(iso: string | null): string {
   if (!iso) return '';
@@ -42,6 +43,8 @@ export function ThreadSidebar({ state, currentId, busy, onSelect, onDelete, onRe
           {deleteError}
         </p>
       )}
+
+      {state.status === 'unavailable' && <p className="thread-sidebar-note">{MSG_THREADS_UNAVAILABLE}</p>}
 
       {state.status === 'loading' && (
         <p className="thread-sidebar-note" role="status">

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
-import { MSG_NO_THREADS } from './components/ThreadSidebar';
+import { MSG_NO_THREADS, MSG_THREADS_UNAVAILABLE } from './components/ThreadSidebar';
 import { THREAD_ID_STORAGE_KEY } from './lib/storage';
 import { fakeAuth } from './test/auth';
 import type { FakeAuth } from './test/auth';
@@ -72,14 +72,41 @@ function threadsServer(
 const sidebar = () => screen.findByRole('complementary', { name: '会話の一覧' });
 
 describe('会話の一覧', () => {
-  it('ログインを使わない構成では、一覧を出さず、取りにも行かない', async () => {
+  it('ログインを使わない構成でも、「会話の履歴」の欄は出し、出せない理由を示す。一覧は取りにも行かない', async () => {
     const server = threadsServer([thread('t1', '最初の質問')]);
     installFetch(() => replyResponse(), server.handler);
     setup(null);
 
     await screen.findByRole('textbox', { name: 'メッセージ' });
-    expect(screen.queryByRole('complementary', { name: '会話の一覧' })).not.toBeInTheDocument();
+    const list = await sidebar();
+    expect(within(list).getByRole('heading', { name: '会話の履歴' })).toBeInTheDocument();
+    expect(within(list).getByText(MSG_THREADS_UNAVAILABLE)).toBeInTheDocument();
+    // 読み込み中でも 0 件でもない（別の状態として区別できる）
+    expect(within(list).queryByRole('status')).not.toBeInTheDocument();
+    expect(within(list).queryByText(MSG_NO_THREADS)).not.toBeInTheDocument();
+    expect(within(list).queryByRole('list')).not.toBeInTheDocument();
     expect(server.log).toHaveLength(0);
+  });
+
+  it('一覧を取っている間は「読み込み中…」を出し、届いたら会話に替わる（0 件の案内は出さない）', async () => {
+    const gate = deferred<void>();
+    const server = threadsServer([thread('t1', '最初の質問')]);
+    installFetch(
+      () => replyResponse(),
+      async (url, method, init) => {
+        if (url === '/threads') await gate.promise;
+        return server.handler(url, method, init);
+      },
+    );
+    setup(fakeAuth());
+
+    const list = await sidebar();
+    expect(within(list).getByRole('status')).toHaveTextContent('読み込み中');
+    expect(within(list).queryByText(MSG_NO_THREADS)).not.toBeInTheDocument();
+
+    gate.resolve();
+    expect(await within(list).findByTitle('最初の質問')).toBeInTheDocument();
+    expect(within(list).queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('ログイン中は、トークンを付けて取り、題名と更新日時を新しい順のまま並べる', async () => {

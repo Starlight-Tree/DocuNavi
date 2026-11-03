@@ -181,7 +181,7 @@ describe('関係図: タブ', () => {
     install(defaultRoute);
     await open('カフェ手引き を開く');
 
-    expect(await screen.findByRole('button', { name: 'AI用テキスト' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '抽出テキスト' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '関係図' })).not.toBeInTheDocument();
   });
 
@@ -221,18 +221,54 @@ describe('関係図: タブ', () => {
     expect(screen.getByRole('option', { name: '第13条 第1項' })).toBeInTheDocument();
   });
 
-  it('「資料一覧に戻る」と、また開いたときは、関係図を取り直す', async () => {
+  it('パネルを閉じて、また開いたときは、関係図を取り直す', async () => {
     const { calls } = install(defaultRoute);
     const user = await open(OPEN_DORM);
     await user.click(await screen.findByRole('button', { name: '関係図' }));
     await screen.findByTestId('canvas');
 
-    await user.click(screen.getByRole('button', { name: '資料一覧に戻る' }));
+    await user.click(screen.getByRole('button', { name: 'パネルを閉じる' }));
     await user.click(await screen.findByRole('button', { name: OPEN_DORM }));
     await user.click(await screen.findByRole('button', { name: '関係図' }));
     await screen.findByTestId('canvas');
 
     expect(calls()).toEqual(['/documents/3/graph', '/documents/3/graph']);
+  });
+});
+
+describe('関係図: 表示の切り替え', () => {
+  it('同じ資料の中で元のPDFへ切り替えて戻っても、関係図は取り直さず作り直さない（選んだ項も残る）。PDF は初めて開くまで取らない', async () => {
+    const { calls } = install(defaultRoute);
+    const user = await open(OPEN_DORM);
+    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    const canvas = await screen.findByTestId('canvas');
+    await user.click(screen.getByRole('button', { name: '第13条 第1項|-' }));
+    await screen.findByRole('button', { name: '第15条 第1項|direct' });
+
+    await user.click(screen.getByRole('button', { name: '元のPDF' }));
+    expect(canvas).not.toBeVisible();
+    await user.click(screen.getByRole('button', { name: '関係図' }));
+
+    expect(screen.getByTestId('canvas')).toBe(canvas);
+    expect(canvas).toBeVisible();
+    expect(canvas).toHaveAttribute('data-selected', 'a13p1');
+    expect(calls()).toEqual(['/documents/3/graph', '/documents/3/impact?node=a13p1&hops=2']);
+  });
+
+  it('別の資料へ切り替えると、前の資料の関係図の選択を引き継がない', async () => {
+    install(defaultRoute);
+    const user = await open(OPEN_DORM);
+    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await screen.findByTestId('canvas');
+    await user.click(screen.getByRole('button', { name: '第13条 第1項|-' }));
+    await screen.findByRole('button', { name: '第15条 第1項|direct' });
+    expect(window.location.search).toContain('item=a13p1');
+
+    await user.click(await screen.findByRole('button', { name: 'カフェ手引き を開く' }));
+
+    expect(window.location.search).toBe('?tab=documents&doc=4');
+    expect(screen.queryByTestId('canvas')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '関係図' })).not.toBeInTheDocument();
   });
 });
 
@@ -279,7 +315,7 @@ describe('関係図: 項を選ぶ', () => {
     expect(within(panel).getByText('影響が及ぶ条: 第15条、第17条')).toBeInTheDocument();
   });
 
-  it('「p.2」を押すと、元PDF のそのページを開く（URL に page が付く）', async () => {
+  it('「p.2」を押すと、元のPDF のそのページを開く（URL に page が付き、選んだ項は残る）', async () => {
     const { user } = await openGraph();
     await user.click(screen.getByRole('button', { name: '第13条 第1項|-' }));
     const panel = await screen.findByRole('complementary', { name: '選んだ項の詳細' });
@@ -289,7 +325,7 @@ describe('関係図: 項を選ぶ', () => {
 
     expect(window.location.search).toContain('view=pdf');
     expect(window.location.search).toContain('page=2');
-    expect(window.location.search).not.toContain('item=');
+    expect(window.location.search).toContain('item=a13p1');
   });
 
   it('選択欄からも選べる。図にない項（依存なし）は、「影響を受ける項はありません」', async () => {
@@ -301,7 +337,7 @@ describe('関係図: 項を選ぶ', () => {
     await user.click(await screen.findByRole('button', { name: '関係図' }));
     await screen.findByTestId('canvas');
 
-    await user.selectOptions(screen.getByRole('combobox'), '第19条 第1項（図にない）');
+    await user.selectOptions(within(screen.getByRole('region', { name: '関係図' })).getByRole('combobox'), '第19条 第1項（図にない）');
 
     const panel = await screen.findByRole('complementary', { name: '選んだ項の詳細' });
     expect(await within(panel).findByText(MSG_NO_IMPACT)).toBeInTheDocument();
@@ -314,7 +350,7 @@ describe('関係図: 項を選ぶ', () => {
     await user.click(screen.getByRole('button', { name: '第13条 第1項|-' }));
     await screen.findByRole('button', { name: '第15条 第1項|direct' });
 
-    await user.selectOptions(screen.getByRole('combobox'), '（選んでいません）');
+    await user.selectOptions(within(screen.getByRole('region', { name: '関係図' })).getByRole('combobox'), '（選んでいません）');
 
     expect(screen.getByText(MSG_NO_SELECTION)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '第15条 第1項|-' })).toBeInTheDocument();

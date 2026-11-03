@@ -40,6 +40,18 @@ npm run dev                  # http://localhost:3000
 `API_PROXY_TARGET` へ転送します（`next.config.ts` の rewrites）。ブラウザーからは同じオリジンに見えるので、バックエンド側の CORS 設定は要りません。
 Compose の `frontend` サービスも、この形（`API_PROXY_TARGET=http://api:8000`）で動きます。
 
+## UI モック（`/mock`）
+
+PC 向けの画面の整理案（左サイドバー + チャット / 資料 + 右パネル）を、サンプルデータで操作できる試作です。`src/mock/` に閉じていて、本体の画面・認証・API には触れません
+（通信も保存もしない。再読み込みで初期状態に戻る。回答は定型文）。`UI_MOCK=1` で起動・ビルドしたときだけ開き、それ以外（Vercel の本番を含む）では `/` へ戻ります（`next.config.ts`）。
+
+```bash
+cd frontend
+UI_MOCK=1 npm run dev        # http://localhost:3000/mock（?view=documents で資料画面から開く）
+```
+
+資料の取り込みは時間で進みます（追加から約 4.5 秒で利用可能。ファイル名に「エラー」を含むと失敗し、再試行で成功）。
+
 ## スクリプト
 
 | コマンド | 内容 |
@@ -87,7 +99,7 @@ frontend/
     ├── auth/                 # Google ログイン（Supabase Auth）。types.ts = 窓口の型、supabase.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
     ├── hooks/                # useChat（AI SDK の useChat を包む）、useBackendMode、useCollections、useDocuments、useThreads、useLoaded（取得状態 Loaded と認証つき fetch の共通部品）
     ├── lib/                  # relationGraph（関係図の選び方・並べ方・影響の分類）、sources（出典の取り出し）、storage、urlState、markdown ほか
-    ├── components/           # Header / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen / DocumentsView / ThreadSidebar / RelationGraphView ほか
+    ├── components/           # AppSidebar / DocumentPanel / PanelHost / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen / DocumentsView / ThreadSidebar / RelationGraphView ほか
     ├── App.tsx, Root.tsx, styles.css
     └── test/                 # テストの共通設定とヘルパー
 ```

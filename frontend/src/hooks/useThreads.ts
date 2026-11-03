@@ -8,6 +8,8 @@ const MSG_LIST_FAILED = '会話の一覧を取得できませんでした。し�
 const MSG_DELETE_FAILED = '会話を削除できませんでした。しばらく待ってから再試行してください。';
 
 export type ThreadsState =
+  /** 会話の一覧を出せない構成（ログインを使わない。サーバーも一覧を返さない）。読み込み中ではない。 */
+  | { status: 'unavailable' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'ready'; threads: ThreadSummary[] };
@@ -20,10 +22,10 @@ export interface UseThreads {
   remove: (threadId: string) => Promise<string | null>;
 }
 
-/** 会話の一覧（GET /threads）。enabled が false の間は何も呼ばない（ログインしていない構成では、一覧を出さない）。 */
+/** 会話の一覧（GET /threads）。enabled が false の間は何も呼ばず、unavailable を返す（ログインを使わない構成では、一覧を出せない）。 */
 export function useThreads(enabled: boolean): UseThreads {
   const fetcher = useAuthedJsonFetch();
-  const [state, setState] = useState<ThreadsState>({ status: 'loading' });
+  const [loaded, setState] = useState<ThreadsState>({ status: 'loading' });
   const [round, setRound] = useState(0);
 
   useEffect(() => {
@@ -56,5 +58,6 @@ export function useThreads(enabled: boolean): UseThreads {
     [fetcher],
   );
 
+  const state: ThreadsState = enabled ? loaded : { status: 'unavailable' };
   return { state, reload, remove };
 }

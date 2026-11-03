@@ -191,15 +191,3 @@ export async function fetchDocumentPdf(fetcher: Fetcher, id: number, signal?: Ab
   if (!(response.headers.get('Content-Type') ?? '').includes('application/pdf')) throw bad(response.status);
   return response.blob();
 }
-
-/**
- * 資料のヒーロー画像（GET /documents/{id}/hero）。認証付きの fetch で取り、Blob で返す（<img src> は Authorization を送れない）。
- * 画像でない応答は、読めない応答として扱う（呼び出し側は、失敗したら灰色の代替表示のままにする）。
- */
-export async function fetchDocumentHero(fetcher: Fetcher, id: number, signal?: AbortSignal): Promise<Blob> {
-  const init: RequestInit = { headers: { Accept: 'image/png,image/jpeg,image/webp' } };
-  if (signal) init.signal = signal;
-  const response = await fetcher(endpoint(`/documents/${id}/hero`), init);
-  if (!/^image\/(png|jpeg|webp)\b/.test(response.headers.get('Content-Type') ?? '')) throw bad(response.status);
-  return response.blob();
-}

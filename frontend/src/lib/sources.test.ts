@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatPages, parseSourceRefs, parseSources, referenceCards, withPages } from './sources';
+import { formatPages, parseSourceRefs, parseSources, referenceCards, referenceItems, withPages } from './sources';
 import type { SourceDoc } from './sources';
 
 describe('parseSources', () => {
@@ -178,5 +178,34 @@ describe('referenceCards', () => {
 
   it('出典が無ければ空', () => {
     expect(referenceCards([])).toEqual([]);
+  });
+});
+
+describe('referenceItems', () => {
+  it('weak を除く。資料名・ページ・抜粋がすべて同じものだけを 1 つにまとめる（空白の違いは同じ抜粋）', () => {
+    const docs: SourceDoc[] = [
+      { name: 'a.pdf', text: '第5条 申込みは 2 月末まで。', page: 1 },
+      { name: 'a.pdf', text: '第5条  申込みは\n2 月末まで。', page: 1 },
+      { name: 'b.pdf', text: 'b', page: 1, weak: true },
+      { name: 'a.pdf', text: '第5条 申込みは 2 月末まで。', page: 3 },
+    ];
+    expect(referenceItems(docs).map(({ source, index }) => [source.name, source.page, index])).toEqual([
+      ['a.pdf', 1, 0],
+      ['a.pdf', 3, 3],
+    ]);
+  });
+
+  it('同じ資料・同じページでも、抜粋が違えば別の根拠として残す。ページが無い出典も、抜粋が違えば残す', () => {
+    const docs: SourceDoc[] = [
+      { name: 'a.pdf', text: '第5条 申込みは 2 月末まで。', page: 1 },
+      { name: 'a.pdf', text: '第6条 退寮は前月末まで。', page: 1 },
+      { name: 'a.pdf', text: '第7条 寮費は月額。' },
+      { name: 'a.pdf', text: '第8条 門限は 22 時。' },
+    ];
+    expect(referenceItems(docs).map(({ index }) => index)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('出典が無ければ空', () => {
+    expect(referenceItems([])).toEqual([]);
   });
 });
