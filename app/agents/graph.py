@@ -50,7 +50,7 @@ from app.agents.resilience import (
     stream_with_key_switch,
 )
 from app.agents.state import AgentState
-from app.agents.tools import COLLECTION_KEY, TOOLS
+from app.agents.tools import COLLECTION_KEY, TARGET_KEY, TOOLS
 from app.scope import ACCESS_SCOPE_KEY, Scope
 
 logger = logging.getLogger(__name__)
@@ -597,7 +597,11 @@ def build_graph(
         # 検索対象は、会話の状態（最初の発言で決まり、チェックポイントに残る）から取る。既存の会話を開いたときも、ここで復元される
         tool_config = {
             **config,
-            "configurable": {**(config.get("configurable") or {}), COLLECTION_KEY: state.get("collection")},
+            "configurable": {
+                **(config.get("configurable") or {}),
+                COLLECTION_KEY: state.get("collection"),
+                TARGET_KEY: state.get("target"),
+            },
         }
         result = await tool_node.ainvoke(state, tool_config)
         retrieved = "\n\n".join(str(m.content) for m in result["messages"])

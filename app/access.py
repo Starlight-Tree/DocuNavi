@@ -22,7 +22,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 
 from app.auth import current_user
 from app.history import get_pool
-from app.scope import Scope
+from app.scope import ALLOWED_FILTER_SQL, Scope
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,8 @@ DEFAULT_ROLE = "default"
 # クライアントへ返す固定メッセージ。見えないグループの名前・存在を載せない
 DETAIL_FORBIDDEN_COLLECTION = "指定された資料グループは利用できません。"
 DETAIL_NO_COLLECTIONS = "利用できる資料がありません。"
+# 対象（`documents.target`）の指定が使えないとき。見えない対象・資料のない対象・存在しない対象を、同じ文にする（名前は載せない）
+DETAIL_FORBIDDEN_TARGET = "指定された対象は利用できません。"
 DETAIL_UNAVAILABLE = "資料の利用権限を確認できませんでした。しばらく待ってから再試行してください。"
 # 過去の会話で、いま見えないグループの検索結果に基づく部分の代わりに出す文
 MASKED_TOOL_TEXT = "（この検索結果は、現在利用できない資料に基づくため表示できません）"
@@ -52,6 +54,12 @@ _PROBE_SQL = (
     "SELECT (SELECT count(*) FROM roles WHERE name = %(default)s) AS default_roles, "
     "(SELECT count(*) FROM role_collection_access WHERE role = %(default)s) AS default_collections, "
     "(SELECT count(*) FROM user_roles) AS assignments"
+)
+
+
+# この範囲で見える資料が 1 件でもある対象か（状態は問わない。取り込み中の資料だけの対象は、「準備中」として選べる）
+_TARGET_VISIBLE_SQL = (
+    "SELECT 1 AS ok FROM documents d WHERE d.target = %(target)s AND " + ALLOWED_FILTER_SQL + " LIMIT 1"
 )
 
 
@@ -103,6 +111,26 @@ async def visible_with_completeness(user_id: str | None) -> tuple[frozenset[str]
             )
             return visible, False
     return visible, bool(visible) and known <= visible
+
+
+async def target_is_visible(scope: Scope, target: str) -> bool:
+    """この範囲で、対象に見える資料が 1 件でもあるか。DB が無い（モックモード）ときは True（検索もしないので、何も漏れない）。
+
+    存在しない対象・資料のない対象・資料が見えない対象は、どれも False（見えないものと区別させない）。
+    引けなければ `AccessUnavailable`（呼び出し側が 503 の固定文にする）。
+    """
+    if scope.is_empty:
+        return False
+    pool = get_pool()
+    if pool is None:
+        return True
+    try:
+        async with pool.connection() as conn:
+            cursor = await conn.execute(_TARGET_VISIBLE_SQL, {"target": target, "allowed": scope.sql_names()})
+            return bool(await cursor.fetchall())
+    except Exception as exc:  # noqa: BLE001 - 型の名前だけを残す
+        logger.warning("対象の有無を引けませんでした (%s)", type(exc).__name__)
+        raise AccessUnavailable("対象を確認できません") from None
 
 
 @dataclass(frozen=True)

@@ -12,6 +12,7 @@
 | [0005](0005-go-sse-relay-without-prod-limit.md) | Go の SSE 中継は配備し、本番には同時数の上限を入れない | 配備済み（上限のコードは未配備） |
 | [0006](0006-graph-rag-default-off.md) | 検索の GraphRAG は既定 OFF のまま | 置き換え済み（0007） |
 | [0007](0007-graph-rag-default-on.md) | 検索の GraphRAG を既定 ON にする（`SEARCH_GRAPH_MAX_EXTRA`=1 のまま） | 実装済み（未プッシュ・未配備） |
+| [0008](0008-document-target-and-type.md) | 資料の分類「対象」「資料種別」を足し、`collection` は保存・認可の単位のまま | 実装済み（ローカルのみ。画面は承認待ち） |
 
 ## 書き方
 

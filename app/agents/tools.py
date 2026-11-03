@@ -26,6 +26,8 @@ WEAK_GAP = 0.05
 
 # グラフの tools ノードが、会話の検索対象を `config["configurable"]` に入れて渡すキー（LLM が渡す引数ではない）
 COLLECTION_KEY = "collection"
+# 同じく、会話の対象（資料の「対象」。`documents.target`）を渡すキー
+TARGET_KEY = "target"
 
 _NOT_FOUND_TEXT = "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
 # 検索が使えなかったときに、呼び出し側（API）へ出す固定文。例外の文字列には接続先・URL・本文が入りうるので載せない
@@ -38,18 +40,20 @@ _SEARCH_DESCRIPTION = (
 
 
 async def search_chunks_async(
-    query: str, top_k: int = TOP_K, collection: str | None = None, *, scope: Scope
+    query: str, top_k: int = TOP_K, collection: str | None = None, *, scope: Scope, target: str | None = None
 ) -> list[Hit]:
     """クエリに近い資料の箇所を、`Hit`（ファイル名・本文・ページ）で最大 top_k 件返す（DB のベクトル検索が土台。しきい値未満は返さない）。
     `SEARCH_GRAPH` が on のときは、参照先のチャンクが `origin="graph"` で最後に加わることがある（top_k の外）。
 
     `scope` は必須（検索できるグループの範囲。全グループは `Scope.ALL` を明示する）。`collection` を渡すと、その範囲の中の
-    そのグループだけを探す（None は範囲の全資料）。
+    そのグループだけを探す（None は範囲の全資料）。`target` を渡すと、範囲の中のその対象の資料だけを探す（権限の範囲 ∩ 対象）。
 
     失敗しても BM25 などには戻らない（どちらで答えたかが曖昧になるため）。`VectorSearchError` を投げ、API が 503 の固定文にする。
     """
+    # 対象を指定するときだけ引数に足す（指定しない呼び出しは、従来と同じ形のまま）
+    extra = {} if target is None else {"target": target}
     try:
-        return await search_pipeline.search(query, top_k, collection, scope=scope)
+        return await search_pipeline.search(query, top_k, collection, scope=scope, **extra)
     except search_vector.VectorSearchError:
         raise
     except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・URL・本文が入りうる。型の名前だけを残す
@@ -69,6 +73,7 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
 
     `page` は 1 以上の整数だけ、`page_end` は `page` より大きいときだけ入れる（不正な値は None にして、画面が表示しない）。
     `collection` は資料のグループ（未設定なら None）。画面の出典に、どのグループの資料かを添えるためのもの。
+    `target` は、回答を作った時点の資料の対象（未分類なら None）。あとで資料の分類が変わっても、過去の出典の表示は変えない（記録として残す）。
     `weak` は、1 位との類似度の差が `WEAK_GAP` を超える 2 件目以降と、GraphRAG で加えた参照先（`origin="graph"`）。画面の出典カードに出さない。
     類似度が無ければ（キーワードだけで拾った箇所など）差では判断せず False。
     """
@@ -81,7 +86,14 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
             index > 0 and top is not None and hit.similarity is not None and round(top - hit.similarity, 4) > WEAK_GAP
         )
         sources.append(
-            {"name": hit.source, "page": page, "page_end": page_end, "weak": weak, "collection": hit.collection}
+            {
+                "name": hit.source,
+                "page": page,
+                "page_end": page_end,
+                "weak": weak,
+                "collection": hit.collection,
+                "target": hit.target,
+            }
         )
     return sources
 
@@ -91,12 +103,18 @@ async def _asearch_documents(query: str, config: RunnableConfig) -> tuple[str, l
     # （`config` は LangChain が注入する引数で、LLM に見せるツールの定義には載らない）
     configurable = config.get("configurable") or {}
     collection = configurable.get(COLLECTION_KEY)
+    target = configurable.get(TARGET_KEY)
     # 検索できる範囲も、LLM の引数ではなく config で渡る（API が利用者ごとに決める）。渡されていなければ何も見えない範囲にする
     scope = configurable.get(ACCESS_SCOPE_KEY)
     if not isinstance(scope, Scope):
         logger.warning("検索の範囲が渡されませんでした。何も検索しません")
         scope = Scope.NONE
-    hits = await search_chunks_async(query, collection=collection, scope=scope)
+    # 対象があるときだけ渡す（偽の検索など、対象を知らない差し替えを壊さない）
+    hits = await (
+        search_chunks_async(query, collection=collection, scope=scope)
+        if target is None
+        else search_chunks_async(query, collection=collection, scope=scope, target=target)
+    )
     return _format_hits(hits), _sources(hits)
 
 

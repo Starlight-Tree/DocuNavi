@@ -2,6 +2,7 @@
  * 会話の一覧と削除（GET /threads、DELETE /threads/{id}）。ログイン中（AUTH_MODE=required）の本人の会話だけが対象。
  * 認証のために、fetch は呼び出し側から受け取る（createAuthedFetch で包んだもの）。
  */
+import { CLASSIFICATION_NAME_PATTERN } from './classifications';
 import { COLLECTION_NAME_PATTERN } from './collections';
 import { ChatApiError, MSG_BAD_BODY, endpoint, isRecord } from './chat';
 import type { chatFetch } from './chat';
@@ -47,8 +48,12 @@ export interface ThreadMessage {
 
 export interface ThreadHistory {
   messages: ThreadMessage[];
-  /** この会話の検索範囲（資料グループの名前）。null は「すべて」（範囲の項目が無い古い会話・古い API も同じ）。 */
+  /** この会話の旧グループの範囲（資料グループの名前）。null は絞らない（範囲の項目が無い古い会話・古い API も同じ）。 */
   collection: string | null;
+  /** この会話の質問の対象（対象の識別名）。null は絞らない（対象の項目が無い古い会話・古い API も同じ）。 */
+  target: string | null;
+  /** 保存された範囲（旧グループか対象）が、いま利用できない（見えない・資料が無い）。このとき collection と target は null。古い API は false。 */
+  scopeUnavailable: boolean;
 }
 
 /** 会話の発言を古い順に、この会話の検索範囲といっしょに取得する（GET /threads/{id}/messages）。形が違えば MSG_BAD_BODY。 */
@@ -70,10 +75,12 @@ export async function fetchThreadMessages(
     messages.push({ role: item.role, text: item.text });
   }
   // 範囲の形が合わない値は、主張しない（null）。送るときは省略になり、サーバーが会話の範囲を使う
-  const { collection } = body;
+  const { collection, target } = body;
   return {
     messages,
     collection: typeof collection === 'string' && COLLECTION_NAME_PATTERN.test(collection) ? collection : null,
+    target: typeof target === 'string' && CLASSIFICATION_NAME_PATTERN.test(target) ? target : null,
+    scopeUnavailable: body.scope_unavailable === true,
   };
 }
 

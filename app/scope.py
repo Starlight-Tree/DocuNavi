@@ -23,6 +23,10 @@ ACCESS_SCOPE_KEY = "access_scope"
 # 範囲を絞ったときには含めない（`NULL = ANY(...)` は真にならない）
 ALLOWED_FILTER_SQL = "(%(allowed)s::text[] IS NULL OR d.collection = ANY(%(allowed)s::text[]))"
 
+# 対象（`documents.target`）の絞り込み。`ALLOWED_FILTER_SQL` と AND で重ねる（対象を選んでも、権限の範囲は広がらない）。
+# `%(target)s` は text（None なら絞らない）。対象の無い資料（target が NULL）は、対象を指定したときには含まない
+TARGET_FILTER_SQL = "(%(target)s::text IS NULL OR d.target = %(target)s::text)"
+
 
 @dataclass(frozen=True)
 class Scope:

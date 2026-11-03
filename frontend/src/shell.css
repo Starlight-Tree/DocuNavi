@@ -1521,6 +1521,68 @@
   max-width: 10rem;
 }
 
+/* 対象の表示名は長いことがある（「あおば電機 AW-820」など）。主な操作の欄は、少し広く取る */
+.document-filter > .document-filter-field select {
+  max-width: 14rem;
+}
+
+/* 詳細フィルター（状態・ページ数・更新・並び替え）。開いたときだけ、次の行に出る。条件が有効な間は閉じられない */
+.document-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.4rem;
+}
+
+.document-detail {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.document-detail[hidden] {
+  display: none;
+}
+
+.document-detail-badge {
+  min-width: 1.3rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.3rem;
+  text-align: center;
+}
+
+/* 旧フィルター（?collection=）が有効なときの知らせ。黙って捨てず、解除できる */
+.legacy-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin: 0 0 0.6rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--ws-wait, var(--border));
+  border-radius: var(--radius);
+  background: var(--ws-wait-bg, var(--surface-muted));
+  font-size: 0.88rem;
+}
+
+.legacy-filter p {
+  margin: 0;
+}
+
+.legacy-filter code {
+  font-size: 0.82rem;
+}
+
 /* 会話の履歴の取得に失敗したとき: 読み込み中・0 件の案内と見分けがつくよう、エラーの色にする */
 .ws-sidebar .thread-sidebar-note [role='alert'] {
   margin: 0 0 0.4rem;

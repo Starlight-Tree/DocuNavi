@@ -75,6 +75,8 @@ function install({ sources = SOURCES, list = LIST, context = CONTEXT }: { source
       const url = String(input);
       if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'gemini' });
       if (url.endsWith('/collections')) return jsonResponse({ configured: false, collections: [] });
+      if (url.endsWith('/targets')) return jsonResponse({ configured: false, targets: [] });
+      if (url.endsWith('/doc-types')) return jsonResponse({ configured: false, doc_types: [] });
       if (url.includes('/chat/stream')) return replyResponse({ reply: '2 月 28 日までです。', context, sources: sources === NO_SOURCES ? undefined : sources });
       if (url === '/documents') return jsonResponse(list);
       if (url.endsWith('/file')) {
@@ -339,6 +341,8 @@ describe('パネルと履歴', () => {
         const url = String(input);
         if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'gemini' });
         if (url.endsWith('/collections')) return jsonResponse({ configured: false, collections: [] });
+        if (url.endsWith('/targets')) return jsonResponse({ configured: false, targets: [] });
+        if (url.endsWith('/doc-types')) return jsonResponse({ configured: false, doc_types: [] });
         if (url === '/documents') {
           calls += 1;
           return calls === 1 ? new Response('<html>Bad Gateway postgresql://u:pw@host/db</html>', { status: 502 }) : jsonResponse(LIST);

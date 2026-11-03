@@ -1,9 +1,9 @@
 /**
  * 資料一覧の検索・絞り込み・並び替え。React にも通信にも依存しない（`GET /documents` の結果を、画面の中だけで絞る）。
  *
- * - キーワード: 文書名・ファイル名・種別（資料グループ）の表示名が対象。空白（全角も）で区切り、すべての語を含む資料に絞る（AND）。
+ * - キーワード: 文書名・ファイル名・対象・資料種別の表示名が対象。空白（全角も）で区切り、すべての語を含む資料に絞る（AND）。
  *   全角と半角・大文字と小文字は区別しない（NFKC に揃えて比べる）。本文は探さない（本文の検索は API が要る）。
- * - 絞り込み: 状態・ページ数の帯・更新の新しさ。選択肢ごとの件数は、「その選択肢以外の条件」で絞った件数にする
+ * - 絞り込み: 対象・資料種別・状態・ページ数の帯・更新の新しさ（対象・資料種別は `UNCLASSIFIED` で未分類）。選択肢ごとの件数は、「その選択肢以外の条件」で絞った件数にする
  *   （選ぶと何件になるかが分かる）。
  * - 並び替え: `default` は入力の順のまま（サーバーはファイル名順で返す）。
  */
@@ -18,6 +18,9 @@ export type UpdatedBand = (typeof UPDATED_BANDS)[number];
 export const SORT_KEYS = ['default', 'name', 'updated', 'pages', 'chunks'] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 
+/** 対象・資料種別の「未分類」（資料の target / doc_type が NULL）を表す値。URL にも載る。識別名の形（先頭は英数字）とは重ならない。 */
+export const UNCLASSIFIED = '_none';
+
 /** キーワードの最大の長さ（URL に載るので、長さを絞る）。 */
 export const QUERY_MAX_LENGTH = 100;
 
@@ -28,6 +31,10 @@ const MONTH_DAYS = 30;
 export interface DocumentFilter {
   /** 入力されたままのキーワード。空白だけ・空は「絞らない」。 */
   query: string;
+  /** 対象の識別名（`UNCLASSIFIED` は未分類）。null は絞らない。 */
+  target: string | null;
+  /** 資料種別の識別名（`UNCLASSIFIED` は未分類）。null は絞らない。 */
+  docType: string | null;
   /** 状態（`ready` など）。null は絞らない。 */
   status: string | null;
   pages: PageBand | null;
@@ -35,13 +42,26 @@ export interface DocumentFilter {
   sort: SortKey;
 }
 
-export const EMPTY_FILTER: DocumentFilter = { query: '', status: null, pages: null, updated: null, sort: 'default' };
+export const EMPTY_FILTER: DocumentFilter = {
+  query: '',
+  target: null,
+  docType: null,
+  status: null,
+  pages: null,
+  updated: null,
+  sort: 'default',
+};
 
 export interface FilterContext {
   /** 「7 日以内」などの基準にする、いまの時刻。 */
   now: Date;
-  /** 種別（資料グループの名前）の表示名。 */
-  collectionLabel: (collection: string) => string;
+  /** 対象の表示名。 */
+  targetLabel: (target: string) => string;
+  /** 資料種別の表示名。 */
+  docTypeLabel: (docType: string) => string;
+  /** 選択肢の並び順（識別名の列。一覧の並び順）。載っていない識別名は、その後ろに名前順で並べる。 */
+  targetOrder?: readonly string[];
+  docTypeOrder?: readonly string[];
 }
 
 /** 比べやすい形（NFKC・小文字）にする。全角の英数字と半角、全角の空白と半角の空白が同じになる。 */
@@ -74,12 +94,19 @@ export function updatedBand(updatedAt: string | null, now: Date): UpdatedBand | 
 
 function matchesKeywords(document: DocumentSummary, words: string[], context: FilterContext): boolean {
   if (words.length === 0) return true;
-  const label = document.collection === null ? '' : context.collectionLabel(document.collection);
-  const haystack = fold([document.title ?? '', document.source, label].join(' '));
+  const target = document.target === null ? '' : context.targetLabel(document.target);
+  const docType = document.docType === null ? '' : context.docTypeLabel(document.docType);
+  const haystack = fold([document.title ?? '', document.source, target, docType].join(' '));
   return words.every((word) => haystack.includes(word));
 }
 
-export type FilterFacet = 'status' | 'pages' | 'updated';
+export type FilterFacet = 'target' | 'docType' | 'status' | 'pages' | 'updated';
+
+/** 資料の分類（NULL は未分類）が、選ばれた値に当てはまるか。 */
+function matchesClassification(value: string | null, selected: string | null): boolean {
+  if (selected === null) return true;
+  return selected === UNCLASSIFIED ? value === null : value === selected;
+}
 
 /**
  * 条件に合う資料に絞る（入力の順は変えない）。`skip` を渡すと、その条件だけを外す（選択肢ごとの件数に使う）。
@@ -94,6 +121,8 @@ export function filterDocuments(
   return documents.filter(
     (d) =>
       matchesKeywords(d, words, context) &&
+      (skip === 'target' || matchesClassification(d.target, filter.target)) &&
+      (skip === 'docType' || matchesClassification(d.docType, filter.docType)) &&
       (skip === 'status' || filter.status === null || d.status === filter.status) &&
       (skip === 'pages' || filter.pages === null || pageBand(d.pages) === filter.pages) &&
       (skip === 'updated' || filter.updated === null || updatedBand(d.updatedAt, context.now) === filter.updated),
@@ -135,7 +164,17 @@ export function statusValues(documents: readonly DocumentSummary[]): string[] {
 
 /** 条件で絞り込んでいるか（並び替えは数えない）。 */
 export function isFiltered(filter: DocumentFilter): boolean {
-  return splitKeywords(filter.query).length > 0 || filter.status !== null || filter.pages !== null || filter.updated !== null;
+  return (
+    splitKeywords(filter.query).length > 0 ||
+    filter.target !== null ||
+    filter.docType !== null ||
+    detailCount(filter) > 0
+  );
+}
+
+/** 「詳細フィルター」の中（状態・ページ数・更新）で、有効な条件の数。 */
+export function detailCount(filter: DocumentFilter): number {
+  return [filter.status, filter.pages, filter.updated].filter((v) => v !== null).length;
 }
 
 /** 選択肢ごとの件数: その条件以外で絞った資料のうち、選択肢に当てはまる数。 */
@@ -148,12 +187,22 @@ export function facetCounts(
   const rest = filterDocuments(documents, filter, context, facet);
   const byValue = new Map<string, number>();
   for (const d of rest) {
-    const value = facet === 'status' ? d.status : facet === 'pages' ? pageBand(d.pages) : updatedBand(d.updatedAt, context.now);
+    const value =
+      facet === 'target'
+        ? (d.target ?? UNCLASSIFIED)
+        : facet === 'docType'
+          ? (d.docType ?? UNCLASSIFIED)
+          : facet === 'status'
+            ? d.status
+            : facet === 'pages'
+              ? pageBand(d.pages)
+              : updatedBand(d.updatedAt, context.now);
     if (value !== null) byValue.set(value, (byValue.get(value) ?? 0) + 1);
   }
   return { total: rest.length, byValue };
 }
 
+export const UNCLASSIFIED_LABEL = '未分類';
 export const PAGE_BAND_LABELS: Record<PageBand, string> = { one: '1ページ', few: '2〜4ページ', many: '5ページ以上' };
 export const UPDATED_BAND_LABELS: Record<UpdatedBand, string> = { week: '7日以内', month: '30日以内', older: 'それ以前' };
 export const SORT_LABELS: Record<SortKey, string> = {
@@ -182,8 +231,25 @@ function options<T extends string>(
   ];
 }
 
+/** 資料にある分類の識別名を、`order` の順（無いものは後ろに名前順）で返す。未分類の資料があれば、末尾に `UNCLASSIFIED`。選ばれた値が資料に無くても残す。 */
+function classificationValues(
+  values: ReadonlyArray<string | null>,
+  order: readonly string[] | undefined,
+  selected: string | null,
+): string[] {
+  const named = [...new Set(values.filter((v): v is string => v !== null))];
+  if (selected !== null && selected !== UNCLASSIFIED && !named.includes(selected)) named.push(selected);
+  const rank = (name: string) => {
+    const index = order?.indexOf(name) ?? -1;
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  named.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  if (values.includes(null) || selected === UNCLASSIFIED) named.push(UNCLASSIFIED);
+  return named;
+}
+
 /**
- * 状態・ページ数・更新の選択肢と、それぞれの件数。
+ * 対象・資料種別・状態・ページ数・更新の選択肢と、それぞれの件数。
  * 状態の選択肢は、資料にある状態だけ（URL で指定された、資料に無い状態は、件数 0 の選択肢として残す。選択が見えなくならないように）。
  */
 export function facetOptions(
@@ -191,10 +257,20 @@ export function facetOptions(
   filter: DocumentFilter,
   context: FilterContext,
   statusLabel: (status: string) => string,
-): { status: FacetOption[]; pages: FacetOption<PageBand>[]; updated: FacetOption<UpdatedBand>[] } {
+): {
+  target: FacetOption[];
+  docType: FacetOption[];
+  status: FacetOption[];
+  pages: FacetOption<PageBand>[];
+  updated: FacetOption<UpdatedBand>[];
+} {
+  const targets = classificationValues(documents.map((d) => d.target), context.targetOrder, filter.target);
+  const docTypes = classificationValues(documents.map((d) => d.docType), context.docTypeOrder, filter.docType);
   const statuses = statusValues(documents);
   if (filter.status !== null && !statuses.includes(filter.status)) statuses.push(filter.status);
   return {
+    target: options(targets, (v) => (v === UNCLASSIFIED ? UNCLASSIFIED_LABEL : context.targetLabel(v)), facetCounts(documents, filter, context, 'target')),
+    docType: options(docTypes, (v) => (v === UNCLASSIFIED ? UNCLASSIFIED_LABEL : context.docTypeLabel(v)), facetCounts(documents, filter, context, 'docType')),
     status: options(statuses, statusLabel, facetCounts(documents, filter, context, 'status')),
     pages: options(PAGE_BANDS, (b) => PAGE_BAND_LABELS[b], facetCounts(documents, filter, context, 'pages')),
     updated: options(UPDATED_BANDS, (b) => UPDATED_BAND_LABELS[b], facetCounts(documents, filter, context, 'updated')),

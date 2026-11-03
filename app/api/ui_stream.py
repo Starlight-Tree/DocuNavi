@@ -10,8 +10,8 @@
     [本文の前と途中に] data-status（transient。data = {phase: analyzing | searching | generating}。履歴に入らない）
     text-start → text-delta … → text-end      （LLM の応答ごと。ツール呼び出しの前置きがあれば複数）
     [最終回答が直前の部分と違うときだけ] text-start → text-delta → text-end
-    message-metadata（messageMetadata = {context, sources, collection, hit_count}。sources は context の出典と同じ順の
-        {name, page, page_end, weak, collection}。collection はこの会話の検索対象（null は「すべて」）、hit_count は今ターンの
+    message-metadata（messageMetadata = {context, sources, collection, target, hit_count}。sources は context の出典と同じ順の
+        {name, page, page_end, weak, collection, target}。collection はこの会話の旧グループの範囲、target はこの会話の対象（どちらも null は絞らない）、hit_count は今ターンの
         検索で拾ったチャンクの数（検索していなければ null で、0 件とは別））
     finish
     [DONE]
@@ -125,6 +125,7 @@ class UIMessageStream:
                     "context": str(self._state.get("context") or ""),
                     "sources": list(self._state.get("sources") or []),
                     "collection": self._state.get("collection"),
+                    "target": self._state.get("target"),
                     "hit_count": self._state.get("hit_count"),
                 },
             }

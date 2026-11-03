@@ -24,7 +24,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
 
-from app.access import Access, request_access
+from app.access import Access, request_access, target_is_visible
 from app.api import routes
 from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, get_pool
@@ -72,7 +72,24 @@ class MessageList(BaseModel):
     messages: list[ThreadMessage]
     collection: str | None = Field(
         default=None,
-        description="この会話の検索対象の資料のグループ。null は「すべて」（この項目が無い古い会話も null）",
+        description=(
+            "この会話の検索対象の資料のグループ（旧方式）。null は絞らない（この項目が無い古い会話も null）。"
+            "いま見えないグループなら null（名前は返さない。`scope_unavailable` が true になる）"
+        ),
+    )
+    target: str | None = Field(
+        default=None,
+        description=(
+            "この会話の質問の対象（documents.target）。null は絞らない（この項目が無い古い会話も null）。"
+            "いま見える資料が無い対象なら null（名前は返さない。`scope_unavailable` が true になる）"
+        ),
+    )
+    scope_unavailable: bool = Field(
+        default=False,
+        description=(
+            "保存された検索範囲（collection か target）が、いま利用できない（見えない・資料が無い）。true のとき、collection と target は"
+            "null だが「すべて」ではない。続きを送ると、サーバーは保存された範囲のまま探す（資料が無ければ 0 件）"
+        ),
     )
 
 
@@ -204,7 +221,18 @@ async def get_thread_messages(
     # 会話は表示するが、いま見えないグループの検索結果に基づく回答は伏せる。保存された検索対象が見えないグループなら、名前も返さない
     shown = access.mask(values.get("messages", []), "会話の表示")
     saved = values.get("collection")
-    return MessageList(messages=visible_messages(shown), collection=saved if access.allows(saved) else None)
+    saved_target = values.get("target")
+    collection = saved if access.allows(saved) else None
+    target = saved_target
+    if isinstance(saved_target, str):
+        try:
+            target = saved_target if await target_is_visible(access.scope, saved_target) else None
+        except Exception as exc:  # noqa: BLE001 - 固定メッセージにする
+            raise _unavailable(exc) from None
+    unavailable = (saved is not None and collection is None) or (saved_target is not None and target is None)
+    return MessageList(
+        messages=visible_messages(shown), collection=collection, target=target, scope_unavailable=unavailable
+    )
 
 
 @router.delete("/{thread_id}", status_code=204)

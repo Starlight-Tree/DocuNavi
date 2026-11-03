@@ -1390,65 +1390,107 @@ textarea {
   font-weight: 600;
 }
 
-/* 入力欄の上のチップ。上の枠線は、チップの帯が持つ（入力欄の枠線は外す） */
-.scope-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.4rem;
-  padding: 0.55rem var(--chat-pad) 0;
-  border-top: 1px solid var(--border);
-  background: var(--bg);
+/* 質問対象の帯（チャットの上）。いま何について質問しているかと、変更のメニューを、ここ 1 か所に置く */
+.target-bar {
+  position: relative;
+  column-gap: 0.75rem;
 }
 
-.scope-chips + .composer {
-  padding-top: 0.5rem;
-  border-top: 0;
-}
-
-.scope-chips-label {
-  margin-right: 0.15rem;
+.target-bar-label {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
 }
 
-.scope-chip {
-  padding: 0.15rem 0.7rem;
-  border: 1px solid var(--border);
+.target-menu-wrap {
+  position: relative;
+}
+
+.target-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.2rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--accent);
   border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-muted);
-  font-size: 0.85rem;
+  background: var(--surface-muted);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.scope-chip:hover:not(:disabled) {
-  background: var(--surface-muted);
-  color: var(--text);
-}
-
-/* 選択中も字幅は変えない（太字にすると、隣のチップが動く）。枠と面で示す */
-.scope-chip[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--surface-muted);
-  box-shadow: inset 0 0 0 1px var(--accent);
-  color: var(--text);
-}
-
-.scope-chip:disabled {
-  opacity: 0.5;
+.target-button:disabled {
+  border-color: var(--border);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
-.scope-chip-note {
-  margin-left: 0.35rem;
-  font-size: 0.7rem;
+.target-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  min-width: 20rem;
+  max-height: 22rem;
+  margin: 0;
+  padding: 0.3rem;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.15);
 }
 
-.scope-chips-failure {
+.target-menu-item {
+  display: grid;
+  grid-template-columns: 1.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.target-menu-item:hover:not(:disabled),
+.target-menu-item:focus-visible {
+  background: var(--surface-muted);
+}
+
+.target-menu-item:disabled {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  cursor: default;
+}
+
+.target-menu-check {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.target-menu-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.target-menu-note,
+.target-menu-count,
+.target-bar-hint,
+.target-bar-failure {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.target-bar-hint {
+  margin-left: auto;
 }
 
 .scope-warning {

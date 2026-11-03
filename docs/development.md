@@ -144,7 +144,7 @@ Playwright で `host.docker.internal:3000` を開くと、`allowedDevOrigins` �
   2. テーブルと資料（課金なし）: `--input` が必須で、資料群ごとに実行する。`for c in zahard cafe guides; do docker compose run --rm api python -m app.ingestion --input storage/pdf/$c --apply; done`
      （`--apply` なしは確認だけ。2026-10-22 に、開発コンテナの `.venv` で確認だけを実行: zahard 3 文書 12 チャンク、cafe 1 文書 30、guides 2 文書 38、合計 80 チャンク）
   3. 埋め込み用の列と資料グループの表（`/migrations` は `supabase/migrations/` のマウント。本番に適用する SQL と同じファイル）。版の順に適用する。`20261018080137_pgroonga_chunks` は pgroonga で、ローカルには入れない:
-     `for f in 20261017184901_pgvector_embeddings 20261017185742_embedding_input_hash 20261018050236_document_title 20261018175020_document_collection 20261025205258_document_collections; do docker compose exec db psql -U postgres -d docunavi -v ON_ERROR_STOP=1 -f /migrations/$f.sql; done`
+     `for f in 20261017184901_pgvector_embeddings 20261017185742_embedding_input_hash 20261018050236_document_title 20261018175020_document_collection 20261025205258_document_collections 20261103150000_document_classification; do docker compose exec db psql -U postgres -d docunavi -v ON_ERROR_STOP=1 -f /migrations/$f.sql; done`
      最後の `20261025205258_document_collections` が `document_collections` 表を作る。これを適用しないと、`GET /collections` が 503 の固定文を返す。
   4. 埋め込み（実 API）: まず `docker compose run --rm api python -m app.ingestion.embed`（確認だけ。件数・費用の見積りを表示）、
      見積りを見てから `docker compose run --rm api python -m app.ingestion.embed --apply`。既定の上限（300 チャンク・10 回）に、80 チャンク（32 件ずつで 3 回）は収まる。
@@ -227,6 +227,10 @@ TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/postgres pytest tests/tes
 次の `make` が、下の手順をスクリプト（`scripts/test-postgres-up.sh` / `scripts/test-postgres-down.sh`）にしたものです。
 `make test-db` は起動 → `pytest` 全体 → 停止（失敗しても停止）、`make test-db-up` は起動して接続 URL を表示、`make test-db-down` は停止します
 （`scripts/test-postgres-down.sh --purge` なら `/tmp/pg` ごと消します）。初回だけ `apt-get download` でパッケージ（約 20MB）を取得します。
+**pgvector（検索の本物の SQL を動かすテスト用。任意）:** 一時 Postgres には pgvector が入っていない。`tests/test_classification_postgres.py` の検索・API の部分は、入っていないとスキップされる。
+入れるには、起動したまま次を実行する（root 不要。`/tmp/pg` の中だけ。2026-11-03 に pgvector 0.8.0 で確認）:
+`apt-get -o Dir::State::Lists=/tmp/pg/apt/lists -o Dir::Cache=/tmp/pg/apt/cache -o Debug::NoLocking=1 download postgresql-17-pgvector && dpkg -x postgresql-17-pgvector_*.deb /tmp/pg/root`
+（`/tmp/pg/apt/lists` が空なら、先に同じオプションで `apt-get update`）。テストが `create extension vector schema extensions` を、一時 DB に 1 回作る（この DB だけ）。
 ポートは 55432 で、使用中なら失敗します（`TEST_PG_PORT` で変えられます）。
 
 開発コンテナには Postgres も Docker も無いので、手元で用意するなら、root なしで Debian のパッケージを展開できます

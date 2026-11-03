@@ -14,9 +14,11 @@ interface ComposerProps {
   scopeLabel?: string | undefined;
   /** 範囲に添える一言（「この会話では固定」「資料はまだありません」など）。 */
   scopeNote?: string | undefined;
+  /** 範囲の見出し（既定は「検索範囲」。対象で絞る画面は「質問対象」）。 */
+  scopeCaption?: string | undefined;
 }
 
-export function Composer({ pending, onSend, onStop, scopeLabel, scopeNote }: ComposerProps) {
+export function Composer({ pending, onSend, onStop, scopeLabel, scopeNote, scopeCaption = '検索範囲' }: ComposerProps) {
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const canSend = !pending && draft.trim().length > 0;
@@ -58,7 +60,9 @@ export function Composer({ pending, onSend, onStop, scopeLabel, scopeNote }: Com
       <div className="composer-field">
         {scopeLabel !== undefined && (
           <p id="composer-scope" className="composer-scope">
-            <span className="composer-scope-name">検索範囲: {scopeLabel}</span>
+            <span className="composer-scope-name">
+              {scopeCaption}: {scopeLabel}
+            </span>
             {scopeNote && <span className="composer-scope-note">{scopeNote}</span>}
           </p>
         )}

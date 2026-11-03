@@ -30,7 +30,7 @@ def corpus_db(db):  # noqa: F811
         admin.execute(f'SET search_path = "{schema}"')
         admin.execute(
             "CREATE TABLE documents (id bigserial PRIMARY KEY, source text NOT NULL, collection text, "
-            "status text NOT NULL DEFAULT 'ready')"
+            "target text, status text NOT NULL DEFAULT 'ready')"
         )
         admin.execute(
             "CREATE TABLE chunks (id bigserial PRIMARY KEY, document_id bigint NOT NULL, chunk_index int NOT NULL, "

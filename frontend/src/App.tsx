@@ -3,17 +3,25 @@ import type { ReactNode } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { AppSidebar } from './components/AppSidebar';
 import { ChatContextBar } from './components/ChatContextBar';
+import type { TargetMenuItem } from './components/ChatContextBar';
 import { Composer } from './components/Composer';
 import { DocumentsView } from './components/DocumentsView';
 import { ErrorBanner } from './components/ErrorBanner';
 import { LoginScreen } from './components/LoginScreen';
 import { MessageList } from './components/MessageList';
 import { PanelHost } from './components/PanelHost';
-import { ScopeChips } from './components/ScopeChips';
 import { ScopeConfirm } from './components/ScopeConfirm';
 import { ThreadSidebar } from './components/ThreadSidebar';
 import { useBackendMode } from './hooks/useBackendMode';
-import { useChat } from './hooks/useChat';
+import { ALL_SCOPE, sameScope, useChat } from './hooks/useChat';
+import type { ChatScope } from './hooks/useChat';
+import {
+  ClassificationCatalogContext,
+  classificationItems,
+  useClassificationCatalog,
+  useClassificationLoader,
+  usableClassifications,
+} from './hooks/useClassifications';
 import { useDocumentList } from './hooks/useDocuments';
 import {
   CollectionCatalogContext,
@@ -22,16 +30,21 @@ import {
   usableCollections,
 } from './hooks/useCollections';
 import { useThreads } from './hooks/useThreads';
+import { classificationLabel, isPreparing } from './lib/classifications';
 import { collectionLabel } from './lib/collections';
 import { useUrlState } from './lib/urlState';
 
 const ALL_LABEL = 'すべての資料';
 const MSG_SCOPE_MISMATCH =
-  '検索範囲が、サーバーに反映されなかった可能性があります。この回答は、すべての資料から探したものかもしれません。';
+  '質問対象が、サーバーに反映されなかった可能性があります。この回答は、すべての資料から探したものかもしれません。';
+const MSG_SCOPE_UNAVAILABLE =
+  'この会話の対象は、いま利用できません（資料が別の対象へ移った、または閲覧できなくなった可能性があります）。続きを送っても、保存された対象のまま探します。新しい会話で、対象を選び直せます。';
+const MSG_TARGET_EMPTY = 'この対象には、いま検索できる資料がありません（取り込みが終わると使えます）。';
+const UNKNOWN_LABEL = 'この会話の対象';
 
-/** 範囲を変える確認の待ち。切り替え先（null は「すべて」）と、確認を閉じたあとにフォーカスを戻す要素。 */
+/** 質問対象を変える確認の待ち。切り替え先と、確認を閉じたあとにフォーカスを戻す要素。 */
 interface PendingScope {
-  collection: string | null;
+  scope: ChatScope;
   trigger: HTMLElement | null;
 }
 
@@ -41,10 +54,19 @@ function CollectionsProvider({ children }: { children: ReactNode }) {
   return <CollectionCatalogContext.Provider value={catalog}>{children}</CollectionCatalogContext.Provider>;
 }
 
+/** 対象と資料種別の一覧（GET /targets・GET /doc-types）を、画面全体で 1 回ずつだけ取って配る。 */
+function ClassificationProvider({ children }: { children: ReactNode }) {
+  const catalog = useClassificationLoader();
+  return <ClassificationCatalogContext.Provider value={catalog}>{children}</ClassificationCatalogContext.Provider>;
+}
+
 function ChatScreen() {
   const chat = useChat();
   const catalog = useCollectionCatalog();
   const groups = usableCollections(catalog.state);
+  const classifications = useClassificationCatalog();
+  const targets = usableClassifications(classifications.targets);
+  const targetItems = classificationItems(classifications.targets);
   const healthMode = useBackendMode();
   const { state, signOut } = useAuth();
   const signedIn = state.status === 'signedIn';
@@ -81,22 +103,22 @@ function ChatScreen() {
     return failure;
   };
 
-  // 検索範囲を変える。会話が無ければそのまま切り替え、会話があれば（会話ごとに固定なので）確認して新しい会話にする。
-  // 資料一覧の「このグループに質問」と、入力欄の上のチップは、どちらもここを通る。資料一覧の絞り込みとは別のもの
-  const requestScope = (collection: string | null, trigger: HTMLElement | null, fromDocuments: boolean) => {
+  // 質問対象を変える。会話が無ければそのまま切り替え、会話があれば（会話ごとに固定なので）確認して新しい会話にする。
+  // 資料一覧の「この対象について質問」と、チャットの上の帯のメニューは、どちらもここを通る。資料一覧の絞り込みとは別のもの
+  const requestScope = (scope: ChatScope, trigger: HTMLElement | null, fromDocuments: boolean) => {
     const goChat = () => {
       if (fromDocuments) navigate({ tab: 'chat' });
       setFocusRequest((n) => n + 1);
     };
-    if (!chat.scopeUnknown && collection === chat.scope) {
+    if (!chat.scopeUnknown && sameScope(scope, chat.scope)) {
       if (fromDocuments) goChat();
       return;
     }
-    if (chat.setScope(collection)) {
+    if (chat.setScope(scope)) {
       goChat();
       return;
     }
-    setPendingScope({ collection, trigger });
+    setPendingScope({ scope, trigger });
   };
 
   const cancelScope = useCallback(() => {
@@ -109,20 +131,59 @@ function ChatScreen() {
 
   const confirmScope = () => {
     if (!pendingScope) return;
-    chat.startNew(pendingScope.collection);
+    chat.startNew(pendingScope.scope);
     setPendingScope(null);
     if (view !== 'chat') navigate({ tab: 'chat' });
     setFocusRequest((n) => n + 1);
   };
 
-  const scopeLabel = (name: string | null) => (name === null ? ALL_LABEL : collectionLabel(name, groups ?? undefined));
-  const currentGroup = groups?.find((g) => g.name === chat.scope);
+  const scopeLabel = (scope: ChatScope) =>
+    scope.kind === 'all'
+      ? ALL_LABEL
+      : scope.kind === 'target'
+        ? classificationLabel(scope.name, targetItems)
+        : `旧グループ: ${collectionLabel(scope.name, groups ?? undefined)}`;
+  const currentLabel = chat.scopeUnknown ? UNKNOWN_LABEL : scopeLabel(chat.scope);
+  const current = chat.scope;
+  const currentTarget = current.kind === 'target' ? targets?.find((t) => t.name === current.name) : undefined;
+  const currentGroup = current.kind === 'collection' ? groups?.find((g) => g.name === current.name) : undefined;
+  const allCount = groups?.reduce((sum, g) => sum + g.documentCount, 0);
   // 文脈バーに出す対象の資料数。範囲が分からない間・一覧を読めなかったときは出さない
-  const contextCount = !groups || chat.scopeUnknown
+  const contextCount = chat.scopeUnknown
     ? undefined
-    : chat.scope === null
-      ? groups.reduce((sum, g) => sum + g.documentCount, 0)
-      : currentGroup?.documentCount;
+    : chat.scope.kind === 'all'
+      ? allCount
+      : chat.scope.kind === 'target'
+        ? currentTarget?.documentCount
+        : currentGroup?.documentCount;
+  // 質問対象を選べるときだけ、メニューを出す。旧グループの会話は、いまの範囲を示す項目（選べない）を先頭に足す
+  const menuItems: TargetMenuItem[] | null = targets
+    ? [
+        ...(chat.scope.kind === 'collection' && !chat.scopeUnknown
+          ? [
+              {
+                key: 'legacy',
+                scope: chat.scope,
+                title: scopeLabel(chat.scope),
+                count: currentGroup?.documentCount,
+                note: 'この会話で固定（新しくは選べません）',
+                checked: true,
+                disabled: true,
+              },
+            ]
+          : []),
+        { key: 'all', scope: ALL_SCOPE, title: ALL_LABEL, count: allCount, checked: !chat.scopeUnknown && chat.scope.kind === 'all' },
+        ...targets.map((t) => ({
+          key: t.name,
+          scope: { kind: 'target', name: t.name } as ChatScope,
+          title: t.label,
+          count: t.documentCount,
+          note: isPreparing(t) ? '準備中（取り込み中の資料だけ）' : undefined,
+          checked: !chat.scopeUnknown && chat.scope.kind === 'target' && chat.scope.name === t.name,
+        })),
+      ]
+    : null;
+  const targetEmpty = !chat.scopeUnknown && chat.scope.kind === 'target' && currentTarget !== undefined && isPreparing(currentTarget);
 
   const goChat = () => {
     navigate({ tab: 'chat' });
@@ -167,7 +228,7 @@ function ChatScreen() {
       <div className="ws-main" inert={panelOpen && expanded}>
         {pendingScope && (
           <ScopeConfirm
-            targetLabel={scopeLabel(pendingScope.collection)}
+            targetLabel={scopeLabel(pendingScope.scope)}
             generating={chat.pending}
             onConfirm={confirmScope}
             onCancel={cancelScope}
@@ -177,10 +238,26 @@ function ChatScreen() {
         <div className="chat-layout" hidden={view !== 'chat'}>
           <div className="chat-pane">
             <ChatContextBar
-              targetLabel={chat.scopeUnknown ? 'この会話の設定' : scopeLabel(chat.scope)}
+              targetLabel={currentLabel}
               documentCount={contextCount}
+              items={menuItems}
+              failed={classifications.targets.status === 'error'}
+              onRetry={classifications.reloadTargets}
+              fixed={chat.hasConversation}
+              disabled={chat.pending}
+              onSelect={(scope, trigger) => requestScope(scope, trigger, false)}
               onBack={() => navigate({ tab: 'documents' })}
             />
+            {chat.scopeUnavailable && (
+              <p className="scope-warning" role="status">
+                {MSG_SCOPE_UNAVAILABLE}
+              </p>
+            )}
+            {targetEmpty && !chat.hasConversation && (
+              <p className="scope-warning" role="status">
+                {MSG_TARGET_EMPTY}
+              </p>
+            )}
             <MessageList
               messages={chat.messages}
               waiting={chat.waiting}
@@ -189,14 +266,14 @@ function ChatScreen() {
               resumed={chat.threadId !== null && chat.messages.length === 0}
               history={chat.history}
               onExample={chat.pending ? undefined : chat.send}
-              onAskAll={groups ? chat.askAgainInAll : undefined}
+              onAskAll={targets || groups ? chat.askAgainInAll : undefined}
             />
             {chat.error && (
               <ErrorBanner
                 error={chat.error}
                 disabled={chat.pending}
                 onRetry={chat.retry}
-                onNewConversation={groups ? chat.reset : undefined}
+                onNewConversation={targets || groups ? chat.reset : undefined}
               />
             )}
             {chat.scopeMismatch && (
@@ -204,30 +281,14 @@ function ChatScreen() {
                 {MSG_SCOPE_MISMATCH}
               </p>
             )}
-            {(groups || catalog.state.status === 'error') && (
-              <ScopeChips
-                collections={groups ?? []}
-                status={groups ? 'ready' : 'unavailable'}
-                value={chat.scope}
-                unknown={chat.scopeUnknown}
-                disabled={chat.pending}
-                onSelect={(collection, trigger) => requestScope(collection, trigger, false)}
-                onRetry={catalog.reload}
-              />
-            )}
             <Composer
               pending={chat.pending}
               onSend={chat.send}
               onStop={chat.stop}
-              scopeLabel={groups ? (chat.scopeUnknown ? 'この会話の設定' : scopeLabel(chat.scope)) : undefined}
+              scopeLabel={targets || chat.scope.kind === 'collection' || chat.scopeUnavailable ? currentLabel : undefined}
+              scopeCaption="質問対象"
               scopeNote={
-                groups
-                  ? currentGroup && currentGroup.readyCount === 0
-                    ? '資料はまだありません'
-                    : chat.hasConversation
-                      ? 'この会話で固定'
-                      : undefined
-                  : undefined
+                targetEmpty ? '資料はまだありません' : chat.hasConversation ? 'この会話で固定' : undefined
               }
             />
           </div>
@@ -236,8 +297,13 @@ function ChatScreen() {
           <DocumentsView
             state={documentList}
             onReload={reloadDocuments}
-            chatTargetLabel={chat.scopeUnknown ? 'この会話の設定' : scopeLabel(chat.scope)}
-            onAskGroup={groups ? (collection, trigger) => requestScope(collection, trigger, true) : undefined}
+            chatTargetLabel={currentLabel}
+            onAskTarget={
+              targets
+                ? (target, trigger) =>
+                    requestScope(target === null ? ALL_SCOPE : { kind: 'target', name: target }, trigger, true)
+                : undefined
+            }
           />
         )}
       </div>
@@ -268,7 +334,9 @@ export default function App() {
   // 'disabled'（ログインを使わない構成）と 'signedIn'
   return (
     <CollectionsProvider>
-      <ChatScreen />
+      <ClassificationProvider>
+        <ChatScreen />
+      </ClassificationProvider>
     </CollectionsProvider>
   );
 }

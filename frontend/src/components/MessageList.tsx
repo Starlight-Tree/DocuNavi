@@ -3,6 +3,8 @@ import type { ChatPhase } from '../api/chat';
 import { MSG_HISTORY_FAILED } from '../hooks/useChat';
 import type { ChatMessage, HistoryStatus } from '../hooks/useChat';
 import { useCollectionCatalog } from '../hooks/useCollections';
+import { classificationItems, useClassificationCatalog } from '../hooks/useClassifications';
+import { classificationLabel } from '../lib/classifications';
 import { collectionLabel } from '../lib/collections';
 import { followUpQuestions } from '../lib/followUps';
 import { renderMarkdown } from '../lib/markdown';
@@ -24,7 +26,7 @@ interface MessageListProps {
   /** 空の画面の質問例を押したときに、その質問を送る。渡さなければ、質問例は出さない。 */
   onExample?: (text: string) => void;
   /**
-   * 検索範囲を指定して 0 件だった回答の下の「すべての資料で聞き直す」を押したとき。直前の質問を、範囲「すべて」の新しい会話で送る。
+   * 質問対象（対象・旧グループ）を指定して 0 件だった回答の下の「すべての資料で聞き直す」を押したとき。直前の質問を、範囲「すべて」の新しい会話で送る。
    * 渡さなければ、ボタンは出さない。
    */
   onAskAll?: () => void;
@@ -63,6 +65,7 @@ export function MessageList({
 }: MessageListProps) {
   const { state: catalog } = useCollectionCatalog();
   const groups = catalog.status === 'ready' ? catalog.data.collections : undefined;
+  const targetItems = classificationItems(useClassificationCatalog().targets);
   const listRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const [copy, setCopy] = useState<CopyState>(null);
@@ -172,14 +175,20 @@ export function MessageList({
             {message.role === 'assistant' && message.context && !generating && (
               <SourcesPanel context={message.context} sources={message.sources} />
             )}
-            {/* 範囲の指定があって、検索で 0 件だった最新の回答だけ。検索していない（hit_count が無い・null）ときは出さない */}
+            {/* 質問対象（対象か旧グループ）の指定があって、検索で 0 件だった最新の回答だけ。検索していない（hit_count が無い・null）ときは出さない */}
             {message.role === 'assistant' &&
               !busy &&
               message.id === lastId &&
-              typeof message.collection === 'string' &&
+              (typeof message.target === 'string' || typeof message.collection === 'string') &&
               message.hitCount === 0 && (
                 <div className="scope-empty" role="status">
-                  <p>「{collectionLabel(message.collection, groups)}」の中には、該当する資料がありませんでした。</p>
+                  <p>
+                    「
+                    {typeof message.target === 'string'
+                      ? classificationLabel(message.target, targetItems)
+                      : `旧グループ: ${collectionLabel(message.collection as string, groups)}`}
+                    」の中には、該当する資料がありませんでした。
+                  </p>
                   {onAskAll && (
                     <button type="button" className="btn btn-secondary btn-small" onClick={onAskAll}>
                       すべての資料で聞き直す

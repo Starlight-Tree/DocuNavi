@@ -30,6 +30,8 @@ router = APIRouter(prefix="/documents")
 # bigint の上限。これを超える id は、DB に渡す前に 422 にする（桁あふれの例外を 503 にしないため）
 # 資料群の名前の形。取り込み（app/ingestion/service.py）と DB の制約（supabase/migrations/20261018175020_document_collection.sql）と同じ
 _COLLECTION_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,40}")
+# 対象・資料種別の名前の形。DB の制約（supabase/migrations/20261103150000）と同じ
+_CLASSIFICATION_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 _MAX_ID = 9_223_372_036_854_775_807
 # 暴走した件数を返さないための上限（いまの資料は 3 文書・68 チャンク）
 _MAX_DOCUMENTS = 500
@@ -43,7 +45,8 @@ _DETAIL_ORIGINAL_MISMATCH = "元の PDF が、DB に保存された資料と一�
 _DETAIL_ORIGINAL_UNAVAILABLE = "元の PDF を取得できませんでした。しばらく待ってから再試行してください。"
 
 _LIST_SQL = (
-    "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, d.status AS status, "
+    "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, "
+    "d.target AS target, d.doc_type AS doc_type, d.status AS status, "
     "d.failure_reason AS failure_reason, d.pages AS pages, d.updated_at AS updated_at, "
     "count(c.id) AS chunk_count, count(c.embedding) AS embedded_count, "
     "EXISTS (SELECT 1 FROM document_images i WHERE i.document_id = d.id AND i.kind = 'hero' AND i.status = 'approved') "
@@ -53,7 +56,8 @@ _LIST_SQL = (
     "GROUP BY d.id ORDER BY d.source, d.id LIMIT %(limit)s"
 )
 _DOCUMENT_SQL = (
-    "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, d.status AS status, "
+    "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, "
+    "d.target AS target, d.doc_type AS doc_type, d.status AS status, "
     "d.failure_reason AS failure_reason, d.pages AS pages, d.updated_at AS updated_at, "
     "d.content_hash AS content_hash "
     "FROM documents d WHERE d.id = %(id)s"
@@ -79,6 +83,10 @@ class DocumentSummary(BaseModel):
     title: str | None = None
     # 資料群の名前（storage/pdf/<名前>/ のディレクトリ名。cafe / guides / zahard など）。未設定なら null。表示名は画面が決める
     collection: str | None = None
+    # 対象（document_targets.name。例: zahard / minato-coffee）と資料種別（document_types.name。例: setting / manual）。未分類は null。
+    # 表示名は GET /targets・GET /doc-types が持つ。閲覧権限は変えない（権限は collection だけが決める）
+    target: str | None = None
+    doc_type: str | None = None
     status: str
     failure_reason: str | None = None
     pages: int | None = None
@@ -134,12 +142,19 @@ def _collection(value: object) -> str | None:
     return value if isinstance(value, str) and _COLLECTION_PATTERN.fullmatch(value) else None
 
 
+def _classification(value: object) -> str | None:
+    """対象・資料種別の名前。文字列で、DB の制約と同じ形のときだけ返す。それ以外は未分類と同じ。"""
+    return value if isinstance(value, str) and _CLASSIFICATION_PATTERN.fullmatch(value) else None
+
+
 def _summary(row: dict[str, Any]) -> DocumentSummary:
     return DocumentSummary(
         id=row["id"],
         source=row["source"],
         title=_title(row.get("title")),
         collection=_collection(row.get("collection")),
+        target=_classification(row.get("target")),
+        doc_type=_classification(row.get("doc_type")),
         status=row["status"],
         failure_reason=row.get("failure_reason"),
         pages=row.get("pages"),

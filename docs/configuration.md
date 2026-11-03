@@ -174,6 +174,80 @@ insert into chatbot.user_roles (user_id, role) values ('00000000-0000-0000-0000-
 **未確認:** 検索の SQL（pgvector が要るので、ローカルの Postgres では動かせない。絞り込みの条件は一覧の SQL と共通で、そちらは確かめた）、本番の DB・本番のロール（`chatbot_app`）での動作、
 `shadow` のログを実際の利用で観察した結果、Supabase の Data API に `chatbot` スキーマが公開されていないこと（RLS はこの段階では入れていない）。
 
+## 対象と資料種別（`target` / `doc_type`）
+
+2026-11-03 に実装（ローカルのみ。**本番の DB・Cloud Run・Vercel は未適用**）。決定は [decisions/0008](decisions/0008-document-target-and-type.md)。
+
+資料に、`collection`（資料グループ）とは別の分類を 2 つ足した。画面の名前は「対象」「資料種別」、DB と API の名前は `target` / `doc_type`。
+
+| 項目 | 役割 | 保存先 |
+|---|---|---|
+| `collection` | 保存（R2 の配置）と**閲覧権限**の単位（`role_collection_access`）。変えない | `documents.collection` |
+| `target` | 何についての資料か（例: ザーハード / みなとコーヒー）。**チャットの質問の範囲**になる | `documents.target` → `document_targets.name` |
+| `doc_type` | 資料の性格（設定資料 / 店舗案内 / 規程 / 取扱説明書）。一覧の絞り込みだけに使う | `documents.doc_type` → `document_types.name` |
+
+- 1 資料に、対象 1 つ・資料種別 1 つ（NULL は未分類）。取り込み（`python -m app.ingestion`）は書かない。設定は運用者の SQL。ファイル名からの自動分類はしない。
+- 検索は **権限の範囲（`Scope`）∩ 対象**。対象を選んでも権限は広がらない。対象を指定しない検索は、これまでと同じ結果（未分類の資料も入る）。
+- 名前（`name`）は変えない（DB のトリガーが拒否）。使用中の対象・種別は消せない（外部キー）。表示名・説明・並び順は変えてよい。
+- 初期の語彙と対応（利用者が 2026-11-03 に承認した）: `zahard` ザーハード / `minato-coffee` みなとコーヒー / `tsubasa-dorm` つばさ大学学生寮 / `aoba-aw820` あおば電機 AW-820、
+  `setting` 設定資料 / `store-guide` 店舗案内 / `regulation` 規程 / `manual` 取扱説明書。資料 id 1〜6 の対応は `supabase/backfills/20261103150000_classify_initial_documents.sql` の先頭。
+
+### チャットの指定（`POST /chat`・`/chat/stream`）
+
+`target` と `collection`（旧方式。互換のために残す）の扱い。会話の範囲は、最初の発言で決まり、チェックポイントに残る。
+
+| 送る値 | 新しい会話 | 続きの会話 |
+|---|---|---|
+| どちらも省略 | 絞らない | 保存された範囲を状態から復元する（`collection` も `target` も。広がらない） |
+| `target` だけ | その対象で固定。見えない・存在しない・資料のない対象は **403**（同じ固定文。名前は載せない） | 保存された `target` と同じなら通す。違えば **409**（保存が「絞らない」・旧 `collection` の会話も 409） |
+| `collection` だけ | 旧方式で固定（変わらない） | 保存された `collection` と同じなら通す。違えば 409（保存が `target` の会話も 409） |
+| 両方 | **422** | **422**（黙って片方を捨てない） |
+
+- 旧 `collection` の会話は変換しない。`target` を足すと 409 になり、省略すれば旧 `collection` のまま探す（全資料には広がらない）。
+- 続きの会話の対象は、確かめ直さない。資料が別の対象へ移って空になっても会話は続けられ、検索は 0 件になる（`hit_count: 0`）。`GET /threads/{id}/messages` は、保存された範囲が
+  いま見えない・資料が無いとき `target` / `collection` を null にして `scope_unavailable: true` を返す（「すべて」と区別するため）。
+- 会話が固定するのは**対象の識別子だけ**で、資料の集合ではない。続きの質問は、そのときの `documents.target` で探す（資料集合のスナップショットは持たない）。
+- 回答の出典（`sources`）には、回答を作った時点の資料の `target` を記録する。あとで分類が変わっても、過去の出典の表示は変えない。
+
+### 検索とキャッシュ
+
+- ベクトル検索の SQL と、キーワード側（BM25）の資料の写しの SQL の両方に、同じ条件（`TARGET_FILTER_SQL`）を重ねる。GraphRAG の参照先は写しの中だけから探すので、対象の外には出ない。
+  返った行の `target` も確かめる。
+- 写しは `(範囲, collection, target)` ごとに `SEARCH_CORPUS_TTL_SECONDS` 秒持つ。**対象を指定した検索は、写しを使う前に、その対象に入る資料の id を軽い SQL で毎回引き**、
+  写しと違えば作り直す。運用者が SQL で分類を変えても、TTL を待たず、次の検索から効く。対象を指定しない検索は、従来どおり TTL だけで更新する（毎回の確認はしない）。
+
+### 分類の変更（運用者の SQL）
+
+```sql
+-- 資料 6 を別の対象へ移す（存在しない名前は外部キーが弾く。updated_at は変わらない）
+update chatbot.documents set target = 'minato-coffee' where id = 6;
+```
+
+| 変えたあと | 起きること |
+|---|---|
+| 検索 | 次の検索から新しい分類に従う（ベクトルは毎回 SQL、BM25 は上の確認で作り直す） |
+| 過去の出典 | 変わらない（保存済み。記録された `target` は当時の値） |
+| 続きの会話 | 保存された対象の識別子で、いまの分類を探す。移した先の資料は旧対象の会話から出ない |
+| 対象が空になった | 続きの会話は 200・0 件。`/targets` からは消え、新しい会話で指定すると 403 |
+
+### ロールバックと配備の順序
+
+**旧版（`target` を知らないバックエンド）へ戻すと危険。** 2026-11-03 に、一時 Postgres 17 で確かめた（旧版 = `git archive HEAD` の `app/`）。新しいコードで `target` 付きの会話を作り、
+同じ会話を旧コードで続けると、(1) 検索に `target` が渡らず**全資料を探す**（範囲が広がる）、(2) その 1 ターンで保存されていた `target` が**チェックポイントから消える**（進めても戻らない）。
+
+- **新しい画面の公開を止める**（Vercel を前の版へ戻す）と、**`target` 対応のバックエンドを旧版へ戻す**ことは、別の操作。前者は安全（バックエンドは旧 UI の `collection` だけの送信も受ける）。
+- 旧版へ戻してよいのは、`target` 付きの会話が 0 件のときだけ。戻す前に確かめる（読むだけ）:
+  `select count(distinct thread_id) from chatbot.checkpoints where checkpoint->'channel_values'->>'target' is not null;` → 0 のときだけ。`tests/test_classification_postgres.py` が、この形（inline で残る）に依存して通ることを確かめている。
+- 0 でないとき、戻す先は「`target` 対応の 1 つ前のリビジョン」にする（互換版）。それも無いときは、旧版へ戻さず、新しいリビジョンを直して出す。
+- 配備の順序: ① M1（`supabase/migrations/20261103150000_document_classification.sql`）→ ② バックエンド（Cloud Run。`GET /documents` が `target` 列を読むので M1 が先）→ ③ バックフィル
+  （`supabase/backfills/…`。承認ごとに 1 回）→ ④ 画面（`main` へのプッシュ。`/targets` が 404 の間は、画面は対象の機能を出さない）。
+- 戻し方: M1 のファイル末尾に手順がある（先にコードを `target` を読まない版へ。上の注意に従う）。バックフィルは、先頭の「元に戻す」の SQL（NULL に戻す）。
+
+**確かめた範囲（2026-11-03、ローカルのみ）:** `tests/test_target_scope.py`（API の 409・422・403・復元・メタデータ・履歴の取得）、`tests/test_classification_postgres.py`（一時 Postgres 17 + pgvector 0.8.0。M1・バックフィル・検索の本物の SQL・
+キャッシュ・enforce のロール・チャットの端から端まで。pgvector が無い環境では検索と API の部分だけスキップ）。
+**未確認:** 本番の DB・`chatbot_app`・Cloud Run・Vercel での動作、本物の埋め込み（Gemini）での対象つきの検索の質、旧版の画面（Vercel の前の版）が新しいバックエンドに送る `collection` だけの会話の実機の確認、
+Django 管理画面（`ops/access_admin/`）への影響（`target` は読まない。`manage.py check` は未実行）。
+
 ## 会話履歴の保存先
 
 `DATABASE_URL` が空なら、履歴は従来どおりプロセス内メモリ（`MemorySaver`）に置きます。再起動で消え、複数のインスタンスの間では共有されません。
