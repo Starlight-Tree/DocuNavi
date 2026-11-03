@@ -233,6 +233,71 @@ def test_enforce_end_to_end_with_real_roles(seeded, required, signer, monkeypatc
         assert names("/collections", "collections", cafe) == ["cafe", "zahard"]
 
 
+def _assert_guides_revoked_with_the_same_token(seeded, signer, monkeypatch, revoke_sql: str, params: tuple) -> None:
+    """cafe と guides が見える利用者の guides を、DB 側で取り消す（revoke_sql）。同じ JWT のまま、次のリクエストから guides だけ届かなくなる。"""
+    monkeypatch.setenv("ACCESS_MODE", "enforce")
+    headers = _bearer(signer, MULTI_USER)  # 取り消しの前後で同じトークンを使う（再発行しない）
+    with _admin(seeded) as admin:
+        guides_id = admin.execute("SELECT id FROM documents WHERE source = 'tsubasa_dorm_rules.pdf'").fetchone()[0]
+
+    with TestClient(app) as client:
+
+        def listed(path, key):
+            res = client.get(path, headers=headers)
+            assert res.status_code == 200, (path, res.text)
+            return sorted(item["source" if key == "documents" else "name"] for item in res.json()[key])
+
+        def chunks_status():
+            return client.get(f"/documents/{guides_id}/chunks", headers=headers).status_code
+
+        def chat_in_guides():
+            return client.post("/chat", json={"message": "こんにちは", "collection": "guides"}, headers=headers)
+
+        # 取り消す前は guides に届く
+        assert listed("/documents", "documents") == ["cafe_hours.pdf", "tsubasa_dorm_rules.pdf"]
+        assert listed("/collections", "collections") == ["cafe", "guides"]
+        assert chunks_status() == 200
+        assert chat_in_guides().status_code == 200
+
+        with _admin(seeded) as admin:
+            admin.execute(revoke_sql, params)
+
+        # 次のリクエストから、guides は一覧にも本文にも検索の指定にも届かない。cafe は残る
+        assert listed("/documents", "documents") == ["cafe_hours.pdf"]
+        assert listed("/collections", "collections") == ["cafe"]
+        hidden = client.get(f"/documents/{guides_id}/chunks", headers=headers)
+        missing = client.get("/documents/99999/chunks", headers=headers)
+        assert (hidden.status_code, hidden.json()) == (missing.status_code, missing.json()) == (404, hidden.json())
+        res = chat_in_guides()
+        assert (res.status_code, res.json()) == (403, {"detail": access.DETAIL_FORBIDDEN_COLLECTION})
+        assert (
+            client.post("/chat", json={"message": "こんにちは", "collection": "cafe"}, headers=headers).status_code
+            == 200
+        )
+
+
+def test_deleting_a_role_collection_access_row_revokes_the_group_for_the_same_token(
+    seeded, required, signer, monkeypatch
+):
+    _assert_guides_revoked_with_the_same_token(
+        seeded,
+        signer,
+        monkeypatch,
+        "DELETE FROM role_collection_access WHERE role = %s AND collection = %s",
+        ("guidesonly", "guides"),
+    )
+
+
+def test_deleting_a_user_roles_row_revokes_the_group_for_the_same_token(seeded, required, signer, monkeypatch):
+    _assert_guides_revoked_with_the_same_token(
+        seeded,
+        signer,
+        monkeypatch,
+        "DELETE FROM user_roles WHERE user_id = %s AND role = %s",
+        (MULTI_USER, "guidesonly"),
+    )
+
+
 def test_startup_fails_when_the_role_tables_are_missing(db, monkeypatch):  # noqa: F811
     monkeypatch.setenv("ACCESS_MODE", "enforce")
     with pytest.raises(access.AccessConfigError, match="20261026045921"), TestClient(app):
