@@ -7,7 +7,7 @@ const NO_LIST_FILTER = { query: null, status: null, pageBand: null, updatedBand:
 
 describe('parseUrlState', () => {
   it('何も無ければ資料一覧（URL は書き換えない）', () => {
-    expect(parseUrlState('')).toEqual({ tab: 'documents', doc: null, view: null, item: null, page: null, collection: null, ...NO_LIST_FILTER });
+    expect(parseUrlState('')).toEqual({ tab: 'documents', doc: null, view: null, item: null, page: null, chunk: null, collection: null, ...NO_LIST_FILTER });
   });
 
   it('資料・表示・項まで読む', () => {
@@ -17,17 +17,28 @@ describe('parseUrlState', () => {
       view: 'graph',
       item: 'a11p1',
       page: null,
+      chunk: null,
       collection: null,
       ...NO_LIST_FILTER,
     });
   });
 
-  it('PDF のページは、表示が pdf のときだけ読む', () => {
+  it('ページは、資料を開いているときに読む（表示が何でも残す。出典のページを、「元のPDF」に切り替えたときに使うため）', () => {
     expect(parseUrlState('?tab=documents&doc=3&view=pdf&page=2').page).toBe(2);
-    expect(parseUrlState('?tab=documents&doc=3&view=text&page=2').page).toBeNull();
-    expect(parseUrlState('?tab=documents&doc=3&page=2').page).toBeNull();
+    expect(parseUrlState('?tab=documents&doc=3&view=text&page=2').page).toBe(2);
+    expect(parseUrlState('?tab=documents&doc=3&page=2').page).toBe(2);
+    expect(parseUrlState('?tab=documents&page=2').page).toBeNull();
     expect(parseUrlState('?tab=documents&doc=3&view=pdf&page=0').page).toBeNull();
     expect(parseUrlState('?tab=documents&doc=3&view=pdf&page=abc').page).toBeNull();
+  });
+
+  it('根拠のチャンク（chunk）は、資料を開いているときに、0 以上の整数だけ読む', () => {
+    expect(parseUrlState('?tab=chat&doc=3&view=text&chunk=4').chunk).toBe(4);
+    expect(parseUrlState('?tab=chat&doc=3&view=text&chunk=0').chunk).toBe(0);
+    expect(parseUrlState('?tab=chat&doc=3&chunk=-1').chunk).toBeNull();
+    expect(parseUrlState('?tab=chat&doc=3&chunk=01').chunk).toBeNull();
+    expect(parseUrlState('?tab=chat&doc=3&chunk=abc').chunk).toBeNull();
+    expect(parseUrlState('?tab=chat&chunk=4').chunk).toBeNull();
   });
 
   it('不正な値は、安全な既定値にする', () => {
@@ -40,18 +51,27 @@ describe('parseUrlState', () => {
     expect(parseUrlState('?tab=documents&doc=3&view=graph&item=<script>').item).toBeNull();
   });
 
-  it('意味が通らない組み合わせは落とす（チャットに資料は無く、資料が無ければ表示も項も無い）', () => {
+  it('資料はチャットでも開ける（右のパネル）。資料が無ければ、表示も項もページもチャンクも無い', () => {
     expect(parseUrlState('?tab=chat&doc=3&view=graph&item=a1p1')).toEqual({
       tab: 'chat',
-      doc: null,
-      view: null,
-      item: null,
+      doc: 3,
+      view: 'graph',
+      item: 'a1p1',
       page: null,
+      chunk: null,
       collection: null,
       ...NO_LIST_FILTER,
     });
-    expect(parseUrlState('?tab=documents&view=graph&item=a1p1')).toMatchObject({ view: null, item: null });
-    expect(parseUrlState('?tab=documents&doc=3&view=pdf&item=a1p1').item).toBeNull();
+    expect(parseUrlState('?tab=documents&view=graph&item=a1p1&page=2&chunk=1')).toMatchObject({
+      view: null,
+      item: null,
+      page: null,
+      chunk: null,
+    });
+  });
+
+  it('項は、表示を切り替えても残す（関係図に戻ったとき、選んだ項が戻る）', () => {
+    expect(parseUrlState('?tab=documents&doc=3&view=pdf&item=a1p1').item).toBe('a1p1');
   });
 });
 
@@ -64,29 +84,42 @@ describe('buildSearch', () => {
     expect(buildSearch('?tab=documents&doc=3&view=graph&item=a1p1', { doc: null })).toBe('?tab=documents');
   });
 
-  it('表示を変えると、関係図の項は外れる', () => {
+  it('同じ資料の中で表示を変えても、項・ページ・チャンクは残す（切り替えて戻ったとき、位置が戻る）', () => {
     expect(buildSearch('?tab=documents&doc=3&view=graph&item=a1p1', { view: 'pdf' })).toBe(
-      '?tab=documents&doc=3&view=pdf',
+      '?tab=documents&doc=3&view=pdf&item=a1p1',
+    );
+    expect(buildSearch('?tab=documents&doc=3&view=pdf&page=2', { view: 'text' })).toBe('?tab=documents&doc=3&view=text&page=2');
+    expect(buildSearch('?tab=chat&doc=3&view=text&page=2&chunk=4', { view: 'pdf' })).toBe(
+      '?tab=chat&doc=3&view=pdf&page=2&chunk=4',
     );
   });
 
-  it('ページを指定して PDF を開くと、page が付き、別の表示にすると外れる', () => {
-    expect(buildSearch('?tab=chat', { tab: 'documents', doc: 3, view: 'pdf', page: 2 })).toBe(
-      '?tab=documents&doc=3&view=pdf&page=2',
+  it('出典を押して開くと、タブは変えずに、資料・抽出テキスト・ページ・チャンクが付く', () => {
+    expect(buildSearch('?tab=chat', { doc: 3, view: 'text', page: 2, chunk: 4 })).toBe(
+      '?tab=chat&doc=3&view=text&page=2&chunk=4',
     );
-    expect(buildSearch('?tab=documents&doc=3&view=pdf&page=2', { view: 'text' })).toBe('?tab=documents&doc=3&view=text');
   });
 
-  it('チャットに切り替えると、資料の状態は外れる', () => {
-    expect(buildSearch('?tab=documents&doc=3&view=text', { tab: 'chat' })).toBe('?tab=chat');
+  it('別の資料へ移ると、前の資料の表示・項・ページ・チャンクを引き継がない', () => {
+    expect(buildSearch('?tab=chat&doc=3&view=graph&item=a1p1&page=2&chunk=4', { doc: 5 })).toBe('?tab=chat&doc=5');
+    expect(buildSearch('?tab=chat&doc=3&view=text&page=2&chunk=4', { doc: 5, view: 'text', chunk: 1 })).toBe(
+      '?tab=chat&doc=5&view=text&chunk=1',
+    );
+    // 同じ資料なら引き継ぐ
+    expect(buildSearch('?tab=chat&doc=3&view=text&page=2&chunk=4', { doc: 3 })).toBe('?tab=chat&doc=3&view=text&page=2&chunk=4');
+  });
+
+  it('タブを移っても、開いている資料（パネル）は残る。閉じると、すべて外れる', () => {
+    expect(buildSearch('?tab=documents&doc=3&view=text&chunk=4', { tab: 'chat' })).toBe('?tab=chat&doc=3&view=text&chunk=4');
+    expect(buildSearch('?tab=chat&doc=3&view=text&page=2&chunk=4', { doc: null })).toBe('?tab=chat');
   });
 });
 
 describe('一覧の絞り込み（collection）', () => {
-  it('資料の一覧を見ているときだけ読む（チャットでも、資料を開いていても無い）', () => {
+  it('資料一覧のタブだけで読む（チャットには無い。資料を開いていても、一覧は横に残るので持つ）', () => {
     expect(parseUrlState('?tab=documents&collection=cafe').collection).toBe('cafe');
     expect(parseUrlState('?tab=chat&collection=cafe').collection).toBeNull();
-    expect(parseUrlState('?tab=documents&doc=3&collection=cafe').collection).toBeNull();
+    expect(parseUrlState('?tab=documents&doc=3&collection=cafe').collection).toBe('cafe');
   });
 
   it('名前の形が合わない値は捨てる', () => {
@@ -95,9 +128,9 @@ describe('一覧の絞り込み（collection）', () => {
     expect(parseUrlState(`?tab=documents&collection=${'x'.repeat(41)}`).collection).toBeNull();
   });
 
-  it('絞り込みを URL に書き、資料を開くと外し、戻す（null）と消える', () => {
+  it('絞り込みを URL に書き、資料を開いても残し、戻す（null）と消える', () => {
     expect(buildSearch('?tab=documents', { collection: 'guides' })).toBe('?tab=documents&collection=guides');
-    expect(buildSearch('?tab=documents&collection=guides', { doc: 3 })).toBe('?tab=documents&doc=3');
+    expect(buildSearch('?tab=documents&collection=guides', { doc: 3 })).toBe('?tab=documents&collection=guides&doc=3');
     expect(buildSearch('?tab=documents&collection=guides', { collection: null })).toBe('?tab=documents');
   });
 });
@@ -105,7 +138,7 @@ describe('一覧の絞り込み（collection）', () => {
 describe('一覧の検索・絞り込み・並び替え', () => {
   const LIST = '?tab=documents';
 
-  it('資料の一覧を見ているときだけ読む（チャットでも、資料を開いていても無い）', () => {
+  it('資料一覧のタブだけで読む（チャットには無い。資料を開いていても、一覧は横に残るので持つ）', () => {
     const search = 'q=%E5%85%A5%E5%AF%AE&status=ready&pages=few&updated=week&sort=updated';
     expect(parseUrlState(`${LIST}&${search}`)).toMatchObject({
       query: '入寮',
@@ -115,7 +148,7 @@ describe('一覧の検索・絞り込み・並び替え', () => {
       sort: 'updated',
     });
     expect(parseUrlState(`?tab=chat&${search}`)).toMatchObject(NO_LIST_FILTER);
-    expect(parseUrlState(`${LIST}&doc=3&${search}`)).toMatchObject(NO_LIST_FILTER);
+    expect(parseUrlState(`${LIST}&doc=3&${search}`)).toMatchObject({ query: '入寮', status: 'ready' });
   });
 
   it('キーワードは、そのままの文字で読む（「+」は空白、全角の空白も残す）。空白だけ・長すぎる・制御文字は捨てる', () => {
@@ -137,12 +170,14 @@ describe('一覧の検索・絞り込み・並び替え', () => {
     expect(parseUrlState(`${LIST}&sort=default`).sort).toBeNull();
   });
 
-  it('URL に書き、戻す（null）と消える。資料を開くと外れる', () => {
+  it('URL に書き、戻す（null）と消える。資料を開いても残る', () => {
     expect(buildSearch(LIST, { query: '入寮 規程', status: 'ready', pageBand: 'one', updatedBand: 'older', sort: 'name' })).toBe(
       '?tab=documents&q=%E5%85%A5%E5%AF%AE+%E8%A6%8F%E7%A8%8B&status=ready&pages=one&updated=older&sort=name',
     );
     expect(buildSearch('?tab=documents&q=a&status=ready&sort=pages', { query: null, status: null, sort: null })).toBe(LIST);
-    expect(buildSearch('?tab=documents&q=a&status=ready&sort=pages&collection=cafe', { doc: 3 })).toBe('?tab=documents&doc=3');
+    expect(buildSearch('?tab=documents&q=a&status=ready&sort=pages&collection=cafe', { doc: 3 })).toBe(
+      '?tab=documents&q=a&status=ready&sort=pages&collection=cafe&doc=3',
+    );
   });
 
   it('チャットに切り替えると外れ、種別（collection）の絞り込みは残したまま条件を変えられる', () => {

@@ -14,8 +14,8 @@ test('質問を送ると、偽の検索の出典つきの回答が画面に出�
 
   // 偽の LLM の返答（tests/fakes.py の SearchingMockLLM）
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
-  // 出典のカード（FakeSearch が返した資料名とページ）
-  await expect(page.getByRole('button', { name: /ザーハード1\.pdf/ })).toBeVisible();
+  // 回答の下の「参照資料」（FakeSearch が返した資料名とページ）
+  await expect(page.getByRole('region', { name: '参照資料' }).getByRole('button', { name: /ザーハード1\.pdf/ })).toBeVisible();
   // 回答が終わり、送信できる状態に戻る
   await expect(input).toBeEnabled();
 });
@@ -36,9 +36,10 @@ test('範囲を選んで質問すると、その範囲の出典が出て、出�
   await page.getByRole('button', { name: '送信' }).click();
 
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
-  const source = page.getByRole('button', { name: /ザーハード1\.pdf/ });
+  // 回答の下の「参照資料」に、資料名のチップが出る（グループ名はチップに出さない）
+  const references = page.getByRole('region', { name: '参照資料' });
+  const source = references.getByRole('button', { name: /ザーハード1\.pdf/ });
   await expect(source).toBeVisible();
-  await expect(source.getByText('設定資料')).toBeVisible();
   await expect(input).toBeEnabled();
 
   // 会話の途中で別の範囲を選ぶと、確認が出る。初期フォーカスは「いまの会話を続ける」
@@ -79,20 +80,25 @@ test('範囲に資料が無いと案内が出て、「すべての資料で聞�
   await expect(scopeChips(page).getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('資料一覧のカードは一覧を絞るだけ。「このグループに質問」でチャットへ移り、範囲が切り替わって入力欄にフォーカスが置かれる', async ({ page }) => {
+test('資料一覧のグループ選択は一覧を絞るだけ。「このグループに質問」でチャットへ移り、範囲が切り替わって入力欄にフォーカスが置かれる', async ({ page }) => {
   await page.goto('/?tab=documents');
-  const cards = page.getByRole('group', { name: /資料グループ/ });
-  await expect(cards.getByText('ザーハードに関する設定資料です。')).toBeVisible();
-  await expect(cards.getByText('準備中・資料はまだありません')).toBeVisible();
+  const groupSelect = page.getByRole('combobox', { name: 'グループ' });
+  await expect(groupSelect).toBeVisible();
+  // ヒーローと大きなグループカードは出さない。一覧はテーブル
+  await expect(page.getByRole('region', { name: '最近更新された資料' })).toHaveCount(0);
+  await expect(page.getByRole('group', { name: /資料グループ/ })).toHaveCount(0);
+  await expect(page.getByRole('columnheader')).toHaveText(['資料名', 'グループ', '状態', 'ページ数', '更新日時']);
 
-  // カードを選んでも、チャットの検索範囲は変わらない
-  await cards.getByRole('button', { name: /^店舗案内/, pressed: false }).first().click();
+  // グループを選んでも、チャットの検索範囲は変わらない
+  await groupSelect.selectOption('cafe');
   await expect(page).toHaveURL(/collection=cafe/);
-  await page.getByRole('button', { name: '質問する', exact: true }).click();
+  await expect(page.getByText(/現在のチャットの質問対象: すべての資料/)).toBeVisible();
+  await page.getByRole('navigation', { name: '画面' }).getByRole('link', { name: 'チャット' }).click();
   await expect(scopeChips(page).getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true');
 
   await page.getByRole('button', { name: '資料一覧へ' }).click();
-  await cards.getByRole('button', { name: '設定資料: このグループに質問' }).click();
+  await page.getByRole('combobox', { name: 'グループ' }).selectOption('zahard');
+  await page.getByRole('button', { name: '設定資料: このグループに質問' }).click();
   await expect(page.getByRole('alertdialog')).toBeHidden(); // 会話が無いので、確認なしで切り替わる
   await expect(page).toHaveURL(/tab=chat/);
   await expect(scopeChips(page).getByRole('button', { name: '設定資料' })).toHaveAttribute('aria-pressed', 'true');
@@ -106,6 +112,7 @@ test('会話があるときの「このグループに質問」は、資料一�
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
 
   await page.getByRole('button', { name: '資料一覧へ' }).click();
+  await page.getByRole('combobox', { name: 'グループ' }).selectOption('cafe');
   const ask = page.getByRole('button', { name: '店舗案内: このグループに質問' });
   await ask.click();
   const dialog = page.getByRole('alertdialog');
@@ -141,27 +148,54 @@ test('グループの一覧を読めなくても、「すべて」での質問�
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
 
   await page.getByRole('button', { name: '資料一覧へ' }).click();
-  await expect(page.getByRole('group', { name: '種別で絞り込み' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'グループ' })).toBeVisible();
   await expect(page.getByRole('button', { name: /このグループに質問/ })).toHaveCount(0);
 });
 
-test('最初の画面は資料一覧で、タブは無い。「質問する」でチャットへ、ロゴで資料一覧へ戻り、入力途中の文は残る', async ({ page }) => {
+test('最初の画面は資料一覧で、上部にタブは無い。サイドバーの「チャット」でチャットへ、ロゴで資料一覧へ戻り、入力途中の文は残る', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('group', { name: /資料グループ/ })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'グループ' })).toBeVisible();
   await expect(page).toHaveURL(/\/$/); // URL は書き換えない
   await expect(page.getByRole('navigation', { name: '表示する画面' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '新しい会話' })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: '画面' }).getByRole('link', { name: '資料' })).toHaveAttribute('aria-current', 'page');
 
-  await page.getByRole('button', { name: '質問する', exact: true }).click();
+  await page.getByRole('navigation', { name: '画面' }).getByRole('link', { name: 'チャット' }).click();
   await expect(page).toHaveURL(/tab=chat/);
-  await expect(page.getByRole('button', { name: '新しい会話' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '画面' }).getByRole('link', { name: 'チャット' })).toHaveAttribute('aria-current', 'page');
   const input = page.getByRole('textbox', { name: 'メッセージ' });
   await expect(input).toBeFocused();
   await input.fill('書きかけ');
 
   await page.getByRole('link', { name: 'ドキュナビ' }).click();
   await expect(page).toHaveURL(/tab=documents/);
-  await expect(page.getByRole('group', { name: /資料グループ/ })).toBeVisible();
-  await page.getByRole('button', { name: '質問する', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'グループ' })).toBeVisible();
+  await page.getByRole('navigation', { name: '画面' }).getByRole('link', { name: 'チャット' }).click();
   await expect(input).toHaveValue('書きかけ');
+});
+
+test('ログインを使わない構成では、サイドバーの「会話の履歴」に、一覧を出せない理由を示す（欄は消さない）', async ({ page }) => {
+  await page.goto('/?tab=chat');
+  const history = page.getByRole('complementary', { name: '会話の一覧' });
+  await expect(history.getByRole('heading', { name: '会話の履歴' })).toBeVisible();
+  await expect(history.getByText('ログインを使わない構成では、会話の一覧を表示できません。')).toBeVisible();
+});
+
+test('参照資料の出典を押すと、チャットのまま右のパネルが開く（URL は抽出テキスト）。Esc で閉じると、パネルの列は残らず、フォーカスは出典へ戻る', async ({ page }) => {
+  await page.goto('/?tab=chat');
+  await page.getByRole('textbox', { name: 'メッセージ' }).fill('ザーハードの大気について教えて');
+  await page.getByRole('button', { name: '送信' }).click();
+  const source = page.getByRole('region', { name: '参照資料' }).getByRole('button', { name: /ザーハード1\.pdf/ });
+  await source.click();
+
+  const panel = page.getByRole('complementary', { name: /^資料:/ });
+  await expect(panel).toBeVisible();
+  await expect(page).toHaveURL(/doc=\d+&view=text/);
+  await expect(page.getByRole('log', { name: '会話' })).toBeVisible();
+
+  const shellColumns = () => page.locator('.ws-shell').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+  expect(await shellColumns()).toBe(3);
+  await page.keyboard.press('Escape'); // パネルにフォーカスがあるとき、通常表示の Esc は閉じる
+  await expect(panel).toBeHidden();
+  expect(await shellColumns()).toBe(2); // 閉じたら、パネルのための空白列を残さない
+  await expect(source).toBeFocused();
 });

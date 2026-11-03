@@ -7,7 +7,7 @@ export const MSG_NOT_FOUND = '資料一覧に見つかりませんでした。';
 export const MSG_ERROR = '資料を開けませんでした。しばらく待ってから、もう一度お試しください。';
 
 /**
- * 参照資料のカードから、元の PDF を開く。開いている最中のカード（`opening`、`sources` の添字）と、失敗の種類を持つ。
+ * 参照資料のカードから、資料のパネルを開く。開いている最中のカード（`opening`、`sources` の添字）と、失敗の種類を持つ。
  * 回答の下のカードと、参照資料の専用ページが同じ開き方を使う。
  */
 export function useOpenReference(sources: SourceDoc[]) {
@@ -18,9 +18,11 @@ export function useOpenReference(sources: SourceDoc[]) {
   const open = async (index: number) => {
     const source = sources[index];
     if (!source || opening !== null) return;
+    // 押した要素を覚える（待っている間にボタンが無効になっても、閉じたときに戻す先を失わない）
+    const opener = document.activeElement;
     setOpening(index);
     setFailure(null);
-    const result = await openSource(source.name, source.text, source.page);
+    const result = await openSource(source.name, source.text, source.page, opener);
     setOpening(null);
     if (result !== 'opened') setFailure(result);
   };

@@ -306,36 +306,65 @@ describe('検索範囲: 資料一覧とは別のもの', () => {
   async function openDocuments(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole('button', { name: /資料一覧へ/ }));
   }
-  const cards = () => screen.findByRole('group', { name: /資料グループ/ });
+  const groupSelect = () => screen.findByRole('combobox', { name: 'グループ' });
+  const askArea = () => screen.findByRole('group', { name: '質問する' });
 
-  it('グループのカードが出る（説明・件数・準備中・未登録）。カードを選ぶと一覧が絞られ、URL に載る', async () => {
+  it('グループの選択肢が出る（表示名・資料の数・準備中・未登録）。選ぶと一覧が絞られ、URL に載る。大きなカードは出さない', async () => {
     install();
     const { user } = setup();
     await openDocuments(user);
 
-    const group = await cards();
-    expect(within(group).getByText('ザーハードに関する設定資料です。')).toBeInTheDocument();
-    expect(within(group).getByText('資料 3 件')).toBeInTheDocument();
-    expect(within(group).getByText('準備中・資料はまだありません')).toBeInTheDocument();
-    expect(within(group).getByText('memo')).toBeInTheDocument();
+    const select = await groupSelect();
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'すべて (4)',
+      '設定資料 (2)',
+      '店舗案内 (1)',
+      '準備中の資料 (0)',
+      'memo (1)',
+    ]);
+    expect(screen.queryByRole('group', { name: /資料グループ/ })).not.toBeInTheDocument();
 
-    await user.click(within(group).getByRole('button', { name: /店舗案内/, pressed: false }));
+    await user.selectOptions(select, 'cafe');
 
     expect(window.location.search).toBe('?tab=documents&collection=cafe');
     expect(screen.getAllByRole('row').slice(1)).toHaveLength(1);
   });
 
-  it('カードを選んでも、チャットの検索範囲は変わらない', async () => {
+  it('グループを選んで一覧を絞っても、チャットの検索範囲は変わらない。質問の対象と、その注記が別に出る', async () => {
     install();
     const { user } = setup();
     await openDocuments(user);
-    const group = await cards();
 
-    await user.click(within(group).getByRole('button', { name: /^設定資料(?!:)/ }));
-    await user.click(screen.getByRole('button', { name: '質問する' }));
+    await user.selectOptions(await groupSelect(), 'zahard');
+
+    // 質問の対象の表示は、選んだグループに追従する。チャットの質問対象は「すべての資料」のまま
+    const area = await askArea();
+    expect(within(area).getByText('設定資料')).toBeInTheDocument();
+    expect(screen.getByText(/一覧の絞り込みは、チャットの質問対象を変えません/)).toHaveTextContent('現在のチャットの質問対象: すべての資料');
+
+    await user.click(screen.getByRole('link', { name: 'チャット' }));
 
     expect(await chip('すべて')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('検索範囲: すべての資料')).toBeInTheDocument();
+  });
+
+  it('グループを選ぶと、質問のボタンは「このグループに質問」になり、選んだグループ名が隣に出る（「すべて」のときは「すべての資料に質問」）', async () => {
+    install();
+    const { user } = setup();
+    await openDocuments(user);
+    const select = await groupSelect();
+
+    let area = await askArea();
+    expect(within(area).getByRole('button', { name: 'すべて: すべての資料に質問' })).toHaveTextContent('すべての資料に質問');
+    expect(within(area).getByText('すべての資料')).toBeInTheDocument();
+
+    await user.selectOptions(select, 'cafe');
+
+    area = await askArea();
+    expect(within(area).getByText('店舗案内')).toBeInTheDocument();
+    expect(within(area).getByRole('button', { name: '店舗案内: このグループに質問' })).toHaveTextContent('このグループに質問');
+    // 資料単位の質問のようには見せない（個別の資料に質問するボタンは無い）
+    expect(screen.queryByRole('button', { name: /この資料/ })).not.toBeInTheDocument();
   });
 
   it('資料の無いグループを選ぶと、「まだ資料がありません」と出る', async () => {
@@ -343,7 +372,7 @@ describe('検索範囲: 資料一覧とは別のもの', () => {
     const { user } = setup();
     await openDocuments(user);
 
-    await user.click(within(await cards()).getByRole('button', { name: /^準備中の資料(?!:)/ }));
+    await user.selectOptions(await groupSelect(), 'draft');
 
     expect(screen.getByText(MSG_NO_DOCUMENTS_IN_GROUP)).toBeInTheDocument();
   });
@@ -352,8 +381,9 @@ describe('検索範囲: 資料一覧とは別のもの', () => {
     const { chatBodies } = install();
     const { user } = setup();
     await openDocuments(user);
+    await user.selectOptions(await groupSelect(), 'cafe');
 
-    await user.click(within(await cards()).getByRole('button', { name: '店舗案内: このグループに質問' }));
+    await user.click(within(await askArea()).getByRole('button', { name: '店舗案内: このグループに質問' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?tab=chat');
@@ -365,14 +395,14 @@ describe('検索範囲: 資料一覧とは別のもの', () => {
     expect(chatBodies[0]).toEqual({ message: '営業時間は？', collection: 'cafe' });
   });
 
-  it('「すべて」カードの「すべての資料に質問」で、チャットへ移り、範囲を「すべて」にして入力欄にフォーカスを置く', async () => {
+  it('「すべての資料に質問」で、チャットへ移り、範囲を「すべて」にして入力欄にフォーカスを置く', async () => {
     const { chatBodies } = install();
     const { user } = setup();
     // 先に別のグループを選んでおく（「すべて」へ切り替わることを確かめる）
     await user.click(await chip('設定資料'));
     await openDocuments(user);
 
-    await user.click(within(await cards()).getByRole('button', { name: 'すべて: すべての資料に質問' }));
+    await user.click(within(await askArea()).getByRole('button', { name: 'すべて: すべての資料に質問' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?tab=chat');
@@ -390,20 +420,21 @@ describe('検索範囲: 資料一覧とは別のもの', () => {
     await ask(user, '大気は？');
     await screen.findByText(DEFAULT_REPLY);
     await openDocuments(user);
-    const button = within(await cards()).getByRole('button', { name: '店舗案内: このグループに質問' });
+    await user.selectOptions(await groupSelect(), 'cafe');
+    const button = within(await askArea()).getByRole('button', { name: '店舗案内: このグループに質問' });
 
     await user.click(button);
 
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByRole('button', { name: 'いまの会話を続ける' })).toHaveFocus();
-    expect(window.location.search).toBe('?tab=documents');
+    expect(window.location.search).toBe('?tab=documents&collection=cafe');
 
     await user.keyboard('{Escape}');
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(button).toHaveFocus();
-    expect(window.location.search).toBe('?tab=documents');
-    await user.click(screen.getByRole('button', { name: '質問する' }));
+    expect(window.location.search).toBe('?tab=documents&collection=cafe');
+    await user.click(screen.getByRole('link', { name: 'チャット' }));
     expect(await chip('すべて')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(DEFAULT_REPLY)).toBeInTheDocument();
   });
@@ -414,7 +445,8 @@ describe('検索範囲: 資料一覧とは別のもの', () => {
     await ask(user, '大気は？');
     await screen.findByText(DEFAULT_REPLY);
     await openDocuments(user);
-    await user.click(within(await cards()).getByRole('button', { name: '店舗案内: このグループに質問' }));
+    await user.selectOptions(await groupSelect(), 'cafe');
+    await user.click(within(await askArea()).getByRole('button', { name: '店舗案内: このグループに質問' }));
 
     await user.click(await screen.findByRole('button', { name: '新しい会話にする' }));
 
@@ -468,7 +500,7 @@ describe('検索範囲: 0 件のとき', () => {
 });
 
 describe('検索範囲: 出典に資料グループを添える', () => {
-  it('出典カードに、その資料のグループの表示名が出る（無いものには出ない）', async () => {
+  it('参照資料のチップには、資料名とページだけを出す（グループの名前は、右のパネルで見る）', async () => {
     install({
       chat: () =>
         replyResponse({
@@ -485,11 +517,11 @@ describe('検索範囲: 出典に資料グループを添える', () => {
     const { user } = setup();
     await ask(user, '質問');
 
-    const group = await screen.findByRole('group', { name: /参照資料/ });
-    const [zahard, cafe] = within(group).getAllByRole('button');
-    expect(zahard).toHaveTextContent('設定資料 ・ p.1');
-    expect(cafe).toHaveTextContent('p.2');
-    expect(cafe).not.toHaveTextContent('・');
+    const region = await screen.findByRole('region', { name: '参照資料' });
+    const [zahard, cafe] = within(region).getAllByRole('button');
+    expect(zahard).toHaveTextContent('ザーハード1.pdfp.1');
+    expect(cafe).toHaveTextContent('cafe_store_guide.pdfp.2');
+    expect(region).not.toHaveTextContent('設定資料');
   });
 });
 
@@ -604,15 +636,21 @@ describe('検索範囲: グループの一覧を読めないとき', () => {
     expect(collectionCalls.count).toBe(2);
   });
 
-  it('失敗したときの資料一覧は、資料にある名前（識別名）の絞り込みになり、「このグループに質問」は出ない', async () => {
+  it('失敗したときの資料一覧は、資料にある名前（識別名）の選択肢になり、「このグループに質問」は出ない', async () => {
     install({ collections: () => errorResponse(503, '失敗') });
     const { user } = setup();
     await chips();
     await user.click(screen.getByRole('button', { name: /資料一覧へ/ }));
 
-    const filter = await screen.findByRole('group', { name: '種別で絞り込み' });
-    expect(within(filter).getAllByRole('button').map((b) => b.textContent)).toEqual(['すべて', 'cafe', 'memo', 'zahard']);
+    const select = await screen.findByRole('combobox', { name: 'グループ' });
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'すべて (4)',
+      'cafe (1)',
+      'memo (1)',
+      'zahard (2)',
+    ]);
     expect(screen.queryByRole('button', { name: /このグループに質問/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: '質問する' })).not.toBeInTheDocument();
   });
 
   it('サーバーが資料の DB を使っていない（configured:false）ときは、範囲の UI を出さない', async () => {
@@ -706,8 +744,8 @@ describe('資料一覧が最初の画面。チャットの上に、質問の対�
     window.history.replaceState(null, '', '/');
     setup();
 
-    expect(await screen.findByRole('group', { name: /資料グループ/ })).toBeVisible();
-    expect(screen.getByRole('button', { name: '質問する' })).toBeVisible();
+    expect(await screen.findByRole('combobox', { name: 'グループ' })).toBeVisible();
+    expect(screen.getByRole('link', { name: '資料' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('textbox', { name: 'メッセージ', hidden: true })).not.toBeVisible();
     expect(window.location.search).toBe('');
   });
@@ -738,8 +776,8 @@ describe('資料一覧が最初の画面。チャットの上に、質問の対�
     await user.click(await screen.findByRole('button', { name: /資料一覧へ/ }));
 
     expect(window.location.search).toBe('?tab=documents');
-    expect(await screen.findByRole('group', { name: /資料グループ/ })).toBeVisible();
-    await user.click(screen.getByRole('button', { name: '質問する' }));
+    expect(await screen.findByRole('combobox', { name: 'グループ' })).toBeVisible();
+    await user.click(screen.getByRole('link', { name: 'チャット' }));
     expect(input()).toHaveValue('書きかけ');
   });
 });
