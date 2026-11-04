@@ -54,6 +54,7 @@ from app.agents.resilience import (
 )
 from app.agents.state import AgentState
 from app.agents.tools import COLLECTION_KEY, TARGET_KEY, TOOLS
+from app.agents.workers_ai import create_workers_ai_llm
 from app.scope import ACCESS_SCOPE_KEY, Scope
 
 logger = logging.getLogger(__name__)
@@ -276,6 +277,24 @@ def _thinking_kwargs(variable: str) -> dict[str, str]:
     """`_create_gemini` へ渡す thinking_level（未設定なら空。引数を増やさず、従来の呼び出しの形のままにする）。"""
     level = llm_thinking_level(variable)
     return {} if level is None else {"thinking_level": level}
+
+
+ANSWER_GEMINI = "gemini"
+ANSWER_WORKERS_AI = "workers_ai"
+
+
+def answer_backend() -> str:
+    """CHAT_ANSWER_BACKEND（既定 gemini）。`workers_ai` で、回答の生成だけを Cloudflare Workers AI（Qwen3）に切り替える試験用の設定。
+
+    検索（質問の埋め込みを含む）・履歴・ガードは変わらない。Gemini へ自動では戻さない。不正な値は、黙って既定に戻さず失敗させる
+    （回答の送り先を取り違えないため）。
+    """
+    value = os.environ.get("CHAT_ANSWER_BACKEND", "").strip().lower()
+    if value in {"", ANSWER_GEMINI}:
+        return ANSWER_GEMINI
+    if value == ANSWER_WORKERS_AI:
+        return value
+    raise ValueError(f"CHAT_ANSWER_BACKEND は {ANSWER_GEMINI} か {ANSWER_WORKERS_AI} にしてください")
 
 
 def retrieval_mode() -> str:
@@ -584,14 +603,21 @@ def build_graph(
     再起動で消え、複数のワーカー・インスタンス間では共有されない。
     """
     fallback_name = "フォールバックのモデル"
+    rewrite_llm = llm  # 追質問の検索語の補完に使う LLM。回答の生成だけを切り替えるときも、補完は Gemini のまま
     if llm is None:
-        llm = create_llm()
+        llm = rewrite_llm = create_llm()
         if not isinstance(llm, MockChatModel):
+            # 回答だけ Workers AI にするときは、ヘッジ・有料キー・フォールバックを使わない（Gemini へ自動では切り替えない）
+            workers_ai = answer_backend() == ANSWER_WORKERS_AI
+            if workers_ai:
+                llm = create_workers_ai_llm(timeout=llm_attempt_timeout_seconds())
+                hedge = None
+                logger.info("回答の生成: Cloudflare Workers AI（試験用。Gemini へは自動で切り替えない）")
             if retrieval is None:
                 retrieval = retrieval_mode()
-            if hedge is None:
+            if hedge is None and not workers_ai:
                 hedge = llm_hedge_policy()
-            if paid_llm is None:
+            if paid_llm is None and not workers_ai:
                 paid_llm = create_paid_llm()
                 if paid_llm is not None:
                     hold = key_switch_hold_seconds()
@@ -600,7 +626,7 @@ def build_graph(
                         "LLM の有料キー: 無料キーが 429 で尽きたときだけ使う（切り替えたあとの %g 秒は、最初から有料キーを使う）",
                         hold,
                     )
-            if fallback_llm is None:
+            if fallback_llm is None and not workers_ai:
                 fallback_llm = create_fallback_llm()
                 if fallback_llm is not None:
                     model = llm_fallback_model()
@@ -780,7 +806,8 @@ def build_graph(
         emit_status(config, PHASE_ANALYZING)
         try:
             reply = await asyncio.wait_for(
-                llm.ainvoke(followup.rewrite_messages(question, prior, last_answer)), query_rewrite_timeout_seconds()
+                rewrite_llm.ainvoke(followup.rewrite_messages(question, prior, last_answer)),
+                query_rewrite_timeout_seconds(),
             )
             rewritten = followup.parse_rewrite(reply.text)
         except Exception as exc:  # noqa: BLE001 - 補完の失敗で回答を止めない（検索語を前の質問を足したものにする）。取り消しは通る
