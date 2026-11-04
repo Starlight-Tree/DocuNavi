@@ -48,6 +48,11 @@ def use_vertex() -> bool:
     return os.environ.get(VERTEX_ENV, "").strip().lower() in _TRUTHY
 
 
+def batch_size() -> int:
+    """1 回の呼び出しで送る本文の数。Vertex AI の gemini-embedding-2 は SDK が 1 回 1 本に限る（複数だと ValueError）。"""
+    return 1 if use_vertex() else BATCH_SIZE
+
+
 def make_client(api_key: str | None, timeout_ms: int) -> Any:
     """埋め込み用の SDK クライアント（取り込みと質問で共通）。再試行しない（attempts=1）。timeout はミリ秒。
 
@@ -192,7 +197,7 @@ def embed_pending(
         selected=len(pending),
         characters=characters,
         estimated_cost_usd=characters * PRICE_PER_MILLION_TOKENS / 1_000_000,
-        calls_needed=math.ceil(len(pending) / BATCH_SIZE),
+        calls_needed=math.ceil(len(pending) / batch_size()),
         applied=apply,
     )
     if not apply or not pending:
@@ -208,10 +213,11 @@ def embed_pending(
             f"必要な呼び出し {report.calls_needed} 回が上限 {budget.max_calls} 回を超えます（送らずに止めました）"
         )
         return report
-    for start in range(0, len(pending), BATCH_SIZE):
-        batch = pending[start : start + BATCH_SIZE]
+    step = batch_size()
+    for start in range(0, len(pending), step):
+        batch = pending[start : start + step]
         try:
-            vectors = embedder.embed(texts[start : start + BATCH_SIZE])
+            vectors = embedder.embed(texts[start : start + step])
             report.saved += store.save_embeddings(list(zip(batch, vectors, strict=True)))
         except EmbeddingError as exc:
             report.error = str(exc)
