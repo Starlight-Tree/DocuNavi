@@ -275,7 +275,7 @@ export function DocumentsView({ state, onReload, onAskTarget, isApplied, onClose
     <main className="documents" aria-label="ナレッジ">
       <div className="docs-head">
         <h2 className="docs-title">ナレッジ</h2>
-        <button type="button" className="btn btn-secondary" onClick={onClose}>
+        <button type="button" className="btn btn-secondary btn-small" onClick={onClose}>
           <span aria-hidden="true">× </span>閉じる
         </button>
       </div>
