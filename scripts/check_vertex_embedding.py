@@ -23,6 +23,7 @@ import math
 import os
 import sys
 import time
+import traceback
 
 from google.genai import types
 
@@ -52,6 +53,18 @@ def _embed(client, texts: tuple[str, ...]) -> tuple[list[list[float]], float]:
     return [list(e.values or []) for e in (result.embeddings or [])], elapsed
 
 
+def _embed_documents(client) -> tuple[list[list[float]], float]:
+    """取り込みと同じ区切り（embedding.batch_size()）で DOCUMENTS を埋め込む。合計の秒数を返す。"""
+    step = embedding.batch_size()
+    vectors: list[list[float]] = []
+    total = 0.0
+    for start in range(0, len(DOCUMENTS), step):
+        part, elapsed = _embed(client, DOCUMENTS[start : start + step])
+        vectors += part
+        total += elapsed
+    return vectors, total
+
+
 def _healthy(vector: list[float]) -> bool:
     return all(math.isfinite(v) for v in vector) and any(v != 0 for v in vector)
 
@@ -62,9 +75,11 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 
 def _failure(step: str, exc: Exception) -> int:
-    # 例外の文字列には URL・プロジェクトが入りうる。型とステータスだけを出す
+    # 原因の特定のため、例外の本文とトレースバックも出す（SDK の例外にトークンは入らない。プロジェクト ID・URL は入りうる）
     status = getattr(exc, "code", None) or getattr(exc, "status_code", None)
     print(f"失敗（{step}）: {type(exc).__name__}" + (f" (status={status})" if status else ""), file=sys.stderr)
+    print(f"本文: {str(exc)[:1500]}", file=sys.stderr)
+    traceback.print_exception(exc, file=sys.stderr)
     return 1
 
 
@@ -89,9 +104,10 @@ def main(argv: list[str] | None = None) -> int:
 
     problems = 0
     try:
-        batch, t_batch = _embed(vertex, DOCUMENTS)
+        batch, t_batch = _embed_documents(vertex)
         print(
-            f"1. 一括（{len(DOCUMENTS)} 本を 1 回で）: 返却 {len(batch)} 本 / 次元 {[len(v) for v in batch]} / {t_batch:.2f} 秒"
+            f"1. 取り込みと同じ形（{len(DOCUMENTS)} 本、1 回 {embedding.batch_size()} 本ずつ）: "
+            f"返却 {len(batch)} 本 / 次元 {[len(v) for v in batch]} / 合計 {t_batch:.2f} 秒"
         )
         first, t_first = _embed(vertex, (QUERY,))
         print(f"2. 質問 1 本: 返却 {len(first)} 本 / 次元 {[len(v) for v in first]} / {t_first:.2f} 秒")

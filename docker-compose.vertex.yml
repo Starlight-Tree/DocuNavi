@@ -1,0 +1,18 @@
+# api を、埋め込み（取り込みと質問の両方）を Vertex AI で呼ぶ形にする上書き。LLM の経路（GOOGLE_GENAI_USE_VERTEXAI）は変えない。
+# 認証は ADC（ホストで `gcloud auth application-default login` したファイルを読み取り専用で渡す）。API キーは埋め込みに使わない。
+# 課金先は VERTEX_PROJECT（リクエストのプロジェクト）。未設定なら起動しない。
+#
+#   export VERTEX_PROJECT=<プロジェクト ID>
+#   docker compose -f docker-compose.yml -f docker-compose.vertex.yml run --rm api python -m app.ingestion.embed
+#   docker compose -f docker-compose.yml -f docker-compose.vertex.yml up -d --force-recreate api
+#
+# 取り込み側と検索側は、同じ上書きで揃える（片方だけだと、別の経路のベクトルが混ざる。互換性は scripts/check_vertex_embedding.py --compare-api で確かめる）。
+# 元に戻すとき: docker compose up -d --force-recreate api（上書きなし = API キー）
+services:
+  api:
+    environment:
+      EMBEDDING_USE_VERTEXAI: "true"
+      GOOGLE_CLOUD_PROJECT: "${VERTEX_PROJECT:?VERTEX_PROJECT に Vertex AI を呼ぶプロジェクト ID を入れる}"
+      GOOGLE_APPLICATION_CREDENTIALS: /run/adc.json
+    volumes:
+      - ${ADC_FILE:-${HOME}/.config/gcloud/application_default_credentials.json}:/run/adc.json:ro

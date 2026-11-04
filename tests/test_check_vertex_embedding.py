@@ -34,7 +34,7 @@ def _env(monkeypatch):
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "")
 
 
-def test_vertex_only_run_needs_no_api_key_and_makes_three_calls(monkeypatch, capsys):
+def test_vertex_only_run_needs_no_api_key_and_sends_one_text_per_call(monkeypatch, capsys):
     client = FakeClient()
     seen = {}
 
@@ -45,19 +45,19 @@ def test_vertex_only_run_needs_no_api_key_and_makes_three_calls(monkeypatch, cap
     monkeypatch.setattr(embedding, "make_client", make)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     assert script.main(["--project", "some-project"]) == 0
-    assert client.calls == 3
+    assert client.calls == 5  # 文書 3 本（Vertex は 1 回 1 本）+ 質問 2 回
     assert seen == {"api_key": None, "vertex": True}
     out = capsys.readouterr().out
     assert "返却 3 本" in out and "未確認" in out
 
 
 def test_a_batch_that_returns_fewer_vectors_is_reported(monkeypatch, capsys):
-    monkeypatch.setattr(embedding, "make_client", lambda api_key, timeout_ms: FakeClient(per_call=1))
+    monkeypatch.setattr(embedding, "make_client", lambda api_key, timeout_ms: FakeClient(per_call=0))
     assert script.main(["--project", "some-project"]) == 1
-    assert "1 本ずつ呼ぶ" in capsys.readouterr().out
+    assert "返却 0 本" in capsys.readouterr().out
 
 
-def test_failures_print_only_the_type_and_status(monkeypatch, capsys):
+def test_failures_print_the_type_status_message_and_traceback(monkeypatch, capsys):
     class Boom(Exception):
         code = 403
 
@@ -68,7 +68,7 @@ def test_failures_print_only_the_type_and_status(monkeypatch, capsys):
     monkeypatch.setattr(embedding, "make_client", lambda api_key, timeout_ms: Failing())
     assert script.main(["--project", "some-project"]) == 1
     err = capsys.readouterr().err
-    assert "Boom (status=403)" in err and "secret.example" not in err
+    assert "Boom (status=403)" in err and "本文: https://secret.example" in err and "Traceback" in err
 
 
 def test_compare_api_needs_a_key(monkeypatch, capsys):
