@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useAuth } from './auth/AuthContext';
-import { AppSidebar } from './components/AppSidebar';
-import { ChatContextBar } from './components/ChatContextBar';
-import type { TargetMenuItem } from './components/ChatContextBar';
+import { AppSidebar, SidebarIcon } from './components/AppSidebar';
 import { Composer } from './components/Composer';
 import { DocumentsView } from './components/DocumentsView';
 import { ErrorBanner } from './components/ErrorBanner';
@@ -11,6 +9,8 @@ import { LoginScreen } from './components/LoginScreen';
 import { MessageList } from './components/MessageList';
 import { PanelHost } from './components/PanelHost';
 import { ScopeConfirm } from './components/ScopeConfirm';
+import { ScopePicker } from './components/ScopePicker';
+import type { TargetMenuItem } from './components/ScopePicker';
 import { ThreadSidebar } from './components/ThreadSidebar';
 import { useBackendMode } from './hooks/useBackendMode';
 import { ALL_SCOPE, sameScope, useChat } from './hooks/useChat';
@@ -36,13 +36,13 @@ import { useUrlState } from './lib/urlState';
 
 const ALL_LABEL = 'すべての資料';
 const MSG_SCOPE_MISMATCH =
-  '質問対象が、サーバーに反映されなかった可能性があります。この回答は、すべての資料から探したものかもしれません。';
+  '回答対象が、サーバーに反映されなかった可能性があります。この回答は、すべての資料から探したものかもしれません。';
 const MSG_SCOPE_UNAVAILABLE =
   'この会話の対象は、いま利用できません（資料が別の対象へ移った、または閲覧できなくなった可能性があります）。続きを送っても、保存された対象のまま探します。新しい会話で、対象を選び直せます。';
 const MSG_TARGET_EMPTY = 'この対象には、いま検索できる資料がありません（取り込みが終わると使えます）。';
 const UNKNOWN_LABEL = 'この会話の対象';
 
-/** 質問対象を変える確認の待ち。切り替え先と、確認を閉じたあとにフォーカスを戻す要素。 */
+/** 回答対象を変える確認の待ち。切り替え先と、確認を閉じたあとにフォーカスを戻す要素。 */
 interface PendingScope {
   scope: ChatScope;
   trigger: HTMLElement | null;
@@ -77,6 +77,20 @@ function ChatScreen() {
   const [documentList, reloadDocuments] = useDocumentList(view === 'documents' || panelOpen);
   // 右のパネルの拡大（CSS だけ。パネルもチャットも作り直さない）。閉じたら戻す
   const [expanded, setExpanded] = useState(false);
+  // 左サイドバーの開閉。閉じても隠すだけで、会話・入力途中の文・回答対象・スクロール位置は変えない
+  const [sideOpen, setSideOpen] = useState(true);
+  const collapseRef = useRef<HTMLButtonElement>(null);
+  const reopenRef = useRef<HTMLButtonElement>(null);
+  const sideToggled = useRef(false);
+  // 開閉したら、フォーカスを、いま押せる側のボタンへ移す（隠した側にフォーカスを残さない）
+  useEffect(() => {
+    if (!sideToggled.current) return;
+    (sideOpen ? collapseRef.current : reopenRef.current)?.focus();
+  }, [sideOpen]);
+  const toggleSide = (open: boolean) => {
+    sideToggled.current = true;
+    setSideOpen(open);
+  };
   const [pendingScope, setPendingScope] = useState<PendingScope | null>(null);
   // 範囲を切り替えたあと、入力欄へフォーカスを移す依頼（チャットの画面が見えてから移す）
   const [focusRequest, setFocusRequest] = useState(0);
@@ -103,19 +117,13 @@ function ChatScreen() {
     return failure;
   };
 
-  // 質問対象を変える。会話が無ければそのまま切り替え、会話があれば（会話ごとに固定なので）確認して新しい会話にする。
-  // 資料一覧の「この対象について質問」と、チャットの上の帯のメニューは、どちらもここを通る。資料一覧の絞り込みとは別のもの
-  const requestScope = (scope: ChatScope, trigger: HTMLElement | null, fromDocuments: boolean) => {
-    const goChat = () => {
-      if (fromDocuments) navigate({ tab: 'chat' });
-      setFocusRequest((n) => n + 1);
-    };
-    if (!chat.scopeUnknown && sameScope(scope, chat.scope)) {
-      if (fromDocuments) goChat();
-      return;
-    }
+  // 回答対象を変える。会話が無ければそのまま切り替え、会話があれば（会話ごとに固定なので）確認して新しい会話にする。
+  // 資料一覧の「全○資料を回答に使う」と、入力欄のチップのメニューは、どちらもここを通る。資料一覧の絞り込みとは別のもの。
+  // 資料一覧から変えても、資料一覧に留まる（質問は自動で送らない。反映は、ボタンが「適用済み」に変わって分かる）
+  const requestScope = (scope: ChatScope, trigger: HTMLElement | null) => {
+    if (!chat.scopeUnknown && sameScope(scope, chat.scope)) return;
     if (chat.setScope(scope)) {
-      goChat();
+      if (view === 'chat') setFocusRequest((n) => n + 1);
       return;
     }
     setPendingScope({ scope, trigger });
@@ -133,8 +141,8 @@ function ChatScreen() {
     if (!pendingScope) return;
     chat.startNew(pendingScope.scope);
     setPendingScope(null);
-    if (view !== 'chat') navigate({ tab: 'chat' });
-    setFocusRequest((n) => n + 1);
+    // 資料一覧から変えたときは、資料一覧に留まる。チャットにいるときだけ、入力欄へフォーカスを移す
+    if (view === 'chat') setFocusRequest((n) => n + 1);
   };
 
   const scopeLabel = (scope: ChatScope) =>
@@ -148,7 +156,7 @@ function ChatScreen() {
   const currentTarget = current.kind === 'target' ? targets?.find((t) => t.name === current.name) : undefined;
   const currentGroup = current.kind === 'collection' ? groups?.find((g) => g.name === current.name) : undefined;
   const allCount = groups?.reduce((sum, g) => sum + g.documentCount, 0);
-  // 文脈バーに出す対象の資料数。範囲が分からない間・一覧を読めなかったときは出さない
+  // チップに出す対象の資料数。範囲が分からない間・一覧を読めなかったときは出さない
   const contextCount = chat.scopeUnknown
     ? undefined
     : chat.scope.kind === 'all'
@@ -156,7 +164,7 @@ function ChatScreen() {
       : chat.scope.kind === 'target'
         ? currentTarget?.documentCount
         : currentGroup?.documentCount;
-  // 質問対象を選べるときだけ、メニューを出す。旧グループの会話は、いまの範囲を示す項目（選べない）を先頭に足す
+  // 回答対象を選べるときだけ、メニューを出す。旧グループの会話は、いまの範囲を示す項目（選べない）を先頭に足す
   const menuItems: TargetMenuItem[] | null = targets
     ? [
         ...(chat.scope.kind === 'collection' && !chat.scopeUnknown
@@ -194,6 +202,7 @@ function ChatScreen() {
     <div
       className={panelOpen ? 'ws-shell ws-shell-panel' : 'ws-shell'}
       data-expanded={panelOpen && expanded ? 'true' : undefined}
+      data-side={sideOpen ? undefined : 'closed'}
     >
       <AppSidebar
         view={view}
@@ -205,7 +214,9 @@ function ChatScreen() {
           chat.reset();
           goChat();
         }}
-        // 確認は出さない。いまの会話と検索範囲のまま、チャットへ移る（範囲を変えるのは、カードのボタンと入力欄の上のチップ）
+        onCollapse={() => toggleSide(false)}
+        collapseRef={collapseRef}
+        // 確認は出さない。いまの会話と回答対象のまま、チャットへ移る（回答対象を変えるのは、資料一覧のボタンと入力欄のチップ）
         onGoChat={goChat}
         onGoDocuments={() => navigate({ tab: 'documents' })}
         history={
@@ -226,6 +237,14 @@ function ChatScreen() {
       />
       {/* 拡大中は、パネルが上に重なる。下のチャット・資料一覧は作り直さず、操作と読み上げだけ外す */}
       <div className="ws-main" inert={panelOpen && expanded}>
+        {/* サイドバーを閉じている間も、再表示のボタンは残す（チャットでも資料一覧でも、同じ場所） */}
+        {!sideOpen && (
+          <div className="ws-main-bar">
+            <button ref={reopenRef} type="button" className="ws-icon-btn" aria-label="サイドバーを開く" onClick={() => toggleSide(true)}>
+              <SidebarIcon />
+            </button>
+          </div>
+        )}
         {pendingScope && (
           <ScopeConfirm
             targetLabel={scopeLabel(pendingScope.scope)}
@@ -237,17 +256,6 @@ function ChatScreen() {
         {/* 資料一覧を開いている間も、チャットは隠すだけで残す（生成中の回答・入力途中の文・スクロール位置を失わない） */}
         <div className="chat-layout" hidden={view !== 'chat'}>
           <div className="chat-pane">
-            <ChatContextBar
-              targetLabel={currentLabel}
-              documentCount={contextCount}
-              items={menuItems}
-              failed={classifications.targets.status === 'error'}
-              onRetry={classifications.reloadTargets}
-              fixed={chat.hasConversation}
-              disabled={chat.pending}
-              onSelect={(scope, trigger) => requestScope(scope, trigger, false)}
-              onBack={() => navigate({ tab: 'documents' })}
-            />
             {chat.scopeUnavailable && (
               <p className="scope-warning" role="status">
                 {MSG_SCOPE_UNAVAILABLE}
@@ -285,10 +293,17 @@ function ChatScreen() {
               pending={chat.pending}
               onSend={chat.send}
               onStop={chat.stop}
-              scopeLabel={targets || chat.scope.kind === 'collection' || chat.scopeUnavailable ? currentLabel : undefined}
-              scopeCaption="質問対象"
-              scopeNote={
-                targetEmpty ? '資料はまだありません' : chat.hasConversation ? 'この会話で固定' : undefined
+              scopeControl={
+                <ScopePicker
+                  targetLabel={currentLabel}
+                  documentCount={contextCount}
+                  items={menuItems}
+                  failed={classifications.targets.status === 'error'}
+                  onRetry={classifications.reloadTargets}
+                  fixed={chat.hasConversation}
+                  disabled={chat.pending}
+                  onSelect={requestScope}
+                />
               }
             />
           </div>
@@ -297,13 +312,11 @@ function ChatScreen() {
           <DocumentsView
             state={documentList}
             onReload={reloadDocuments}
-            chatTargetLabel={currentLabel}
-            onAskTarget={
-              targets
-                ? (target, trigger) =>
-                    requestScope(target === null ? ALL_SCOPE : { kind: 'target', name: target }, trigger, true)
-                : undefined
+            isApplied={(target) =>
+              !chat.scopeUnknown &&
+              (target === null ? chat.scope.kind === 'all' : chat.scope.kind === 'target' && chat.scope.name === target)
             }
+            onAskTarget={targets ? (target, trigger) => requestScope(target === null ? ALL_SCOPE : { kind: 'target', name: target }, trigger) : undefined}
           />
         )}
       </div>

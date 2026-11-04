@@ -256,9 +256,12 @@ export function ChatMock({ scope, messages, pending, confirm, onSelect, onConfir
           pending={pending}
           onSend={onSend}
           onStop={() => undefined}
-          scopeLabel={scopeText(scope)}
-          scopeCaption="質問対象"
-          scopeNote={messages.length > 0 ? 'この会話で固定' : undefined}
+          scopeControl={
+            <span className="scope-picker">
+              <span className="scope-chip scope-chip-static">質問対象: {scopeText(scope)}</span>
+              {messages.length > 0 && <span className="scope-picker-hint">この会話で固定</span>}
+            </span>
+          }
         />
       </div>
     </div>
