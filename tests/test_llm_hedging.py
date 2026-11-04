@@ -496,6 +496,7 @@ def _use_model(monkeypatch: pytest.MonkeyPatch, llm: BaseChatModel) -> list[Hedg
 
 
 def test_build_graph_without_an_llm_hedges_a_real_model_with_the_env_policy(monkeypatch):
+    monkeypatch.setenv("CHAT_RETRIEVAL_MODE", "agent")  # 1 回目の呼び出し（検索の決定）で試行を数える
     monkeypatch.setenv("LLM_HEDGE_DELAY_SECONDS", "0.05")
     monkeypatch.setenv("LLM_MAX_ATTEMPTS", "2")
     llm = FlakyLLM(delays=[2.0, 0.0])
@@ -507,7 +508,7 @@ def test_build_graph_without_an_llm_hedges_a_real_model_with_the_env_policy(monk
     assert result["messages"][-1].content == "こんにちは。"
     assert time.monotonic() - t < 1.0
     assert (llm.calls, llm.cancelled) == (2, 1)
-    assert policies == [HedgePolicy(hedge_delay=0.05, max_attempts=2)]
+    assert policies == [HedgePolicy(hedge_delay=0.05, max_attempts=2, early_fallback=True, deadline=20.0)]
 
 
 def test_build_graph_without_an_llm_does_not_hedge_when_disabled(monkeypatch):

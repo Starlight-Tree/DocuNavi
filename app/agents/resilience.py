@@ -14,6 +14,10 @@ Gemini は 1〜3 秒で返す回と、20 秒以上かかる回・無応答のま
 - 429（レート制限）は、以降の追加を止めたうえで、間隔を空けて再試行する。叩き続けないため。
   全ての試行が失敗したときは、最後の失敗ではなく 429 を返す（呼び出し側が待ってから再送できるように）。
 
+- 主モデルの試行が一時的な失敗で終わり、フォールバックがあるときは（`early_fallback`）、主モデルへの再試行ではなく
+  フォールバックをすぐ投げる。落ちている主モデルへ同じ要求を投げ直して、失敗の待ちを試行の数だけ重ねない。
+- 最初の結果を待つ総時間には上限を置ける（`deadline`）。超えたら投げた試行を全て取り消し、TimeoutError にする。
+
 ストリーミング（hedged_stream）は、同じ仕組みで「最初のチャンクが届いた試行」を採る。採った後は、
 その試行が最後まで流れる（途中で失敗しても、別の試行へは切り替えない。利用者へ送った本文が変わるため）。
 
@@ -113,6 +117,11 @@ class HedgePolicy:
     max_attempts: int  # 投げる試行の最大数（最初の 1 本を含む）
     retry_delay: float = 0.5  # 全ての試行が失敗したとき、次を投げるまでの待ち
     rate_limit_delay: float = 2.0  # 429 のとき、次を投げるまでの待ち（429 の回数に比例して延ばす）
+    # 主モデルの試行が一時的な失敗（5xx・接続）で終わり、fallback があるときは、主モデルの再試行ではなく fallback を
+    # すぐ投げる（同じ落ち方の主モデルへ投げ直して、失敗を max_attempts 回待たない）。429 のときは使わない
+    early_fallback: bool = False
+    # 最初の結果（ストリームなら最初のチャンク）を待つ総時間の上限（秒。None は上限なし）。超えたら TimeoutError
+    deadline: float | None = None
 
 
 @dataclass
@@ -202,6 +211,16 @@ async def hedged_call(
     rate_limit_exc: BaseException | None = None
     next_launch_at = started
     fallback_tasks: set[asyncio.Future[T]] = set()  # 並行して投げたフォールバックの試行
+    primary_retryable_failure = False  # 直前の回に、主モデルの試行が一時的な失敗で終わった（early_fallback の判断用）
+
+    def _expired() -> bool:
+        return policy.deadline is not None and loop.time() >= started + policy.deadline
+
+    def _bounded(seconds: float) -> float:
+        """待ち時間を、総時間の上限（policy.deadline）の残りに収める。"""
+        if policy.deadline is None:
+            return seconds
+        return max(0.0, min(seconds, started + policy.deadline - loop.time()))
 
     def launch(reason: str, *, use_fallback: bool = False) -> None:
         nonlocal launched, next_launch_at
@@ -235,12 +254,31 @@ async def hedged_call(
                 # 投げた試行が全て失敗している。待つ相手がいないので、待たずに（429 は間隔を空けて）次を投げる
                 if launched >= policy.max_attempts:
                     break
-                await asyncio.sleep(policy.rate_limit_delay * rate_limited if rate_limited else policy.retry_delay)
-                launch("失敗したため再試行します")
+                if (
+                    policy.early_fallback
+                    and fallback is not None
+                    and not trace.tried
+                    and not rate_limited
+                    and primary_retryable_failure
+                ):
+                    launch(
+                        f"主モデルが一時的な失敗で終わったため、再試行の代わりに {fallback_name} を投げます",
+                        use_fallback=True,
+                    )
+                else:
+                    await asyncio.sleep(
+                        _bounded(policy.rate_limit_delay * rate_limited if rate_limited else policy.retry_delay)
+                    )
+                    launch("失敗したため再試行します")
+            primary_retryable_failure = False
 
             can_launch = launched < policy.max_attempts
             wait_for = max(0.0, next_launch_at - loop.time()) if (can_launch and hedging) else None
+            if policy.deadline is not None:
+                wait_for = _bounded(wait_for if wait_for is not None else policy.deadline)
             done, _ = await asyncio.wait(pending, timeout=wait_for, return_when=asyncio.FIRST_COMPLETED)
+            if not done and _expired():
+                raise TimeoutError(f"{name}: 最初の応答が {policy.deadline:g} 秒以内に届きませんでした")
 
             failed: list[BaseException] = []
             for task in sorted(done, key=launch_order.__getitem__):
@@ -260,6 +298,7 @@ async def hedged_call(
                     continue  # 主モデルの試行の扱い（429 の待ち・即時失敗・最後の失敗）に影響させない
                 if exc is not None and classify_failure(exc) is Failure.RETRY:
                     trace.primary_failed = True  # 同じ回にフォールバックが先に採られても、この失敗は残す
+                    primary_retryable_failure = True
                 if exc is None:
                     if is_fallback:
                         trace.won = True
