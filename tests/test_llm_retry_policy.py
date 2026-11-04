@@ -36,6 +36,9 @@ def clean_env(monkeypatch):
         "LLM_HEDGE_DELAY_SECONDS",
         "LLM_ATTEMPT_TIMEOUT_SECONDS",
         "LLM_MAX_ATTEMPTS",
+        "GEMINI_THINKING_LEVEL",
+        "GEMINI_FALLBACK_THINKING_LEVEL",
+        "GEMINI_FALLBACK_MODEL",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(graph, "ChatGoogleGenerativeAI", RecordingLLM)
@@ -158,3 +161,28 @@ def test_real_client_accepts_the_policy_and_keeps_it_through_bind_tools(monkeypa
 
     assert (llm.timeout, llm.max_retries) == (9.0, 1)
     assert (bound.bound.timeout, bound.bound.max_retries) == (9.0, 1)
+
+
+def test_thinking_level_is_not_sent_unless_configured(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    assert "thinking_level" not in create_llm().kwargs  # 未設定なら、モデルの既定のまま
+
+
+def test_thinking_level_is_sent_to_the_primary_and_the_fallback_separately(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "fallback-model")
+    monkeypatch.setenv("GEMINI_THINKING_LEVEL", " Minimal ")
+
+    assert create_llm().kwargs["thinking_level"] == "minimal"
+    assert (
+        "thinking_level" not in graph.create_fallback_llm().kwargs
+    )  # フォールバックは別の変数（対応する値が違いうる）
+
+    monkeypatch.setenv("GEMINI_FALLBACK_THINKING_LEVEL", "low")
+    assert graph.create_fallback_llm().kwargs["thinking_level"] == "low"
+
+
+def test_an_invalid_thinking_level_is_ignored(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setenv("GEMINI_THINKING_LEVEL", "max")
+    assert "thinking_level" not in create_llm().kwargs

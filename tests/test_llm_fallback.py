@@ -1167,6 +1167,7 @@ def test_fallback_hold_seconds_from_the_environment(monkeypatch, value, expected
 
 
 def _env_graph(gemini_env, primary: PlanLLM, fallback: PlanLLM):
+    gemini_env.setenv("CHAT_RETRIEVAL_MODE", "agent")  # 1 質問で LLM を 2 回呼ぶ形（呼び出し回数の期待値がこの形）
     gemini_env.setenv("LLM_HEDGE_DELAY_SECONDS", "0")
     gemini_env.setattr(graph_module, "create_llm", lambda: primary)
     gemini_env.setattr(graph_module, "create_fallback_llm", lambda: fallback)
