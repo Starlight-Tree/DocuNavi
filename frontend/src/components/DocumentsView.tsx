@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useCollectionCatalog } from '../hooks/useCollections';
 import { classificationItems, useClassificationCatalog } from '../hooks/useClassifications';
 import type { DocumentList, DocumentSummary } from '../api/documents';
@@ -9,6 +10,8 @@ import type { Loaded } from '../hooks/useLoaded';
 import type { NavigateMode, UrlState } from '../lib/urlState';
 import { useUrlState } from '../lib/urlState';
 import { isSelectable, setShown, shownState, toggleOne } from '../lib/documentSelection';
+import { DEFAULT_PAGE_SIZE, PAGE_SIZES, paginate } from '../lib/pagination';
+import type { PageSize } from '../lib/pagination';
 import { signalPanelOpen } from '../lib/panelSignal';
 import { DocumentFilterBar } from './DocumentFilterBar';
 import { DocumentName, UpdatedAt, displayName, statusName } from './documentDisplay';
@@ -83,6 +86,8 @@ function DocumentTable({
 }: DocumentTableProps) {
   const { state: catalogState } = useCollectionCatalog();
   const { targets: targetState, docTypes: docTypeState } = useClassificationCatalog();
+  // ページ番号は、検索・絞り込み・並び替えの条件（key）とともに持つ。条件が変わったら 1 ページ目に戻す（選択は変えない）
+  const [paging, setPaging] = useState<{ key: string; page: number; size: PageSize }>({ key: '', page: 1, size: DEFAULT_PAGE_SIZE });
   if (state.status !== 'ready') return <Status state={state} onRetry={onRetry} />;
   if (!state.data.configured) return <p>{MSG_NOT_CONFIGURED}</p>;
   if (state.data.documents.length === 0) return <p>{MSG_NO_DOCUMENTS}</p>;
@@ -105,6 +110,11 @@ function DocumentTable({
   const allDocuments = state.data.documents;
   const filtered = shown.length < allDocuments.length;
   const selectableTotal = allDocuments.filter(isSelectable).length;
+  const key = JSON.stringify([collection, filter]);
+  const pageData = paginate(shown, paging.key === key ? paging.page : 1, paging.size);
+  const shownSelectable = shownState(shown, selection?.selected ?? new Set()).selectable;
+  const shownChecked = shownState(shown, selection?.selected ?? new Set()).checked;
+  const goTo = (page: number) => setPaging({ key, page, size: paging.size });
 
   return (
     <>
@@ -142,9 +152,26 @@ function DocumentTable({
               {MSG_NOTHING_SELECTED}
             </span>
           )}
-          {filtered && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            disabled={shownSelectable === 0 || shownChecked === shownSelectable}
+            onClick={() => selection.onChange(setShown(selection.selected, shown, true))}
+          >
+            検索結果の全 {shownSelectable} 件を選択
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            disabled={shownChecked === 0}
+            onClick={() => selection.onChange(setShown(selection.selected, shown, false))}
+          >
+            検索結果の選択を解除
+          </button>
+          {(filtered || pageData.pageCount > 1) && (
             <span className="docs-ask-label">
-              全選択・解除は、表示中の {shownState(shown, selection.selected).selectable} 件だけに効きます（検索・絞り込みでは、選択は変わりません）。
+              見出しのチェックは、このページの {shownState(pageData.rows, selection.selected).selectable} 件だけに効きます。
+              「検索結果の全 {shownSelectable} 件を選択」は、ほかのページも含む検索結果すべてに効きます（検索・並び替え・ページ移動では、選択は変わりません）。
             </span>
           )}
         </div>
@@ -152,14 +179,40 @@ function DocumentTable({
       {shown.length === 0 ? (
         <p className="document-filter-empty">{collection !== null ? MSG_NO_MATCH_LEGACY : MSG_NO_MATCH}</p>
       ) : (
-        <DocumentRows
-          documents={shown}
-          showTarget={filter.target === null}
-          openId={openId}
-          onOpen={onOpen}
-          selection={selection}
-          filtered={filtered}
-        />
+        <>
+          <DocumentRows documents={pageData.rows} showTarget={filter.target === null} openId={openId} onOpen={onOpen} selection={selection} />
+          <nav className="docs-pager" aria-label="ページ移動">
+            <span className="docs-pager-range">
+              {pageData.from}–{pageData.to} 件目 / 全 {pageData.total} 件
+            </span>
+            <label className="docs-pager-size">
+              表示件数
+              <select value={paging.size} onChange={(event) => setPaging({ key, page: 1, size: Number(event.target.value) as PageSize })}>
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>
+                    {n} 件
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="docs-pager-nav">
+              <button type="button" className="btn btn-secondary btn-small" disabled={pageData.page <= 1} onClick={() => goTo(pageData.page - 1)}>
+                前へ
+              </button>
+              <span aria-live="polite">
+                {pageData.page} / {pageData.pageCount} ページ
+              </span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-small"
+                disabled={pageData.page >= pageData.pageCount}
+                onClick={() => goTo(pageData.page + 1)}
+              >
+                次へ
+              </button>
+            </span>
+          </nav>
+        </>
       )}
     </>
   );
@@ -172,15 +225,13 @@ interface DocumentRowsProps {
   openId: number | null;
   onOpen: (document: DocumentSummary, opener: Element | null) => void;
   selection?: DocumentSelection | undefined;
-  /** 検索・絞り込みで、一部の資料だけを表示している（見出し行のチェックは、表示中の資料だけに効く）。 */
-  filtered: boolean;
 }
 
 /**
  * 資料のテーブル。列は、API が返す情報だけ（資料名・対象・資料種別・ページ数・更新日時）。資料名を押すと、右のパネルに詳細を開く。
  * 取り込み済みの印は出さず、取り込み中・失敗だけを資料名の横に出す。ファイル名は、同じ題名の資料を見分けるときだけ出す（ふだんは詳細のパネルで見る）。
  */
-function DocumentRows({ documents, showTarget, openId, onOpen, selection, filtered }: DocumentRowsProps) {
+function DocumentRows({ documents, showTarget, openId, onOpen, selection }: DocumentRowsProps) {
   const { targets, docTypes } = useClassificationCatalog();
   const targetItems = classificationItems(targets);
   const docTypeItems = classificationItems(docTypes);
@@ -197,8 +248,8 @@ function DocumentRows({ documents, showTarget, openId, onOpen, selection, filter
               <th scope="col" className="col-check">
                 <input
                   type="checkbox"
-                  aria-label={filtered ? `表示中の ${state.selectable} 件を全選択・解除` : '全資料を全選択・解除'}
-                  title={filtered ? '表示中の資料だけが対象です' : undefined}
+                  aria-label={`このページの ${state.selectable} 件を全選択・解除`}
+                  title="このページの資料だけが対象です"
                   checked={allChecked}
                   disabled={state.selectable === 0}
                   ref={(input) => {

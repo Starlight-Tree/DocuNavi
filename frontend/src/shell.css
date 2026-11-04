@@ -1409,6 +1409,27 @@
   font-size: 0.85rem;
 }
 
+.docs-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.25rem;
+  padding: 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+.docs-pager-range {
+  color: var(--text-muted);
+}
+
+.docs-pager-size,
+.docs-pager-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 /* チェックボックスの列（見出し行は全選択・解除）。資料名の前に置く */
 .documents-table .col-check {
   width: 2.25rem;

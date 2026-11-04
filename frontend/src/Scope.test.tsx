@@ -381,7 +381,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     for (const name of ['ザーハード1.pdf', 'ザーハード2.pdf', 'cafe_store_guide.pdf', 'field_note.pdf']) {
       expect(await rowCheck(name)).toBeChecked();
     }
-    expect(await headerCheck('全資料を全選択・解除')).toBeChecked();
+    expect(await headerCheck('このページの 4 件を全選択・解除')).toBeChecked();
     expect(await resetButton()).toBeDisabled();
     expect(screen.queryByRole('button', { name: /回答に使う$/ })).not.toBeInTheDocument();
   });
@@ -395,8 +395,8 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
 
     expect(await summaryText()).toBe('回答に使う資料：3 / 4 件');
     expect(await rowCheck('field_note.pdf')).not.toBeChecked();
-    expect(await headerCheck('全資料を全選択・解除')).not.toBeChecked();
-    expect((await headerCheck('全資料を全選択・解除')) as HTMLInputElement).toHaveProperty('indeterminate', true);
+    expect(await headerCheck('このページの 4 件を全選択・解除')).not.toBeChecked();
+    expect((await headerCheck('このページの 4 件を全選択・解除')) as HTMLInputElement).toHaveProperty('indeterminate', true);
     expect(await resetButton()).toBeEnabled();
     expect(chatBodies).toHaveLength(0);
     // 資料を開かない（チェックは行のクリックに伝わらない）
@@ -419,10 +419,10 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     // 絞り込んだだけでは何も変わらない
     expect(await summaryText()).toBe('回答に使う資料：4 / 4 件');
     expect(await resetButton()).toBeDisabled();
-    expect((await askArea()).textContent).toContain('全選択・解除は、表示中の 2 件だけに効きます');
+    expect((await askArea()).textContent).toContain('見出しのチェックは、このページの 2 件だけに効きます');
 
     // 表示中の 2 件だけ解除する
-    await user.click(await headerCheck('表示中の 2 件を全選択・解除'));
+    await user.click(await headerCheck('このページの 2 件を全選択・解除'));
     expect(await summaryText()).toBe('回答に使う資料：2 / 4 件');
 
     // 絞り込みを解除しても、表示していなかった 2 件の選択は変わっていない
@@ -430,10 +430,10 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(await rowCheck('ザーハード1.pdf')).not.toBeChecked();
     expect(await rowCheck('cafe_store_guide.pdf')).toBeChecked();
     expect(await rowCheck('field_note.pdf')).toBeChecked();
-    expect(await headerCheck('全資料を全選択・解除')).not.toBeChecked();
+    expect(await headerCheck('このページの 4 件を全選択・解除')).not.toBeChecked();
 
     // 全体で全選択すると、全部に戻る（保存の形は「絞らない」）
-    await user.click(await headerCheck('全資料を全選択・解除'));
+    await user.click(await headerCheck('このページの 4 件を全選択・解除'));
     expect(await summaryText()).toBe('回答に使う資料：4 / 4 件');
     expect(await resetButton()).toBeDisabled();
   });
@@ -445,7 +445,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
 
     await user.type(await screen.findByRole('searchbox'), 'ザーハード');
     await waitFor(() => expect(screen.getAllByRole('row').slice(1)).toHaveLength(2));
-    await user.click(await headerCheck('表示中の 2 件を全選択・解除'));
+    await user.click(await headerCheck('このページの 2 件を全選択・解除'));
 
     expect(await summaryText()).toBe('回答に使う資料：2 / 4 件');
   });
@@ -455,7 +455,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     const { user } = setup();
     await openDocuments(user);
 
-    await user.click(await headerCheck('全資料を全選択・解除'));
+    await user.click(await headerCheck('このページの 4 件を全選択・解除'));
 
     expect(await summaryText()).toBe('回答に使う資料：0 / 4 件');
     expect(within(await askArea()).getByRole('status')).toHaveTextContent('1 件も選ばれていない');
@@ -580,6 +580,115 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(await rowCheck('ザーハード2.pdf')).toBeDisabled();
     expect(await rowCheck('cafe_store_guide.pdf')).toBeDisabled();
     expect(await resetButton()).toBeDisabled();
+  });
+});
+
+describe('資料一覧: ページ分けと選択', () => {
+  // 60 件。奇数は対象 minato-coffee、偶数は zahard（30 件ずつ）
+  const many = {
+    configured: true,
+    documents: Array.from({ length: 60 }, (_, i) => {
+      const n = i + 1;
+      return summary(n, `資料 ${String(n).padStart(2, '0')}.pdf`, 'zahard', n % 2 === 0 ? 'zahard' : 'minato-coffee', 'setting');
+    }),
+  };
+  const rows = () => screen.getAllByRole('row').slice(1);
+  const pager = () => screen.findByRole('navigation', { name: 'ページ移動' });
+  const next = async (user: User) => user.click(within(await pager()).getByRole('button', { name: '次へ' }));
+  const summaryText = async () =>
+    (await screen.findByRole('group', { name: '回答に使う資料' })).querySelector('.docs-ask-summary')?.textContent;
+  const rowCheck = (name: string) => screen.findByRole('checkbox', { name: `${name} を回答に使う` });
+
+  it('既定は 25 件。下に表示範囲・総件数・前へ／次へが出て、25・50・100 件に切り替えられる', async () => {
+    install({ documents: many });
+    const { user } = setup();
+    await openKnowledge(user);
+
+    await waitFor(() => expect(rows()).toHaveLength(25));
+    expect(await pager()).toHaveTextContent('1–25 件目 / 全 60 件');
+    expect(within(await pager()).getByText('1 / 3 ページ')).toBeInTheDocument();
+    expect(within(await pager()).getByRole('button', { name: '前へ' })).toBeDisabled();
+
+    await next(user);
+    expect(await pager()).toHaveTextContent('26–50 件目 / 全 60 件');
+    await next(user);
+    expect(await pager()).toHaveTextContent('51–60 件目 / 全 60 件');
+    expect(rows()).toHaveLength(10);
+    expect(within(await pager()).getByRole('button', { name: '次へ' })).toBeDisabled();
+
+    const size = within(await pager()).getByRole('combobox', { name: '表示件数' });
+    expect(within(size).getAllByRole('option').map((o) => o.textContent)).toEqual(['25 件', '50 件', '100 件']);
+    await user.selectOptions(size, '50');
+    expect(rows()).toHaveLength(50);
+    expect(await pager()).toHaveTextContent('1–50 件目 / 全 60 件'); // 表示件数を変えたら 1 ページ目に戻る
+    await user.selectOptions(size, '100');
+    expect(rows()).toHaveLength(60);
+    expect(await pager()).toHaveTextContent('1–60 件目 / 全 60 件');
+  });
+
+  it('ページを移動しても、表示件数を変えても、選択は保たれる。選択済み件数は全ページの合計', async () => {
+    install({ documents: many });
+    const { user } = setup();
+    await openKnowledge(user);
+    expect(await summaryText()).toBe('回答に使う資料：60 / 60 件');
+
+    await user.click(await rowCheck('資料 01.pdf'));
+    expect(await summaryText()).toBe('回答に使う資料：59 / 60 件');
+
+    await next(user);
+    await user.click(await rowCheck('資料 30.pdf'));
+    expect(await summaryText()).toBe('回答に使う資料：58 / 60 件');
+
+    await user.click(within(await pager()).getByRole('button', { name: '前へ' }));
+    expect(await rowCheck('資料 01.pdf')).not.toBeChecked();
+    await user.selectOptions(within(await pager()).getByRole('combobox', { name: '表示件数' }), '100');
+    expect(await rowCheck('資料 01.pdf')).not.toBeChecked();
+    expect(await rowCheck('資料 30.pdf')).not.toBeChecked();
+    expect(await rowCheck('資料 02.pdf')).toBeChecked();
+    expect(await summaryText()).toBe('回答に使う資料：58 / 60 件');
+  });
+
+  it('見出しのチェックは「このページ」だけ。「検索結果の全○件を選択」は全ページに効く', async () => {
+    install({ documents: many });
+    const { user } = setup();
+    await openKnowledge(user);
+
+    await user.click(await screen.findByRole('checkbox', { name: 'このページの 25 件を全選択・解除' }));
+    expect(await summaryText()).toBe('回答に使う資料：35 / 60 件');
+
+    await user.click(await screen.findByRole('button', { name: '検索結果の選択を解除' }));
+    expect(await summaryText()).toBe('回答に使う資料：0 / 60 件');
+    await user.click(await screen.findByRole('button', { name: '検索結果の全 60 件を選択' }));
+    expect(await summaryText()).toBe('回答に使う資料：60 / 60 件');
+    expect(screen.getByRole('button', { name: '検索結果の全 60 件を選択' })).toBeDisabled();
+  });
+
+  it('検索・並び替えは全件に適用して 1 ページ目に戻る。選択は変わらず、検索結果の全選択・解除は検索結果だけに効く', async () => {
+    install({ documents: many });
+    const { user } = setup();
+    await openKnowledge(user);
+
+    await next(user);
+    await next(user);
+    expect(await pager()).toHaveTextContent('51–60 件目');
+
+    // 絞り込み（対象）で 1 ページ目に戻る。30 件 → 25 件 + 5 件
+    await user.selectOptions(await screen.findByRole('combobox', { name: '対象' }), 'zahard');
+    expect(await pager()).toHaveTextContent('1–25 件目 / 全 30 件');
+    expect(await summaryText()).toBe('回答に使う資料：60 / 60 件');
+
+    // 検索結果（30 件）だけを解除する。ほかの 30 件の選択は変わらない
+    await user.click(screen.getByRole('button', { name: '検索結果の選択を解除' }));
+    expect(await summaryText()).toBe('回答に使う資料：30 / 60 件');
+    expect(screen.getByRole('button', { name: '検索結果の全 30 件を選択' })).toBeEnabled();
+
+    await next(user);
+    expect(await pager()).toHaveTextContent('26–30 件目 / 全 30 件');
+
+    // 並び替えでも 1 ページ目に戻る
+    await user.selectOptions(await screen.findByRole('combobox', { name: '並び替え' }), 'name');
+    expect(await pager()).toHaveTextContent('1–25 件目 / 全 30 件');
+    expect(await summaryText()).toBe('回答に使う資料：30 / 60 件');
   });
 });
 

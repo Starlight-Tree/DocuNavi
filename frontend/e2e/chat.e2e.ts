@@ -113,14 +113,14 @@ test('資料一覧の対象の選択は一覧を絞るだけ。資料ごとの�
   await expect(page.getByRole('checkbox', { name: '準備中の資料 を回答に使う' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '全資料に戻す' })).toBeDisabled();
 
-  // 対象を選んでも、一覧が絞られるだけで、選択は変わらない。全選択・解除は表示中の資料だけに効く
+  // 対象を選んでも、一覧が絞られるだけで、選択は変わらない。見出しのチェックはこのページだけに効く
   await targetSelect.selectOption('minato-coffee');
   await expect(page).toHaveURL(/target=minato-coffee/);
   await expect(page.getByRole('row')).toHaveCount(2); // 見出し + みなとコーヒーの 1 件
   await expect(page.getByRole('columnheader')).toHaveText(['', '資料名', '資料種別', 'ページ数', '更新日時']);
   await expect(summary).toHaveText('回答に使う資料：7 / 7 件');
-  await expect(page.getByText(/全選択・解除は、表示中の 1 件だけに効きます/)).toBeVisible();
-  await page.getByRole('checkbox', { name: '表示中の 1 件を全選択・解除' }).uncheck();
+  await expect(page.getByText(/見出しのチェックは、このページの 1 件だけに効きます/)).toBeVisible();
+  await page.getByRole('checkbox', { name: 'このページの 1 件を全選択・解除' }).uncheck();
   await expect(summary).toHaveText('回答に使う資料：6 / 7 件');
   await targetSelect.selectOption('');
   await expect(page.getByRole('checkbox', { name: '店舗案内 を回答に使う' })).not.toBeChecked();
@@ -142,7 +142,7 @@ test('資料一覧の対象の選択は一覧を絞るだけ。資料ごとの�
 
 test('選んだ資料にザーハードが無ければ、その質問は該当なしになる。0 件にすると送れず、「全資料に戻す」で戻る', async ({ page }) => {
   await page.goto('/?tab=documents');
-  await page.getByRole('checkbox', { name: '全資料を全選択・解除' }).uncheck();
+  await page.getByRole('checkbox', { name: 'このページの 7 件を全選択・解除' }).uncheck();
   await expect(page.locator('.docs-ask-summary')).toHaveText('回答に使う資料：0 / 7 件');
   await expect(page.getByRole('group', { name: '回答に使う資料' }).getByRole('status')).toContainText('1 件も選ばれていない');
 
