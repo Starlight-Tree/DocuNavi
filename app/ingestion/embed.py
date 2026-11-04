@@ -20,7 +20,6 @@ from dotenv import load_dotenv
 
 from app.history import database_url
 from app.ingestion.embedding import (
-    BATCH_SIZE,
     DEFAULT_MAX_CALLS,
     DEFAULT_MAX_CHUNKS,
     DIMENSIONS,
@@ -31,6 +30,7 @@ from app.ingestion.embedding import (
     EmbedReport,
     GeminiEmbedder,
     PostgresEmbeddingStore,
+    batch_size,
     embed_pending,
     use_vertex,
 )
@@ -50,7 +50,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _print_report(report: EmbedReport, max_chunks: int, max_calls: int) -> None:
-    print(f"モデル: {MODEL}、{DIMENSIONS} 次元、1 回に最大 {BATCH_SIZE} 件")
+    print(f"モデル: {MODEL}、{DIMENSIONS} 次元、1 回に最大 {batch_size()} 件")
     print(f"埋め込みの無いチャンク: {report.pending_total} 件、今回の対象: {report.selected} 件")
     print(f"送る文字数: {report.characters}（前置きを含む）、必要な呼び出し: {report.calls_needed} 回")
     print(

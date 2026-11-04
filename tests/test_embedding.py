@@ -276,6 +276,19 @@ def test_apply_batches_the_chunks_and_saves_them_all():
     assert embedder.sent[0][:2] == ["title: none | text: 本文1", "title: 見出し2 | text: 本文2"]
 
 
+def test_vertex_ai_sends_one_text_per_call(monkeypatch):
+    # SDK は Vertex の gemini-embedding-2 に 1 回 1 本しか渡させない（複数だと ValueError）。呼び出しの回数も本数に合わせて数える
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
+    assert embedding.batch_size() == 1
+    store, budget = FakeStore(5), ApiBudget(10)
+    embedder = FakeEmbedder(budget)
+    dry = embed_pending(store, embedder, budget, max_chunks=300, apply=False)
+    assert dry.calls_needed == 5
+    report = embed_pending(store, embedder, budget, max_chunks=300, apply=True)
+    assert [len(batch) for batch in embedder.sent] == [1] * 5
+    assert (report.saved, report.calls, report.error) == (5, 5, None)
+
+
 def test_a_second_run_skips_what_is_already_embedded():
     store = FakeStore(40)
     first_budget = ApiBudget(10)
