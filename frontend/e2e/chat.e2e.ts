@@ -295,7 +295,7 @@ test('PC: 左サイドバーを閉じると、アイコンだけの細いレー�
   await expect(targetButton(page)).toContainText('ザーハード');
 
   // 各アイコンに読み上げ名とツールチップがあり、選択中の画面が分かる
-  const chatIcon = rail.getByRole('link', { name: 'DocuNavi（チャットへ戻る）' });
+  const chatIcon = rail.getByRole('link', { name: 'チャット' });
   const knowledgeIcon = rail.getByRole('link', { name: 'ナレッジ' });
   await expect(rail.getByRole('button', { name: '新しい会話' })).toBeVisible();
   await expect(chatIcon).toHaveAttribute('aria-current', 'page');

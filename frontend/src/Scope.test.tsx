@@ -1170,13 +1170,13 @@ describe('左サイドバーの開閉', () => {
       const rail = screen.getByRole('navigation', { name: 'サイドバー（縮小表示）' });
       expect(within(rail).getByRole('button', { name: 'サイドバーを開く' })).toHaveFocus();
       expect(document.querySelector('.ws-main-bar')).toBeNull();
-      expect(within(rail).getByRole('link', { name: 'DocuNavi（チャットへ戻る）' })).toHaveAttribute('aria-current', 'page');
+      expect(within(rail).getByRole('link', { name: 'チャット' })).toHaveAttribute('aria-current', 'page');
       expect(within(rail).getByRole('button', { name: '新しい会話' })).toBeInTheDocument();
       expect(within(rail).getByRole('link', { name: 'ナレッジ' })).not.toHaveAttribute('aria-current');
 
       await user.click(within(rail).getByRole('link', { name: 'ナレッジ' }));
       expect(within(rail).getByRole('link', { name: 'ナレッジ' })).toHaveAttribute('aria-current', 'page');
-      expect(within(rail).getByRole('link', { name: 'DocuNavi（チャットへ戻る）' })).not.toHaveAttribute('aria-current');
+      expect(within(rail).getByRole('link', { name: 'チャット' })).not.toHaveAttribute('aria-current');
 
       await user.click(within(rail).getByRole('button', { name: 'サイドバーを開く' }));
       expect(screen.queryByRole('navigation', { name: 'サイドバー（縮小表示）' })).not.toBeInTheDocument();

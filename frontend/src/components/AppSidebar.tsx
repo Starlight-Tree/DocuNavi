@@ -56,6 +56,15 @@ export function BrandIcon() {
   );
 }
 
+/** レールの「チャット」（吹き出し）。 */
+function ChatIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5z" />
+    </svg>
+  );
+}
+
 /** レールの「新しい会話」（線の十字）。 */
 function PlusIcon() {
   return (
@@ -96,10 +105,10 @@ export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation
       {rail && onExpand && (
         <nav className="ws-rail" aria-label="サイドバー（縮小表示）">
           <button ref={railToggleRef} type="button" className="ws-rail-btn" aria-label="サイドバーを開く" data-tip="サイドバーを開く" onClick={onExpand}>
-            <SidebarIcon />
-          </button>
-          <a href="?tab=chat" className="ws-rail-btn" aria-label="DocuNavi（チャットへ戻る）" data-tip="チャット" aria-current={view === 'chat' ? 'page' : undefined} onClick={inApp(onGoChat)}>
             <BrandIcon />
+          </button>
+          <a href="?tab=chat" className="ws-rail-btn" aria-label="チャット" data-tip="チャット" aria-current={view === 'chat' ? 'page' : undefined} onClick={inApp(onGoChat)}>
+            <ChatIcon />
           </a>
           <button type="button" className="ws-rail-btn" aria-label="新しい会話" data-tip="新しい会話" onClick={onNewConversation}>
             <PlusIcon />
