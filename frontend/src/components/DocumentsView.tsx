@@ -14,6 +14,7 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZES, paginate } from '../lib/pagination';
 import type { PageSize } from '../lib/pagination';
 import { signalPanelOpen } from '../lib/panelSignal';
 import { DocumentFilterBar } from './DocumentFilterBar';
+import { SelectionMenu } from './SelectionMenu';
 import { DocumentName, UpdatedAt, displayName, statusName } from './documentDisplay';
 import { Status } from './Status';
 
@@ -108,11 +109,12 @@ function DocumentTable({
 
   // 一覧の検索・絞り込みは表示を絞るだけで、選択は変えない。全選択・解除は、表示している資料だけに効く
   const allDocuments = state.data.documents;
-  const filtered = shown.length < allDocuments.length;
   const key = JSON.stringify([collection, filter]);
   const pageData = paginate(shown, paging.key === key ? paging.page : 1, paging.size);
   const shownSelectable = shownState(shown, selection?.selected ?? new Set()).selectable;
   const shownChecked = shownState(shown, selection?.selected ?? new Set()).checked;
+  const pageSelectable = shownState(pageData.rows, selection?.selected ?? new Set()).selectable;
+  const pageChecked = shownState(pageData.rows, selection?.selected ?? new Set()).checked;
   // 件数と回答対象は 1 行にまとめる。「全資料に戻す」は、一部だけ選んでいるときに限って出す
   const searching = isFiltered(filter) || collection !== null;
   const answerCount = selection?.selected.size ?? 0;
@@ -124,10 +126,30 @@ function DocumentTable({
         {selection &&
           ` · ${searching ? `回答対象 ${answerCount}件` : partial ? `${answerCount}件を回答対象` : 'すべて回答対象'}`}
       </p>
-      {selection && partial && (
-        <button type="button" className="btn btn-secondary btn-small" onClick={(event) => selection.onReset(event.currentTarget)}>
-          全資料に戻す
-        </button>
+      {selection && (
+        <SelectionMenu
+          items={[
+            {
+              key: 'page',
+              label: `このページ（${pageSelectable}件）を選択`,
+              disabled: pageSelectable === 0 || pageChecked === pageSelectable,
+              onSelect: () => selection.onChange(setShown(selection.selected, pageData.rows, true)),
+            },
+            {
+              key: 'all',
+              label: `検索結果すべて（${shownSelectable}件）を選択`,
+              disabled: shownSelectable === 0 || shownChecked === shownSelectable,
+              onSelect: () => selection.onChange(setShown(selection.selected, shown, true)),
+            },
+            {
+              key: 'clear',
+              label: '検索結果の選択を解除',
+              disabled: shownChecked === 0,
+              onSelect: () => selection.onChange(setShown(selection.selected, shown, false)),
+            },
+            ...(partial ? [{ key: 'reset', label: '全資料に戻す', onSelect: (trigger: HTMLElement) => selection.onReset(trigger) }] : []),
+          ]}
+        />
       )}
     </>
   );
@@ -156,35 +178,11 @@ function DocumentTable({
           )
         }
       />
-      {selection && (
+      {selection && selection.selected.size === 0 && (
         <div className="docs-ask" role="group" aria-label="回答に使う資料">
-          {selection.selected.size === 0 && (
-            <span className="docs-ask-warning" role="status">
-              {MSG_NOTHING_SELECTED}
-            </span>
-          )}
-          <button
-            type="button"
-            className="btn btn-secondary btn-small"
-            disabled={shownSelectable === 0 || shownChecked === shownSelectable}
-            onClick={() => selection.onChange(setShown(selection.selected, shown, true))}
-          >
-            検索結果の全 {shownSelectable} 件を選択
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-small"
-            disabled={shownChecked === 0}
-            onClick={() => selection.onChange(setShown(selection.selected, shown, false))}
-          >
-            検索結果の選択を解除
-          </button>
-          {(filtered || pageData.pageCount > 1) && (
-            <span className="docs-ask-label">
-              見出しのチェックは、このページの {shownState(pageData.rows, selection.selected).selectable} 件だけに効きます。
-              「検索結果の全 {shownSelectable} 件を選択」は、ほかのページも含む検索結果すべてに効きます（検索・並び替え・ページ移動では、選択は変わりません）。
-            </span>
-          )}
+          <span className="docs-ask-warning" role="status">
+            {MSG_NOTHING_SELECTED}
+          </span>
         </div>
       )}
       {shown.length === 0 ? (

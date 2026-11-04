@@ -117,6 +117,18 @@ function setup(auth: FakeAuth | null = null) {
 
 type User = ReturnType<typeof userEvent.setup>;
 
+/** 資料一覧の「選択 ▾」メニューを開いて、項目の名前を返す（閉じる）。項目を選ぶときは chooseItem。 */
+async function menuLabels(user: User) {
+  await user.click(await screen.findByRole('button', { name: '選択' }));
+  const labels = (await screen.findAllByRole('menuitem')).map((n) => n.textContent);
+  await user.keyboard('{Escape}');
+  return labels;
+}
+async function chooseItem(user: User, name: string) {
+  await user.click(await screen.findByRole('button', { name: '選択' }));
+  await user.click(await screen.findByRole('menuitem', { name }));
+}
+
 /** 入力欄の中の、回答対象のチップ（メニューのボタン。一覧が読めてから出る）。 */
 const menuButton = () => screen.findByRole('button', { name: /^回答対象/ });
 const openMenu = async (user: User) => {
@@ -345,14 +357,13 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     await openKnowledge(user);
   }
   const targetSelect = () => screen.findByRole('combobox', { name: '対象' });
-  const askArea = () => screen.findByRole('group', { name: '回答に使う資料' });
+  const askArea = () => screen.findByRole('button', { name: '選択' });
   const rowCheck = (name: string) => screen.findByRole('checkbox', { name: `${name} を回答に使う` });
   const headerCheck = (name: string | RegExp) => screen.findByRole('checkbox', { name });
   const summaryText = async () => {
     await askArea();
     return document.querySelector('.docs-summary')?.textContent;
   };
-  const resetButton = () => screen.findByRole('button', { name: '全資料に戻す' });
   const sendButton = () => screen.getByRole('button', { name: '送信' });
 
   it('対象の選択肢が出る（表示名・資料の数・未分類）。選ぶと一覧が絞られ、URL に載る。グループの選択は無い', async () => {
@@ -385,7 +396,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
       expect(await rowCheck(name)).toBeChecked();
     }
     expect(await headerCheck('このページの 4 件を全選択・解除')).toBeChecked();
-    expect(screen.queryByRole('button', { name: '全資料に戻す' })).not.toBeInTheDocument();
+    expect(await menuLabels(user)).not.toContain('全資料に戻す');
     expect(screen.queryByRole('button', { name: /回答に使う$/ })).not.toBeInTheDocument();
   });
 
@@ -400,7 +411,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(await rowCheck('field_note.pdf')).not.toBeChecked();
     expect(await headerCheck('このページの 4 件を全選択・解除')).not.toBeChecked();
     expect((await headerCheck('このページの 4 件を全選択・解除')) as HTMLInputElement).toHaveProperty('indeterminate', true);
-    expect(await resetButton()).toBeInTheDocument();
+    expect(await menuLabels(user)).toContain('全資料に戻す');
     expect(chatBodies).toHaveLength(0);
     // 資料を開かない（チェックは行のクリックに伝わらない）
     expect(window.location.search).toBe('?tab=documents');
@@ -421,8 +432,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     await user.selectOptions(await targetSelect(), 'zahard');
     // 絞り込んだだけでは何も変わらない
     expect(await summaryText()).toBe('検索結果 2件 · 回答対象 4件');
-    expect(screen.queryByRole('button', { name: '全資料に戻す' })).not.toBeInTheDocument();
-    expect((await askArea()).textContent).toContain('見出しのチェックは、このページの 2 件だけに効きます');
+    expect(await menuLabels(user)).not.toContain('全資料に戻す');
 
     // 表示中の 2 件だけ解除する
     await user.click(await headerCheck('このページの 2 件を全選択・解除'));
@@ -438,7 +448,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     // 全体で全選択すると、全部に戻る（保存の形は「絞らない」）
     await user.click(await headerCheck('このページの 4 件を全選択・解除'));
     expect(await summaryText()).toBe('4件の資料 · すべて回答対象');
-    expect(screen.queryByRole('button', { name: '全資料に戻す' })).not.toBeInTheDocument();
+    expect(await menuLabels(user)).not.toContain('全資料に戻す');
   });
 
   it('キーワード検索の結果だけを全解除しても、検索を消せば残りの選択は残っている', async () => {
@@ -461,7 +471,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     await user.click(await headerCheck('このページの 4 件を全選択・解除'));
 
     expect(await summaryText()).toBe('4件の資料 · 0件を回答対象');
-    expect(within(await askArea()).getByRole('status')).toHaveTextContent('1 件も選ばれていない');
+    expect(within(await screen.findByRole('group', { name: '回答に使う資料' })).getByRole('status')).toHaveTextContent('1 件も選ばれていない');
 
     await goChat(user);
     expect(await menuButton()).toHaveTextContent('回答対象：選択した資料 ・ 0 件');
@@ -473,7 +483,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(screen.getByText(/1 件も選ばれていないため、質問は送れません/)).toBeInTheDocument();
 
     await openDocuments(user);
-    await user.click(await resetButton());
+    await chooseItem(user, '全資料に戻す');
     await goChat(user);
     expect(sendButton()).toBeEnabled();
     await user.click(sendButton());
@@ -487,11 +497,11 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     await openDocuments(user);
     await user.click(await rowCheck('field_note.pdf'));
 
-    await user.click(await resetButton());
+    await chooseItem(user, '全資料に戻す');
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(await summaryText()).toBe('4件の資料 · すべて回答対象');
-    expect(screen.queryByRole('button', { name: '全資料に戻す' })).not.toBeInTheDocument();
+    expect(await menuLabels(user)).not.toContain('全資料に戻す');
     await goChat(user);
     expect(await menuButton()).toHaveTextContent('すべての資料');
   });
@@ -525,9 +535,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(await rowCheck('ザーハード1.pdf')).toBeChecked();
     expect(await rowCheck('cafe_store_guide.pdf')).not.toBeChecked();
 
-    const button = await resetButton();
-    expect(button).toBeEnabled();
-    await user.click(button);
+    await chooseItem(user, '全資料に戻す');
 
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: '新しい会話にする' }));
@@ -582,7 +590,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(await summaryText()).toBe('3件の資料 · すべて回答対象');
     expect(await rowCheck('ザーハード2.pdf')).toBeDisabled();
     expect(await rowCheck('cafe_store_guide.pdf')).toBeDisabled();
-    expect(screen.queryByRole('button', { name: '全資料に戻す' })).not.toBeInTheDocument();
+    expect(await menuLabels(user)).not.toContain('全資料に戻す');
   });
 });
 
@@ -599,7 +607,7 @@ describe('資料一覧: ページ分けと選択', () => {
   const pager = () => screen.findByRole('navigation', { name: 'ページ移動' });
   const next = async (user: User) => user.click(within(await pager()).getByRole('button', { name: '次へ' }));
   const summaryText = async () => {
-    await screen.findByRole('group', { name: '回答に使う資料' });
+    await screen.findByRole('button', { name: '選択' });
     return document.querySelector('.docs-summary')?.textContent;
   };
   const rowCheck = (name: string) => screen.findByRole('checkbox', { name: `${name} を回答に使う` });
@@ -653,7 +661,7 @@ describe('資料一覧: ページ分けと選択', () => {
     expect(await summaryText()).toBe('60件の資料 · 58件を回答対象');
   });
 
-  it('見出しのチェックは「このページ」だけ。「検索結果の全○件を選択」は全ページに効く', async () => {
+  it('見出しのチェックは「このページ」だけ。メニューの「検索結果すべて」は全ページに効く。「このページ」はそのページだけに効く', async () => {
     install({ documents: many });
     const { user } = setup();
     await openKnowledge(user);
@@ -661,11 +669,31 @@ describe('資料一覧: ページ分けと選択', () => {
     await user.click(await screen.findByRole('checkbox', { name: 'このページの 25 件を全選択・解除' }));
     expect(await summaryText()).toBe('60件の資料 · 35件を回答対象');
 
-    await user.click(await screen.findByRole('button', { name: '検索結果の選択を解除' }));
+    await chooseItem(user, '検索結果の選択を解除');
     expect(await summaryText()).toBe('60件の資料 · 0件を回答対象');
-    await user.click(await screen.findByRole('button', { name: '検索結果の全 60 件を選択' }));
+    await chooseItem(user, '検索結果すべて（60件）を選択');
     expect(await summaryText()).toBe('60件の資料 · すべて回答対象');
-    expect(screen.getByRole('button', { name: '検索結果の全 60 件を選択' })).toBeDisabled();
+    await user.click(await screen.findByRole('button', { name: '選択' }));
+    expect(await screen.findByRole('menuitem', { name: '検索結果すべて（60件）を選択' })).toBeDisabled();
+  });
+
+  it('選択メニューの項目と件数は、状態に合わせて変わる。「このページ」はそのページの未選択分だけを足す。「全資料に戻す」は一部選択のときだけ', async () => {
+    install({ documents: many });
+    const { user } = setup();
+    await openKnowledge(user);
+
+    expect(await menuLabels(user)).toEqual(['このページ（25件）を選択', '検索結果すべて（60件）を選択', '検索結果の選択を解除']);
+
+    await chooseItem(user, '検索結果の選択を解除');
+    expect(await summaryText()).toBe('60件の資料 · 0件を回答対象');
+    expect(await menuLabels(user)).toEqual(['このページ（25件）を選択', '検索結果すべて（60件）を選択', '検索結果の選択を解除', '全資料に戻す']);
+
+    await chooseItem(user, 'このページ（25件）を選択');
+    expect(await summaryText()).toBe('60件の資料 · 25件を回答対象');
+
+    await next(user);
+    await chooseItem(user, 'このページ（25件）を選択');
+    expect(await summaryText()).toBe('60件の資料 · 50件を回答対象');
   });
 
   it('検索・並び替えは全件に適用して 1 ページ目に戻る。選択は変わらず、検索結果の全選択・解除は検索結果だけに効く', async () => {
@@ -683,9 +711,11 @@ describe('資料一覧: ページ分けと選択', () => {
     expect(await summaryText()).toBe('検索結果 30件 · 回答対象 60件');
 
     // 検索結果（30 件）だけを解除する。ほかの 30 件の選択は変わらない
-    await user.click(screen.getByRole('button', { name: '検索結果の選択を解除' }));
+    await chooseItem(user, '検索結果の選択を解除');
     expect(await summaryText()).toBe('検索結果 30件 · 回答対象 30件');
-    expect(screen.getByRole('button', { name: '検索結果の全 30 件を選択' })).toBeEnabled();
+    await user.click(await screen.findByRole('button', { name: '選択' }));
+    expect(await screen.findByRole('menuitem', { name: '検索結果すべて（30件）を選択' })).toBeEnabled();
+    await user.keyboard('{Escape}');
 
     await next(user);
     expect(await pager()).toHaveTextContent('26–30 件目 / 全 30 件');
