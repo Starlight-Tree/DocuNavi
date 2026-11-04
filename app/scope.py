@@ -27,6 +27,10 @@ ALLOWED_FILTER_SQL = "(%(allowed)s::text[] IS NULL OR d.collection = ANY(%(allow
 # `%(target)s` は text（None なら絞らない）。対象の無い資料（target が NULL）は、対象を指定したときには含まない
 TARGET_FILTER_SQL = "(%(target)s::text IS NULL OR d.target = %(target)s::text)"
 
+# 資料単位の絞り込み（画面でチェックを付けた資料）。`ALLOWED_FILTER_SQL` と AND で重ねる（資料を選んでも、権限の範囲は広がらない）。
+# `%(doc_ids)s` は bigint[]（None なら絞らない）。該当する資料が無ければ何も返さない
+DOCUMENTS_FILTER_SQL = "(%(doc_ids)s::bigint[] IS NULL OR d.id = ANY(%(doc_ids)s::bigint[]))"
+
 
 @dataclass(frozen=True)
 class Scope:

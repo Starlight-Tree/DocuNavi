@@ -26,6 +26,7 @@ from app.access import (
     target_is_visible,
 )
 from app.agents.graph import STREAM_TOKENS_KEY, build_graph, is_mock_mode
+from app.agents.tools import DOCUMENT_IDS_KEY
 from app.api.ui_stream import DONE, KEEPALIVE, UI_STREAM_HEADERS, UIMessageStream, encode
 from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, history_backend
@@ -63,6 +64,10 @@ COLLECTION_PATTERN = r"^[A-Za-z0-9_-]{1,40}$"
 # 質問の対象（documents.target）の識別名。document_targets.name と同じ形（supabase/migrations/20261103150000）
 TARGET_PATTERN = r"^[a-z0-9][a-z0-9-]{0,39}$"
 _DETAIL_BOTH_SCOPES = "target と collection は同時に指定できません。"
+_DETAIL_DOCUMENTS_AND_SCOPE = "document_ids は target・collection と同時に指定できません。"
+# 一度に選べる資料の数。資料一覧の上限（app/api/documents.py の _MAX_DOCUMENTS）と同じ
+MAX_DOCUMENT_IDS = 500
+_MAX_DOCUMENT_ID = 9_223_372_036_854_775_807  # bigint の上限（DB に渡す前に 422 にする）
 
 
 def _optional_classes(*specs: tuple[str, str]) -> tuple[type[BaseException], ...]:
@@ -133,11 +138,25 @@ class ChatRequest(BaseModel):
         ),
     )
 
+    document_ids: list[Annotated[int, Field(ge=1, le=_MAX_DOCUMENT_ID)]] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_DOCUMENT_IDS,
+        description=(
+            "このターンの回答に使う資料（documents.id）。画面でチェックを付けた資料で、ターンごとに送る（会話には固定されない）。"
+            "送ると、会話の対象（target）・旧グループ（collection）に代わって、見える資料の中のこの資料だけを探す。"
+            "見えない・存在しない資料は黙って除く（全部そうなら検索は 0 件）。省略は資料で絞らない。空の並びは 422"
+            "（「選ばない」を「全部」と読み替えない）。target / collection と同時には指定できない（422）"
+        ),
+    )
+
     @model_validator(mode="after")
     def _one_scope(self) -> "ChatRequest":
         # 対象と旧グループは、同時に指定できない（新しい会話でも続きの会話でも）。黙って片方を捨てると、範囲が広がるため
         if self.target is not None and self.collection is not None:
             raise ValueError(_DETAIL_BOTH_SCOPES)
+        if self.document_ids is not None and (self.target is not None or self.collection is not None):
+            raise ValueError(_DETAIL_DOCUMENTS_AND_SCOPE)
         return self
 
     @field_validator("thread_id", mode="before")
@@ -310,6 +329,12 @@ async def _require_visible_target(access: Access, target: str) -> None:
         raise HTTPException(status_code=403, detail=DETAIL_FORBIDDEN_TARGET)
 
 
+def _add_document_ids(config: dict, document_ids: list[int] | None) -> None:
+    """今ターンで選ばれた資料を、検索ツールへ渡す config に入れる（会話の状態＝チェックポイントには残さない）。"""
+    if document_ids is not None:
+        config["configurable"][DOCUMENT_IDS_KEY] = tuple(sorted(set(document_ids)))
+
+
 def _turn_inputs(message: str, collection: str | None, target: str | None = None) -> dict:
     """1 ターンの入力。context・sources・hit_count は直近のターンの検索結果だけを返したいので、毎ターン空に戻す。
 
@@ -394,6 +419,7 @@ async def chat(
     # 履歴のキーは、ログイン中なら利用者 ID つき。クライアントに返す thread_id は接頭辞なしのまま。
     # 検索できる範囲（ACCESS_SCOPE_KEY）は、会話の状態ではなく config で渡す（チェックポイントに残さない）
     config = {"configurable": {"thread_id": conversation_key(user_id, thread_id), ACCESS_SCOPE_KEY: access.scope}}
+    _add_document_ids(config, req.document_ids)
     started = time.monotonic()
     work: asyncio.Future | None = None
     gone: asyncio.Future | None = None
@@ -574,6 +600,7 @@ async def chat_stream(
             ACCESS_SCOPE_KEY: access.scope,
         }
     }
+    _add_document_ids(config, req.document_ids)
     inputs = _turn_inputs(req.message, req.collection, req.target)
     started = time.monotonic()
     try:

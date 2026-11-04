@@ -27,6 +27,8 @@ interface ScopePickerProps {
   onRetry?: (() => void) | undefined;
   /** 会話がある（回答対象は会話ごとに固定）。 */
   fixed: boolean;
+  /** 資料を選んでいる（資料一覧のチェック）。この間の回答対象は、会話に固定されず、質問ごとに送る。 */
+  selecting?: boolean;
   /** 回答を作っている間は変えられない。 */
   disabled: boolean;
   /** 回答対象を選んだ。`trigger` は、確認を閉じたあとにフォーカスを戻す先（チップのボタン）。 */
@@ -38,7 +40,17 @@ interface ScopePickerProps {
  * 変更はメニュー（入力欄の上に開く。対象が増えても、横長の列に頼らない）。会話があるときに選ぶと、呼び出し側が確認を出して、新しい会話にする。
  * 開いたら、選ばれている項目にフォーカスを置く。↑↓ で移動、Esc で閉じてチップへ戻る。
  */
-export function ScopePicker({ targetLabel, documentCount, items, failed = false, onRetry, fixed, disabled, onSelect }: ScopePickerProps) {
+export function ScopePicker({
+  targetLabel,
+  documentCount,
+  items,
+  failed = false,
+  onRetry,
+  fixed,
+  selecting = false,
+  disabled,
+  onSelect,
+}: ScopePickerProps) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
@@ -142,7 +154,17 @@ export function ScopePicker({ targetLabel, documentCount, items, failed = false,
       ) : (
         <span className="scope-chip scope-chip-static">{value}</span>
       )}
-      {items && <span className="scope-picker-hint">{disabled ? '回答の生成中は変えられません' : fixed ? 'この会話で固定' : '最初の質問で固定'}</span>}
+      {items && (
+        <span className="scope-picker-hint">
+          {disabled
+            ? '回答の生成中は変えられません'
+            : selecting
+              ? '資料一覧で選択中（質問ごとに適用）'
+              : fixed
+                ? 'この会話で固定'
+                : '最初の質問で固定'}
+        </span>
+      )}
       {failed && (
         <span className="scope-picker-failure" role="status">
           対象の一覧を読み込めませんでした。

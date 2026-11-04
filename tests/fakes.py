@@ -2,6 +2,7 @@
 
 import re
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 from langchain_core.callbacks import CallbackManagerForLLMRun
@@ -78,8 +79,9 @@ class FakeSearch:
         *,
         scope: Scope | None = None,
         target: str | None = None,
+        document_ids: Sequence[int] | None = None,
     ) -> list[Hit]:
-        # scope と target は受け取るだけで見ない（範囲を見る偽物は GroupedFakeSearch）。collection も従来どおり見ない
+        # scope・target・document_ids は受け取るだけで見ない（範囲を見る偽物は GroupedFakeSearch）。collection も従来どおり見ない
         hits = [
             Hit(name, text, page) for keywords, name, text, page in self.CHUNKS if any(k in query for k in keywords)
         ]
@@ -96,6 +98,8 @@ class ScopedFakeSearch(FakeSearch):
 
     COLLECTION = "zahard"
     TARGET = "zahard"
+    # 資料単位の選択（`document_ids`）用。E2E の偽の DB（tests/e2e_server.py の _DOCUMENTS）の ID と同じ
+    DOCUMENT_IDS = {"ザーハード1.pdf": 1, "ザーハード2.pdf": 2, "ザーハード3.pdf": 3}
 
     async def __call__(
         self,
@@ -105,12 +109,15 @@ class ScopedFakeSearch(FakeSearch):
         *,
         scope: Scope | None = None,
         target: str | None = None,
+        document_ids: Sequence[int] | None = None,
     ) -> list[Hit]:
         hits = await super().__call__(query, top_k)
         if collection is not None and collection != self.COLLECTION:
             return []
         if target is not None and target != self.TARGET:
             return []
+        if document_ids is not None:
+            hits = [hit for hit in hits if self.DOCUMENT_IDS.get(hit.source) in document_ids]
         return [hit._replace(collection=self.COLLECTION, target=self.TARGET) for hit in hits]
 
 

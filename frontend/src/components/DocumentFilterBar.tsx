@@ -14,8 +14,8 @@ export interface DocumentFilterOptions {
 interface DocumentFilterBarProps {
   filter: DocumentFilter;
   options: DocumentFilterOptions;
-  /** 条件に合う資料の数（並び替えの前後で変わらない）。 */
-  resultCount: number;
+  /** 件数と回答対象を 1 行にまとめた表示（呼び出し側が組み立てる）。 */
+  summary: ReactNode;
   /** 条件を変える。`replace` は、入力の途中のように、履歴を増やしたくない変更。 */
   onChange: (next: Partial<DocumentFilter>, mode?: 'push' | 'replace') => void;
   onClear: () => void;
@@ -53,7 +53,7 @@ function FacetSelect<T extends string>({ label, value, options, onSelect }: Face
  * 操作は、検索・対象・資料種別・並び替え。状態・ページ数・更新の欄は持たない（URL で指定された条件は、チップで見せて外せる）。
  * キーワードの入力欄だけ、日本語の変換中の文字が URL の往復で崩れないよう、手元の文字を持ち、URL が外から変わったときに合わせる。
  */
-export function DocumentFilterBar({ filter, options, resultCount, onChange, onClear, notice }: DocumentFilterBarProps) {
+export function DocumentFilterBar({ filter, options, summary, onChange, onClear, notice }: DocumentFilterBarProps) {
   const [text, setText] = useState(filter.query);
   useEffect(() => {
     setText(filter.query);
@@ -103,7 +103,7 @@ export function DocumentFilterBar({ filter, options, resultCount, onChange, onCl
       </section>
       {notice}
       <div className="document-filter-result">
-        <p role="status">{resultCount > 0 ? `${resultCount} 件の資料が見つかりました` : '該当する資料が見つかりませんでした'}</p>
+        {summary}
         {chips.length > 0 && (
           <ul className="document-chips" aria-label="有効な条件">
             {chips.map((chip) => (

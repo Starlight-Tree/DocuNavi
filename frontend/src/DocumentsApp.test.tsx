@@ -1006,7 +1006,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
       .map((row) => row.querySelector('.document-name')?.textContent ?? '');
   const keyword = () => screen.getByRole('searchbox', { name: /資料名で検索/ });
   const select = (name: string) => screen.getByRole('combobox', { name });
-  const result = () => screen.getByText(/件の資料が見つかりました|該当する資料が見つかりませんでした/);
+  const result = () => document.querySelector('.docs-summary');
   async function openList() {
     const { user } = setup();
     await openDocuments(user);
@@ -1024,7 +1024,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(select('並び替え')).toHaveValue('default');
     expect(screen.queryByRole('button', { name: /^フィルター/ })).not.toBeInTheDocument();
     for (const name of ['状態', 'ページ数', '更新']) expect(screen.queryByRole('combobox', { name })).not.toBeInTheDocument();
-    expect(result()).toHaveTextContent('5 件の資料が見つかりました');
+    expect(result()).toHaveTextContent('5件の資料 · すべて回答対象');
     expect(names()).toHaveLength(5);
     expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
     // 既定の並びはサーバーの順のまま
@@ -1039,7 +1039,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     await user.type(keyword(), '入寮');
     expect(names()).toHaveLength(1);
     expect(names()[0]).toMatch(/入寮規程/);
-    expect(result()).toHaveTextContent('1 件の資料が見つかりました');
+    expect(result()).toHaveTextContent('検索結果 1件 · 回答対象 4件');
     expect(window.location.search).toBe('?tab=documents&q=%E5%85%A5%E5%AF%AE');
     expect(window.history.length).toBe(length);
     expect(screen.getByRole('button', { name: '条件をクリア' })).toBeInTheDocument();
@@ -1061,7 +1061,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     const user = await openList();
 
     await user.type(keyword(), 'zzzz');
-    expect(result()).toHaveTextContent('該当する資料が見つかりませんでした');
+    expect(result()).toHaveTextContent('検索結果 0件 · 回答対象 4件');
     expect(screen.getByText(MSG_NO_MATCH)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
 
@@ -1093,7 +1093,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(files()).toEqual(['ザーハード2.pdf', 'ザーハード1.pdf', 'cafe_store_guide.pdf', 'つばさ大学学生寮 入寮規程', 'aoba_aw820_manual.pdf']);
     expect(window.location.search).toBe('?tab=documents&sort=updated');
     // 並び替えでは件数も絞り込みの有無も変わらない
-    expect(result()).toHaveTextContent('5 件の資料が見つかりました');
+    expect(result()).toHaveTextContent('5件の資料 · すべて回答対象');
     expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
 
     await user.selectOptions(select('並び替え'), 'pages');
@@ -1137,12 +1137,12 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
 
     const chips = within(screen.getByRole('list', { name: '有効な条件' })).getAllByRole('listitem');
     expect(chips.map((c) => c.textContent)).toEqual(['対象：ザーハード×', '資料種別：設定資料×']);
-    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['資料名', '資料種別', 'ページ数', '更新日時']);
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '資料種別', 'ページ数', '更新日時']); // 先頭は回答に使う資料のチェック列
 
     await user.click(screen.getByRole('button', { name: '対象：ザーハード を外す' }));
 
     expect(window.location.search).toBe('?tab=documents&type=setting');
-    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['資料名', '対象', '資料種別', 'ページ数', '更新日時']);
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '対象', '資料種別', 'ページ数', '更新日時']);
     expect(within(screen.getByRole('list', { name: '有効な条件' })).getAllByRole('listitem')).toHaveLength(1);
   });
 
@@ -1233,11 +1233,11 @@ describe('資料一覧: テーブル', () => {
     await screen.findByRole('row', { name: /A の資料/ });
 
     const head = screen.getAllByRole('columnheader').map((th) => th.textContent);
-    expect(head).toEqual(['資料名', '対象', '資料種別', 'ページ数', '更新日時']);
+    expect(head).toEqual(['', '資料名', '対象', '資料種別', 'ページ数', '更新日時']);
 
     const row = screen.getByRole('row', { name: /A の資料/ });
     const cells = within(row).getAllByRole('cell');
-    expect(cells.map((c) => c.textContent)).toEqual(['つばさ大学学生寮', '規程', '6', expect.stringMatching(/^\d{4}\/\d{2}\/\d{2}$/)]);
+    expect(cells.map((c) => c.textContent)).toEqual(['', 'つばさ大学学生寮', '規程', '6', expect.stringMatching(/^\d{4}\/\d{2}\/\d{2}$/)]);
     // 資料名のボタンが、詳細を開く入口。ファイル名は一覧に出さず、詳細のパネルで見る。取り込み済みの印も出さない
     expect(within(row).getByRole('button', { name: 'A の資料 を開く' })).not.toHaveTextContent('a.pdf');
     expect(within(row).queryByText('取り込み済み')).not.toBeInTheDocument();
