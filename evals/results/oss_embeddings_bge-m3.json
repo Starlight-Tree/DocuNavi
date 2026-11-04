@@ -1,0 +1,47 @@
+{
+  "model": "BAAI/bge-m3",
+  "name": "bge-m3",
+  "dims": 1024,
+  "max_seq_length": 2048,
+  "prefixes": {
+    "query": "",
+    "doc": ""
+  },
+  "chunks": 421,
+  "encode_docs_seconds": 82.9,
+  "query_latency_ms": {
+    "median": 170.9,
+    "max": 292.0,
+    "note": "8 コアの CPU・1 本ずつ。本番の機器の値ではない"
+  },
+  "n": {
+    "exact": 50,
+    "guides": 14,
+    "total": 64
+  },
+  "hit": {
+    "total": {
+      "1": 51,
+      "2": 59,
+      "3": 62,
+      "5": 62
+    },
+    "exact": {
+      "1": 39,
+      "2": 47,
+      "3": 48,
+      "5": 48
+    },
+    "guides": {
+      "1": 12,
+      "2": 12,
+      "3": 14,
+      "5": 14
+    }
+  },
+  "mrr": 0.8792,
+  "missed_at_3": [
+    "e029",
+    "e032"
+  ]
+}

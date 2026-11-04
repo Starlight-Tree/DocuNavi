@@ -1,0 +1,49 @@
+{
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "name": "qwen3-embedding-0.6b",
+  "dims": 1024,
+  "max_seq_length": 2048,
+  "prefixes": {
+    "query": "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:",
+    "doc": ""
+  },
+  "chunks": 421,
+  "encode_docs_seconds": 1403.8,
+  "query_latency_ms": {
+    "median": 862.3,
+    "max": 6921.8,
+    "note": "8 コアの CPU・1 本ずつ。本番の機器の値ではない"
+  },
+  "n": {
+    "exact": 50,
+    "guides": 14,
+    "total": 64
+  },
+  "hit": {
+    "total": {
+      "1": 48,
+      "2": 58,
+      "3": 60,
+      "5": 60
+    },
+    "exact": {
+      "1": 36,
+      "2": 45,
+      "3": 47,
+      "5": 47
+    },
+    "guides": {
+      "1": 12,
+      "2": 13,
+      "3": 13,
+      "5": 13
+    }
+  },
+  "mrr": 0.8453,
+  "missed_at_3": [
+    "e029",
+    "e032",
+    "e038",
+    "t005"
+  ]
+}
