@@ -1,0 +1,38 @@
+{
+  "model": "gemini-embedding-2 (保存済み・API キー経路)",
+  "name": "gemini-embedding-2",
+  "dims": 768,
+  "chunks": 421,
+  "source": "evals/cache/pipeline_embeddings.json（API は呼ばない）",
+  "n": {
+    "exact": 50,
+    "guides": 14,
+    "total": 64
+  },
+  "hit": {
+    "total": {
+      "1": 51,
+      "2": 57,
+      "3": 61,
+      "5": 62
+    },
+    "exact": {
+      "1": 38,
+      "2": 43,
+      "3": 47,
+      "5": 48
+    },
+    "guides": {
+      "1": 13,
+      "2": 14,
+      "3": 14,
+      "5": 14
+    }
+  },
+  "mrr": 0.8707,
+  "missed_at_3": [
+    "e029",
+    "e032",
+    "e038"
+  ]
+}
