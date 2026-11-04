@@ -27,6 +27,11 @@
 | `LLM_MAX_SEARCHES` | `2` | 1 回の質問で検索できる最大回数（`direct` の最初の検索を含む。再検索は 1 回まで）。超えて検索を求められたら、ツール呼び出しを外し、本文があればそれを、無ければ固定の回答にする。LangGraph の再帰の上限は既定 10007 なので、これが無いと、ツールを呼び続けるモデルは `LLM_TIMEOUT_SECONDS` まで検索と LLM の呼び出しを繰り返す（2026-11-05 にローカルの偽 LLM で確認。従来の `agent` の形も同じ）。不正値・1 未満は既定値に戻る |
 | `LLM_EARLY_FALLBACK` | 有効 | `GEMINI_FALLBACK_MODEL` があるとき、主モデルの試行が一時的な失敗（5xx・接続）で終わったら、主モデルを投げ直さず、すぐフォールバックを投げる。`0`・`off`・`false` で、従来の「主モデルを `LLM_MAX_ATTEMPTS` 本まで再試行してから」に戻る。429 には効かない |
 | `LLM_QUERY_REWRITE_TIMEOUT_SECONDS` | `6` | 追質問の検索語の補完（LLM の短い 1 回）を待つ上限。超えたら前の質問を足した検索語にする。不正値・0 以下は既定値に戻る |
+| `CHAT_ANSWER_BACKEND` | `gemini` | 回答の生成だけを切り替える試験用の設定。`workers_ai` で Cloudflare Workers AI の Qwen3 30B A3B FP8 に切り替える（下記「回答だけ Workers AI に切り替える（試験）」）。不正な値は、既定に戻さず起動を失敗させる。**本番では設定しない** |
+| `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | （空） | `CHAT_ANSWER_BACKEND=workers_ai` のとき必須（Workers AI の権限だけのトークン）。無ければ起動を失敗させる。値はログ・応答に出さない |
+| `WORKERS_AI_DAILY_NEURON_BUDGET` | `8000` | Workers AI の 1 日の予算（Neurons。UTC の日ごと・このプロセスの分だけ）。Free の無料枠 10,000 を超える値は 10,000 にする。達したら Cloudflare へ送らず止める |
+| `WORKERS_AI_MAX_TOKENS` | `1500` | Workers AI の 1 回の回答の最大トークン数 |
+| `WORKERS_AI_THINKING` | `default` | `off` で `chat_template_kwargs.enable_thinking=false` を送る（このモデルが受け付けるかは、実 API で確かめるまで未確認）。それ以外は何も送らない |
 | `GEMINI_THINKING_LEVEL` | （空） | 主モデルの `thinking_level`（`minimal`・`low`・`medium`・`high`）。空ならモデルの既定のまま（送らない）。どのモデルがどの値に対応するかは、実 API で確かめるまで未確認。不正値は無視する |
 | `GEMINI_FALLBACK_THINKING_LEVEL` | （空） | フォールバックのモデルの `thinking_level`。主モデルとは別の変数（対応する値が違いうる） |
 | `DATABASE_URL` | （空） | Postgres の接続 URL。**本物の LLM では必須**（資料の検索が DB を読む。空だと起動を失敗させる）。会話履歴の保存先も兼ねる（モックモードで空ならプロセス内メモリ）。**秘密情報**（パスワードを含む）なのでコミットせず、ログにも出さない。下記「資料の検索」「会話履歴の保存先」 |
@@ -515,6 +520,25 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 - **未検証:** 本物の 429 での切り替え（偽の 429 で確かめただけ）。日次の上限（RPD）と毎分の上限を区別して保持を変えること
   （`RetryInfo` の待ち時間を読むこと）はしていない。無料キーの入力が製品改善に使われる点は、切り替えても変わらない
   （有料に回るのは 429 のときだけ）ので、他の人が個人情報を入れる段階になったら、無料キーを主にしない。
+
+## 回答だけ Workers AI に切り替える（試験）
+
+`CHAT_ANSWER_BACKEND=workers_ai` で、**回答の生成だけ**を Cloudflare Workers AI の `@cf/qwen/qwen3-30b-a3b-fp8`（追加学習なし）に切り替えられる（`app/agents/workers_ai.py`）。
+既定は Gemini のままで、本番（Cloud Run・Vercel）は切り替えない。
+
+- **変わらないもの:** 検索（質問の埋め込みは Gemini のまま。`DATABASE_URL` と `GEMINI_API_KEY` が要る）、履歴、入力・出力のガード、追質問の検索語の補完（Gemini）。
+  `CHAT_RETRIEVAL_MODE` の既定（`direct`）で、LLM は 1 回。履歴の「検索の呼び出しと結果」は、OpenAI 互換のチャットの形で送る。
+- **使わないもの:** ヘッジ・再試行・有料キー・`GEMINI_FALLBACK_MODEL`。失敗しても Gemini へ自動では切り替えず、固定メッセージの 429/500/504/502 になる。
+  `<think>…</think>`（推論の過程）は取り除き、画面にも履歴にも出さない。モデル名は固定（環境変数で替えられない）。
+- **無料枠だけで使う。** Workers Free は 1 日 10,000 Neurons（UTC 0 時にリセット。公式の料金表、2026-11-05 に確認）。このモデルは入力 4,625・出力 30,475 Neurons / 100 万トークン
+  （4,000 入力 + 600 出力で約 36 Neurons）。呼び出しのたびに応答の `usage` から数え、`WORKERS_AI_DAILY_NEURON_BUDGET`（既定 8,000）に達したら送らずに止める。
+  Cloudflare が枠切れ（HTTP 429・エラー 3036）を返したら、その日の終わりまで止める（3040 の容量不足は止めない）。
+  **数えるのはこのプロセスの分だけ**（再起動で 0 に戻る。同じアカウントの他の利用は見えない）。アカウントが Workers Paid だと、枠を超えた分は課金される。
+  Free プランであることは、使う前に利用者がダッシュボードで確かめる（API では確認できなかった）。
+- **確認したこと（オフライン）:** 送る内容・応答・ストリーミング・ツール呼び出し・予算と枠切れの停止・UTC の日替わり・失敗の固定メッセージ・Gemini へ切り替わらないこと（`tests/test_llm_workers_ai.py`）。
+- **未確認（実 API が要る）:** 応答の実際の形（`usage` の有無・`reasoning_content` の有無・`stream_options` と `chat_template_kwargs` の受け付け）、速度、日本語の品質、
+  履歴の「ツール呼び出し」を Qwen3 が正しく読めるか。
+- 試験の手順: `CHAT_ANSWER_BACKEND=workers_ai CLOUDFLARE_ACCOUNT_ID=… CLOUDFLARE_API_TOKEN=…` を付けてローカルで `uvicorn` を起動する（トークンはシェルの履歴・ログ・ファイルに残さない）。
 
 ## 埋め込みを Vertex AI で呼ぶ
 
