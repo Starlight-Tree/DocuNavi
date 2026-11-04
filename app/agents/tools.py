@@ -28,6 +28,8 @@ WEAK_GAP = 0.05
 COLLECTION_KEY = "collection"
 # 同じく、会話の対象（資料の「対象」。`documents.target`）を渡すキー
 TARGET_KEY = "target"
+# 今ターンで画面が選んだ資料（`documents.id` の並び）を渡すキー。会話の状態には残さない（ターンごとに API が config で渡す）
+DOCUMENT_IDS_KEY = "document_ids"
 
 _NOT_FOUND_TEXT = "該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。"
 # 検索が使えなかったときに、呼び出し側（API）へ出す固定文。例外の文字列には接続先・URL・本文が入りうるので載せない
@@ -40,18 +42,27 @@ _SEARCH_DESCRIPTION = (
 
 
 async def search_chunks_async(
-    query: str, top_k: int = TOP_K, collection: str | None = None, *, scope: Scope, target: str | None = None
+    query: str,
+    top_k: int = TOP_K,
+    collection: str | None = None,
+    *,
+    scope: Scope,
+    target: str | None = None,
+    document_ids: Sequence[int] | None = None,
 ) -> list[Hit]:
     """クエリに近い資料の箇所を、`Hit`（ファイル名・本文・ページ）で最大 top_k 件返す（DB のベクトル検索が土台。しきい値未満は返さない）。
     `SEARCH_GRAPH` が on のときは、参照先のチャンクが `origin="graph"` で最後に加わることがある（top_k の外）。
 
     `scope` は必須（検索できるグループの範囲。全グループは `Scope.ALL` を明示する）。`collection` を渡すと、その範囲の中の
     そのグループだけを探す（None は範囲の全資料）。`target` を渡すと、範囲の中のその対象の資料だけを探す（権限の範囲 ∩ 対象）。
+    `document_ids` を渡すと、範囲の中のその資料だけを探す（権限の範囲 ∩ 資料）。
 
     失敗しても BM25 などには戻らない（どちらで答えたかが曖昧になるため）。`VectorSearchError` を投げ、API が 503 の固定文にする。
     """
-    # 対象を指定するときだけ引数に足す（指定しない呼び出しは、従来と同じ形のまま）
-    extra = {} if target is None else {"target": target}
+    # 対象・資料を指定するときだけ引数に足す（指定しない呼び出しは、従来と同じ形のまま）
+    extra: dict[str, Any] = {} if target is None else {"target": target}
+    if document_ids is not None:
+        extra["document_ids"] = document_ids
     try:
         return await search_pipeline.search(query, top_k, collection, scope=scope, **extra)
     except search_vector.VectorSearchError:
@@ -109,12 +120,17 @@ async def _asearch_documents(query: str, config: RunnableConfig) -> tuple[str, l
     if not isinstance(scope, Scope):
         logger.warning("検索の範囲が渡されませんでした。何も検索しません")
         scope = Scope.NONE
-    # 対象があるときだけ渡す（偽の検索など、対象を知らない差し替えを壊さない）
-    hits = await (
-        search_chunks_async(query, collection=collection, scope=scope)
-        if target is None
-        else search_chunks_async(query, collection=collection, scope=scope, target=target)
-    )
+    # 今ターンで資料が選ばれていれば、その資料だけを探す（会話の対象・旧グループは、このターンは使わない）
+    document_ids = configurable.get(DOCUMENT_IDS_KEY)
+    if document_ids is not None:
+        hits = await search_chunks_async(query, scope=scope, document_ids=tuple(document_ids))
+    else:
+        # 対象があるときだけ渡す（偽の検索など、対象を知らない差し替えを壊さない）
+        hits = await (
+            search_chunks_async(query, collection=collection, scope=scope)
+            if target is None
+            else search_chunks_async(query, collection=collection, scope=scope, target=target)
+        )
     return _format_hits(hits), _sources(hits)
 
 

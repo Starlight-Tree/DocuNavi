@@ -26,9 +26,10 @@ import hashlib
 import logging
 import os
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from app.scope import ALLOWED_FILTER_SQL, TARGET_FILTER_SQL, Scope, require_scope
+from app.scope import ALLOWED_FILTER_SQL, DOCUMENTS_FILTER_SQL, TARGET_FILTER_SQL, Scope, require_scope
 from app.search import vector as search_vector
 from app.search.graph import build_edges
 from app.search.keyword import KeywordIndex, identifiers, normalize
@@ -51,6 +52,7 @@ _CORPUS_WHERE = (
     "AND (%(collection)s::text IS NULL OR d.collection = %(collection)s::text) "
     f"AND {ALLOWED_FILTER_SQL} "
     f"AND {TARGET_FILTER_SQL} "
+    f"AND {DOCUMENTS_FILTER_SQL} "
 )
 _CORPUS_SQL = (
     "SELECT d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, "
@@ -149,15 +151,22 @@ class Corpus:
         self.edges = build_edges([chunk.source for chunk in chunks], texts)
 
 
-_CACHE: dict[tuple[tuple[str, ...] | None, str | None, str | None], tuple[float, Corpus]] = {}
+_CACHE: dict[tuple[tuple[str, ...] | None, str | None, str | None, tuple[int, ...] | None], tuple[float, Corpus]] = {}
 _CACHE_LIMIT = 32
 
 
-async def _fetch_chunks(scope: Scope, collection: str | None, target: str | None = None) -> list[Chunk]:
+async def _fetch_chunks(
+    scope: Scope, collection: str | None, target: str | None = None, document_ids: tuple[int, ...] | None = None
+) -> list[Chunk]:
     pool = search_vector.get_pool()
     if pool is None:
         raise VectorSearchError("DB の接続プールが開いていません")
-    params = {"collection": collection, "target": target, "allowed": scope.sql_names()}
+    params = {
+        "collection": collection,
+        "target": target,
+        "doc_ids": None if document_ids is None else list(document_ids),
+        "allowed": scope.sql_names(),
+    }
     async with pool.connection() as conn:
         cursor = await conn.execute(_CORPUS_SQL, params)
         rows = await cursor.fetchall()
@@ -173,7 +182,9 @@ async def _fetch_chunks(scope: Scope, collection: str | None, target: str | None
         )
         for row in rows
         # SQL の条件を誤っても、範囲外のグループと、指定した対象以外の資料は持たない
-        if scope.allows(row.get("collection")) and (target is None or row.get("target") == target)
+        if scope.allows(row.get("collection"))
+        and (target is None or row.get("target") == target)
+        and (document_ids is None or row.get("document_id") in document_ids)
     ]
 
 
@@ -182,31 +193,42 @@ async def _membership(scope: Scope, collection: str | None, target: str) -> tupl
     pool = search_vector.get_pool()
     if pool is None:
         raise VectorSearchError("DB の接続プールが開いていません")
-    params = {"collection": collection, "target": target, "allowed": scope.sql_names()}
+    params = {"collection": collection, "target": target, "doc_ids": None, "allowed": scope.sql_names()}
     async with pool.connection() as conn:
         cursor = await conn.execute(_MEMBERSHIP_SQL, params)
         rows = await cursor.fetchall()
     return tuple(row["document_id"] for row in rows)
 
 
-async def _corpus(scope: Scope, collection: str | None, ttl: float, target: str | None = None) -> Corpus:
-    """検索できる範囲（・対象）のチャンクの写し。写しは `ttl` 秒持つ。
+async def _corpus(
+    scope: Scope,
+    collection: str | None,
+    ttl: float,
+    target: str | None = None,
+    document_ids: tuple[int, ...] | None = None,
+) -> Corpus:
+    """検索できる範囲（・対象・選んだ資料）のチャンクの写し。写しは `ttl` 秒持つ。
 
     対象を指定した検索では、写しを使う前に、いまその対象に入る資料の ID が写しと同じかを毎回確かめる（軽い SQL 1 回）。
     運用者が SQL で資料の対象を変えても、TTL を待たずに次の検索から写しを作り直す（別の対象の資料を、キーワード側で混ぜない）。
-    対象を指定しない検索は、従来どおり TTL だけで更新する。
+    対象を指定しない検索は、従来どおり TTL だけで更新する。資料（`document_ids`）で選んだ写しも TTL だけで更新する
+    （資料の ID は変わらない。取り込み中・失敗になった資料は、TTL のあとに外れる）。写しは選び方（ID の組）ごとに持つ。
     """
     names = scope.sql_names()
-    key = (None if names is None else tuple(names), collection, target)
+    key = (None if names is None else tuple(names), collection, target, document_ids)
     now = time.monotonic()
     cached = _CACHE.get(key)
     if cached is not None and ttl > 0 and now - cached[0] < ttl:
         if target is None or cached[1].membership == await _membership(scope, collection, target):
             return cached[1]
-    # 対象を指定するときだけ引数に足す（指定しない呼び出しは、従来と同じ形のまま）
-    corpus = Corpus(
-        await (_fetch_chunks(scope, collection) if target is None else _fetch_chunks(scope, collection, target))
-    )
+    # 対象・資料を指定するときだけ引数に足す（指定しない呼び出しは、従来と同じ形のまま）
+    if document_ids is not None:
+        fetched = await _fetch_chunks(scope, collection, target, document_ids)
+    elif target is None:
+        fetched = await _fetch_chunks(scope, collection)
+    else:
+        fetched = await _fetch_chunks(scope, collection, target)
+    corpus = Corpus(fetched)
     if len(_CACHE) >= _CACHE_LIMIT:
         _CACHE.pop(min(_CACHE, key=lambda k: _CACHE[k][0]))
     _CACHE[key] = (now, corpus)
@@ -264,15 +286,27 @@ def _order_key(cand: _Cand) -> tuple[float, float, float]:
 
 
 async def search(
-    query: str, top_k: int, collection: str | None = None, *, scope: Scope, target: str | None = None
+    query: str,
+    top_k: int,
+    collection: str | None = None,
+    *,
+    scope: Scope,
+    target: str | None = None,
+    document_ids: Sequence[int] | None = None,
 ) -> list[Hit]:
     """`search_vector.search` と同じ引数・同じ規則（scope は必須、範囲外は返さない）で、フラグに応じて検索を重ねる。
 
     `target` は、ベクトル側・キーワード側（BM25 の写し）・GraphRAG の参照先のすべてに効く（権限の範囲 ∩ 対象）。None は従来どおり。
+    `document_ids`（選んだ資料の `documents.id`）も同じ 3 つに効く（権限の範囲 ∩ 資料）。None は従来どおり。空の並びは何も探さない。
     """
     flags = Flags.from_env()
-    # 対象を指定したときだけ引数に足す（指定しない呼び出しは、従来と同じ形のまま）
-    extra = {} if target is None else {"target": target}
+    if document_ids is not None and not document_ids:
+        return []
+    # 対象・資料を指定したときだけ引数に足す（指定しない呼び出しは、従来と同じ形のまま）
+    extra: dict[str, object] = {} if target is None else {"target": target}
+    ids = None if document_ids is None else tuple(sorted(set(document_ids)))
+    if ids is not None:
+        extra["document_ids"] = ids
     if not flags.any:
         hits = await search_vector.search(query, top_k, collection, scope=scope, **extra)
         _log_vector_only(query, top_k, hits)
@@ -286,7 +320,7 @@ async def search(
     pool_size = max(top_k, flags.candidates)
 
     vector_hits = await search_vector.search(query, pool_size, collection, scope=scope, **extra)
-    corpus = await _corpus(scope, collection, flags.corpus_ttl, target)
+    corpus = await _corpus(scope, collection, flags.corpus_ttl, target, ids)
 
     cands: dict[tuple[str, str], _Cand] = {}
     for rank, hit in enumerate(vector_hits, start=1):

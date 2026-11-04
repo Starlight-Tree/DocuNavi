@@ -10,12 +10,14 @@ interface ComposerProps {
   onStop: () => void;
   /** 入力欄の中（下の行の左）に置く、回答対象のチップ。渡さなければ何も出さない。 */
   scopeControl?: ReactNode;
+  /** 送れない状態（回答に使う資料が 1 件も選ばれていない）。送信ボタンを押せなくする。 */
+  sendBlocked?: boolean;
 }
 
-export function Composer({ pending, onSend, onStop, scopeControl }: ComposerProps) {
+export function Composer({ pending, onSend, onStop, scopeControl, sendBlocked = false }: ComposerProps) {
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const canSend = !pending && draft.trim().length > 0;
+  const canSend = !pending && !sendBlocked && draft.trim().length > 0;
 
   // 長い文でも全体が見えるよう、入力に合わせて高さを伸ばす（上限は CSS の max-height。超えたら中でスクロールする）。
   // 高さを測れない環境（scrollHeight が 0）では、CSS の既定のままにする
@@ -27,7 +29,7 @@ export function Composer({ pending, onSend, onStop, scopeControl }: ComposerProp
   }, [draft]);
 
   const submit = () => {
-    if (!onSend(draft)) return;
+    if (sendBlocked || !onSend(draft)) return;
     setDraft('');
     // 送信ボタンで送ると、ボタンが無効化されてフォーカスが失われるため入力欄へ戻す
     inputRef.current?.focus();
@@ -77,7 +79,12 @@ export function Composer({ pending, onSend, onStop, scopeControl }: ComposerProp
                 停止
               </button>
             )}
-            <button type="submit" className="btn btn-primary" disabled={!canSend}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={!canSend}
+              title={sendBlocked ? '回答に使う資料が選ばれていません' : undefined}
+            >
               送信
             </button>
           </div>
