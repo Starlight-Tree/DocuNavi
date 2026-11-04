@@ -109,6 +109,14 @@ DEFAULT_QUERY_REWRITE_TIMEOUT_SECONDS = (
     6.0  # 追質問の検索語の補完（LLM の短い 1 回）を待つ上限。超えたら前の質問を足した検索語にする
 )
 
+# 1 回の質問で検索できる最大回数（`direct` の最初の検索を含む）。LangGraph の再帰の上限は既定で 10007 なので、
+# モデルがツールを呼び続けると、1 回の質問が LLM_TIMEOUT_SECONDS（60 秒）まで検索と LLM の呼び出しを繰り返してしまう
+DEFAULT_MAX_SEARCHES_PER_TURN = 2
+# 上限に達したあとも検索を求められたときの、固定の回答（本文が付いていれば、それを使う）
+SEARCH_LIMIT_REPLY = (
+    "資料を検索しましたが、質問に答えられる記載を見つけられませんでした。質問の言い方を変えてお試しください。"
+)
+
 RETRIEVAL_DIRECT = "direct"  # 質問ごとに、graph が先に検索して LLM を 1 回呼ぶ（既定）
 RETRIEVAL_AGENT = "agent"  # 従来: LLM が検索するかを決め（1 回目）、結果を受けて回答する（2 回目）
 _THINKING_LEVELS = frozenset({"minimal", "low", "medium", "high"})
@@ -235,6 +243,15 @@ def llm_first_chunk_deadline_seconds() -> float | None:
     if not math.isfinite(value) or value < 0:
         return DEFAULT_LLM_FIRST_CHUNK_DEADLINE_SECONDS
     return value or None
+
+
+def max_searches_per_turn() -> int:
+    """LLM_MAX_SEARCHES（既定 2）。1 回の質問で検索できる最大回数（最初の検索を含む。`direct` なら再検索は 1 回まで）。不正値・1 未満は既定値に戻す。"""
+    try:
+        value = int(os.environ.get("LLM_MAX_SEARCHES", "").strip())
+    except ValueError:
+        return DEFAULT_MAX_SEARCHES_PER_TURN
+    return value if value >= 1 else DEFAULT_MAX_SEARCHES_PER_TURN
 
 
 def llm_early_fallback() -> bool:
@@ -415,6 +432,23 @@ def _repair_dangling_tool_calls(messages: list[BaseMessage]) -> list[AIMessage]:
             text = INTERRUPTED_TOOL_CALL_NOTE
         repaired.append(AIMessage(content=text, tool_calls=kept, id=message.id))
     return repaired
+
+
+def _cap_searches(reply: AIMessage, messages: list[BaseMessage]) -> AIMessage:
+    """今ターンの検索がすでに上限（`max_searches_per_turn`）なら、さらに検索を求める応答から、ツール呼び出しを外す。
+
+    本文が付いていればそれを、無ければ固定の回答（SEARCH_LIMIT_REPLY）にする。ツール呼び出しを残したまま止めると、
+    結果の無い呼び出しが履歴に残り、利用者にも何も返らないため。同じ id で置換するので、履歴にはこの形で残る。
+    """
+    if not reply.tool_calls:
+        return reply
+    last_human = max((i for i, m in enumerate(messages) if isinstance(m, HumanMessage)), default=-1)
+    searched = sum(isinstance(m, ToolMessage) for m in messages[last_human + 1 :])
+    limit = max_searches_per_turn()
+    if searched < limit:
+        return reply
+    logger.warning("検索の回数が上限（%d 回）に達したため、追加の検索を打ち切ります", limit)
+    return AIMessage(content=reply.text.strip() or SEARCH_LIMIT_REPLY, id=reply.id)
 
 
 def _open_stream(
@@ -699,6 +733,7 @@ def build_graph(
                     breaker=fallback_breaker,
                     on_fallback=mark_fallback,
                 )
+        reply = _cap_searches(reply, state["messages"])
         if fallback_with_tools is None:
             return {"messages": [reply]}
         return {"messages": [reply], "fallback_used": served_by_fallback}
