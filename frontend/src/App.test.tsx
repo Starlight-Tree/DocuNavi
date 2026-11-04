@@ -155,9 +155,35 @@ describe('チャット UI: 入力', () => {
     const { user, input } = setup();
 
     expect(input).toHaveAttribute('maxlength', '2000');
-    expect(screen.getByText('0 / 2000')).toBeInTheDocument();
+    // 文字数は、上限の 80%（1600 文字）から出す
+    expect(screen.queryByText(/\/ 2000/)).not.toBeInTheDocument();
     await user.type(input, 'あいう');
-    expect(screen.getByText('3 / 2000')).toBeInTheDocument();
+    expect(screen.queryByText(/\/ 2000/)).not.toBeInTheDocument();
+    await user.click(input);
+    await user.paste('あ'.repeat(1597));
+    expect(screen.getByText('1600 / 2000')).toBeInTheDocument();
+    expect(input).toHaveAttribute('aria-describedby', 'message-counter');
+  });
+
+  it('文字数は 1599 文字までは出ない。プレースホルダーは「メッセージを入力」だけ', async () => {
+    installFetch(() => replyResponse());
+    const { user, input } = setup();
+
+    expect(input).toHaveAttribute('placeholder', 'メッセージを入力');
+    await user.click(input);
+    await user.paste('あ'.repeat(1599));
+    expect(screen.queryByText(/\/ 2000/)).not.toBeInTheDocument();
+    expect(input).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('送信ボタンは、アイコンだけで、読み上げ名とツールチップは「送信」', async () => {
+    installFetch(() => replyResponse());
+    setup();
+
+    const send = screen.getByRole('button', { name: '送信' });
+    expect(send).toHaveAttribute('title', '送信（Enter）');
+    expect(send.querySelector('svg')).not.toBeNull();
+    expect(send.textContent).toBe('');
   });
 });
 
@@ -188,7 +214,7 @@ describe('チャット UI: 見た目の区別・入力欄', () => {
 
     await user.type(input, '長い質問');
     expect((input as HTMLTextAreaElement).style.height).toBe('96px');
-    expect(screen.getByText('4 / 2000')).toBeInTheDocument();
+    expect(screen.queryByText(/\/ 2000/)).not.toBeInTheDocument(); // 上限の 80% までは文字数を出さない
 
     scrollHeight.mockReturnValue(48);
     await user.keyboard('{Enter}');
@@ -471,6 +497,8 @@ describe('チャット UI: 会話の管理', () => {
 
     expect(screen.queryByTestId('resumed-notice')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '何を調べますか？' })).toBeInTheDocument();
+    // 見出しの下の説明文は出さない（質問の例だけが続く）
+    expect(screen.queryByText(/登録された資料/)).not.toBeInTheDocument();
   });
 
   it('保存されていた thread_id が不正な形式なら使わない', async () => {
@@ -808,9 +836,11 @@ describe('チャット UI: ストリーミング', () => {
     await sendMessage(user, '質問');
     await user.click(await screen.findByRole('button', { name: 'この回答をコピー' }));
 
-    expect(await screen.findByRole('button', { name: 'この回答をコピー' })).toHaveTextContent(
-      'コピーしました',
-    );
+    // 見た目はアイコンだけ。結果は読み上げ用の状態に出る
+    const copy = await screen.findByRole('button', { name: 'この回答をコピー' });
+    expect(copy).toHaveAttribute('title', 'この回答をコピー');
+    expect(copy.textContent).toBe('');
+    expect(await screen.findByText('コピーしました')).toBeInTheDocument();
     expect(await navigator.clipboard.readText()).toBe('コピーする本文です。');
   });
 

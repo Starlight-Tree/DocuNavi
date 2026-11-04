@@ -153,7 +153,7 @@ describe('回答対象: 選択と送信', () => {
     install();
     const { user } = setup();
 
-    expect(await menuButton()).toHaveTextContent('すべての資料 ・ 5 件');
+    expect(await menuButton()).toHaveTextContent('すべての資料 · 5件');
     const menu = await openMenu(user);
     expect(menu.getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual([
       '✓すべての資料5件',
@@ -184,7 +184,7 @@ describe('回答対象: 選択と送信', () => {
 
     await pick(user, /^ザーハード/);
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    expect(await menuButton()).toHaveTextContent('ザーハード ・ 3 件');
+    expect(await menuButton()).toHaveTextContent('ザーハード · 3件');
 
     await ask(user, '大気は？');
     await screen.findByText('返答1');
@@ -193,8 +193,9 @@ describe('回答対象: 選択と送信', () => {
 
     expect(chatBodies[0]).toEqual({ message: '大気は？', target: 'zahard' });
     expect(chatBodies[1]).toEqual({ message: '続きは？', thread_id: 't-1', target: 'zahard' });
-    // チップの横に、固定されたことを示すヒントが出る
-    expect(screen.getAllByText('この会話で固定')).toHaveLength(1);
+    // 固定されたことの説明は、チップの横ではなく、選択メニューの中に出る
+    expect(screen.queryByText('この会話で固定')).not.toBeInTheDocument();
+    expect((await openMenu(user)).getByText('この会話で固定')).toBeInTheDocument();
   });
 
   it('「新しい会話」を押すと、質問対象は「すべて」に戻る', async () => {
@@ -244,7 +245,7 @@ describe('回答対象: 選択と送信', () => {
 
     await ask(user, '大気は？');
     expect(button).toBeDisabled();
-    expect(screen.getByText('回答の生成中は変えられません')).toBeInTheDocument();
+    expect(button).toHaveAttribute('title', '回答の生成中は変えられません');
   });
 });
 
@@ -417,7 +418,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(window.location.search).toBe('?tab=documents');
 
     await goChat(user);
-    expect(await menuButton()).toHaveTextContent('回答対象：選択した資料 ・ 3 件');
+    expect(await menuButton()).toHaveTextContent('回答対象：選択した資料 · 3件');
 
     await ask(user, '営業時間は？');
     await screen.findByText(DEFAULT_REPLY);
@@ -474,7 +475,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(within(await screen.findByRole('group', { name: '回答に使う資料' })).getByRole('status')).toHaveTextContent('1 件も選ばれていない');
 
     await goChat(user);
-    expect(await menuButton()).toHaveTextContent('回答対象：選択した資料 ・ 0 件');
+    expect(await menuButton()).toHaveTextContent('回答対象：選択した資料 · 0件');
     await user.type(input(), 'こんにちは');
     expect(sendButton()).toBeDisabled();
     await user.keyboard('{Enter}');
@@ -975,7 +976,7 @@ describe('回答対象: 保存済みの会話', () => {
     await openThread('大気は？');
     await screen.findByText('薄いです。');
 
-    expect(await menuButton()).toHaveTextContent('ザーハード ・ 3 件');
+    expect(await menuButton()).toHaveTextContent('ザーハード · 3件');
     await ask(user, '続きは？');
     await screen.findByText(DEFAULT_REPLY);
     expect(chatBodies[0]).toEqual({ message: '続きは？', thread_id: 't1', target: 'zahard' });
@@ -1031,7 +1032,7 @@ describe('回答対象: 保存済みの会話', () => {
     await openThread('旧グループの質問');
     await screen.findByText('旧グループの回答');
 
-    expect(await menuButton()).toHaveTextContent('旧グループ: 店舗案内 ・ 1 件');
+    expect(await menuButton()).toHaveTextContent('旧グループ: 店舗案内 · 1件');
     const menu = await openMenu(user);
     const legacy = menu.getByRole('menuitemradio', { name: /^旧グループ: 店舗案内/ });
     expect(legacy).toBeDisabled();
@@ -1095,11 +1096,11 @@ describe('チャットが最初の画面。回答対象は入力欄の中のチ�
     install();
     const { user } = setup();
 
-    expect(await menuButton()).toHaveTextContent('すべての資料 ・ 5 件');
+    expect(await menuButton()).toHaveTextContent('すべての資料 · 5件');
     expect(screen.getByRole('textbox', { name: 'メッセージ' }).closest('.composer-field')).toContainElement(await menuButton());
     expect(screen.queryByRole('button', { name: /資料一覧へ/ })).not.toBeInTheDocument();
     await pick(user, /^ザーハード/);
-    expect(await menuButton()).toHaveTextContent('ザーハード ・ 3 件');
+    expect(await menuButton()).toHaveTextContent('ザーハード · 3件');
   });
 
   it('対象とグループの一覧を読めないときは、件数を出さない', async () => {
@@ -1110,7 +1111,7 @@ describe('チャットが最初の画面。回答対象は入力欄の中のチ�
     setup();
 
     expect((await screen.findByText('すべての資料')).closest('.scope-chip-static')).not.toBeNull();
-    expect(screen.queryByText(/ 件/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/· \d+件/)).not.toBeInTheDocument();
   });
 
   it('資料一覧へ移っても、入力途中の文は、チャットに戻ったときも残る', async () => {
