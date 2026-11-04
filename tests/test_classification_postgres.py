@@ -308,11 +308,19 @@ def search_env(monkeypatch):
 
 
 def _search(
-    query: str, *, scope: Scope = Scope.ALL, target: str | None = None, collection: str | None = None, top_k: int = 20
+    query: str,
+    *,
+    scope: Scope = Scope.ALL,
+    target: str | None = None,
+    collection: str | None = None,
+    document_ids: list[int] | None = None,
+    top_k: int = 20,
 ):
     async def scenario():
         async with history.history_store():
-            kwargs = {} if target is None else {"target": target}
+            kwargs: dict = {} if target is None else {"target": target}
+            if document_ids is not None:
+                kwargs["document_ids"] = document_ids
             return await search_pipeline.search(query, top_k, collection, scope=scope, **kwargs)
 
     return asyncio.run(scenario())
@@ -400,6 +408,39 @@ def test_without_a_target_the_cache_stays_ttl_only_as_before(world, search_env):
         admin.execute("UPDATE documents SET target = 'minato-coffee' WHERE id = 6")
     _search("ZX-900")
     assert len(fetches) == 1  # 対象を指定しない検索は、従来どおり TTL だけで更新する（毎回の確認はしない）
+
+
+@pytest.mark.parametrize("flags", ["on", "off"])
+def test_selected_documents_are_the_only_ones_searched_and_the_permission_scope_still_applies(
+    world, search_env, monkeypatch, flags
+):
+    # 資料単位の選択（画面のチェック）。実際の SQL（d.id = ANY(bigint[])）で、選んだ資料だけが入ることを確かめる
+    for name in ("SEARCH_HYBRID", "SEARCH_RERANK", "SEARCH_GRAPH"):
+        monkeypatch.setenv(name, flags)
+    assert _sources(_search("共通語", document_ids=[1, 6])) == {"cafe_store_guide.pdf", "ザーハード3.pdf"}
+    assert _sources(_search("共通語", document_ids=[6, 1, 6])) == {
+        "cafe_store_guide.pdf",
+        "ザーハード3.pdf",
+    }  # 並び・重複は無関係
+    assert _sources(_search("共通語", document_ids=[7])) == {"unclassified.pdf"}  # 未分類でも、選べば入る
+    assert _search("共通語", document_ids=[999]) == []  # 存在しない資料は、エラーではなく 0 件
+    assert _search("共通語", document_ids=[]) == []  # 空の選択は何も探さない（全部と読み替えない）
+    # 権限の範囲との積集合（選んでも、見えない資料は出ない）
+    guides = Scope.only(["guides"])
+    assert _sources(_search("共通語", scope=guides, document_ids=[1, 2, 6])) == {"aoba_aw820_manual.pdf"}
+    assert _search("共通語", scope=Scope.NONE, document_ids=[1, 2]) == []
+    assert _search("共通語", scope=Scope.only(["cafe"]), document_ids=[2, 3]) == []
+
+
+def test_the_keyword_route_and_the_cache_follow_the_selected_documents(world, search_env):
+    fetches = search_env
+    assert _sources(_search("ZX-900", document_ids=[6])) == {"ザーハード3.pdf"}
+    assert _sources(_search("ZX-900", document_ids=[1])) == {"cafe_store_guide.pdf"}
+    assert _search("ZX-900", document_ids=[2]) == []  # 型番の本文を持たない資料だけを選ぶと、キーワード側からも出ない
+    assert _sources(_search("ZX-900", document_ids=[1, 6])) == {"ザーハード3.pdf", "cafe_store_guide.pdf"}
+    n = len(fetches)
+    _search("ZX-900", document_ids=[6, 1])  # 同じ選び方（並びだけ違う）は、写しを使い回す
+    assert len(fetches) == n
 
 
 def test_the_conversation_scope_by_collection_is_unchanged(world, search_env):

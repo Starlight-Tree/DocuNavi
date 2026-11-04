@@ -331,7 +331,7 @@ def test_the_real_corpus_query_filters_by_scope_and_reads_only_ready_embedded_ch
     assert (
         "d.status = 'ready'" in sql and "c.embedding IS NOT NULL" in sql and "ORDER BY d.source, c.chunk_index" in sql
     )
-    assert params == {"collection": None, "target": None, "allowed": ["zahard"]}
+    assert params == {"collection": None, "target": None, "doc_ids": None, "allowed": ["zahard"]}
 
 
 # ---- ログ ----

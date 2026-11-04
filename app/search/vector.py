@@ -19,13 +19,13 @@ DB は既存の接続プール（`app/history.py` の `get_pool()`）を借り�
 import asyncio
 import logging
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from app.agents.resilience import KeySwitch, call_with_key_switch, key_switch_hold_seconds, paid_api_key
 from app.history import get_pool
 from app.ingestion import embedding
-from app.scope import ALLOWED_FILTER_SQL, TARGET_FILTER_SQL, Scope, require_scope
+from app.scope import ALLOWED_FILTER_SQL, DOCUMENTS_FILTER_SQL, TARGET_FILTER_SQL, Scope, require_scope
 from app.search.types import Hit, VectorSearchError
 
 # ログの絞り込み（ロガー名）を、移動前の app.search_vector のまま保つ
@@ -39,7 +39,7 @@ EMBED_TIMEOUT_SECONDS = 10.0
 _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
 
 _SEARCH_SQL = (
-    "SELECT d.source AS source, d.collection AS collection, d.target AS target, c.heading AS heading, "
+    "SELECT d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, c.heading AS heading, "
     "c.content AS content, c.page AS page, c.page_end AS page_end, "
     "1 - (c.embedding OPERATOR(extensions.<=>) %(q)s::extensions.vector(768)) AS sim "
     "FROM chunks c JOIN documents d ON d.id = c.document_id "
@@ -47,6 +47,7 @@ _SEARCH_SQL = (
     "AND (%(collection)s::text IS NULL OR d.collection = %(collection)s::text) "
     f"AND {ALLOWED_FILTER_SQL} "
     f"AND {TARGET_FILTER_SQL} "
+    f"AND {DOCUMENTS_FILTER_SQL} "
     "AND c.embedding_model = %(model)s AND c.embedding_dimensions = %(dims)s "
     "ORDER BY c.embedding OPERATOR(extensions.<=>) %(q)s::extensions.vector(768), d.source, c.chunk_index "
     "LIMIT %(k)s"
@@ -141,7 +142,13 @@ def _chunk_text(heading: str | None, content: str) -> str:
 
 
 async def search(
-    query: str, top_k: int, collection: str | None = None, *, scope: Scope, target: str | None = None
+    query: str,
+    top_k: int,
+    collection: str | None = None,
+    *,
+    scope: Scope,
+    target: str | None = None,
+    document_ids: Sequence[int] | None = None,
 ) -> list[Hit]:
     """類似度がしきい値以上のチャンクを、近い順に上位 top_k 件、`Hit`（ファイル名・本文・ページ）で返す。
 
@@ -152,9 +159,13 @@ async def search(
     存在しないグループは、エラーではなく空の結果になる。
     `target` を渡すと、さらにその対象（`documents.target`）の資料だけを探す（権限の範囲 ∩ 対象。範囲の外の資料は、対象に入っていても出ない）。
     None は対象で絞らない（従来どおり）。存在しない対象は空の結果。返ってきた行の対象も確かめる。
+    `document_ids` を渡すと、さらにその資料（`documents.id`）だけを探す（権限の範囲 ∩ 資料。範囲の外の資料は、選ばれていても出ない）。
+    None は資料で絞らない（従来どおり）。空の並びは何も探さない（「選ばない」を「全部」と読み替えない）。
     """
     scope = require_scope(scope)
     if top_k <= 0 or not query.strip():
+        return []
+    if document_ids is not None and not document_ids:
         return []
     if scope.is_empty or (collection is not None and not scope.allows(collection)):
         return []
@@ -169,11 +180,13 @@ async def search(
         "k": top_k,
         "collection": collection,
         "target": target,
+        "doc_ids": None if document_ids is None else sorted(set(document_ids)),
         "allowed": scope.sql_names(),
     }
     async with pool.connection() as conn:
         cursor = await conn.execute(_SEARCH_SQL, params)
         rows = await cursor.fetchall()
+    wanted = None if document_ids is None else set(document_ids)
     hits = [
         Hit(
             row["source"],
@@ -187,6 +200,8 @@ async def search(
         )
         for row in rows
         if float(row["sim"]) >= MIN_SIMILARITY
+        # SQL の条件を誤っても、選ばれていない資料は返さない
+        and (wanted is None or row.get("document_id") in wanted)
     ]
     scope.log_shadow("検索", (hit.collection for hit in hits))
     # SQL の条件を誤っても、範囲外のグループと、指定した対象以外の資料は返さない
