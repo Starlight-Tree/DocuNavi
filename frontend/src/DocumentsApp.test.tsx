@@ -162,6 +162,22 @@ describe('資料一覧: 画面', () => {
     expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveValue('書きかけ');
   });
 
+  it('ナレッジの右上の「× 閉じる」で、直前のチャットへ戻る。入力途中の文と回答対象は残り、フォーカスは入力欄へ移る', async () => {
+    installDocsFetch(() => jsonResponse(LIST));
+    const { user } = setup();
+    await user.type(await screen.findByRole('textbox', { name: 'メッセージ' }), '書きかけ');
+    await openDocuments(user);
+    const main = screen.getByRole('main', { name: 'ナレッジ' });
+    expect(within(main).getByRole('heading', { name: 'ナレッジ' })).toBeVisible();
+
+    await user.click(within(main).getByRole('button', { name: '閉じる' }));
+
+    expect(window.location.search).toBe('?tab=chat');
+    expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveValue('書きかけ');
+    expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveFocus();
+    expect(screen.queryByRole('main', { name: 'ナレッジ' })).not.toBeInTheDocument();
+  });
+
   it('DB が設定されていないときは、文書 0 件とは別の案内を出す', async () => {
     installDocsFetch(() => jsonResponse({ configured: false, documents: [] }));
     const { user } = setup();

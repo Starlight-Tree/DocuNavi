@@ -212,8 +212,10 @@ test('最初の画面はチャットで、上部にタブは無い。左下の�
   await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
   await docsLink.click(page);
-  await chatLink(page).click();
+  await page.getByRole('main', { name: 'ナレッジ' }).getByRole('button', { name: '閉じる' }).click(); // 右上の「× 閉じる」
+  await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
+  await expect(input).toBeFocused();
 });
 
 test('左サイドバーは閉じられる。閉じるとチャットが広がり、再表示のボタンが残る。会話・入力途中の文・回答対象は変わらず、資料一覧でも同じ', async ({ page }) => {

@@ -1371,8 +1371,16 @@
 
 /* ---- 資料ライブラリ（ツールバー・質問の対象・テーブル）---- */
 
-.docs-title {
+.docs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin: 0 0 1rem;
+}
+
+.docs-title {
+  margin: 0;
   font-size: 1.4rem;
   line-height: 1.4;
 }

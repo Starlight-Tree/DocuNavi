@@ -317,6 +317,7 @@ function ChatScreen() {
               !chat.scopeUnknown &&
               (target === null ? chat.scope.kind === 'all' : chat.scope.kind === 'target' && chat.scope.name === target)
             }
+            onClose={goChat}
             onAskTarget={targets ? (target, trigger) => requestScope(target === null ? ALL_SCOPE : { kind: 'target', name: target }, trigger) : undefined}
           />
         )}
