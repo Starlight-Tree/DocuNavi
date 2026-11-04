@@ -1362,6 +1362,17 @@
   }
 }
 
+/* ロゴの絵は、文字と同じ色の線画。文字との間を詰め、中央をそろえる */
+.ws-brand a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.ws-brand-icon {
+  flex: none;
+}
+
 /* サイドバーのロゴと画面の切り替えは、リンクだが、見た目は文字・ボタンのまま（色と下線を変えない） */
 .ws-brand a,
 .ws-nav-item {

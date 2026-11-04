@@ -30,7 +30,7 @@ const docsLink = {
     await page.getByRole('menuitem', { name: 'ナレッジ' }).click();
   },
 };
-const chatLink = (page: Page) => page.getByRole('link', { name: 'ドキュナビ' });
+const chatLink = (page: Page) => page.getByRole('link', { name: 'DocuNavi' });
 const pickTarget = async (page: Page, name: RegExp) => {
   await targetButton(page).click();
   await page.getByRole('menuitemradio', { name }).click();
@@ -255,7 +255,7 @@ test('最初の画面はチャットで、上部にタブは無い。左下の�
   await expect(page.getByRole('combobox', { name: '対象' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ナレッジ' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'ドキュナビ' }).click();
+  await page.getByRole('link', { name: 'DocuNavi' }).click();
   await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
   await docsLink.click(page);

@@ -40,6 +40,17 @@ export function SidebarIcon() {
   );
 }
 
+/** サイドバー上部のロゴの絵（書類と矢印を 1 つにした単色の線画）。色は文字に合わせる。 */
+export function BrandIcon() {
+  return (
+    <svg className="ws-brand-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 15h6M12.5 12.5 15 15l-2.5 2.5" />
+    </svg>
+  );
+}
+
 /** 新しいタブで開く操作（Ctrl・Cmd・Shift・中クリック）は、ブラウザーに任せる。ふつうのクリックだけ、画面の中で移る。 */
 function inApp(action: () => void) {
   return (event: MouseEvent<HTMLAnchorElement>) => {
@@ -60,7 +71,8 @@ export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation
       <div className="ws-brand-row">
         <h1 className="ws-brand">
           <a href="?tab=chat" onClick={inApp(onGoChat)}>
-            ドキュナビ
+            <BrandIcon />
+            DocuNavi
           </a>
         </h1>
         {onCollapse && (
