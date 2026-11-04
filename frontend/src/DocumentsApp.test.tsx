@@ -156,7 +156,7 @@ describe('資料一覧: 画面', () => {
     expect(window.location.search).toBe('?tab=documents');
     expect(await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('link', { name: 'ドキュナビ' }));
+    await user.click(screen.getByRole('link', { name: 'DocuNavi' }));
 
     expect(window.location.search).toBe('?tab=chat');
     expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveValue('書きかけ');
@@ -186,7 +186,7 @@ describe('資料一覧: 画面', () => {
 
     expect(await screen.findByText(MSG_NOT_CONFIGURED)).toBeInTheDocument();
     expect(screen.queryByText(MSG_NO_DOCUMENTS)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'ドキュナビ' })).toBeInTheDocument(); // 資料が無くても、チャットへ移る導線（ロゴ）は残る
+    expect(screen.getByRole('link', { name: 'DocuNavi' })).toBeInTheDocument(); // 資料が無くても、チャットへ移る導線（ロゴ）は残る
   });
 
   it('文書が 0 件のときは、「登録された資料はありません」を出す', async () => {

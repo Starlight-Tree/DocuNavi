@@ -11,7 +11,7 @@ export async function openKnowledge(user: User) {
   await user.click(await screen.findByRole('menuitem', { name: 'ナレッジ' }));
 }
 
-/** ロゴ（「ドキュナビ」）で、チャットへ戻る（上部に「チャット」の入口は無い）。 */
+/** ロゴ（「DocuNavi」）で、チャットへ戻る（上部に「チャット」の入口は無い）。 */
 export async function goChat(user: User) {
-  await user.click(screen.getByRole('link', { name: 'ドキュナビ' }));
+  await user.click(screen.getByRole('link', { name: 'DocuNavi' }));
 }

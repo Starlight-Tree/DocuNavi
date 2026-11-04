@@ -1362,6 +1362,17 @@
   }
 }
 
+/* ロゴの絵は、文字と同じ色の線画。文字との間を詰め、中央をそろえる */
+.ws-brand a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.ws-brand-icon {
+  flex: none;
+}
+
 /* サイドバーのロゴと画面の切り替えは、リンクだが、見た目は文字・ボタンのまま（色と下線を変えない） */
 .ws-brand a,
 .ws-nav-item {
@@ -1799,4 +1810,139 @@
     max-height: 0;
     border-bottom: 0;
   }
+}
+
+/* ---- 閉じたサイドバーのレール（PC 幅だけ）。アイコンだけを細い列に残し、履歴と文字は隠す ---- */
+
+.ws-side-full {
+  display: contents;
+}
+
+.ws-rail {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .ws-shell[data-side='closed'] {
+    --ws-side: 3.5rem;
+    grid-template-columns: var(--ws-side) minmax(0, 1fr);
+  }
+
+  .ws-shell-panel[data-side='closed'] {
+    grid-template-columns: var(--ws-side) minmax(0, 1fr) clamp(26rem, 33vw, 38rem);
+  }
+
+  /* ツールチップとアカウントのメニューがはみ出して見えるよう、はみ出しを切らない */
+  .ws-shell[data-side='closed'] .ws-sidebar {
+    width: auto;
+    padding: 0.75rem 0.5rem;
+    overflow: visible;
+    border-right: 1px solid var(--border);
+    visibility: visible;
+  }
+
+  /* 会話の履歴・文字・ボタンは隠す（操作と読み上げからも外す。スクロール位置は残す） */
+  .ws-shell[data-side='closed'] .ws-side-full {
+    display: block;
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
+
+  .ws-rail {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+  }
+}
+
+.ws-rail-btn {
+  position: relative;
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ws-rail-btn:hover,
+.ws-rail-btn:focus-visible {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.ws-rail-btn[aria-current='page'] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.ws-rail-foot {
+  display: flex;
+  width: 100%;
+  margin-top: auto;
+  justify-content: center;
+}
+
+/* ツールチップ（ホバーとキーボードのフォーカスで、アイコンの右に出す）。読み上げ名は aria-label が持つ */
+.ws-rail [data-tip]::after {
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  left: calc(100% + 0.5rem);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%);
+  content: attr(data-tip);
+}
+
+.ws-rail [data-tip]:hover::after,
+.ws-rail [data-tip]:focus-visible::after {
+  opacity: 1;
+}
+
+/* レールのアカウント: アバターだけ。メニューは右へ開く */
+.ws-account-compact {
+  width: auto;
+}
+
+.ws-account-compact .ws-account-button {
+  position: relative;
+  width: 2.5rem;
+  min-height: 2.5rem;
+  justify-content: center;
+  padding: 0;
+}
+
+.ws-account-compact .ws-account-name,
+.ws-account-compact .ws-account-button > span:last-child {
+  display: none;
+}
+
+.ws-account-compact .ws-account-menu {
+  right: auto;
+  bottom: 0;
+  left: calc(100% + 0.5rem);
+  width: 13rem;
+}
+
+/* メニューを開いている間は、ツールチップを出さない（メニューに重なるため） */
+.ws-rail [data-tip][aria-expanded='true']::after {
+  display: none;
 }

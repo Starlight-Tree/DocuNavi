@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { AppSidebar, SidebarIcon } from './components/AppSidebar';
+import { useWideScreen } from './hooks/useWideScreen';
 import { Composer } from './components/Composer';
 import { DocumentsView, MSG_NOTHING_SELECTED } from './components/DocumentsView';
 import { ErrorBanner } from './components/ErrorBanner';
@@ -81,6 +82,9 @@ function ChatScreen() {
   const [expanded, setExpanded] = useState(false);
   // 左サイドバーの開閉。閉じても隠すだけで、会話・入力途中の文・回答対象・スクロール位置は変えない
   const [sideOpen, setSideOpen] = useState(true);
+  // 閉じたとき、PC 幅はアイコンだけのレールを残し（開くボタンもレールに置く）、狭い幅は完全に隠す（開くボタンはメインの左上）
+  const wide = useWideScreen();
+  const rail = !sideOpen && wide;
   const collapseRef = useRef<HTMLButtonElement>(null);
   const reopenRef = useRef<HTMLButtonElement>(null);
   const sideToggled = useRef(false);
@@ -245,6 +249,9 @@ function ChatScreen() {
         }}
         onCollapse={() => toggleSide(false)}
         collapseRef={collapseRef}
+        rail={rail}
+        railToggleRef={reopenRef}
+        onExpand={() => toggleSide(true)}
         // 確認は出さない。いまの会話と回答対象のまま、チャットへ移る（回答対象を変えるのは、資料一覧のボタンと入力欄のチップ）
         onGoChat={goChat}
         onGoDocuments={() => navigate({ tab: 'documents' })}
@@ -268,7 +275,7 @@ function ChatScreen() {
       {/* 拡大中は、パネルが上に重なる。下のチャット・資料一覧は作り直さず、操作と読み上げだけ外す */}
       <div className="ws-main" inert={panelOpen && expanded}>
         {/* サイドバーを閉じている間も、再表示のボタンは残す（チャットでも資料一覧でも、同じ場所） */}
-        {!sideOpen && (
+        {!sideOpen && !rail && (
           <div className="ws-main-bar">
             <button ref={reopenRef} type="button" className="ws-icon-btn" aria-label="サイドバーを開く" onClick={() => toggleSide(true)}>
               <SidebarIcon />
