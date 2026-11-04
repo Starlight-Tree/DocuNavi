@@ -1157,6 +1157,34 @@ describe('左サイドバーの開閉', () => {
     expect(screen.queryByRole('button', { name: 'サイドバーを開く' })).not.toBeInTheDocument();
   });
 
+  it('PC 幅では、閉じるとアイコンだけのレールが残り、各アイコンに名前と選択中の表示がある。開くボタンはレールに移る（メインの左上には出ない）', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(min-width: 1024px)', media: query, addEventListener: () => {}, removeEventListener: () => {} }));
+    try {
+      install();
+      const { user } = setup();
+      await screen.findByRole('textbox', { name: 'メッセージ' });
+      expect(screen.queryByRole('navigation', { name: 'サイドバー（縮小表示）' })).not.toBeInTheDocument();
+
+      await user.click(sidebarToggle('閉じる'));
+
+      const rail = screen.getByRole('navigation', { name: 'サイドバー（縮小表示）' });
+      expect(within(rail).getByRole('button', { name: 'サイドバーを開く' })).toHaveFocus();
+      expect(document.querySelector('.ws-main-bar')).toBeNull();
+      expect(within(rail).getByRole('link', { name: 'DocuNavi（チャットへ戻る）' })).toHaveAttribute('aria-current', 'page');
+      expect(within(rail).getByRole('button', { name: '新しい会話' })).toBeInTheDocument();
+      expect(within(rail).getByRole('link', { name: 'ナレッジ' })).not.toHaveAttribute('aria-current');
+
+      await user.click(within(rail).getByRole('link', { name: 'ナレッジ' }));
+      expect(within(rail).getByRole('link', { name: 'ナレッジ' })).toHaveAttribute('aria-current', 'page');
+      expect(within(rail).getByRole('link', { name: 'DocuNavi（チャットへ戻る）' })).not.toHaveAttribute('aria-current');
+
+      await user.click(within(rail).getByRole('button', { name: 'サイドバーを開く' }));
+      expect(screen.queryByRole('navigation', { name: 'サイドバー（縮小表示）' })).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('閉じたままでも、資料一覧でも再表示のボタンがあり、資料一覧の条件も残る', async () => {
     install();
     const { user } = setup();

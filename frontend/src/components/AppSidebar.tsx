@@ -23,6 +23,11 @@ interface AppSidebarProps {
   history?: ReactNode;
   /** 登録資料の数。分からない間は渡さない。 */
   documentCount?: number | undefined;
+  /** 閉じた状態を、アイコンだけの細いレールで見せる（PC）。履歴・文字は隠す。渡さない（スマホ・UI モック）と、閉じたら完全に隠す。 */
+  rail?: boolean | undefined;
+  /** レールの「サイドバーを開く」ボタン。開いたあとにフォーカスを戻す先ではなく、閉じたときにフォーカスを移す先。 */
+  railToggleRef?: Ref<HTMLButtonElement>;
+  onExpand?: (() => void) | undefined;
 }
 
 const MODE_LABELS: Record<string, { label: string; hint: string }> = {
@@ -51,6 +56,26 @@ export function BrandIcon() {
   );
 }
 
+/** レールの「新しい会話」（線の十字）。 */
+function PlusIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+      <path d="M10 4v12M4 10h12" />
+    </svg>
+  );
+}
+
+/** レールの「ナレッジ」（積んだ資料）。 */
+function KnowledgeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.5" y="3" width="13" height="4" rx="1.2" />
+      <rect x="3.5" y="9" width="13" height="4" rx="1.2" />
+      <path d="M3.5 16h13" />
+    </svg>
+  );
+}
+
 /** 新しいタブで開く操作（Ctrl・Cmd・Shift・中クリック）は、ブラウザーに任せる。ふつうのクリックだけ、画面の中で移る。 */
 function inApp(action: () => void) {
   return (event: MouseEvent<HTMLAnchorElement>) => {
@@ -64,56 +89,77 @@ function inApp(action: () => void) {
  * 共通の左サイドバー。新しい会話、会話の履歴、アカウントのメニュー（ナレッジ・ログアウト）を持つ。閉じるボタンで畳める。
  * `knowledgeInMenu` でないとき（UI モック）は、上部に画面の切り替え（チャット / 資料）を出す。
  */
-export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation, onCollapse, collapseRef, onGoChat, onGoDocuments, knowledgeInMenu, history, documentCount }: AppSidebarProps) {
+export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation, onCollapse, collapseRef, onGoChat, onGoDocuments, knowledgeInMenu, history, documentCount, rail, railToggleRef, onExpand }: AppSidebarProps) {
   const modeInfo = mode ? (MODE_LABELS[mode] ?? { label: mode, hint: `モード: ${mode}` }) : null;
   return (
     <div className="ws-sidebar">
-      <div className="ws-brand-row">
-        <h1 className="ws-brand">
-          <a href="?tab=chat" onClick={inApp(onGoChat)}>
-            <BrandIcon />
-            DocuNavi
-          </a>
-        </h1>
-        {onCollapse && (
-          <button ref={collapseRef} type="button" className="ws-icon-btn" aria-label="サイドバーを閉じる" onClick={onCollapse}>
+      {rail && onExpand && (
+        <nav className="ws-rail" aria-label="サイドバー（縮小表示）">
+          <button ref={railToggleRef} type="button" className="ws-rail-btn" aria-label="サイドバーを開く" data-tip="サイドバーを開く" onClick={onExpand}>
             <SidebarIcon />
           </button>
-        )}
-      </div>
-      <button type="button" className="btn btn-primary ws-new" onClick={onNewConversation}>
-        <span aria-hidden="true">＋ </span>新しい会話
-      </button>
-      {!knowledgeInMenu && (
-        <nav aria-label="画面">
-          <ul className="ws-nav">
-            <li>
-              <a href="?tab=chat" className="ws-nav-item" aria-current={view === 'chat' ? 'page' : undefined} onClick={inApp(onGoChat)}>
-                チャット
-              </a>
-            </li>
-            <li>
-              <a href="?tab=documents" className="ws-nav-item" aria-current={view === 'documents' ? 'page' : undefined} onClick={inApp(onGoDocuments)}>
-                資料
-                {documentCount !== undefined && <span className="ws-count">{documentCount}</span>}
-              </a>
-            </li>
-          </ul>
+          <a href="?tab=chat" className="ws-rail-btn" aria-label="DocuNavi（チャットへ戻る）" data-tip="チャット" aria-current={view === 'chat' ? 'page' : undefined} onClick={inApp(onGoChat)}>
+            <BrandIcon />
+          </a>
+          <button type="button" className="ws-rail-btn" aria-label="新しい会話" data-tip="新しい会話" onClick={onNewConversation}>
+            <PlusIcon />
+          </button>
+          <a href="?tab=documents" className="ws-rail-btn" aria-label="ナレッジ" data-tip="ナレッジ" aria-current={view === 'documents' ? 'page' : undefined} onClick={inApp(onGoDocuments)}>
+            <KnowledgeIcon />
+          </a>
+          <div className="ws-rail-foot">
+            <AccountMenu label={userLabel} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} compact />
+          </div>
         </nav>
       )}
-      {history}
-      <div className="ws-side-foot">
-        {modeInfo && (
-          <span className={`mode-badge mode-${mode}`} title={modeInfo.hint}>
-            <span className="visually-hidden">動作モード: </span>
-            {modeInfo.label}
-          </span>
+      <div className="ws-side-full">
+        <div className="ws-brand-row">
+          <h1 className="ws-brand">
+            <a href="?tab=chat" onClick={inApp(onGoChat)}>
+              <BrandIcon />
+              DocuNavi
+            </a>
+          </h1>
+          {onCollapse && (
+            <button ref={collapseRef} type="button" className="ws-icon-btn" aria-label="サイドバーを閉じる" onClick={onCollapse}>
+              <SidebarIcon />
+            </button>
+          )}
+        </div>
+        <button type="button" className="btn btn-primary ws-new" onClick={onNewConversation}>
+          <span aria-hidden="true">＋ </span>新しい会話
+        </button>
+        {!knowledgeInMenu && (
+          <nav aria-label="画面">
+            <ul className="ws-nav">
+              <li>
+                <a href="?tab=chat" className="ws-nav-item" aria-current={view === 'chat' ? 'page' : undefined} onClick={inApp(onGoChat)}>
+                  チャット
+                </a>
+              </li>
+              <li>
+                <a href="?tab=documents" className="ws-nav-item" aria-current={view === 'documents' ? 'page' : undefined} onClick={inApp(onGoDocuments)}>
+                  資料
+                  {documentCount !== undefined && <span className="ws-count">{documentCount}</span>}
+                </a>
+              </li>
+            </ul>
+          </nav>
         )}
-        {knowledgeInMenu ? (
-          <AccountMenu label={userLabel} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} />
-        ) : (
-          userLabel && onSignOut && <AccountMenu label={userLabel} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} />
-        )}
+        {history}
+        <div className="ws-side-foot">
+          {modeInfo && (
+            <span className={`mode-badge mode-${mode}`} title={modeInfo.hint}>
+              <span className="visually-hidden">動作モード: </span>
+              {modeInfo.label}
+            </span>
+          )}
+          {knowledgeInMenu ? (
+            <AccountMenu label={userLabel} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} />
+          ) : (
+            userLabel && onSignOut && <AccountMenu label={userLabel} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} />
+          )}
+        </div>
       </div>
     </div>
   );
