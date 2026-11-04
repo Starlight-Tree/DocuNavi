@@ -1946,3 +1946,11 @@
 .ws-rail [data-tip][aria-expanded='true']::after {
   display: none;
 }
+
+/* 履歴を取得できなかったときの「再試行」「新しい会話」 */
+.history-error-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}

@@ -308,8 +308,9 @@ function ChatScreen() {
               waiting={chat.waiting}
               phase={chat.phase}
               busy={chat.pending}
-              resumed={chat.threadId !== null && chat.messages.length === 0}
               history={chat.history}
+              onRetryHistory={chat.retryHistory}
+              onNewConversation={chat.reset}
               onExample={chat.pending ? undefined : chat.send}
               onAskAll={targets || groups ? chat.askAgainInAll : undefined}
             />
