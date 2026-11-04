@@ -155,3 +155,30 @@ def test_verify_flags_missing_notice_tampering_and_orphans(tmp_path):
     assert any("PDF を読めません" in p for p in problems)
     assert any("台帳にない PDF" in p for p in problems)
     json.dumps(problems)
+
+
+def test_markdown_subset_parses_h3_bullets_and_bold():
+    from evals.synth import markdown_subset
+
+    md = "# 題\n\n### 小見出し\n\n1. 手順\n   続きの行\n*   項目\n    *   入れ子\n\n**強調**だけ\n\n| 項目 | 値 |\n|---|---|\n| **a** | 1 |"
+    kinds = [k for k, _ in markdown_subset.parse(md)]
+    assert kinds == ["h1", "h3", "p", "cont", "li", "li2", "p", "table"]
+    plain = markdown_subset.plain_text(md)
+    assert "**" not in plain and "強調だけ" in plain
+
+
+def test_pdf_draws_markup_as_headings_bold_and_bullets(tmp_path):
+    pytest.importorskip("reportlab")
+    pypdf = pytest.importorskip("pypdf")
+    from evals.synth.render import DEFAULT_BOLD_FONT, DEFAULT_FONT
+
+    if not DEFAULT_FONT.exists():
+        pytest.skip("日本語フォントがない")
+    md = "# 題\n\n## 一\n\n### 小見出し\n\n*   **太字の項目**です。\n\n**単独の太字**\n\n本文です。"
+    path = tmp_path / "m.pdf"
+    render_pdf(md, path, font_path=DEFAULT_FONT, bold_font_path=DEFAULT_BOLD_FONT, doc_id="demo-02", title="題")
+    text = pypdf.PdfReader(str(path)).pages[0].extract_text()
+    assert "**" not in text and "###" not in text and "*" not in text
+    assert "小見出し" in text and "太字の項目です" in text
+    if DEFAULT_BOLD_FONT is not None:
+        assert b"NotoSansJP-Bold" in path.read_bytes()

@@ -17,7 +17,7 @@ from evals.synth.bible import BibleError, load_all
 from evals.synth.budget import BudgetExceeded, Limits
 from evals.synth.ledger import Ledger, LockedError
 from evals.synth.plan import Brief, PlanError, build_plan
-from evals.synth.render import DEFAULT_FONT, RenderUnavailable, render_pdf
+from evals.synth.render import DEFAULT_BOLD_FONT, DEFAULT_FONT, RenderUnavailable, render_pdf
 from evals.synth.verify import verify_output
 
 HERE = Path(__file__).resolve().parent
@@ -194,9 +194,10 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def cmd_render(args: argparse.Namespace) -> int:
     font = Path(args.font)
+    bold = Path(args.bold_font) if args.bold_font else None
 
     def renderer(md: str, out: Path, doc_id: str, title: str) -> None:
-        render_pdf(md, out, font_path=font, doc_id=doc_id, title=title)
+        render_pdf(md, out, font_path=font, bold_font_path=bold, doc_id=doc_id, title=title)
 
     done = pipeline.render_pending(Path(args.out_dir), renderer)
     rows = pipeline.write_manifest(Path(args.out_dir))
@@ -344,7 +345,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--regenerate-stale", action="store_true")
 
     p = add("render", cmd_render, "受け入れ済みの本文を PDF にし、マニフェストを書く（CPU。reportlab が要る）")
-    p.add_argument("--font", default=str(DEFAULT_FONT))
+    p.add_argument("--font", default=str(DEFAULT_FONT), help="通常の字体（静的な TrueType）")
+    p.add_argument(
+        "--bold-font",
+        default=str(DEFAULT_BOLD_FONT) if DEFAULT_BOLD_FONT else None,
+        help="太字の字体（静的な TrueType）。無ければ太字も通常の字体で描く",
+    )
     add("manifest", cmd_manifest, "分類マニフェストを書く")
     add("verify", cmd_verify, "台帳・本文・PDF・マニフェストの整合と、全ページの「テスト用の架空資料」を点検する")
     add("status", cmd_status, "対象ごとの状態の件数と費用の累計")
