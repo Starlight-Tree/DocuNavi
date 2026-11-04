@@ -28,9 +28,10 @@ python -m evals.synth prepare --sample-per-target 2         # 8 件分の依頼 
 python -m evals.synth.gpu_worker --engine fake --requests out/requests/round-01.jsonl \
     --out out/results/round-01.jsonl --meta out/results/round-01.meta.json   # 偽のエンジンで GPU ジョブの代わり
 python -m evals.synth ingest --sample-per-target 2 --round 1
-python -m evals.synth render --font /usr/share/fonts/opentype/ipafont-gothic/ipag.ttf   # reportlab が要る
+python -m evals.synth.make_fonts   # 1 回だけ: Noto Sans JP の Regular/Bold（静的な TTF）を fonts/ に作る（fonttools が要る。Git 管理外）
+python -m evals.synth render                                # reportlab が要る。fonts/ があれば Noto Sans JP、無ければ IPA ゴシック（太字なし）
 python -m evals.synth verify                                # 全ページの「テスト用の架空資料」・ハッシュ・マニフェストの整合
-python -m evals.synth report --usd-per-hour 3.2             # 実測の集計と、80 件・1,000 件への見積もりの補正
+python -m evals.synth report --usd-per-hour <時間単価 USD>  # 実測の集計と、80 件・1,000 件への見積もりの補正
 ```
 
 出力先は `evals/synth/out/`（Git 管理外）。`--out-dir` で変えられるが、`storage/` `evals/corpora/` `evals/fixtures/` `app/` などの中は拒否される。
@@ -44,7 +45,7 @@ reportlab は `requirements.txt` のとおり、一時的な仮想環境に入�
 ```bash
 python -m evals.synth bench-prepare --sample-per-target 4 --max-tokens-per-doc 3000     # 全試行で共有する依頼（違う入力は拒否）
 # GPU ジョブを、同時数を変えて 3 回: --max-num-seqs 4 / 8 / 16、出力は bench/results.c04.jsonl など（gpu/README.md）
-python -m evals.synth bench-ingest --sample-per-target 4 --label c04 --usd-per-hour 3.2 --job-seconds <Cloud Run の実行の秒数>
+python -m evals.synth bench-ingest --sample-per-target 4 --label c04 --usd-per-hour <時間単価 USD> --job-seconds <Cloud Run の実行の秒数>
 python -m evals.synth bench-report                       # 並べて、推奨の同時数を出す
 ```
 
@@ -64,6 +65,15 @@ python -m evals.synth bench-report                       # 並べて、推奨の
 | 費用 | `prepare --max-total-cost-usd`（累計。見積もりが収まる件数まで依頼を減らす）、逐次の `run` は `--max-docs --max-tokens --max-cost-usd`（fake 以外は 3 つとも必須）、連続の失敗で全体を止める | `batch.py` `budget.py` `pipeline.py` |
 | 重複 | 同じ `key`（bible の版・種類・変化・指示の版）は作り直さない。依頼済み（`queued`）は、`--requeue-queued` まで出し直さない。本文は、既存の資料と受け入れ済みの本文との類似度（5 文字の連続の Jaccard）0.5 以上を落とす | `plan.py` `pipeline.py` |
 | 再開 | 台帳（追記だけの JSONL。書きかけの行は無視）と、出力先のロック | `ledger.py` |
+
+## 生成後の仕上げ（第二段階。ユーザーが決定、2026-11-04）
+
+目的はアプリ用のサンプルデータなので、生成した本文は、**Claude が読んで整える**（プロンプトでの抑止や、厳しい検証機構の追加はしない）。
+
+- 直すのは、シナリオ内・資料間（既存の資料を含む）の矛盾、誤字、表示上の問題（PDF の字体に無い文字など）だけ。
+- 創作、文字数の過不足、太字・`###` などの装飾は、サンプルとして問題なければ許容する。
+- 元の生成結果（`results.<label>.jsonl`）は変えず、仕上げた版は別名（例: `results.<label>.final.jsonl`）で置く。
+- `validate.py` の長さ・書式の規則と、数値の突合は、不合格の目安として出るが、仕上げの合否には使わない（合計や列挙から出した正しい数値も落とす）。
 
 ## 共通設定（bible）と矛盾の防ぎ方
 
