@@ -40,11 +40,12 @@ export function displayName(document: DocumentSummary): string {
   return document.title ?? document.source;
 }
 
-export function DocumentName({ document }: { document: DocumentSummary }) {
+/** `showFile` を false にすると、ファイル名を出さない（一覧は、同じ題名の資料を見分けるときだけ出す）。 */
+export function DocumentName({ document, showFile = true }: { document: DocumentSummary; showFile?: boolean }) {
   return (
     <>
       <span className="document-name">{displayName(document)}</span>
-      {document.title && <span className="document-file">{document.source}</span>}
+      {showFile && document.title && <span className="document-file">{document.source}</span>}
     </>
   );
 }

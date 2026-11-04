@@ -172,7 +172,7 @@ export function isFiltered(filter: DocumentFilter): boolean {
   );
 }
 
-/** 「詳細フィルター」の中（状態・ページ数・更新）で、有効な条件の数。 */
+/** 「フィルター」の中（状態・ページ数・更新）で、有効な条件の数。 */
 export function detailCount(filter: DocumentFilter): number {
   return [filter.status, filter.pages, filter.updated].filter((v) => v !== null).length;
 }

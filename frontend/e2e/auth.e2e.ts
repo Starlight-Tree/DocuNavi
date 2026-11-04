@@ -60,7 +60,7 @@ async function mockListApis(page: Page) {
 async function signIn(page: Page) {
   await page.goto('/?tab=chat');
   await page.getByRole('button', { name: 'Google でログイン' }).click();
-  await expect(page.locator('.ws-user')).toHaveText(E2E_EMAIL);
+  await expect(page.locator('.ws-account-name')).toHaveText(E2E_EMAIL);
 }
 
 async function ask(page: Page, text: string) {
@@ -84,7 +84,7 @@ test('ログインして戻ると、ログイン前の画面の状態（資料�
   await signIn.click();
 
   // ログインして戻ると、メールアドレスが出て、絞り込みの付いた資料一覧が開く
-  await expect(page.locator('.ws-user')).toHaveText(E2E_EMAIL);
+  await expect(page.locator('.ws-account-name')).toHaveText(E2E_EMAIL);
   await expect(page.getByRole('main', { name: '資料一覧' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'カフェのメニュー を開く' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ザーハード設定資料 1 を開く' })).toHaveCount(0);
@@ -122,7 +122,7 @@ test('チャットが 401 を返したら、トークンを 1 回だけ更新し
 
   await expect(page.getByText(ANSWER)).toBeVisible();
   // ログインしたまま（ログイン画面にも、期限切れの案内にも戻らない）
-  await expect(page.locator('.ws-user')).toHaveText(E2E_EMAIL);
+  await expect(page.locator('.ws-account-name')).toHaveText(E2E_EMAIL);
   await expect(page.getByText(EXPIRED_NOTICE)).toHaveCount(0);
 
   // 更新は 1 回だけ。送り直しには、更新で発行された新しいトークンが付いている
@@ -152,7 +152,7 @@ test('トークンを更新できないと、ログイン画面に戻り、送�
 
   // ログイン画面に戻る
   await expect(page.getByRole('button', { name: 'Google でログイン' })).toBeVisible();
-  await expect(page.locator('.ws-user')).toHaveCount(0);
+  await expect(page.locator('.ws-account-name')).toHaveCount(0);
   await expect(page.getByText(ANSWER)).toHaveCount(0);
   await expect(page.getByText(EXPIRED_NOTICE)).toBeVisible();
 

@@ -18,17 +18,20 @@ export const MSG_NO_DOCUMENTS = '登録された資料はありません。資�
 export const MSG_NO_MATCH = '条件を減らすか、クリアしてください。';
 export const MSG_NO_MATCH_LEGACY =
   '旧フィルターと、ほかの条件の両方に当てはまる資料はありません。旧フィルターを解除するか、条件を変えてください。';
-export const MSG_FILTER_IS_NOT_SCOPE = '一覧の絞り込みは、チャットの質問対象を変えません。質問するには、右のボタンを押します。';
-export const MSG_UNCLASSIFIED_NOT_ASKABLE = '未分類の資料は、質問の対象に選べません';
+export const MSG_UNCLASSIFIED_NOT_ASKABLE = '未分類の資料は、回答の対象に選べません';
+const MSG_ASK_HINT = '押すと、チャットの回答対象になります。質問は自動で送信しません。';
+const MSG_APPLIED_HINT = 'チャットの入力欄の「回答対象」に反映済みです。質問は送信していません。';
 
 /** 取り込みの状態の見た目。`ready` と `failed` 以外（取り込み中など）は、待ちの見た目にする。 */
 function statusKind(status: string): 'ready' | 'failed' | 'processing' {
   return status === 'ready' ? 'ready' : status === 'failed' ? 'failed' : 'processing';
 }
 
+/** 取り込み済みは出さない（全件が取り込み済みの一覧に、同じ印を並べない）。取り込み中・失敗のときだけ、資料名の横に出す。 */
 function DocumentStatus({ document }: { document: DocumentSummary }) {
   const kind = statusKind(document.status);
-  const glyph = kind === 'ready' ? '✓' : kind === 'failed' ? '!' : '…';
+  if (kind === 'ready') return null;
+  const glyph = kind === 'failed' ? '!' : '…';
   return (
     <>
       <span className={`ws-status ws-status-${kind}`} data-status={document.status}>
@@ -48,10 +51,10 @@ interface DocumentTableProps {
   /** URL で指定された、一覧の対象・資料種別・検索・絞り込み・並び替え。 */
   filter: DocumentFilter;
   onFilterChange: (next: Partial<DocumentFilter>, mode?: NavigateMode) => void;
-  /** 「この対象について質問」「すべての資料に質問」（null は「すべて」）。質問の対象を変える。渡さなければ、ボタンは出さない。 */
+  /** 「全○資料を回答に使う」（null は「すべて」）。チャットの回答対象を変える。渡さなければ、ボタンは出さない。 */
   onAskTarget?: ((target: string | null, trigger: HTMLElement) => void) | undefined;
-  /** いまのチャットの質問対象の表示名。一覧の絞り込みとは別のものだと示すために出す。 */
-  chatTargetLabel?: string | undefined;
+  /** いまのチャットの回答対象が、その対象（null は「すべて」）か。そうならボタンは「適用済み」にする。 */
+  isApplied?: ((target: string | null) => boolean) | undefined;
   onRetry: () => void;
   /** 開いている資料（右のパネル）の ID。その行を示す。 */
   openId: number | null;
@@ -65,7 +68,7 @@ function DocumentTable({
   filter,
   onFilterChange,
   onAskTarget,
-  chatTargetLabel,
+  isApplied,
   onRetry,
   openId,
   onOpen,
@@ -90,12 +93,15 @@ function DocumentTable({
   };
   const shown = sortDocuments(filterDocuments(documents, filter, context), filter.sort);
 
-  // 質問の対象にできるのは、サーバーが選べると返した対象だけ（一覧に無い識別名・未分類では、質問のボタンを出さない）
+  // 回答の対象にできるのは、サーバーが選べると返した対象だけ（一覧に無い識別名・未分類では、「回答に使う」のボタンを出さない）
   const askable = usableClassifications(targetState);
   const askTarget = filter.target !== null && filter.target !== UNCLASSIFIED ? filter.target : null;
   const askKnown = askTarget === null || (askable?.some((t) => t.name === askTarget) ?? false);
   const askInfo = askTarget === null ? undefined : askable?.find((t) => t.name === askTarget);
   const askLabel = askTarget === null ? 'すべての資料' : classificationLabel(askTarget, targetItems);
+  // 「全○資料」の数: 対象はサーバーが返す件数、すべては一覧の資料数
+  const askCount = askTarget === null ? documents.length : askInfo?.documentCount;
+  const applied = isApplied?.(askTarget) ?? false;
 
   return (
     <>
@@ -119,42 +125,36 @@ function DocumentTable({
             </div>
           )
         }
-        trailing={
-          onAskTarget &&
-          (filter.target === UNCLASSIFIED ? (
-            <div className="docs-ask">
-              <span className="docs-ask-label">{MSG_UNCLASSIFIED_NOT_ASKABLE}</span>
-            </div>
-          ) : (
-            askKnown && (
-              <div className="docs-ask" role="group" aria-label="質問する">
-                <span className="docs-ask-target" title={askInfo?.description || undefined}>
-                  <span className="docs-ask-label">質問の対象</span>
-                  <strong>{askLabel}</strong>
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  aria-label={askTarget === null ? 'すべて: すべての資料に質問' : `${askLabel}: この対象について質問`}
-                  onClick={(event) => onAskTarget(askTarget, event.currentTarget)}
-                >
-                  {askTarget === null ? 'すべての資料に質問' : 'この対象について質問'}
-                </button>
-              </div>
-            )
-          ))
-        }
       />
-      {onAskTarget && (
-        <p className="docs-ask-note">
-          {MSG_FILTER_IS_NOT_SCOPE}
-          {chatTargetLabel !== undefined && <span> 現在のチャットの質問対象: {chatTargetLabel}</span>}
-        </p>
-      )}
+      {onAskTarget &&
+        (filter.target === UNCLASSIFIED ? (
+          <div className="docs-ask">
+            <span className="docs-ask-label">{MSG_UNCLASSIFIED_NOT_ASKABLE}</span>
+          </div>
+        ) : (
+          askKnown && (
+            <div className="docs-ask" role="group" aria-label="回答に使う資料">
+              <div className="docs-ask-target" title={askInfo?.description || undefined}>
+                <h3 className="docs-ask-name">{askLabel}</h3>
+                {askCount !== undefined && <span className="docs-ask-count">{askCount} 件</span>}
+              </div>
+              {applied ? (
+                <span className="docs-ask-applied" role="status">
+                  <span aria-hidden="true">✓ </span>適用済み
+                </span>
+              ) : (
+                <button type="button" className="btn btn-primary" onClick={(event) => onAskTarget(askTarget, event.currentTarget)}>
+                  {askCount === undefined ? 'この対象を回答に使う' : `全${askCount}資料を回答に使う`}
+                </button>
+              )}
+              <span className="docs-ask-hint">{applied ? MSG_APPLIED_HINT : MSG_ASK_HINT}</span>
+            </div>
+          )
+        ))}
       {shown.length === 0 ? (
         <p className="document-filter-empty">{collection !== null ? MSG_NO_MATCH_LEGACY : MSG_NO_MATCH}</p>
       ) : (
-        <DocumentRows documents={shown} openId={openId} onOpen={onOpen} />
+        <DocumentRows documents={shown} showTarget={filter.target === null} openId={openId} onOpen={onOpen} />
       )}
     </>
   );
@@ -162,24 +162,30 @@ function DocumentTable({
 
 interface DocumentRowsProps {
   documents: DocumentSummary[];
+  /** 対象の列を出すか。対象を 1 つ選んでいる間は、全行が同じ対象なので出さない（対象名は、上の見出しにある）。 */
+  showTarget: boolean;
   openId: number | null;
   onOpen: (document: DocumentSummary, opener: Element | null) => void;
 }
 
-/** 資料のテーブル。列は、API が返す情報だけ（資料名・対象・資料種別・状態・ページ数・更新日時）。資料名を押すと、右のパネルに詳細を開く。 */
-function DocumentRows({ documents, openId, onOpen }: DocumentRowsProps) {
+/**
+ * 資料のテーブル。列は、API が返す情報だけ（資料名・対象・資料種別・ページ数・更新日時）。資料名を押すと、右のパネルに詳細を開く。
+ * 取り込み済みの印は出さず、取り込み中・失敗だけを資料名の横に出す。ファイル名は、同じ題名の資料を見分けるときだけ出す（ふだんは詳細のパネルで見る）。
+ */
+function DocumentRows({ documents, showTarget, openId, onOpen }: DocumentRowsProps) {
   const { targets, docTypes } = useClassificationCatalog();
   const targetItems = classificationItems(targets);
   const docTypeItems = classificationItems(docTypes);
+  const names = new Map<string, number>();
+  for (const d of documents) names.set(displayName(d), (names.get(displayName(d)) ?? 0) + 1);
   return (
     <div className="documents-table-wrap">
       <table className="documents-table">
         <thead>
           <tr>
             <th scope="col">資料名</th>
-            <th scope="col">対象</th>
+            {showTarget && <th scope="col">対象</th>}
             <th scope="col">資料種別</th>
-            <th scope="col">状態</th>
             <th scope="col" className="col-num">
               ページ数
             </th>
@@ -205,17 +211,17 @@ function DocumentRows({ documents, openId, onOpen }: DocumentRowsProps) {
                     onOpen(document, event.currentTarget);
                   }}
                 >
-                  <DocumentName document={document} />
+                  <DocumentName document={document} showFile={(names.get(displayName(document)) ?? 0) > 1} />
                 </button>
+                <DocumentStatus document={document} />
               </th>
-              <td data-target={document.target ?? undefined}>
-                {document.target ? classificationLabel(document.target, targetItems) : <span className="doc-missing">{UNCLASSIFIED_LABEL}</span>}
-              </td>
+              {showTarget && (
+                <td data-target={document.target ?? undefined}>
+                  {document.target ? classificationLabel(document.target, targetItems) : <span className="doc-missing">{UNCLASSIFIED_LABEL}</span>}
+                </td>
+              )}
               <td data-doc-type={document.docType ?? undefined}>
                 {document.docType ? classificationLabel(document.docType, docTypeItems) : <span className="doc-missing">{UNCLASSIFIED_LABEL}</span>}
-              </td>
-              <td>
-                <DocumentStatus document={document} />
               </td>
               <td className="col-num">
                 {document.pages ?? (
@@ -240,15 +246,15 @@ interface DocumentsViewProps {
   state: Loaded<DocumentList>;
   onReload: () => void;
   onAskTarget?: ((target: string | null, trigger: HTMLElement) => void) | undefined;
-  chatTargetLabel?: string | undefined;
+  isApplied?: ((target: string | null) => boolean) | undefined;
 }
 
 /**
  * 資料ライブラリ（読み取り専用）。資料を押すと、右のパネルに開く（一覧は残る）。
  * 開いている資料・絞り込み・並び替えは、URL が決める（戻る・再読み込み・共有で戻れる）。
- * 一覧の絞り込み（表示する資料を絞る）と、チャットの質問対象（回答に使う資料の範囲）は、別のもの。
+ * 一覧の絞り込み（表示する資料を絞る）と、チャットの回答対象（回答に使う資料の範囲）は、別のもの。
  */
-export function DocumentsView({ state, onReload, onAskTarget, chatTargetLabel }: DocumentsViewProps) {
+export function DocumentsView({ state, onReload, onAskTarget, isApplied }: DocumentsViewProps) {
   const { doc, target, docType, collection, query, status, pageBand, updatedBand, sort, navigate } = useUrlState();
   const filter: DocumentFilter = {
     query: query ?? '',
@@ -282,7 +288,7 @@ export function DocumentsView({ state, onReload, onAskTarget, chatTargetLabel }:
         filter={filter}
         onFilterChange={onFilterChange}
         onAskTarget={onAskTarget}
-        chatTargetLabel={chatTargetLabel}
+        isApplied={isApplied}
         onRetry={onReload}
         openId={doc}
         onOpen={(d, opener) => {

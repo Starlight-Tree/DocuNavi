@@ -6,8 +6,8 @@ import { buildSearch, currentStateSearch, parseUrlState, replaceUrlState } from 
 const NO_LIST_FILTER = { query: null, target: null, docType: null, status: null, pageBand: null, updatedBand: null, sort: null };
 
 describe('parseUrlState', () => {
-  it('何も無ければ資料一覧（URL は書き換えない）', () => {
-    expect(parseUrlState('')).toEqual({ tab: 'documents', doc: null, view: null, item: null, page: null, chunk: null, collection: null, ...NO_LIST_FILTER });
+  it('何も無ければチャット（URL は書き換えない）', () => {
+    expect(parseUrlState('')).toEqual({ tab: 'chat', doc: null, view: null, item: null, page: null, chunk: null, collection: null, ...NO_LIST_FILTER });
   });
 
   it('資料・表示・項まで読む', () => {
@@ -42,8 +42,8 @@ describe('parseUrlState', () => {
   });
 
   it('不正な値は、安全な既定値にする', () => {
-    expect(parseUrlState('?tab=admin').tab).toBe('documents');
-    expect(parseUrlState('?tab=chat').tab).toBe('chat');
+    expect(parseUrlState('?tab=admin').tab).toBe('chat');
+    expect(parseUrlState('?tab=documents').tab).toBe('documents');
     expect(parseUrlState('?tab=documents&doc=abc').doc).toBeNull();
     expect(parseUrlState('?tab=documents&doc=0').doc).toBeNull();
     expect(parseUrlState('?tab=documents&doc=-1').doc).toBeNull();
@@ -217,14 +217,16 @@ describe('currentStateSearch / replaceUrlState', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  it('資料一覧が既定のとき（と、画面の指定が無いとき）は null', () => {
+  it('チャットが既定のとき（と、画面の指定が無いとき）は null', () => {
     window.history.replaceState(null, '', '/?code=abc');
     expect(currentStateSearch()).toBeNull();
   });
 
-  it('チャットは既定ではないので、返す', () => {
+  it('チャット（資料の指定なし）は既定なので null。資料一覧は既定ではないので、返す', () => {
     window.history.replaceState(null, '', '/?tab=chat&code=abc');
-    expect(currentStateSearch()).toBe('?tab=chat');
+    expect(currentStateSearch()).toBeNull();
+    window.history.replaceState(null, '', '/?tab=documents&code=abc');
+    expect(currentStateSearch()).toBe('?tab=documents');
   });
 
   it('資料の画面は、整えたクエリで返す。この画面が扱わないパラメータは含めない', () => {

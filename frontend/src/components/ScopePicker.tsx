@@ -15,8 +15,8 @@ export interface TargetMenuItem {
   disabled?: boolean | undefined;
 }
 
-interface ChatContextBarProps {
-  /** 質問対象の表示名（「すべての資料」・対象の表示名・「旧グループ: …」）。 */
+interface ScopePickerProps {
+  /** 回答対象の表示名（「すべての資料」・対象の表示名・「旧グループ: …」）。 */
   targetLabel: string;
   /** 対象の資料の数。分からないとき（一覧を読めなかった、会話の範囲が不明）は渡さない。 */
   documentCount?: number | undefined;
@@ -25,32 +25,20 @@ interface ChatContextBarProps {
   /** 対象の一覧を読めなかった（再試行を添える）。 */
   failed?: boolean;
   onRetry?: (() => void) | undefined;
-  /** 会話がある（質問対象は会話ごとに固定）。 */
+  /** 会話がある（回答対象は会話ごとに固定）。 */
   fixed: boolean;
   /** 回答を作っている間は変えられない。 */
   disabled: boolean;
-  /** 質問対象を選んだ。`trigger` は、確認を閉じたあとにフォーカスを戻す先（メニューのボタン）。 */
+  /** 回答対象を選んだ。`trigger` は、確認を閉じたあとにフォーカスを戻す先（チップのボタン）。 */
   onSelect: (scope: ChatScope, trigger: HTMLElement | null) => void;
-  /** 資料一覧へ戻る。 */
-  onBack: () => void;
 }
 
 /**
- * チャットの上に固定する帯。いま何について質問しているか（質問対象）と、変更する操作を、ここ 1 か所に置く。
- * 変更はメニュー（対象が増えても、横長の列に頼らない）。会話があるときに選ぶと、呼び出し側が確認を出して、新しい会話にする。
- * 開いたら、選ばれている項目にフォーカスを置く。↑↓ で移動、Esc で閉じてボタンへ戻る。
+ * 入力欄の中に置く「回答対象：○○・○ 件」のチップ。いま何を回答に使うか（回答対象）と、変更する操作を、ここ 1 か所に置く。
+ * 変更はメニュー（入力欄の上に開く。対象が増えても、横長の列に頼らない）。会話があるときに選ぶと、呼び出し側が確認を出して、新しい会話にする。
+ * 開いたら、選ばれている項目にフォーカスを置く。↑↓ で移動、Esc で閉じてチップへ戻る。
  */
-export function ChatContextBar({
-  targetLabel,
-  documentCount,
-  items,
-  failed = false,
-  onRetry,
-  fixed,
-  disabled,
-  onSelect,
-  onBack,
-}: ChatContextBarProps) {
+export function ScopePicker({ targetLabel, documentCount, items, failed = false, onRetry, fixed, disabled, onSelect }: ScopePickerProps) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
@@ -95,58 +83,56 @@ export function ChatContextBar({
 
   const value = (
     <>
-      {targetLabel}
-      {documentCount !== undefined && `（${documentCount}件）`}
+      回答対象：<strong>{targetLabel}</strong>
+      {documentCount !== undefined && ` ・ ${documentCount} 件`}
     </>
   );
 
   return (
-    <div className="chat-context-bar target-bar">
-      <button type="button" className="btn-link chat-context-back" onClick={onBack}>
-        <span aria-hidden="true">‹ </span>資料一覧へ
-      </button>
-      <span className="target-bar-label" id={`${menuId}-label`}>
-        質問対象
-      </span>
+    <div className="scope-picker">
       {items ? (
-        <div className="target-menu-wrap">
+        <div className="scope-picker-wrap">
           <button
             ref={buttonRef}
             type="button"
-            className="target-button"
+            className="scope-chip"
             aria-haspopup="menu"
             aria-expanded={open}
             aria-controls={open ? menuId : undefined}
-            aria-labelledby={`${menuId}-label ${menuId}-value`}
             disabled={disabled}
+            title={
+              disabled
+                ? '回答の生成中は変えられません'
+                : '回答対象は会話ごとに固定です。会話があるときに変えると、確認のあとで新しい会話になります。'
+            }
             onClick={() => setOpen((v) => !v)}
           >
-            <span id={`${menuId}-value`}>{value}</span>
+            <span>{value}</span>
             <span aria-hidden="true">▾</span>
           </button>
           {open && (
-            <ul ref={menuRef} id={menuId} role="menu" aria-label="質問対象を選ぶ" className="target-menu" onKeyDown={handleKeyDown}>
+            <ul ref={menuRef} id={menuId} role="menu" aria-label="回答対象を選ぶ" className="scope-menu" onKeyDown={handleKeyDown}>
               {items.map((item) => (
                 <li key={item.key} role="none">
                   <button
                     type="button"
                     role="menuitemradio"
                     aria-checked={item.checked}
-                    className="target-menu-item"
+                    className="scope-menu-item"
                     disabled={item.disabled}
                     onClick={() => {
                       close(true);
                       if (!item.checked) onSelect(item.scope, buttonRef.current);
                     }}
                   >
-                    <span className="target-menu-check" aria-hidden="true">
+                    <span className="scope-menu-check" aria-hidden="true">
                       {item.checked ? '✓' : ''}
                     </span>
-                    <span className="target-menu-text">
+                    <span className="scope-menu-text">
                       <span>{item.title}</span>
-                      {item.note && <span className="target-menu-note">{item.note}</span>}
+                      {item.note && <span className="scope-menu-note">{item.note}</span>}
                     </span>
-                    {item.count !== undefined && <span className="target-menu-count">{item.count}件</span>}
+                    {item.count !== undefined && <span className="scope-menu-count">{item.count}件</span>}
                   </button>
                 </li>
               ))}
@@ -154,20 +140,11 @@ export function ChatContextBar({
           )}
         </div>
       ) : (
-        <span className="chat-context-chip" id={`${menuId}-value`}>
-          {value}
-        </span>
+        <span className="scope-chip scope-chip-static">{value}</span>
       )}
-      {items && (
-        <span
-          className="target-bar-hint"
-          title="質問対象は会話ごとに固定です。会話があるときに変えると、確認のあとで新しい会話になります。"
-        >
-          {disabled ? '回答の生成中は変えられません' : fixed ? 'この会話で固定' : '最初の質問で固定'}
-        </span>
-      )}
+      {items && <span className="scope-picker-hint">{disabled ? '回答の生成中は変えられません' : fixed ? 'この会話で固定' : '最初の質問で固定'}</span>}
       {failed && (
-        <span className="target-bar-failure" role="status">
+        <span className="scope-picker-failure" role="status">
           対象の一覧を読み込めませんでした。
           {onRetry && (
             <button type="button" className="btn-link" onClick={onRetry}>

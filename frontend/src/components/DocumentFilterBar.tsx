@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import type { ReactNode } from 'react';
-import { PAGE_BANDS, QUERY_MAX_LENGTH, SORT_KEYS, SORT_LABELS, UPDATED_BANDS, detailCount, isFiltered } from '../lib/documentFilter';
+import { PAGE_BANDS, QUERY_MAX_LENGTH, SORT_KEYS, SORT_LABELS, UPDATED_BANDS, detailCount, isFiltered, splitKeywords } from '../lib/documentFilter';
 import type { DocumentFilter, FacetOption, PageBand, UpdatedBand } from '../lib/documentFilter';
 
 export interface DocumentFilterOptions {
@@ -21,8 +21,6 @@ interface DocumentFilterBarProps {
   onClear: () => void;
   /** 絞り込みの欄と件数の行の間に置くもの（旧フィルターの表示など）。 */
   notice?: ReactNode;
-  /** 件数の行の右端に置くもの（「質問」の操作など）。 */
-  trailing?: ReactNode;
 }
 
 interface FacetSelectProps<T extends string> {
@@ -52,11 +50,11 @@ function FacetSelect<T extends string>({ label, value, options, onSelect }: Face
 
 /**
  * 資料一覧の、検索・絞り込み・並び替えと、件数。状態は持たない（URL が持つ）。
- * 主な操作は、検索・対象・資料種別の 3 つ。状態・ページ数・更新・並び替えは「詳細フィルター」にまとめる
+ * 主な操作は、検索・対象・資料種別・並び替え。状態・ページ数・更新は「フィルター」にまとめる
  * （有効な条件があるときは開いたままにする。見えない条件で一覧が絞られている状態を作らない）。
  * キーワードの入力欄だけ、日本語の変換中の文字が URL の往復で崩れないよう、手元の文字を持ち、URL が外から変わったときに合わせる。
  */
-export function DocumentFilterBar({ filter, options, resultCount, onChange, onClear, notice, trailing }: DocumentFilterBarProps) {
+export function DocumentFilterBar({ filter, options, resultCount, onChange, onClear, notice }: DocumentFilterBarProps) {
   const detailId = useId();
   const [text, setText] = useState(filter.query);
   useEffect(() => {
@@ -65,6 +63,16 @@ export function DocumentFilterBar({ filter, options, resultCount, onChange, onCl
   const [detailOpenByUser, setDetailOpenByUser] = useState(false);
   const active = detailCount(filter);
   const detailOpen = active > 0 || detailOpenByUser;
+  // 有効な条件は、いつも見える形（チップ）で出す。×で、その条件だけ外せる
+  const labelOf = <T extends string>(list: FacetOption<T>[], value: T | null) => list.find((o) => o.value === value)?.label ?? value ?? '';
+  const chips: { key: string; text: string; clear: () => void }[] = [
+    ...(splitKeywords(filter.query).length > 0 ? [{ key: 'query', text: `検索：${filter.query.trim()}`, clear: () => onChange({ query: '' }) }] : []),
+    ...(filter.target !== null ? [{ key: 'target', text: `対象：${labelOf(options.target, filter.target)}`, clear: () => onChange({ target: null }) }] : []),
+    ...(filter.docType !== null ? [{ key: 'docType', text: `資料種別：${labelOf(options.docType, filter.docType)}`, clear: () => onChange({ docType: null }) }] : []),
+    ...(filter.status !== null ? [{ key: 'status', text: `状態：${labelOf(options.status, filter.status)}`, clear: () => onChange({ status: null }) }] : []),
+    ...(filter.pages !== null ? [{ key: 'pages', text: `ページ数：${labelOf(options.pages, filter.pages)}`, clear: () => onChange({ pages: null }) }] : []),
+    ...(filter.updated !== null ? [{ key: 'updated', text: `更新：${labelOf(options.updated, filter.updated)}`, clear: () => onChange({ updated: null }) }] : []),
+  ];
 
   return (
     <>
@@ -84,6 +92,19 @@ export function DocumentFilterBar({ filter, options, resultCount, onChange, onCl
         </label>
         <FacetSelect label="対象" value={filter.target} options={options.target} onSelect={(target) => onChange({ target })} />
         <FacetSelect label="資料種別" value={filter.docType} options={options.docType} onSelect={(docType) => onChange({ docType })} />
+        <label className="document-filter-field">
+          <span className="document-filter-label">並び替え</span>
+          <select
+            value={filter.sort}
+            onChange={(event) => onChange({ sort: SORT_KEYS.find((k) => k === event.target.value) ?? 'default' })}
+          >
+            {SORT_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {SORT_LABELS[key]}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           className="btn btn-secondary document-detail-toggle"
@@ -93,7 +114,7 @@ export function DocumentFilterBar({ filter, options, resultCount, onChange, onCl
           title={active > 0 ? '条件が有効な間は閉じられません' : undefined}
           onClick={() => setDetailOpenByUser(!detailOpen)}
         >
-          詳細フィルター
+          フィルター
           {active > 0 && (
             <span className="document-detail-badge" aria-label={`${active} 件の条件が有効`}>
               {active}
@@ -115,30 +136,28 @@ export function DocumentFilterBar({ filter, options, resultCount, onChange, onCl
             options={options.updated}
             onSelect={(updated) => onChange({ updated: UPDATED_BANDS.find((b) => b === updated) ?? null })}
           />
-          <label className="document-filter-field">
-            <span className="document-filter-label">並び替え</span>
-            <select
-              value={filter.sort}
-              onChange={(event) => onChange({ sort: SORT_KEYS.find((k) => k === event.target.value) ?? 'default' })}
-            >
-              {SORT_KEYS.map((key) => (
-                <option key={key} value={key}>
-                  {SORT_LABELS[key]}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
       </section>
       {notice}
       <div className="document-filter-result">
         <p role="status">{resultCount > 0 ? `${resultCount} 件の資料が見つかりました` : '該当する資料が見つかりませんでした'}</p>
+        {chips.length > 0 && (
+          <ul className="document-chips" aria-label="有効な条件">
+            {chips.map((chip) => (
+              <li key={chip.key} className="document-chip">
+                <span>{chip.text}</span>
+                <button type="button" aria-label={`${chip.text} を外す`} onClick={chip.clear}>
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         {isFiltered(filter) && (
           <button type="button" className="btn btn-secondary btn-small" onClick={onClear}>
             条件をクリア
           </button>
         )}
-        {trailing && <div className="document-filter-trailing">{trailing}</div>}
       </div>
     </>
   );
