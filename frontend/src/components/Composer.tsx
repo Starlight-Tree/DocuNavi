@@ -2,6 +2,19 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { MAX_MESSAGE_LENGTH } from '../api/chat';
 
+/** 文字数は、上限に近づいてから見せる（上限の 80% から）。 */
+const COUNTER_FROM = Math.ceil(MAX_MESSAGE_LENGTH * 0.8);
+
+/** 上向きの矢印（送信）。アイコンのライブラリは使わず、線だけの SVG を直に置く。 */
+function SendIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 16V4" />
+      <path d="M5 9l5-5 5 5" />
+    </svg>
+  );
+}
+
 interface ComposerProps {
   pending: boolean;
   /** 送信を受け付けたら true を返す。false のときは入力を消さない。 */
@@ -18,6 +31,7 @@ export function Composer({ pending, onSend, onStop, scopeControl, sendBlocked = 
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const canSend = !pending && !sendBlocked && draft.trim().length > 0;
+  const showCounter = draft.length >= COUNTER_FROM;
 
   // 長い文でも全体が見えるよう、入力に合わせて高さを伸ばす（上限は CSS の max-height。超えたら中でスクロールする）。
   // 高さを測れない環境（scrollHeight が 0）では、CSS の既定のままにする
@@ -63,15 +77,17 @@ export function Composer({ pending, onSend, onStop, scopeControl, sendBlocked = 
           onKeyDown={handleKeyDown}
           maxLength={MAX_MESSAGE_LENGTH}
           rows={1}
-          placeholder="メッセージを入力（Enter で送信 / Shift+Enter で改行）"
-          aria-describedby="message-counter"
+          placeholder="メッセージを入力"
+          aria-describedby={showCounter ? 'message-counter' : undefined}
         />
         <div className="composer-footer">
           <div className="composer-footer-start">
             {scopeControl}
-            <span id="message-counter" className="counter">
-              {draft.length} / {MAX_MESSAGE_LENGTH}
-            </span>
+            {showCounter && (
+              <span id="message-counter" className="counter">
+                {draft.length} / {MAX_MESSAGE_LENGTH}
+              </span>
+            )}
           </div>
           <div className="composer-actions">
             {pending && (
@@ -81,11 +97,12 @@ export function Composer({ pending, onSend, onStop, scopeControl, sendBlocked = 
             )}
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-primary btn-icon"
               disabled={!canSend}
-              title={sendBlocked ? '回答に使う資料が選ばれていません' : undefined}
+              aria-label="送信"
+              title={sendBlocked ? '回答に使う資料が選ばれていません' : '送信（Enter）'}
             >
-              送信
+              <SendIcon />
             </button>
           </div>
         </div>

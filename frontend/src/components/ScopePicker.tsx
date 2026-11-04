@@ -2,6 +2,17 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { ChatScope } from '../hooks/useChat';
 
+/** 資料（書類）の線画。アイコンのライブラリは使わず、線だけの SVG を直に置く。 */
+function DocsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 2.5h6.5L15 6v11.5H5z" />
+      <path d="M11.5 2.5V6H15" />
+      <path d="M7.5 10h5M7.5 13h5" />
+    </svg>
+  );
+}
+
 /** メニューの 1 項目。 */
 export interface TargetMenuItem {
   key: string;
@@ -36,7 +47,7 @@ interface ScopePickerProps {
 }
 
 /**
- * 入力欄の中に置く「回答対象：○○・○ 件」のチップ。いま何を回答に使うか（回答対象）と、変更する操作を、ここ 1 か所に置く。
+ * 入力欄の中に置く「資料アイコン ○○ · ○件」の控えめなチップ（「回答対象：」は読み上げだけ）。いま何を回答に使うか（回答対象）と、変更する操作を、ここ 1 か所に置く。
  * 変更はメニュー（入力欄の上に開く。対象が増えても、横長の列に頼らない）。会話があるときに選ぶと、呼び出し側が確認を出して、新しい会話にする。
  * 開いたら、選ばれている項目にフォーカスを置く。↑↓ で移動、Esc で閉じてチップへ戻る。
  */
@@ -95,8 +106,12 @@ export function ScopePicker({
 
   const value = (
     <>
-      回答対象：<strong>{targetLabel}</strong>
-      {documentCount !== undefined && ` ・ ${documentCount} 件`}
+      <DocsIcon />
+      <span>
+        <span className="visually-hidden">回答対象：</span>
+        <strong>{targetLabel}</strong>
+        {documentCount !== undefined && ` · ${documentCount}件`}
+      </span>
     </>
   );
 
@@ -119,7 +134,7 @@ export function ScopePicker({
             }
             onClick={() => setOpen((v) => !v)}
           >
-            <span>{value}</span>
+            {value}
             <span aria-hidden="true">▾</span>
           </button>
           {open && (
@@ -148,22 +163,14 @@ export function ScopePicker({
                   </button>
                 </li>
               ))}
+              <li role="none" className="scope-menu-hint">
+                {selecting ? '資料一覧で選択中（質問ごとに適用）' : fixed ? 'この会話で固定' : '最初の質問で固定'}
+              </li>
             </ul>
           )}
         </div>
       ) : (
         <span className="scope-chip scope-chip-static">{value}</span>
-      )}
-      {items && (
-        <span className="scope-picker-hint">
-          {disabled
-            ? '回答の生成中は変えられません'
-            : selecting
-              ? '資料一覧で選択中（質問ごとに適用）'
-              : fixed
-                ? 'この会話で固定'
-                : '最初の質問で固定'}
-        </span>
       )}
       {failed && (
         <span className="scope-picker-failure" role="status">
