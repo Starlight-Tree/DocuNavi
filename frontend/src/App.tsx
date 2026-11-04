@@ -219,6 +219,7 @@ function ChatScreen() {
         // 確認は出さない。いまの会話と回答対象のまま、チャットへ移る（回答対象を変えるのは、資料一覧のボタンと入力欄のチップ）
         onGoChat={goChat}
         onGoDocuments={() => navigate({ tab: 'documents' })}
+        knowledgeInMenu
         history={
           // ログインを使わない構成でも、欄は出す（出せない理由を示す。何も無いのと区別がつかないため）
           <ThreadSidebar

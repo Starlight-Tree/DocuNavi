@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+import { openKnowledge, goChat } from './test/navigation';
 import { AuthProvider } from './auth/AuthContext';
 import {
   MSG_NOT_CONFIGURED,
@@ -91,7 +92,7 @@ async function panel() {
 
 /** サイドバーの「資料」で、資料一覧を開く。 */
 async function openDocuments(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(within(await screen.findByRole('navigation', { name: '画面' })).getByRole('link', { name: '資料' }));
+  await openKnowledge(user);
 }
 
 describe('資料一覧: 画面', () => {
@@ -120,24 +121,31 @@ describe('資料一覧: 画面', () => {
     await openDocuments(user);
     expect(screen.queryByRole('textbox', { name: 'メッセージ' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('link', { name: 'チャット' }));
+    await goChat(user);
     expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveValue('書きかけの質問');
   });
 
-  it('画面の切り替えは左のサイドバーだけにある（上部にタブは無い）。「新しい会話」はどちらの画面にも出る', async () => {
+  it('資料一覧への入口は、左下のメニューの「ナレッジ」だけ（上部に「チャット」「資料」の入口もタブも無い）。「新しい会話」はどちらの画面にも出る', async () => {
     installDocsFetch(() => jsonResponse(LIST));
     const { user } = setup();
-    const nav = await screen.findByRole('navigation', { name: '画面' });
-    expect(within(nav).getByRole('link', { name: 'チャット' })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('link', { name: '資料' })).not.toHaveAttribute('aria-current');
-    expect(screen.getByRole('button', { name: '新しい会話' })).toBeVisible();
+    await screen.findByRole('textbox', { name: 'メッセージ' });
+    expect(screen.queryByRole('navigation', { name: '画面' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '資料' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'チャット' })).not.toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: '表示する画面' })).not.toBeInTheDocument();
-
-    await openDocuments(user);
-
-    expect(within(nav).getByRole('link', { name: '資料' })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('link', { name: 'チャット' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('button', { name: '新しい会話' })).toBeVisible();
+
+    // ログインを使わない構成でも入口は出る（表示名とログアウトは出ない）
+    await user.click(document.querySelector('.ws-account-button') as HTMLElement);
+    const menu = within(await screen.findByRole('menu', { name: 'メニュー' }));
+    expect(menu.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['ナレッジ']);
+    await user.click(menu.getByRole('menuitem', { name: 'ナレッジ' }));
+
+    expect(await screen.findByRole('heading', { name: 'ナレッジ' })).toBeVisible();
+    expect(screen.getByRole('main', { name: 'ナレッジ' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '新しい会話' })).toBeVisible();
+    await goChat(user);
+    expect(screen.getByRole('textbox', { name: 'メッセージ' })).toBeVisible();
   });
 
   it('ロゴはチャットへ戻るリンク。資料一覧からも、チャットに戻る（入力途中の文は残る）', async () => {
@@ -162,7 +170,7 @@ describe('資料一覧: 画面', () => {
 
     expect(await screen.findByText(MSG_NOT_CONFIGURED)).toBeInTheDocument();
     expect(screen.queryByText(MSG_NO_DOCUMENTS)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'チャット' })).toBeInTheDocument(); // 資料が無くても、チャットへ移る導線は残る
+    expect(screen.getByRole('link', { name: 'ドキュナビ' })).toBeInTheDocument(); // 資料が無くても、チャットへ移る導線（ロゴ）は残る
   });
 
   it('文書が 0 件のときは、「登録された資料はありません」を出す', async () => {
@@ -717,7 +725,7 @@ describe('画面の状態は URL が持つ', () => {
     setup();
 
     expect(await screen.findByText('第1条 本文')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'チャット' })).toBeVisible(); // 資料の画面（チャットではない）
+    expect(screen.getByRole('heading', { name: 'ナレッジ' })).toBeVisible(); // 資料の画面（チャットではない）
   });
 
   it('一覧に無い資料の ID は、一覧を出して、URL から外す（履歴は増やさない）', async () => {

@@ -270,8 +270,8 @@ export function DocumentsView({ state, onReload, onAskTarget, isApplied }: Docum
   };
 
   return (
-    <main className="documents" aria-label="資料一覧">
-      <h2 className="docs-title">資料</h2>
+    <main className="documents" aria-label="ナレッジ">
+      <h2 className="docs-title">ナレッジ</h2>
       <DocumentTable
         state={state}
         collection={collection}
