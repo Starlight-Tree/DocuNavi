@@ -1400,10 +1400,6 @@
   font-size: 0.85rem;
 }
 
-.docs-ask-summary {
-  font-size: 0.95rem;
-}
-
 .docs-ask-warning {
   color: var(--danger-text);
   font-size: 0.85rem;

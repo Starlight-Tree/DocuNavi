@@ -4,7 +4,7 @@ import { classificationItems, useClassificationCatalog } from '../hooks/useClass
 import type { DocumentList, DocumentSummary } from '../api/documents';
 import { collectionLabel } from '../lib/collections';
 import { classificationLabel } from '../lib/classifications';
-import { EMPTY_FILTER, UNCLASSIFIED_LABEL, facetOptions, filterDocuments, sortDocuments } from '../lib/documentFilter';
+import { EMPTY_FILTER, UNCLASSIFIED_LABEL, facetOptions, filterDocuments, isFiltered, sortDocuments } from '../lib/documentFilter';
 import type { DocumentFilter, FilterContext } from '../lib/documentFilter';
 import type { Loaded } from '../hooks/useLoaded';
 import type { NavigateMode, UrlState } from '../lib/urlState';
@@ -109,11 +109,28 @@ function DocumentTable({
   // 一覧の検索・絞り込みは表示を絞るだけで、選択は変えない。全選択・解除は、表示している資料だけに効く
   const allDocuments = state.data.documents;
   const filtered = shown.length < allDocuments.length;
-  const selectableTotal = allDocuments.filter(isSelectable).length;
   const key = JSON.stringify([collection, filter]);
   const pageData = paginate(shown, paging.key === key ? paging.page : 1, paging.size);
   const shownSelectable = shownState(shown, selection?.selected ?? new Set()).selectable;
   const shownChecked = shownState(shown, selection?.selected ?? new Set()).checked;
+  // 件数と回答対象は 1 行にまとめる。「全資料に戻す」は、一部だけ選んでいるときに限って出す
+  const searching = isFiltered(filter) || collection !== null;
+  const answerCount = selection?.selected.size ?? 0;
+  const partial = selection !== undefined && !selection.isAll;
+  const summary = (
+    <>
+      <p role="status" className="docs-summary">
+        {searching ? `検索結果 ${shown.length}件` : `${allDocuments.length}件の資料`}
+        {selection &&
+          ` · ${searching ? `回答対象 ${answerCount}件` : partial ? `${answerCount}件を回答対象` : 'すべて回答対象'}`}
+      </p>
+      {selection && partial && (
+        <button type="button" className="btn btn-secondary btn-small" onClick={(event) => selection.onReset(event.currentTarget)}>
+          全資料に戻す
+        </button>
+      )}
+    </>
+  );
   const goTo = (page: number) => setPaging({ key, page, size: paging.size });
 
   return (
@@ -121,7 +138,7 @@ function DocumentTable({
       <DocumentFilterBar
         filter={filter}
         options={facetOptions(documents, filter, context, statusName)}
-        resultCount={shown.length}
+        summary={summary}
         onChange={onFilterChange}
         onClear={() => onFilterChange({ ...EMPTY_FILTER, sort: filter.sort })}
         notice={
@@ -141,12 +158,6 @@ function DocumentTable({
       />
       {selection && (
         <div className="docs-ask" role="group" aria-label="回答に使う資料">
-          <span className="docs-ask-summary">
-            回答に使う資料：<strong>{selection.selected.size}</strong> / {selectableTotal} 件
-          </span>
-          <button type="button" className="btn btn-secondary btn-small" disabled={selection.isAll} onClick={(event) => selection.onReset(event.currentTarget)}>
-            全資料に戻す
-          </button>
           {selection.selected.size === 0 && (
             <span className="docs-ask-warning" role="status">
               {MSG_NOTHING_SELECTED}
