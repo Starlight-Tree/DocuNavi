@@ -30,7 +30,7 @@ const docsLink = {
     await page.getByRole('menuitem', { name: 'ナレッジ' }).click();
   },
 };
-const chatLink = (page: Page) => page.getByRole('link', { name: 'ドキュナビ' });
+const chatLink = (page: Page) => page.getByRole('link', { name: 'DocuNavi' });
 const pickTarget = async (page: Page, name: RegExp) => {
   await targetButton(page).click();
   await page.getByRole('menuitemradio', { name }).click();
@@ -255,7 +255,7 @@ test('最初の画面はチャットで、上部にタブは無い。左下の�
   await expect(page.getByRole('combobox', { name: '対象' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ナレッジ' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'ドキュナビ' }).click();
+  await page.getByRole('link', { name: 'DocuNavi' }).click();
   await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
   await docsLink.click(page);
@@ -265,7 +265,7 @@ test('最初の画面はチャットで、上部にタブは無い。左下の�
   await expect(input).toBeFocused();
 });
 
-test('左サイドバーは閉じられる。閉じるとチャットが広がり、再表示のボタンが残る。会話・入力途中の文・回答対象は変わらず、資料一覧でも同じ', async ({ page }) => {
+test('PC: 左サイドバーを閉じると、アイコンだけの細いレールが残る。履歴と文字は隠れ、会話・入力途中の文・回答対象は変わらず、資料一覧でも同じ', async ({ page }) => {
   await page.goto('/?tab=chat');
   const input = page.getByRole('textbox', { name: 'メッセージ' });
   await pickTarget(page, /^ザーハード/);
@@ -275,30 +275,65 @@ test('左サイドバーは閉じられる。閉じるとチャットが広が�
   await input.fill('書きかけ');
 
   const sidebar = page.locator('.ws-sidebar');
+  const rail = page.getByRole('navigation', { name: 'サイドバー（縮小表示）' });
   const chat = page.locator('.chat-pane');
   const openWidth = (await chat.boundingBox())!.width;
-  await expect(sidebar).toBeVisible();
+  const openSideWidth = (await sidebar.boundingBox())!.width;
+  await expect(rail).toBeHidden(); // 開いている間は、レールを出さない
 
   await page.getByRole('button', { name: 'サイドバーを閉じる' }).click();
-  await expect(sidebar).toBeHidden(); // 見えず、操作・読み上げからも外れる
-  expect(await page.locator('.ws-shell').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(2);
+  await expect(rail).toBeVisible();
+  const railWidth = (await sidebar.boundingBox())!.width;
+  expect(railWidth).toBeLessThan(80);
+  expect(railWidth).toBeLessThan(openSideWidth);
+  await expect(page.getByRole('heading', { name: '会話の履歴' })).toBeHidden(); // 履歴と文字は、操作・読み上げからも外れる
+  await expect(page.getByText('新しい会話', { exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'サイドバーを開く' })).toBeFocused();
-  await expect.poll(async () => (await chat.boundingBox())!.width).toBeGreaterThan(openWidth); // 閉じた分、広がる
+  await expect.poll(async () => (await chat.boundingBox())!.width).toBeGreaterThan(openWidth);
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
   await expect(input).toHaveValue('書きかけ');
   await expect(targetButton(page)).toContainText('ザーハード');
 
-  // 開いて資料一覧へ移り、そこで閉じても、再表示のボタンが資料一覧にある
-  await page.getByRole('button', { name: 'サイドバーを開く' }).click();
-  await expect(sidebar).toBeVisible();
-  await docsLink.click(page);
-  await page.getByRole('button', { name: 'サイドバーを閉じる' }).click();
+  // 各アイコンに読み上げ名とツールチップがあり、選択中の画面が分かる
+  const chatIcon = rail.getByRole('link', { name: 'チャット' });
+  const knowledgeIcon = rail.getByRole('link', { name: 'ナレッジ' });
+  await expect(rail.getByRole('button', { name: '新しい会話' })).toBeVisible();
+  await expect(chatIcon).toHaveAttribute('aria-current', 'page');
+  await expect(knowledgeIcon).not.toHaveAttribute('aria-current', 'page');
+  await chatIcon.hover();
+  await expect.poll(() => chatIcon.evaluate((el) => getComputedStyle(el, '::after').content)).toBe('"チャット"');
+  await expect.poll(() => chatIcon.evaluate((el) => getComputedStyle(el, '::after').opacity)).toBe('1');
+
+  // レールのアイコンで資料一覧へ移り、ロゴでチャットへ戻る。入力途中の文は残る
+  await knowledgeIcon.click();
+  await expect(page).toHaveURL(/tab=documents/);
   await expect(page.getByRole('combobox', { name: '対象' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'サイドバーを開く' })).toBeVisible();
-  await page.getByRole('button', { name: 'サイドバーを開く' }).click();
-  await chatLink(page).click();
+  await expect(knowledgeIcon).toHaveAttribute('aria-current', 'page');
+  await expect(chatIcon).not.toHaveAttribute('aria-current', 'page');
+  await chatIcon.click();
+  await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
-  await expect(targetButton(page)).toContainText('ザーハード');
+
+  // 開くと、いつものサイドバーに戻る
+  await page.getByRole('button', { name: 'サイドバーを開く' }).click();
+  await expect(rail).toBeHidden();
+  await expect(page.getByRole('heading', { name: '会話の履歴' })).toBeVisible();
+  expect((await sidebar.boundingBox())!.width).toBeGreaterThan(railWidth);
+  await expect(input).toHaveValue('書きかけ');
+});
+
+test('スマホ幅: 左サイドバーを閉じると完全に隠れ（レールは出ない）、開くボタンはメインの左上に残る', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=chat');
+  await page.getByRole('button', { name: 'サイドバーを閉じる' }).click();
+  await expect(page.locator('.ws-sidebar')).toBeHidden();
+  await expect(page.getByRole('navigation', { name: 'サイドバー（縮小表示）' })).toHaveCount(0);
+  const open = page.getByRole('button', { name: 'サイドバーを開く' });
+  await expect(open).toBeVisible();
+  await expect(open).toBeFocused();
+  await open.click();
+  await expect(page.locator('.ws-sidebar')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '会話の履歴' })).toBeVisible();
 });
 
 test('ログインを使わない構成では、サイドバーの「会話の履歴」に、一覧を出せない理由を示す（欄は消さない）', async ({ page }) => {

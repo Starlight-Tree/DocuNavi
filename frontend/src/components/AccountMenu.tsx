@@ -10,6 +10,8 @@ interface AccountMenuProps {
   onOpenKnowledge: () => void;
   /** いま資料一覧を開いているか。 */
   knowledgeCurrent: boolean;
+  /** アイコンだけのレール用。名前と矢印は出さず、ツールチップ（`data-tip`）を付ける。 */
+  compact?: boolean | undefined;
 }
 
 /** 線画の人型。`SidebarIcon` と同じく、アイコンのライブラリは使わず、線だけの SVG を直に置く。 */
@@ -27,7 +29,7 @@ function PersonIcon() {
  * ログインを使わない構成でも、ナレッジへ行く入口として出す（表示名とログアウトは出さない）。
  * 開いたら先頭の項目にフォーカスを置く。↑↓ で移動、Esc で閉じてボタンへ戻る。メニューの外を押しても閉じる。
  */
-export function AccountMenu({ label, onSignOut, onOpenKnowledge, knowledgeCurrent }: AccountMenuProps) {
+export function AccountMenu({ label, onSignOut, onOpenKnowledge, knowledgeCurrent, compact }: AccountMenuProps) {
   const signedIn = onSignOut !== undefined && label !== undefined;
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -65,7 +67,7 @@ export function AccountMenu({ label, onSignOut, onOpenKnowledge, knowledgeCurren
   };
 
   return (
-    <div className="ws-account">
+    <div className={compact ? 'ws-account ws-account-compact' : 'ws-account'}>
       {open && (
         <div ref={menuRef} id={menuId} role="menu" aria-label={signedIn ? 'アカウント' : 'メニュー'} className="ws-account-menu" onKeyDown={handleKeyDown}>
           {signedIn && <p className="ws-account-who">{label}</p>}
@@ -103,8 +105,9 @@ export function AccountMenu({ label, onSignOut, onOpenKnowledge, knowledgeCurren
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        aria-label={signedIn ? 'アカウントメニュー' : undefined}
-        title={signedIn ? 'アカウントメニュー' : undefined}
+        aria-label={signedIn ? 'アカウントメニュー' : compact ? 'メニュー' : undefined}
+        title={compact ? undefined : signedIn ? 'アカウントメニュー' : undefined}
+        data-tip={compact ? (signedIn ? 'アカウントメニュー' : 'メニュー') : undefined}
         onClick={() => setOpen((v) => !v)}
       >
         <span className="ws-account-avatar" aria-hidden="true">
