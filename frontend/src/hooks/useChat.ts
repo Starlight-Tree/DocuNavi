@@ -49,7 +49,7 @@ export interface ChatError {
 }
 
 export const MSG_HISTORY_FAILED =
-  '過去のやり取りを読み込めませんでした。左の一覧からもう一度選ぶか、そのまま続きを送れます。';
+  '過去のやり取りを読み込めませんでした。もう一度読み込むか、新しい会話を始めてください。';
 const MSG_UNEXPECTED = '予期しないエラーが発生しました。もう一度お試しください。';
 
 function toChatError(error: unknown, failure: ChatFailureInfo | null): ChatError {
@@ -216,6 +216,8 @@ export interface UseChat {
   startNew: (scope: ChatScope) => void;
   /** 保存済みの会話を開く。以前のやり取りを取得して画面に出し、続きを送れるようにする。 */
   resume: (threadId: string) => void;
+  /** 取得に失敗した会話の以前のやり取りを、もう一度取得する（会話 ID はそのまま）。 */
+  retryHistory: () => void;
   /** resume で以前のやり取りを取得している間（loading）と、取得に失敗したとき（error）。 */
   history: HistoryStatus;
 }
@@ -246,7 +248,8 @@ export function useChat(): UseChat {
   }, []);
   // 送信・再試行・リセットのたびに進める。リセット前の送信の完了が、新しい送信の pending を落とさないようにする
   const jobRef = useRef(0);
-  const [history, setHistory] = useState<HistoryStatus>('idle');
+  // 保存された会話があるときは、起動の直後から取得する（取得が始まるまで、空の案内を一瞬出さない）
+  const [history, setHistory] = useState<HistoryStatus>(() => (loadThreadId() !== null ? 'loading' : 'idle'));
   const historyAbortRef = useRef<AbortController | null>(null);
   const fetchJson = useAuthedJsonFetch();
 
@@ -509,6 +512,19 @@ export function useChat(): UseChat {
     [applyScope, clearError, fetchJson, setDocumentIds, setMessages, stopChat],
   );
 
+  // 再読み込みしたあとも、保存された会話の以前のやり取りを表示する。失敗しても、会話 ID は捨てない（再試行か、新しい会話は利用者が選ぶ）
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    const id = threadIdRef.current;
+    if (id !== null) resume(id);
+  }, [resume]);
+
+  const retryHistory = useCallback(() => {
+    if (threadIdRef.current !== null) resume(threadIdRef.current);
+  }, [resume]);
+
   return {
     messages,
     pending,
@@ -532,6 +548,7 @@ export function useChat(): UseChat {
     reset,
     startNew,
     resume,
+    retryHistory,
     history,
   };
 }

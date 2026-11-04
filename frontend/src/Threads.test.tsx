@@ -155,7 +155,7 @@ describe('会話の一覧', () => {
 
     await user.click(await screen.findByTitle('最初の質問'));
 
-    expect(await screen.findByTestId('resumed-notice')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId('history-loading')).not.toBeInTheDocument());
     expect(screen.getByTitle('最初の質問')).toHaveAttribute('aria-current', 'true');
     expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('t1');
     await user.type(screen.getByRole('textbox', { name: 'メッセージ' }), '続きの質問');
@@ -181,7 +181,6 @@ describe('会話の一覧', () => {
     const log = await screen.findByRole('log', { name: '会話' });
     expect(await within(log).findByText('ザーハードの大気は？')).toBeInTheDocument();
     expect(within(log).getByText('主に二酸化炭素です。')).toBeInTheDocument();
-    expect(screen.queryByTestId('resumed-notice')).not.toBeInTheDocument();
     expect(server.log.find((entry) => entry.url === '/threads/t1/messages')).toMatchObject({
       method: 'GET',
       authorization: 'Bearer tok-1',
@@ -224,6 +223,53 @@ describe('会話の一覧', () => {
     await user.click(screen.getByRole('button', { name: '送信' }));
     await screen.findByText(DEFAULT_REPLY);
     expect(chatBodies()[0]).toEqual({ message: '続きの質問', thread_id: 't1' });
+  });
+
+  it('取得に失敗したら「再試行」と「新しい会話」を出し、再試行しても会話 ID は変わらない。取れたら履歴が並ぶ', async () => {
+    let fail = true;
+    const server = threadsServer([thread('t1', '最初の質問')], { messages: { t1: [{ role: 'user', text: '昔の質問' }] } });
+    installFetch(
+      () => replyResponse({ thread_id: 't1' }),
+      (url, method, init) => (fail && /\/threads\/t1\/messages$/.test(url) ? errorResponse(503, '失敗') : server.handler(url, method, init)),
+    );
+    const { user } = setup(fakeAuth());
+    await user.click(await screen.findByTitle('最初の質問'));
+
+    const error = await screen.findByTestId('history-error');
+    expect(within(error).getByRole('button', { name: '新しい会話' })).toBeInTheDocument();
+    expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('t1');
+
+    fail = false;
+    await user.click(within(error).getByRole('button', { name: '再試行' }));
+
+    expect(await screen.findByText('昔の質問')).toBeInTheDocument();
+    expect(screen.queryByTestId('history-error')).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('t1');
+  });
+
+  it('取得に失敗したあとの「新しい会話」は、会話 ID を捨てて通常の最初の画面に戻る', async () => {
+    const server = threadsServer([thread('t1', '最初の質問')], { failMessages: true });
+    installFetch(() => replyResponse({ thread_id: 't1' }), server.handler);
+    const { user } = setup(fakeAuth());
+    await user.click(await screen.findByTitle('最初の質問'));
+
+    await user.click(within(await screen.findByTestId('history-error')).getByRole('button', { name: '新しい会話' }));
+
+    expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBeNull();
+    expect(screen.queryByTestId('history-error')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '何を調べますか？' })).toBeInTheDocument();
+  });
+
+  it('再読み込みしたあとも、保存された会話の以前のやり取りを取得して並べる（案内文は出さない）', async () => {
+    window.sessionStorage.setItem(THREAD_ID_STORAGE_KEY, 't1');
+    const server = threadsServer([thread('t1', '最初の質問')], { messages: { t1: [{ role: 'user', text: '昔の質問' }, { role: 'assistant', text: '昔の回答' }] } });
+    installFetch(() => replyResponse({ thread_id: 't1' }), server.handler);
+    setup(fakeAuth());
+
+    expect(await screen.findByText('昔の回答')).toBeInTheDocument();
+    expect(screen.getByText('昔の質問')).toBeInTheDocument();
+    expect(screen.queryByText(/前回の会話の続き/)).not.toBeInTheDocument();
+    expect(server.log.filter((entry) => entry.url === '/threads/t1/messages')).toHaveLength(1);
   });
 
   it('別の会話に移ったあとに届いた、前の会話の発言は取り込まない', async () => {
@@ -297,13 +343,12 @@ describe('会話の削除', () => {
     installFetch(() => replyResponse(), server.handler);
     const { user } = setup(fakeAuth());
     await user.click(await screen.findByTitle('最初の質問'));
-    await screen.findByTestId('resumed-notice');
+    await waitFor(() => expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('t1'));
 
     await user.click(screen.getByRole('button', { name: '「最初の質問」を削除' }));
     await user.click(screen.getByRole('button', { name: '削除する' }));
 
-    await waitFor(() => expect(screen.queryByTestId('resumed-notice')).not.toBeInTheDocument());
-    expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBeNull();
+    await waitFor(() => expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBeNull());
     expect(await screen.findByText(MSG_NO_THREADS)).toBeInTheDocument();
   });
 
@@ -318,6 +363,6 @@ describe('会話の削除', () => {
 
     expect(await within(await sidebar()).findByRole('alert')).toHaveTextContent('会話履歴を操作できませんでした');
     expect(screen.getByTitle('最初の質問')).toBeInTheDocument();
-    expect(screen.getByTestId('resumed-notice')).toBeInTheDocument(); // 開いていた会話はそのまま
+    expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('t1'); // 開いていた会話はそのまま
   });
 });
