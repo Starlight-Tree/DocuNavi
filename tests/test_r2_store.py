@@ -199,10 +199,21 @@ def test_an_unknown_name_is_missing(r2) -> None:
     assert pdf_originals.find_original("nope.pdf", sha(PDF_A)).reason == "missing"
 
 
-@pytest.mark.parametrize("name", ["../x.pdf", "cafe/a.pdf", "..", "", "a\\b.pdf"])
+@pytest.mark.parametrize(
+    "name", ["../x.pdf", "cafe/../a.pdf", "a//b.pdf", "/abs.pdf", "a/b/c/d.pdf", "..", "", "a\\b.pdf"]
+)
 def test_names_that_are_not_plain_file_names_are_missing_without_asking_r2(r2, name) -> None:
     r2.error = RuntimeError("must not be called")
     assert pdf_originals.find_original(name, sha(PDF_A)).reason == "missing"
+
+
+def test_a_relative_source_is_looked_up_as_collection_slash_source(r2) -> None:
+    # 合成資料の source は `<サブディレクトリ>/<ファイル>.pdf`。R2 のキーは `<資料群>/<source>`
+    r2.objects["synthetic-test/sub/n.pdf"] = PDF_B
+    result = pdf_originals.find_original("sub/n.pdf", sha(PDF_B))
+    assert result.ok and result.data == PDF_B
+    assert pdf_originals.find_original("sub/n.pdf", sha(PDF_A)).reason == "mismatch"
+    assert pdf_originals.find_original("other/n.pdf", sha(PDF_B)).reason == "missing"
 
 
 @pytest.mark.parametrize(

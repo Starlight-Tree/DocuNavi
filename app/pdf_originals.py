@@ -3,8 +3,9 @@
 DB の `documents` が持っているのは、`source`（ファイル名）と `content_hash`（取り込んだ PDF のバイト列の sha256）だけで、
 どの資料群のディレクトリにあったかは持っていない。そこで次のように決める。
 
-- `source` は、ファイル名として使えるものだけ受け付ける（区切り文字・`.`・`..` を含むものは「見つからない」）。DB の文字列を
-  パスとして結合せず、`storage/pdf/<資料群>/` の直下を走査して、名前が完全に一致するファイルを候補にする
+- `source` は、置き場の中の安全な相対パス（`a.pdf` か `dir/a.pdf`。部品は 3 個まで）だけ受け付ける。絶対パス・空の部品・`.` / `..`・
+  バックスラッシュ・NUL・制御文字を含むものは「見つからない」。DB の値をそのまま結合せず、`storage/pdf/<資料群>/` の直下を走査して、
+  `<資料群>/<source>` が完全に一致するファイルを候補にする（途中のディレクトリがリンクなら読まない）
 - 候補の中身を読み、sha256 が `content_hash` と一致するものだけを元 PDF とする（名前が同じでも、中身が違えば返さない）。
   これにより、DB に保存したテキストの元とは別版の PDF を見せない
 - **返すバイト列は、ハッシュを確かめた、そのバイト列**（検証のあとで読み直さない）
@@ -51,11 +52,41 @@ def _missing() -> OriginalPdf:
     return OriginalPdf(ok=False, reason="missing")
 
 
+# `source` に許す区切りの数（`<ディレクトリ>/<ファイル>.pdf` のような相対パス）。深い入れ子は取り込みが作らないので受け付けない
+MAX_SOURCE_SEGMENTS = 3
+MAX_SOURCE_CHARS = 255
+
+
+def _source_parts(source: object) -> tuple[str, ...] | None:
+    """`source` を、置き場の中の安全な相対パスの部品に分ける。使えない名前なら None。
+
+    許すのは `a.pdf` と `dir/a.pdf` の形だけ（部品は `MAX_SOURCE_SEGMENTS` 個まで）。絶対パス・空の部品（`//`、先頭・末尾の `/`）・
+    `.` / `..`・バックスラッシュ・NUL・制御文字を含むものは、探す前に「見つからない」にする。
+    """
+    if not isinstance(source, str) or not source or len(source) > MAX_SOURCE_CHARS:
+        return None
+    parts = tuple(source.split("/"))
+    if len(parts) > MAX_SOURCE_SEGMENTS:
+        return None
+    for part in parts:
+        if not part or part in (".", "..") or "\\" in part or any(ord(char) < 32 or ord(char) == 127 for char in part):
+            return None
+    return parts
+
+
 def _usable_name(source: object) -> bool:
-    """ファイル名として使える文字列か（ディレクトリの区切り・NUL・`.` / `..` を含まない）。"""
-    if not isinstance(source, str) or not source or source in (".", ".."):
-        return False
-    return not any(char in source for char in ("/", "\\", "\x00"))
+    """`source` が、置き場の中の安全な相対パスとして使えるか。"""
+    return _source_parts(source) is not None
+
+
+def _file_in(directory: Path, parts: tuple[str, ...]) -> bytes | None:
+    """`directory` の下の `parts`（相対パス）の通常のファイルを読む。途中のディレクトリがリンクなら読まない。"""
+    current = directory
+    for part in parts[:-1]:
+        current = current / part
+        if current.is_symlink() or not current.is_dir():
+            return None
+    return _read_regular_file(current / parts[-1])
 
 
 def _collection_dirs(root: Path) -> list[Path]:
@@ -131,7 +162,8 @@ def find_original(source: object, content_hash: object) -> OriginalPdf:
     見つからなければ reason="missing"。名前の合うファイルはあるが、どれも内容が違う（または、DB にハッシュが無く
     確かめられない）なら reason="mismatch"。複数が一致したときは中身が同一なので、名前順で先のものを返す。
     """
-    if not _usable_name(source):
+    parts = _source_parts(source)
+    if parts is None:
         return _missing()
     if os.environ.get("PDF_STORE", "local").strip().lower() == "r2":
         return _find_in_r2(str(source), content_hash)
@@ -143,7 +175,7 @@ def find_original(source: object, content_hash: object) -> OriginalPdf:
     wanted = content_hash.strip().lower() if isinstance(content_hash, str) else ""
     seen = False
     for directory in _collection_dirs(root):
-        data = _read_regular_file(directory / str(source))
+        data = _file_in(directory, parts)
         if data is None:
             continue
         seen = True

@@ -175,7 +175,23 @@ def test_a_directory_with_the_file_name_is_not_served(client, use_pool, store):
 
 @pytest.mark.parametrize(
     "source",
-    ["../outside.pdf", "guides/../../outside.pdf", "..", ".", "", "sub/a.pdf", "sub\\a.pdf", "a\x00.pdf"],
+    [
+        "../outside.pdf",
+        "guides/../../outside.pdf",
+        "sub/../a.pdf",
+        "./a.pdf",
+        "sub//a.pdf",
+        "/sub/a.pdf",
+        "sub/a.pdf/",
+        "a/b/c/d.pdf",
+        "..",
+        ".",
+        "",
+        "sub\\a.pdf",
+        "a\x00.pdf",
+        "sub/a\n.pdf",
+        "x" * 300,
+    ],
 )
 def test_a_source_that_is_not_a_plain_file_name_is_never_looked_up(client, use_pool, store, source):
     outside = store.parent / "outside.pdf"
@@ -184,6 +200,34 @@ def test_a_source_that_is_not_a_plain_file_name_is_never_looked_up(client, use_p
     (store / "guides" / "sub" / "a.pdf").write_bytes(PDF_A)
     use_pool(FakePool(document=[doc_row(source=source, content_hash=sha(PDF_A))]))
     assert client.get("/documents/1/file").status_code == 404
+
+
+def test_a_relative_path_under_a_collection_is_served_when_the_hash_matches(client, use_pool, store):
+    # 合成資料の source は `<サブディレクトリ>/<ファイル>.pdf`（collection の直下の 1 段下）
+    (store / "guides" / "sub").mkdir()
+    (store / "guides" / "sub" / "a.pdf").write_bytes(PDF_A)
+    use_pool(FakePool(document=[doc_row(source="sub/a.pdf", content_hash=sha(PDF_A))]))
+    res = client.get("/documents/1/file")
+    assert res.status_code == 200
+    assert res.content == PDF_A
+
+
+def test_a_relative_path_with_a_different_hash_is_a_409(client, use_pool, store):
+    (store / "guides" / "sub").mkdir()
+    (store / "guides" / "sub" / "a.pdf").write_bytes(PDF_A)
+    use_pool(FakePool(document=[doc_row(source="sub/a.pdf", content_hash=sha(PDF_B))]))
+    assert client.get("/documents/1/file").status_code == 409
+
+
+def test_a_symlinked_subdirectory_is_not_followed_even_if_the_hash_matches(client, use_pool, store):
+    elsewhere = store.parent / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "a.pdf").write_bytes(PDF_A)
+    (store / "guides" / "sub").symlink_to(elsewhere, target_is_directory=True)
+    use_pool(FakePool(document=[doc_row(source="sub/a.pdf", content_hash=sha(PDF_A))]))
+    res = client.get("/documents/1/file")
+    assert res.status_code == 404
+    assert res.content != PDF_A
 
 
 def test_an_absolute_path_as_source_is_never_read(client, use_pool, store):
