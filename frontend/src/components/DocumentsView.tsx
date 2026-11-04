@@ -1,13 +1,14 @@
 import { useCollectionCatalog } from '../hooks/useCollections';
-import { classificationItems, useClassificationCatalog, usableClassifications } from '../hooks/useClassifications';
+import { classificationItems, useClassificationCatalog } from '../hooks/useClassifications';
 import type { DocumentList, DocumentSummary } from '../api/documents';
 import { collectionLabel } from '../lib/collections';
 import { classificationLabel } from '../lib/classifications';
-import { EMPTY_FILTER, UNCLASSIFIED, UNCLASSIFIED_LABEL, facetOptions, filterDocuments, sortDocuments } from '../lib/documentFilter';
+import { EMPTY_FILTER, UNCLASSIFIED_LABEL, facetOptions, filterDocuments, sortDocuments } from '../lib/documentFilter';
 import type { DocumentFilter, FilterContext } from '../lib/documentFilter';
 import type { Loaded } from '../hooks/useLoaded';
 import type { NavigateMode, UrlState } from '../lib/urlState';
 import { useUrlState } from '../lib/urlState';
+import { isSelectable, setShown, shownState, toggleOne } from '../lib/documentSelection';
 import { signalPanelOpen } from '../lib/panelSignal';
 import { DocumentFilterBar } from './DocumentFilterBar';
 import { DocumentName, UpdatedAt, displayName, statusName } from './documentDisplay';
@@ -18,7 +19,19 @@ export const MSG_NO_DOCUMENTS = '登録された資料はありません。資�
 export const MSG_NO_MATCH = '条件を減らすか、クリアしてください。';
 export const MSG_NO_MATCH_LEGACY =
   '旧フィルターと、ほかの条件の両方に当てはまる資料はありません。旧フィルターを解除するか、条件を変えてください。';
-export const MSG_UNCLASSIFIED_NOT_ASKABLE = '未分類の資料は、回答の対象に選べません';
+export const MSG_NOTHING_SELECTED = '回答に使う資料が 1 件も選ばれていないため、質問は送れません。';
+
+/** 回答に使う資料の選択（資料単位）。選択は呼び出し側（チャット）が持つ。一覧の検索・絞り込みでは変わらない。 */
+export interface DocumentSelection {
+  /** いま回答に使われる資料の ID（検索できる資料だけ）。 */
+  selected: ReadonlySet<number>;
+  /** チェックを付け外しして、選択が変わった（新しい集合全体）。質問は送らない。 */
+  onChange: (next: ReadonlySet<number>) => void;
+  /** 「全資料に戻す」（`trigger` は、確認を閉じたあとにフォーカスを戻す先）。 */
+  onReset: (trigger: HTMLElement) => void;
+  /** すでに全資料が対象（「全資料に戻す」を押せない）。 */
+  isAll: boolean;
+}
 
 /** 取り込みの状態の見た目。`ready` と `failed` 以外（取り込み中など）は、待ちの見た目にする。 */
 function statusKind(status: string): 'ready' | 'failed' | 'processing' {
@@ -49,10 +62,8 @@ interface DocumentTableProps {
   /** URL で指定された、一覧の対象・資料種別・検索・絞り込み・並び替え。 */
   filter: DocumentFilter;
   onFilterChange: (next: Partial<DocumentFilter>, mode?: NavigateMode) => void;
-  /** 「全○資料を回答に使う」（null は「すべて」）。チャットの回答対象を変える。渡さなければ、ボタンは出さない。 */
-  onAskTarget?: ((target: string | null, trigger: HTMLElement) => void) | undefined;
-  /** いまのチャットの回答対象が、その対象（null は「すべて」）か。そうならボタンは押せなくする。 */
-  isApplied?: ((target: string | null) => boolean) | undefined;
+  /** 回答に使う資料の選択（チェックボックスと「全資料に戻す」）。渡さなければ、選択の操作は出さない。 */
+  selection?: DocumentSelection | undefined;
   onRetry: () => void;
   /** 開いている資料（右のパネル）の ID。その行を示す。 */
   openId: number | null;
@@ -65,8 +76,7 @@ function DocumentTable({
   onClearCollection,
   filter,
   onFilterChange,
-  onAskTarget,
-  isApplied,
+  selection,
   onRetry,
   openId,
   onOpen,
@@ -91,14 +101,10 @@ function DocumentTable({
   };
   const shown = sortDocuments(filterDocuments(documents, filter, context), filter.sort);
 
-  // 回答の対象にできるのは、サーバーが選べると返した対象だけ（一覧に無い識別名・未分類では、「回答に使う」のボタンを出さない）
-  const askable = usableClassifications(targetState);
-  const askTarget = filter.target !== null && filter.target !== UNCLASSIFIED ? filter.target : null;
-  const askKnown = askTarget === null || (askable?.some((t) => t.name === askTarget) ?? false);
-  const askInfo = askTarget === null ? undefined : askable?.find((t) => t.name === askTarget);
-  // 「全○資料」の数: 対象はサーバーが返す件数、すべては一覧の資料数
-  const askCount = askTarget === null ? documents.length : askInfo?.documentCount;
-  const applied = isApplied?.(askTarget) ?? false;
+  // 一覧の検索・絞り込みは表示を絞るだけで、選択は変えない。全選択・解除は、表示している資料だけに効く
+  const allDocuments = state.data.documents;
+  const filtered = shown.length < allDocuments.length;
+  const selectableTotal = allDocuments.filter(isSelectable).length;
 
   return (
     <>
@@ -123,29 +129,37 @@ function DocumentTable({
           )
         }
       />
-      {onAskTarget &&
-        (filter.target === UNCLASSIFIED ? (
-          <div className="docs-ask">
-            <span className="docs-ask-label">{MSG_UNCLASSIFIED_NOT_ASKABLE}</span>
-          </div>
-        ) : (
-          askKnown && (
-            <div className="docs-ask" role="group" aria-label="回答に使う資料">
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={applied}
-                onClick={(event) => onAskTarget(askTarget, event.currentTarget)}
-              >
-                {askCount === undefined ? 'この対象を回答に使う' : `全${askCount}資料を回答に使う`}
-              </button>
-            </div>
-          )
-        ))}
+      {selection && (
+        <div className="docs-ask" role="group" aria-label="回答に使う資料">
+          <span className="docs-ask-summary">
+            回答に使う資料：<strong>{selection.selected.size}</strong> / {selectableTotal} 件
+          </span>
+          <button type="button" className="btn btn-secondary btn-small" disabled={selection.isAll} onClick={(event) => selection.onReset(event.currentTarget)}>
+            全資料に戻す
+          </button>
+          {selection.selected.size === 0 && (
+            <span className="docs-ask-warning" role="status">
+              {MSG_NOTHING_SELECTED}
+            </span>
+          )}
+          {filtered && (
+            <span className="docs-ask-label">
+              全選択・解除は、表示中の {shownState(shown, selection.selected).selectable} 件だけに効きます（検索・絞り込みでは、選択は変わりません）。
+            </span>
+          )}
+        </div>
+      )}
       {shown.length === 0 ? (
         <p className="document-filter-empty">{collection !== null ? MSG_NO_MATCH_LEGACY : MSG_NO_MATCH}</p>
       ) : (
-        <DocumentRows documents={shown} showTarget={filter.target === null} openId={openId} onOpen={onOpen} />
+        <DocumentRows
+          documents={shown}
+          showTarget={filter.target === null}
+          openId={openId}
+          onOpen={onOpen}
+          selection={selection}
+          filtered={filtered}
+        />
       )}
     </>
   );
@@ -157,23 +171,43 @@ interface DocumentRowsProps {
   showTarget: boolean;
   openId: number | null;
   onOpen: (document: DocumentSummary, opener: Element | null) => void;
+  selection?: DocumentSelection | undefined;
+  /** 検索・絞り込みで、一部の資料だけを表示している（見出し行のチェックは、表示中の資料だけに効く）。 */
+  filtered: boolean;
 }
 
 /**
  * 資料のテーブル。列は、API が返す情報だけ（資料名・対象・資料種別・ページ数・更新日時）。資料名を押すと、右のパネルに詳細を開く。
  * 取り込み済みの印は出さず、取り込み中・失敗だけを資料名の横に出す。ファイル名は、同じ題名の資料を見分けるときだけ出す（ふだんは詳細のパネルで見る）。
  */
-function DocumentRows({ documents, showTarget, openId, onOpen }: DocumentRowsProps) {
+function DocumentRows({ documents, showTarget, openId, onOpen, selection, filtered }: DocumentRowsProps) {
   const { targets, docTypes } = useClassificationCatalog();
   const targetItems = classificationItems(targets);
   const docTypeItems = classificationItems(docTypes);
   const names = new Map<string, number>();
   for (const d of documents) names.set(displayName(d), (names.get(displayName(d)) ?? 0) + 1);
+  const state = selection ? shownState(documents, selection.selected) : null;
+  const allChecked = state !== null && state.selectable > 0 && state.checked === state.selectable;
   return (
     <div className="documents-table-wrap">
       <table className="documents-table">
         <thead>
           <tr>
+            {selection && state && (
+              <th scope="col" className="col-check">
+                <input
+                  type="checkbox"
+                  aria-label={filtered ? `表示中の ${state.selectable} 件を全選択・解除` : '全資料を全選択・解除'}
+                  title={filtered ? '表示中の資料だけが対象です' : undefined}
+                  checked={allChecked}
+                  disabled={state.selectable === 0}
+                  ref={(input) => {
+                    if (input) input.indeterminate = state.checked > 0 && !allChecked;
+                  }}
+                  onChange={() => selection.onChange(setShown(selection.selected, documents, !allChecked))}
+                />
+              </th>
+            )}
             <th scope="col">資料名</th>
             {showTarget && <th scope="col">対象</th>}
             <th scope="col">資料種別</th>
@@ -192,6 +226,19 @@ function DocumentRows({ documents, showTarget, openId, onOpen }: DocumentRowsPro
               aria-current={document.id === openId ? 'true' : undefined}
               onClick={(event) => onOpen(document, event.currentTarget.querySelector('.document-open'))}
             >
+              {selection && (
+                // チェックは資料を開かない（行のクリックに伝えない）
+                <td className="col-check" onClick={(event) => event.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    aria-label={`${displayName(document)} を回答に使う`}
+                    title={isSelectable(document) ? undefined : '取り込みが終わると選べます'}
+                    checked={selection.selected.has(document.id)}
+                    disabled={!isSelectable(document)}
+                    onChange={() => selection.onChange(toggleOne(selection.selected, document.id))}
+                  />
+                </td>
+              )}
               <th scope="row">
                 <button
                   type="button"
@@ -236,8 +283,8 @@ interface DocumentsViewProps {
   /** 資料の一覧（GET /documents）。右のパネルと共有するので、呼び出し側が取る。 */
   state: Loaded<DocumentList>;
   onReload: () => void;
-  onAskTarget?: ((target: string | null, trigger: HTMLElement) => void) | undefined;
-  isApplied?: ((target: string | null) => boolean) | undefined;
+  /** 回答に使う資料の選択。渡さなければ、選択の操作は出さない。 */
+  selection?: DocumentSelection | undefined;
   /** 「× 閉じる」。直前のチャットへ戻る。 */
   onClose: () => void;
 }
@@ -245,9 +292,9 @@ interface DocumentsViewProps {
 /**
  * 資料ライブラリ（読み取り専用）。資料を押すと、右のパネルに開く（一覧は残る）。
  * 開いている資料・絞り込み・並び替えは、URL が決める（戻る・再読み込み・共有で戻れる）。
- * 一覧の絞り込み（表示する資料を絞る）と、チャットの回答対象（回答に使う資料の範囲）は、別のもの。
+ * 一覧の絞り込み（表示する資料を絞る）と、チャットの回答対象（回答に使う資料の選択）は、別のもの。
  */
-export function DocumentsView({ state, onReload, onAskTarget, isApplied, onClose }: DocumentsViewProps) {
+export function DocumentsView({ state, onReload, selection, onClose }: DocumentsViewProps) {
   const { doc, target, docType, collection, query, status, pageBand, updatedBand, sort, navigate } = useUrlState();
   const filter: DocumentFilter = {
     query: query ?? '',
@@ -285,8 +332,7 @@ export function DocumentsView({ state, onReload, onAskTarget, isApplied, onClose
         onClearCollection={() => navigate({ collection: null })}
         filter={filter}
         onFilterChange={onFilterChange}
-        onAskTarget={onAskTarget}
-        isApplied={isApplied}
+        selection={selection}
         onRetry={onReload}
         openId={doc}
         onOpen={(d, opener) => {

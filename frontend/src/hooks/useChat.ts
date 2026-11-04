@@ -192,6 +192,14 @@ export interface UseChat {
    * 範囲を返さない旧 API）。回答が最後まで届いていないとき・範囲を指定していないときは false。
    */
   scopeMismatch: boolean;
+  /**
+   * 画面で選んだ資料（`documents.id`）。null は「資料で絞らない」（会話の範囲のまま）。会話には固定されず、ターンごとに送る。
+   * 選んだターンは、会話の範囲に代わって、この資料だけで探す。再読み込み・URL・localStorage には残さない。
+   * 会話を変える（新しい会話・保存済みの会話を開く）か、範囲を選び直すと、null に戻る。
+   */
+  documentIds: number[] | null;
+  /** 選んだ資料を置き換える。null は「資料で絞らない」。回答の生成中でも変えられる（次の送信から効く）。 */
+  setDocumentIds: (ids: number[] | null) => void;
   /** 新しい会話の範囲を選ぶ。発言や会話 ID があるときは何もしない（false）。会話が変わるときは `startNew` を使う。 */
   setScope: (scope: ChatScope) => boolean;
   /** 送信を受け付けたら true。送信中・空文字・長すぎる場合は何もせず false。 */
@@ -223,6 +231,13 @@ export function useChat(): UseChat {
   const [scopeUnknown, setScopeUnknown] = useState<boolean>(() => loadThreadId() !== null);
   const [scopeUnavailable, setScopeUnavailable] = useState(false);
   const scopeRef = useRef<ChatScope>(ALL_SCOPE);
+  // 選んだ資料。送信の本文を作る関数が読むので ref でも持つ。会話の範囲とは別（範囲は会話ごとに固定、こちらはターンごと）
+  const [documentIds, setDocumentIdsState] = useState<number[] | null>(null);
+  const documentIdsRef = useRef<number[] | null>(null);
+  const setDocumentIds = useCallback((ids: number[] | null) => {
+    documentIdsRef.current = ids;
+    setDocumentIdsState(ids);
+  }, []);
   const applyScope = useCallback((next: ChatScope, unknown: boolean, unavailable = false) => {
     scopeRef.current = next;
     setScopeState(next);
@@ -253,14 +268,23 @@ export function useChat(): UseChat {
         headers: { Accept: 'text/event-stream' },
         // 履歴はサーバーが thread_id ごとに持つので、最後の発言だけを送る（最初の送信は thread_id も送らない）
         prepareSendMessagesRequest: ({ messages }) => {
-          const body: { message: string; thread_id?: string; collection?: string; target?: string } = {
+          const body: {
+            message: string;
+            thread_id?: string;
+            collection?: string;
+            target?: string;
+            document_ids?: number[];
+          } = {
             message: lastUserText(messages),
           };
           if (threadIdRef.current) body.thread_id = threadIdRef.current;
           // 範囲を知っているときだけ送る（「すべて」と、範囲を知らない会話は省略。省略は何も主張せず、会話の範囲がそのまま使われる）。
           // 対象と旧グループは同時に送らない（サーバーが 422 にする）
           const current = scopeRef.current;
-          if (current.kind === 'target') body.target = current.name;
+          // 資料を選んでいるターンは、その資料だけで探す（サーバーは、対象・旧グループと同時には受け付けない）
+          const chosen = documentIdsRef.current;
+          if (chosen !== null && chosen.length > 0) body.document_ids = chosen;
+          else if (current.kind === 'target') body.target = current.name;
           else if (current.kind === 'collection') body.collection = current.name;
           return { body };
         },
@@ -373,6 +397,8 @@ export function useChat(): UseChat {
     (raw: string): boolean => {
       const text = raw.trim();
       if (!text || text.length > MAX_MESSAGE_LENGTH || pendingRef.current) return false;
+      // 資料を 1 件も選んでいないときは送らない（「選ばない」を「すべて」と読み替えない）
+      if (documentIdsRef.current?.length === 0) return false;
       begin(sendMessage({ text }));
       return true;
     },
@@ -383,13 +409,16 @@ export function useChat(): UseChat {
     (next: ChatScope): boolean => {
       if (pendingRef.current || threadIdRef.current !== null || chat.messages.length > 0) return false;
       applyScope(next, false);
+      // 範囲を選び直したら、資料の選択は外す（選んだ資料が、選び直した範囲に勝ってしまわないように）
+      setDocumentIds(null);
       return true;
     },
-    [applyScope, chat.messages.length],
+    [applyScope, chat.messages.length, setDocumentIds],
   );
 
   const retry = useCallback(() => {
     if (pendingRef.current || !chat.messages.some((message) => message.role === 'user')) return;
+    if (documentIdsRef.current?.length === 0) return;
     // 末尾が assistant（途中まで届いた本文）なら、それを捨てて、同じ発言を送り直す
     begin(regenerate());
   }, [begin, chat.messages, regenerate]);
@@ -411,8 +440,9 @@ export function useChat(): UseChat {
       saveThreadId(null);
       setThreadId(null);
       applyScope(next, false);
+      setDocumentIds(null);
     },
-    [applyScope, clearError, setMessages, stopChat],
+    [applyScope, clearError, setDocumentIds, setMessages, stopChat],
   );
 
   const reset = useCallback(() => startNew(ALL_SCOPE), [startNew]);
@@ -439,6 +469,7 @@ export function useChat(): UseChat {
       setThreadId(id);
       // 会話の範囲は、取得できるまで分からない（分からない間は範囲を送らない）
       applyScope(ALL_SCOPE, true);
+      setDocumentIds(null);
 
       // 以前のやり取りを取得して並べる。取得の間に別の会話へ移った・新しい会話にした・送信を始めた
       // （どれも jobRef が進む）なら、遅れて届いた結果は捨てる
@@ -475,7 +506,7 @@ export function useChat(): UseChat {
         },
       );
     },
-    [applyScope, clearError, fetchJson, setMessages, stopChat],
+    [applyScope, clearError, fetchJson, setDocumentIds, setMessages, stopChat],
   );
 
   return {
@@ -491,6 +522,8 @@ export function useChat(): UseChat {
     scopeUnavailable,
     hasConversation,
     scopeMismatch,
+    documentIds,
+    setDocumentIds,
     setScope,
     send,
     askAgainInAll,

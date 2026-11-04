@@ -1385,7 +1385,7 @@
   line-height: 1.4;
 }
 
-/* 回答に使う資料。「全○資料を回答に使う」（押したあとは押せなくなる）。一覧の絞り込みとは別の操作 */
+/* 回答に使う資料の選択（資料ごとのチェック）と「全資料に戻す」。一覧の絞り込みとは別の操作 */
 .docs-ask {
   display: flex;
   flex-wrap: wrap;
@@ -1398,6 +1398,33 @@
 .docs-ask-label {
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+
+.docs-ask-summary {
+  font-size: 0.95rem;
+}
+
+.docs-ask-warning {
+  color: var(--danger-text);
+  font-size: 0.85rem;
+}
+
+/* チェックボックスの列（見出し行は全選択・解除）。資料名の前に置く */
+.documents-table .col-check {
+  width: 2.25rem;
+  padding-right: 0;
+  text-align: center;
+}
+
+.documents-table .col-check input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  cursor: pointer;
+}
+
+.documents-table .col-check input:disabled {
+  cursor: not-allowed;
 }
 
 /* 有効な絞り込み条件。×で、その条件だけ外す */

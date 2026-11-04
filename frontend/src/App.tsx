@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { AppSidebar, SidebarIcon } from './components/AppSidebar';
 import { Composer } from './components/Composer';
-import { DocumentsView } from './components/DocumentsView';
+import { DocumentsView, MSG_NOTHING_SELECTED } from './components/DocumentsView';
 import { ErrorBanner } from './components/ErrorBanner';
 import { LoginScreen } from './components/LoginScreen';
 import { MessageList } from './components/MessageList';
@@ -32,6 +32,7 @@ import {
 import { useThreads } from './hooks/useThreads';
 import { classificationLabel, isPreparing } from './lib/classifications';
 import { collectionLabel } from './lib/collections';
+import { effectiveSelection, normalizeSelection } from './lib/documentSelection';
 import { useUrlState } from './lib/urlState';
 
 const ALL_LABEL = 'すべての資料';
@@ -41,6 +42,7 @@ const MSG_SCOPE_UNAVAILABLE =
   'この会話の対象は、いま利用できません（資料が別の対象へ移った、または閲覧できなくなった可能性があります）。続きを送っても、保存された対象のまま探します。新しい会話で、対象を選び直せます。';
 const MSG_TARGET_EMPTY = 'この対象には、いま検索できる資料がありません（取り込みが終わると使えます）。';
 const UNKNOWN_LABEL = 'この会話の対象';
+const SELECTED_LABEL = '選択した資料';
 
 /** 回答対象を変える確認の待ち。切り替え先と、確認を閉じたあとにフォーカスを戻す要素。 */
 interface PendingScope {
@@ -117,9 +119,9 @@ function ChatScreen() {
     return failure;
   };
 
-  // 回答対象を変える。会話が無ければそのまま切り替え、会話があれば（会話ごとに固定なので）確認して新しい会話にする。
-  // 資料一覧の「全○資料を回答に使う」と、入力欄のチップのメニューは、どちらもここを通る。資料一覧の絞り込みとは別のもの。
-  // 資料一覧から変えても、資料一覧に留まる（質問は自動で送らない。反映は、ボタンが「適用済み」に変わって分かる）
+  // 回答対象（会話の範囲）を変える。会話が無ければそのまま切り替え、会話があれば（会話ごとに固定なので）確認して新しい会話にする。
+  // 入力欄のチップのメニューと、資料一覧の「全資料に戻す」は、どちらもここを通る。資料一覧の絞り込みとは別のもの。
+  // 資料一覧から変えても、資料一覧に留まる（質問は自動で送らない）。範囲を選び直すと、資料の選択は外れる（setScope / startNew）
   const requestScope = (scope: ChatScope, trigger: HTMLElement | null) => {
     if (!chat.scopeUnknown && sameScope(scope, chat.scope)) return;
     if (chat.setScope(scope)) {
@@ -127,6 +129,15 @@ function ChatScreen() {
       return;
     }
     setPendingScope({ scope, trigger });
+  };
+
+  // 範囲を選ぶ操作。いまの範囲と同じでも、資料の選択が残っていれば外す（範囲が変わらないと、requestScope では何も起きないため）
+  const chooseScope = (scope: ChatScope, trigger: HTMLElement | null) => {
+    if (!chat.scopeUnknown && sameScope(scope, chat.scope) && chat.documentIds !== null) {
+      chat.setDocumentIds(null);
+      return;
+    }
+    requestScope(scope, trigger);
   };
 
   const cancelScope = useCallback(() => {
@@ -151,13 +162,18 @@ function ChatScreen() {
       : scope.kind === 'target'
         ? classificationLabel(scope.name, targetItems)
         : `旧グループ: ${collectionLabel(scope.name, groups ?? undefined)}`;
-  const currentLabel = chat.scopeUnknown ? UNKNOWN_LABEL : scopeLabel(chat.scope);
+  // 画面で資料を選んでいる間は、会話の範囲より選んだ資料が優先される（ターンごとに送る）
+  const selecting = chat.documentIds !== null;
+  const nothingSelected = chat.documentIds?.length === 0;
+  const currentLabel = selecting ? SELECTED_LABEL : chat.scopeUnknown ? UNKNOWN_LABEL : scopeLabel(chat.scope);
   const current = chat.scope;
   const currentTarget = current.kind === 'target' ? targets?.find((t) => t.name === current.name) : undefined;
   const currentGroup = current.kind === 'collection' ? groups?.find((g) => g.name === current.name) : undefined;
   const allCount = groups?.reduce((sum, g) => sum + g.documentCount, 0);
   // チップに出す対象の資料数。範囲が分からない間・一覧を読めなかったときは出さない
-  const contextCount = chat.scopeUnknown
+  const contextCount = chat.documentIds
+    ? chat.documentIds.length
+    : chat.scopeUnknown
     ? undefined
     : chat.scope.kind === 'all'
       ? allCount
@@ -180,18 +196,31 @@ function ChatScreen() {
               },
             ]
           : []),
-        { key: 'all', scope: ALL_SCOPE, title: ALL_LABEL, count: allCount, checked: !chat.scopeUnknown && chat.scope.kind === 'all' },
+        { key: 'all', scope: ALL_SCOPE, title: ALL_LABEL, count: allCount, checked: !selecting && !chat.scopeUnknown && chat.scope.kind === 'all' },
         ...targets.map((t) => ({
           key: t.name,
           scope: { kind: 'target', name: t.name } as ChatScope,
           title: t.label,
           count: t.documentCount,
           note: isPreparing(t) ? '準備中（取り込み中の資料だけ）' : undefined,
-          checked: !chat.scopeUnknown && chat.scope.kind === 'target' && chat.scope.name === t.name,
+          checked: !selecting && !chat.scopeUnknown && chat.scope.kind === 'target' && chat.scope.name === t.name,
         })),
       ]
     : null;
-  const targetEmpty = !chat.scopeUnknown && chat.scope.kind === 'target' && currentTarget !== undefined && isPreparing(currentTarget);
+  const targetEmpty = !selecting && !chat.scopeUnknown && chat.scope.kind === 'target' && currentTarget !== undefined && isPreparing(currentTarget);
+
+  // 回答に使う資料の選択（資料一覧のチェックボックス）。資料の一覧を読めている間だけ出す
+  const listedDocuments = documentList.status === 'ready' ? documentList.data.documents : null;
+  const selection =
+    listedDocuments === null
+      ? undefined
+      : {
+          selected: effectiveSelection(listedDocuments, chat.scope, chat.scopeUnknown, chat.documentIds),
+          onChange: (next: ReadonlySet<number>) =>
+            chat.setDocumentIds(normalizeSelection(next, listedDocuments, chat.scope, chat.scopeUnknown)),
+          onReset: (trigger: HTMLElement) => chooseScope(ALL_SCOPE, trigger),
+          isAll: !selecting && !chat.scopeUnknown && chat.scope.kind === 'all',
+        };
 
   const goChat = () => {
     navigate({ tab: 'chat' });
@@ -290,8 +319,14 @@ function ChatScreen() {
                 {MSG_SCOPE_MISMATCH}
               </p>
             )}
+            {nothingSelected && (
+              <p className="scope-warning" role="status">
+                {MSG_NOTHING_SELECTED}
+              </p>
+            )}
             <Composer
               pending={chat.pending}
+              sendBlocked={nothingSelected}
               onSend={chat.send}
               onStop={chat.stop}
               scopeControl={
@@ -302,8 +337,9 @@ function ChatScreen() {
                   failed={classifications.targets.status === 'error'}
                   onRetry={classifications.reloadTargets}
                   fixed={chat.hasConversation}
+                  selecting={selecting}
                   disabled={chat.pending}
-                  onSelect={requestScope}
+                  onSelect={chooseScope}
                 />
               }
             />
@@ -313,12 +349,8 @@ function ChatScreen() {
           <DocumentsView
             state={documentList}
             onReload={reloadDocuments}
-            isApplied={(target) =>
-              !chat.scopeUnknown &&
-              (target === null ? chat.scope.kind === 'all' : chat.scope.kind === 'target' && chat.scope.name === target)
-            }
+            selection={selection}
             onClose={goChat}
-            onAskTarget={targets ? (target, trigger) => requestScope(target === null ? ALL_SCOPE : { kind: 'target', name: target }, trigger) : undefined}
           />
         )}
       </div>

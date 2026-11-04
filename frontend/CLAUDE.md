@@ -39,7 +39,7 @@ Vercel が配信する画面。`main` へのプッシュで本番が更新され
 ```bash
 cd frontend
 npm run typecheck
-npm test                                        # Vitest 494 件（2026-11-04）
+npm test                                        # Vitest 507 件（2026-11-04）
 NEXT_DIST_DIR=.next-verify npm run build        # コンテナの next dev の .next を壊さないよう、出力先を分ける
 ```
 

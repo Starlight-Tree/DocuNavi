@@ -1137,12 +1137,12 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
 
     const chips = within(screen.getByRole('list', { name: '有効な条件' })).getAllByRole('listitem');
     expect(chips.map((c) => c.textContent)).toEqual(['対象：ザーハード×', '資料種別：設定資料×']);
-    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['資料名', '資料種別', 'ページ数', '更新日時']);
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '資料種別', 'ページ数', '更新日時']); // 先頭は回答に使う資料のチェック列
 
     await user.click(screen.getByRole('button', { name: '対象：ザーハード を外す' }));
 
     expect(window.location.search).toBe('?tab=documents&type=setting');
-    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['資料名', '対象', '資料種別', 'ページ数', '更新日時']);
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '対象', '資料種別', 'ページ数', '更新日時']);
     expect(within(screen.getByRole('list', { name: '有効な条件' })).getAllByRole('listitem')).toHaveLength(1);
   });
 
@@ -1233,11 +1233,11 @@ describe('資料一覧: テーブル', () => {
     await screen.findByRole('row', { name: /A の資料/ });
 
     const head = screen.getAllByRole('columnheader').map((th) => th.textContent);
-    expect(head).toEqual(['資料名', '対象', '資料種別', 'ページ数', '更新日時']);
+    expect(head).toEqual(['', '資料名', '対象', '資料種別', 'ページ数', '更新日時']);
 
     const row = screen.getByRole('row', { name: /A の資料/ });
     const cells = within(row).getAllByRole('cell');
-    expect(cells.map((c) => c.textContent)).toEqual(['つばさ大学学生寮', '規程', '6', expect.stringMatching(/^\d{4}\/\d{2}\/\d{2}$/)]);
+    expect(cells.map((c) => c.textContent)).toEqual(['', 'つばさ大学学生寮', '規程', '6', expect.stringMatching(/^\d{4}\/\d{2}\/\d{2}$/)]);
     // 資料名のボタンが、詳細を開く入口。ファイル名は一覧に出さず、詳細のパネルで見る。取り込み済みの印も出さない
     expect(within(row).getByRole('button', { name: 'A の資料 を開く' })).not.toHaveTextContent('a.pdf');
     expect(within(row).queryByText('取り込み済み')).not.toBeInTheDocument();
