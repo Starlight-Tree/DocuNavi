@@ -1,6 +1,6 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { PAGE_BANDS, QUERY_MAX_LENGTH, SORT_KEYS, SORT_LABELS, UPDATED_BANDS, detailCount, isFiltered, splitKeywords } from '../lib/documentFilter';
+import { QUERY_MAX_LENGTH, SORT_KEYS, SORT_LABELS, isFiltered, splitKeywords } from '../lib/documentFilter';
 import type { DocumentFilter, FacetOption, PageBand, UpdatedBand } from '../lib/documentFilter';
 
 export interface DocumentFilterOptions {
@@ -50,19 +50,14 @@ function FacetSelect<T extends string>({ label, value, options, onSelect }: Face
 
 /**
  * 資料一覧の、検索・絞り込み・並び替えと、件数。状態は持たない（URL が持つ）。
- * 主な操作は、検索・対象・資料種別・並び替え。状態・ページ数・更新は「フィルター」にまとめる
- * （有効な条件があるときは開いたままにする。見えない条件で一覧が絞られている状態を作らない）。
+ * 操作は、検索・対象・資料種別・並び替え。状態・ページ数・更新の欄は持たない（URL で指定された条件は、チップで見せて外せる）。
  * キーワードの入力欄だけ、日本語の変換中の文字が URL の往復で崩れないよう、手元の文字を持ち、URL が外から変わったときに合わせる。
  */
 export function DocumentFilterBar({ filter, options, resultCount, onChange, onClear, notice }: DocumentFilterBarProps) {
-  const detailId = useId();
   const [text, setText] = useState(filter.query);
   useEffect(() => {
     setText(filter.query);
   }, [filter.query]);
-  const [detailOpenByUser, setDetailOpenByUser] = useState(false);
-  const active = detailCount(filter);
-  const detailOpen = active > 0 || detailOpenByUser;
   // 有効な条件は、いつも見える形（チップ）で出す。×で、その条件だけ外せる
   const labelOf = <T extends string>(list: FacetOption<T>[], value: T | null) => list.find((o) => o.value === value)?.label ?? value ?? '';
   const chips: { key: string; text: string; clear: () => void }[] = [
@@ -105,38 +100,6 @@ export function DocumentFilterBar({ filter, options, resultCount, onChange, onCl
             ))}
           </select>
         </label>
-        <button
-          type="button"
-          className="btn btn-secondary document-detail-toggle"
-          aria-expanded={detailOpen}
-          aria-controls={detailId}
-          disabled={active > 0}
-          title={active > 0 ? '条件が有効な間は閉じられません' : undefined}
-          onClick={() => setDetailOpenByUser(!detailOpen)}
-        >
-          フィルター
-          {active > 0 && (
-            <span className="document-detail-badge" aria-label={`${active} 件の条件が有効`}>
-              {active}
-            </span>
-          )}
-          <span aria-hidden="true">{detailOpen ? '▴' : '▾'}</span>
-        </button>
-        <div id={detailId} className="document-detail" hidden={!detailOpen}>
-          <FacetSelect label="状態" value={filter.status} options={options.status} onSelect={(status) => onChange({ status })} />
-          <FacetSelect
-            label="ページ数"
-            value={filter.pages}
-            options={options.pages}
-            onSelect={(pages) => onChange({ pages: PAGE_BANDS.find((b) => b === pages) ?? null })}
-          />
-          <FacetSelect
-            label="更新"
-            value={filter.updated}
-            options={options.updated}
-            onSelect={(updated) => onChange({ updated: UPDATED_BANDS.find((b) => b === updated) ?? null })}
-          />
-        </div>
       </section>
       {notice}
       <div className="document-filter-result">

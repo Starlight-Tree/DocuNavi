@@ -373,8 +373,8 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
     await user.selectOptions(await targetSelect(), 'zahard');
 
     const area = await askArea();
-    expect(within(area).getByRole('heading', { name: 'ザーハード' })).toBeInTheDocument();
-    expect(within(area).getByText('3 件')).toBeInTheDocument();
+    expect(within(area).getByRole('button', { name: '全3資料を回答に使う' })).toBeEnabled();
+    expect(within(area).queryByRole('heading')).not.toBeInTheDocument();
     expect(screen.queryByText(/一覧の絞り込みは/)).not.toBeInTheDocument();
     expect(screen.queryByText(/現在のチャットの/)).not.toBeInTheDocument();
 
@@ -389,17 +389,16 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
     await openDocuments(user);
     const select = await targetSelect();
 
-    // 回答対象は「すべての資料」なので、一覧が「すべて」のときは、すでに適用済み
+    // 回答対象は「すべての資料」なので、一覧が「すべて」のときは、すでに適用済み（ボタンは押せない。名前・件数・「適用済み」の表示は出さない）
     let area = await askArea();
-    expect(within(area).getByRole('heading', { name: 'すべての資料' })).toBeInTheDocument();
-    expect(within(area).getByText('適用済み')).toBeInTheDocument();
-    expect(within(area).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(area).getByRole('button', { name: '全4資料を回答に使う' })).toBeDisabled();
+    expect(within(area).queryByRole('heading')).not.toBeInTheDocument();
+    expect(within(area).queryByText('適用済み')).not.toBeInTheDocument();
 
     await user.selectOptions(select, 'minato-coffee');
 
     area = await askArea();
-    expect(within(area).getByRole('heading', { name: 'みなとコーヒー' })).toBeInTheDocument();
-    expect(within(area).getByRole('button', { name: '全1資料を回答に使う' })).toBeInTheDocument();
+    expect(within(area).getByRole('button', { name: '全1資料を回答に使う' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: /この資料/ })).not.toBeInTheDocument();
   });
 
@@ -418,7 +417,7 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
     expect(screen.queryByRole('group', { name: '回答に使う資料' })).not.toBeInTheDocument();
   });
 
-  it('会話が無いとき、「全○資料を回答に使う」は、資料一覧に留まったまま回答対象を切り替える。ボタンは「適用済み」に変わり、質問は送らない', async () => {
+  it('会話が無いとき、「全○資料を回答に使う」は、資料一覧に留まったまま回答対象を切り替える。ボタンは押せなくなり、質問は送らない', async () => {
     const { chatBodies } = install();
     const { user } = setup();
     await openDocuments(user);
@@ -428,9 +427,7 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?tab=documents&target=minato-coffee');
-    const area = await askArea();
-    expect(within(area).getByText('適用済み')).toBeInTheDocument();
-    expect(within(area).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(await askArea()).getByRole('button', { name: '全1資料を回答に使う' })).toBeDisabled();
     expect(chatBodies).toHaveLength(0); // 質問は自動で送らない
 
     await user.click(screen.getByRole('link', { name: 'チャット' }));
@@ -441,19 +438,19 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
     expect(chatBodies[0]).toEqual({ message: '営業時間は？', target: 'minato-coffee' });
   });
 
-  it('チップで別の対象に変えると、資料一覧のボタンは「適用済み」から元に戻る。「すべて」へも切り替えられる', async () => {
+  it('チップで別の対象に変えると、資料一覧のボタンは押せない状態から元に戻る。「すべて」へも切り替えられる', async () => {
     const { chatBodies } = install();
     const { user } = setup();
     await pick(user, /^ザーハード/); // 先に別の対象を選んでおく
     await openDocuments(user);
 
     const area = await askArea();
-    expect(within(area).getByRole('button', { name: '全4資料を回答に使う' })).toBeInTheDocument();
+    expect(within(area).getByRole('button', { name: '全4資料を回答に使う' })).toBeEnabled();
     await user.click(within(area).getByRole('button', { name: '全4資料を回答に使う' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?tab=documents');
-    expect(within(await askArea()).getByText('適用済み')).toBeInTheDocument();
+    expect(within(await askArea()).getByRole('button', { name: '全4資料を回答に使う' })).toBeDisabled();
     await user.click(screen.getByRole('link', { name: 'チャット' }));
     expect(await menuButton()).toHaveTextContent('すべての資料');
 
@@ -500,7 +497,7 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?tab=documents&target=minato-coffee');
-    expect(within(await askArea()).getByText('適用済み')).toBeInTheDocument();
+    expect(within(await askArea()).getByRole('button', { name: '全1資料を回答に使う' })).toBeDisabled();
     await user.click(screen.getByRole('link', { name: 'チャット' }));
     expect(await menuButton()).toHaveTextContent('みなとコーヒー');
     expect(screen.queryByText(DEFAULT_REPLY)).not.toBeInTheDocument();

@@ -2,7 +2,7 @@
    元は UI モックの見た目: 色・ボタン・フォーカスは、本体の styles.css のトークンと .btn を使う。クラス名は ws- で始め、本体と衝突させない */
 
 :root {
-  --ws-side: 14rem;
+  --ws-side: 256px;
   --ws-panel: 24rem;
   --ws-ok: #1d6b3f;
   --ws-ok-bg: #e5f3ea;
@@ -1377,7 +1377,7 @@
   line-height: 1.4;
 }
 
-/* 回答に使う資料。対象の名前と件数、「全○資料を回答に使う」（押したあとは「適用済み」）。一覧の絞り込みとは別の操作 */
+/* 回答に使う資料。「全○資料を回答に使う」（押したあとは押せなくなる）。一覧の絞り込みとは別の操作 */
 .docs-ask {
   display: flex;
   flex-wrap: wrap;
@@ -1387,38 +1387,9 @@
   padding: 0.5rem 0;
 }
 
-.docs-ask-target {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.docs-ask-name {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.docs-ask-count,
 .docs-ask-label {
   color: var(--text-muted);
   font-size: 0.85rem;
-}
-
-.docs-ask-applied {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.4rem;
-  padding: 0 0.9rem;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  background: var(--surface-muted);
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.docs-ask-hint {
-  color: var(--text-muted);
-  font-size: 0.8rem;
 }
 
 /* 有効な絞り込み条件。×で、その条件だけ外す */
@@ -1574,40 +1545,6 @@
 /* 対象の表示名は長いことがある（「あおば電機 AW-820」など）。主な操作の欄は、少し広く取る */
 .document-filter > .document-filter-field select {
   max-width: 14rem;
-}
-
-/* 詳細フィルター（状態・ページ数・更新・並び替え）。開いたときだけ、次の行に出る。条件が有効な間は閉じられない */
-.document-detail-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 2.4rem;
-}
-
-.document-detail {
-  display: flex;
-  flex: 1 0 100%;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.5rem 0.75rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--border);
-}
-
-.document-detail[hidden] {
-  display: none;
-}
-
-.document-detail-badge {
-  min-width: 1.3rem;
-  padding: 0 0.35rem;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-text);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.3rem;
-  text-align: center;
 }
 
 /* 旧フィルター（?collection=）が有効なときの知らせ。黙って捨てず、解除できる */

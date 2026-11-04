@@ -87,25 +87,25 @@ test('対象に資料が無いと案内が出て、「すべての資料で聞�
   await expect(targetButton(page)).toContainText('すべての資料');
 });
 
-test('資料一覧の対象の選択は一覧を絞るだけ。「全○資料を回答に使う」で、資料一覧に留まったまま回答対象が切り替わり、「適用済み」になる', async ({ page }) => {
+test('資料一覧の対象の選択は一覧を絞るだけ。「全○資料を回答に使う」で、資料一覧に留まったまま回答対象が切り替わり、ボタンは押せなくなる', async ({ page }) => {
   await page.goto('/?tab=documents');
   const targetSelect = page.getByRole('combobox', { name: '対象' });
   await expect(targetSelect).toBeVisible();
-  // ヒーローと大きなグループカードは出さない。一覧はテーブル。主な操作は 検索・対象・資料種別・並び替え で、そのほかは「フィルター」
+  // ヒーローと大きなグループカードは出さない。一覧はテーブル。操作は 検索・対象・資料種別・並び替え だけ
   await expect(page.getByRole('region', { name: '最近更新された資料' })).toHaveCount(0);
   await expect(page.getByRole('group', { name: /資料グループ/ })).toHaveCount(0);
   await expect(page.getByRole('columnheader')).toHaveText(['資料名', '対象', '資料種別', 'ページ数', '更新日時']);
   await expect(page.getByRole('combobox', { name: '資料種別' })).toBeVisible();
   await expect(page.getByRole('combobox', { name: '並び替え' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^フィルター/ })).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.getByRole('combobox', { name: '状態' })).toBeHidden();
+  await expect(page.getByRole('button', { name: /^フィルター/ })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: '状態' })).toHaveCount(0);
 
   // 対象を選んでも、チャットの回答対象は変わらない。対象を 1 つ選ぶと、対象の列は出さず、見出しに対象名を出す
   await targetSelect.selectOption('minato-coffee');
   await expect(page).toHaveURL(/target=minato-coffee/);
   await expect(page.getByRole('row')).toHaveCount(2); // 見出し + みなとコーヒーの 1 件
   await expect(page.getByRole('columnheader')).toHaveText(['資料名', '資料種別', 'ページ数', '更新日時']);
-  await expect(page.getByRole('group', { name: '回答に使う資料' }).getByRole('heading', { name: 'みなとコーヒー' })).toBeVisible();
+  await expect(page.getByRole('group', { name: '回答に使う資料' }).getByRole('button', { name: '全1資料を回答に使う' })).toBeEnabled();
   await expect(page.getByText(/現在のチャットの/)).toHaveCount(0);
   await chatLink(page).click();
   await expect(targetButton(page)).toContainText('すべての資料');
@@ -115,8 +115,7 @@ test('資料一覧の対象の選択は一覧を絞るだけ。「全○資料�
   await page.getByRole('button', { name: /^全\d+資料を回答に使う$/ }).click();
   await expect(page.getByRole('alertdialog')).toBeHidden(); // 会話が無いので、確認なしで切り替わる
   await expect(page).toHaveURL(/tab=documents/); // 資料一覧に留まる
-  await expect(page.getByRole('group', { name: '回答に使う資料' }).getByText('適用済み')).toBeVisible();
-  await expect(page.getByRole('button', { name: /回答に使う$/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^全\d+資料を回答に使う$/ })).toBeDisabled();
 
   await chatLink(page).click();
   await expect(targetButton(page)).toContainText('ザーハード');
@@ -161,7 +160,7 @@ test('会話があるときの「全○資料を回答に使う」は、資料�
   await ask.click();
   await dialog.getByRole('button', { name: '新しい会話にする' }).click();
   await expect(page).toHaveURL(/tab=documents/); // 資料一覧に留まる
-  await expect(page.getByRole('group', { name: '回答に使う資料' }).getByText('適用済み')).toBeVisible();
+  await expect(page.getByRole('group', { name: '回答に使う資料' }).getByRole('button', { name: '全1資料を回答に使う' })).toBeDisabled();
   await chatLink(page).click();
   await expect(targetButton(page)).toContainText('みなとコーヒー');
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeHidden();

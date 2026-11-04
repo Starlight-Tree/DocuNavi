@@ -983,9 +983,6 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
   const keyword = () => screen.getByRole('searchbox', { name: /資料名で検索/ });
   const select = (name: string) => screen.getByRole('combobox', { name });
   const result = () => screen.getByText(/件の資料が見つかりました|該当する資料が見つかりませんでした/);
-  // 状態・ページ数・更新は「フィルター」の中。開いてから操作する（並び替えは、いつも見えている）
-  const openDetail = (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole('button', { name: /^フィルター/ }));
-
   async function openList() {
     const { user } = setup();
     await openDocuments(user);
@@ -993,20 +990,16 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     return user;
   }
 
-  it('主な操作は検索・対象・資料種別・並び替えで、状態・ページ数・更新は「フィルター」の中。件数を出し、絞り込みが無ければ「条件をクリア」は出さない', async () => {
+  it('操作は検索・対象・資料種別・並び替えだけ（「フィルター」の開閉も、状態・ページ数・更新の欄も無い）。件数を出し、絞り込みが無ければ「条件をクリア」は出さない', async () => {
     install();
-    const user = await openList();
+    await openList();
 
     expect(keyword()).toHaveValue('');
     expect(select('対象')).toHaveValue('');
     expect(select('資料種別')).toHaveValue('');
-    const toggle = screen.getByRole('button', { name: /^フィルター/ });
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('combobox', { name: '状態' })).not.toBeInTheDocument(); // 閉じている間は、操作にも読み上げにも出ない
-    expect(select('並び替え')).toHaveValue('default'); // 並び替えは、いつも見えている
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(select('状態')).toHaveValue('');
+    expect(select('並び替え')).toHaveValue('default');
+    expect(screen.queryByRole('button', { name: /^フィルター/ })).not.toBeInTheDocument();
+    for (const name of ['状態', 'ページ数', '更新']) expect(screen.queryByRole('combobox', { name })).not.toBeInTheDocument();
     expect(result()).toHaveTextContent('5 件の資料が見つかりました');
     expect(names()).toHaveLength(5);
     expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
@@ -1054,44 +1047,18 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(window.location.search).toBe('?tab=documents');
   });
 
-  it('状態・ページ数・更新は、選ぶと絞り、選択肢に件数が付く。URL に載り、戻るで元に戻る', async () => {
+  it('URL の状態の条件は、欄が無くても黙って絞らず、チップで見せる。×で外すと全件に戻り、URL からも消える', async () => {
     install();
-    const user = await openList();
-    await openDetail(user);
+    window.history.replaceState(null, '', '/?tab=documents&status=failed');
+    const { user } = setup();
+    await screen.findByRole('row', { name: /ザーハード2/ });
 
-    expect(within(select('状態')).getAllByRole('option').map((o) => o.textContent)).toEqual([
-      'すべて (5)',
-      '取り込み済み (4)',
-      '取り込み失敗 (1)',
-    ]);
-    expect(within(select('ページ数')).getAllByRole('option').map((o) => o.textContent)).toEqual([
-      'すべて (5)',
-      '1ページ (2)',
-      '2〜4ページ (3)',
-      '5ページ以上 (0)',
-    ]);
-
-    await user.selectOptions(select('状態'), 'failed');
     expect(files()).toEqual(['ザーハード2.pdf']);
-    expect(window.location.search).toBe('?tab=documents&status=failed');
-    // 件数は、その選択肢以外の条件で数える（状態を選んだあとのページ数は、失敗した 1 件の分）
-    expect(within(select('ページ数')).getAllByRole('option').map((o) => o.textContent)).toEqual([
-      'すべて (1)',
-      '1ページ (1)',
-      '2〜4ページ (0)',
-      '5ページ以上 (0)',
-    ]);
-
-    await user.selectOptions(select('更新'), 'older');
-    expect(names()).toHaveLength(0); // 失敗した資料は 1 日前の更新
-
-    window.history.back();
-    await waitFor(() => expect(window.location.search).toBe('?tab=documents&status=failed'));
-    expect(files()).toEqual(['ザーハード2.pdf']);
-    window.history.back();
-    await waitFor(() => expect(window.location.search).toBe('?tab=documents'));
+    const chips = within(screen.getByRole('list', { name: '有効な条件' }));
+    expect(chips.getByText(/^状態：/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^状態：.* を外す$/ }));
     expect(names()).toHaveLength(5);
-    expect(select('状態')).toHaveValue('');
+    expect(window.location.search).toBe('?tab=documents');
   });
 
   it('並び替えは、既定ではサーバーの順で、選ぶと並び替わり URL に載る。既定に戻すと URL から外れる', async () => {
@@ -1113,24 +1080,20 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(window.location.search).toBe('?tab=documents');
   });
 
-  it('URL の条件で開いた共有リンクは、その条件で絞り・並べ、入力欄にも出る。有効な詳細フィルターは、閉じずに見せる。旧フィルターとも併用できる', async () => {
+  it('URL の条件で開いた共有リンクは、その条件で絞り・並べ、入力欄とチップにも出る。旧フィルターとも併用できる', async () => {
     install();
     window.history.replaceState(null, '', '/?tab=documents&collection=guides&q=%E5%AF%AE&status=ready&sort=name');
     setup();
     await screen.findByRole('row', { name: /入寮規程/ });
 
     expect(keyword()).toHaveValue('寮');
-    // 状態の条件が有効なので、詳細フィルターは開いたまま（見えない条件で絞られた一覧にしない）。件数のバッジが付き、閉じられない
-    const toggle = screen.getByRole('button', { name: /^フィルター/ });
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(toggle).toBeDisabled();
-    expect(within(toggle).getByLabelText('1 件の条件が有効')).toBeInTheDocument();
-    expect(select('状態')).toHaveValue('ready');
+    // 状態の条件は欄が無いので、チップで見せる（見えない条件で絞られた一覧にしない）
+    expect(within(screen.getByRole('list', { name: '有効な条件' })).getByText(/^状態：/)).toBeInTheDocument();
     expect(select('並び替え')).toHaveValue('name');
     expect(files()).toEqual(['つばさ大学学生寮 入寮規程']);
   });
 
-  it('対象・資料種別も、詳細フィルターの条件と同じ「条件をクリア」で外れる。並び替えと旧フィルターは残す', async () => {
+  it('対象・資料種別も、「条件をクリア」で外れる。並び替えと旧フィルターは残す', async () => {
     install();
     window.history.replaceState(null, '', '/?tab=documents&collection=guides&target=aoba-aw820&type=manual&sort=name');
     setup();
@@ -1212,18 +1175,16 @@ describe('資料一覧: ヒーローは出さず、最近更新した資料は�
     expect(calls.map((c) => c.url).filter((url) => url.includes('/hero'))).toEqual([]);
   });
 
-  it('更新の新しい順は、並び替え「更新が新しい順」で探せる。更新日が無い資料は最後。7 日以内などの絞り込みもそのまま使える', async () => {
+  it('更新の新しい順は、並び替え「更新が新しい順」で探せる。更新日が無い資料は最後', async () => {
     installDocsFetch(() => jsonResponse(LIST_3));
     const { user } = setup();
     await openDocuments(user);
     await screen.findByRole('row', { name: /a\.pdf/ });
 
-    await user.click(screen.getByRole('button', { name: /^フィルター/ }));
     await user.selectOptions(screen.getByRole('combobox', { name: '並び替え' }), 'updated');
 
     const files = screen.getAllByRole('row').slice(1).map((row) => row.querySelector('.document-name')?.textContent);
     expect(files).toEqual(['B 店の案内', 'a.pdf', 'c.pdf']);
-    expect(screen.getByRole('combobox', { name: '更新' })).toBeInTheDocument();
   });
 });
 

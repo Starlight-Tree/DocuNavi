@@ -19,8 +19,6 @@ export const MSG_NO_MATCH = '条件を減らすか、クリアしてください
 export const MSG_NO_MATCH_LEGACY =
   '旧フィルターと、ほかの条件の両方に当てはまる資料はありません。旧フィルターを解除するか、条件を変えてください。';
 export const MSG_UNCLASSIFIED_NOT_ASKABLE = '未分類の資料は、回答の対象に選べません';
-const MSG_ASK_HINT = '押すと、チャットの回答対象になります。質問は自動で送信しません。';
-const MSG_APPLIED_HINT = 'チャットの入力欄の「回答対象」に反映済みです。質問は送信していません。';
 
 /** 取り込みの状態の見た目。`ready` と `failed` 以外（取り込み中など）は、待ちの見た目にする。 */
 function statusKind(status: string): 'ready' | 'failed' | 'processing' {
@@ -53,7 +51,7 @@ interface DocumentTableProps {
   onFilterChange: (next: Partial<DocumentFilter>, mode?: NavigateMode) => void;
   /** 「全○資料を回答に使う」（null は「すべて」）。チャットの回答対象を変える。渡さなければ、ボタンは出さない。 */
   onAskTarget?: ((target: string | null, trigger: HTMLElement) => void) | undefined;
-  /** いまのチャットの回答対象が、その対象（null は「すべて」）か。そうならボタンは「適用済み」にする。 */
+  /** いまのチャットの回答対象が、その対象（null は「すべて」）か。そうならボタンは押せなくする。 */
   isApplied?: ((target: string | null) => boolean) | undefined;
   onRetry: () => void;
   /** 開いている資料（右のパネル）の ID。その行を示す。 */
@@ -98,7 +96,6 @@ function DocumentTable({
   const askTarget = filter.target !== null && filter.target !== UNCLASSIFIED ? filter.target : null;
   const askKnown = askTarget === null || (askable?.some((t) => t.name === askTarget) ?? false);
   const askInfo = askTarget === null ? undefined : askable?.find((t) => t.name === askTarget);
-  const askLabel = askTarget === null ? 'すべての資料' : classificationLabel(askTarget, targetItems);
   // 「全○資料」の数: 対象はサーバーが返す件数、すべては一覧の資料数
   const askCount = askTarget === null ? documents.length : askInfo?.documentCount;
   const applied = isApplied?.(askTarget) ?? false;
@@ -134,20 +131,14 @@ function DocumentTable({
         ) : (
           askKnown && (
             <div className="docs-ask" role="group" aria-label="回答に使う資料">
-              <div className="docs-ask-target" title={askInfo?.description || undefined}>
-                <h3 className="docs-ask-name">{askLabel}</h3>
-                {askCount !== undefined && <span className="docs-ask-count">{askCount} 件</span>}
-              </div>
-              {applied ? (
-                <span className="docs-ask-applied" role="status">
-                  <span aria-hidden="true">✓ </span>適用済み
-                </span>
-              ) : (
-                <button type="button" className="btn btn-primary" onClick={(event) => onAskTarget(askTarget, event.currentTarget)}>
-                  {askCount === undefined ? 'この対象を回答に使う' : `全${askCount}資料を回答に使う`}
-                </button>
-              )}
-              <span className="docs-ask-hint">{applied ? MSG_APPLIED_HINT : MSG_ASK_HINT}</span>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={applied}
+                onClick={(event) => onAskTarget(askTarget, event.currentTarget)}
+              >
+                {askCount === undefined ? 'この対象を回答に使う' : `全${askCount}資料を回答に使う`}
+              </button>
             </div>
           )
         ))}
