@@ -85,7 +85,7 @@ test('ログインして戻ると、ログイン前の画面の状態（資料�
 
   // ログインして戻ると、メールアドレスが出て、絞り込みの付いた資料一覧が開く
   await expect(page.locator('.ws-account-name')).toHaveText(E2E_EMAIL);
-  await expect(page.getByRole('main', { name: '資料一覧' })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'ナレッジ' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'カフェのメニュー を開く' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ザーハード設定資料 1 を開く' })).toHaveCount(0);
   // ログインの code は URL に残らず、ログイン前の状態に戻っている（最終的な安定状態で判定する）

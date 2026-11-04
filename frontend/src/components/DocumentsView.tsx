@@ -238,6 +238,8 @@ interface DocumentsViewProps {
   onReload: () => void;
   onAskTarget?: ((target: string | null, trigger: HTMLElement) => void) | undefined;
   isApplied?: ((target: string | null) => boolean) | undefined;
+  /** 「× 閉じる」。直前のチャットへ戻る。 */
+  onClose: () => void;
 }
 
 /**
@@ -245,7 +247,7 @@ interface DocumentsViewProps {
  * 開いている資料・絞り込み・並び替えは、URL が決める（戻る・再読み込み・共有で戻れる）。
  * 一覧の絞り込み（表示する資料を絞る）と、チャットの回答対象（回答に使う資料の範囲）は、別のもの。
  */
-export function DocumentsView({ state, onReload, onAskTarget, isApplied }: DocumentsViewProps) {
+export function DocumentsView({ state, onReload, onAskTarget, isApplied, onClose }: DocumentsViewProps) {
   const { doc, target, docType, collection, query, status, pageBand, updatedBand, sort, navigate } = useUrlState();
   const filter: DocumentFilter = {
     query: query ?? '',
@@ -270,8 +272,13 @@ export function DocumentsView({ state, onReload, onAskTarget, isApplied }: Docum
   };
 
   return (
-    <main className="documents" aria-label="資料一覧">
-      <h2 className="docs-title">資料</h2>
+    <main className="documents" aria-label="ナレッジ">
+      <div className="docs-head">
+        <h2 className="docs-title">ナレッジ</h2>
+        <button type="button" className="btn btn-secondary btn-small" onClick={onClose}>
+          <span aria-hidden="true">× </span>閉じる
+        </button>
+      </div>
       <DocumentTable
         state={state}
         collection={collection}

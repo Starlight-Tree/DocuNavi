@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
+import { openKnowledge } from './test/navigation';
 import { AuthProvider } from './auth/AuthContext';
 import { MSG_GRAPH_NOTE, MSG_NO_IMPACT, MSG_NO_SELECTION } from './components/RelationGraphView';
 import { errorResponse, jsonResponse } from './test/helpers';
@@ -156,7 +157,7 @@ async function open(name: string) {
       <App />
     </AuthProvider>,
   );
-  await user.click(within(await screen.findByRole('navigation', { name: '画面' })).getByRole('link', { name: '資料' }));
+  await openKnowledge(user);
   await user.click(await screen.findByRole('button', { name }));
   return user;
 }
