@@ -497,6 +497,8 @@ describe('チャット UI: 会話の管理', () => {
 
     expect(screen.queryByTestId('resumed-notice')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '何を調べますか？' })).toBeInTheDocument();
+    // 見出しの下の説明文は出さない（質問の例だけが続く）
+    expect(screen.queryByText(/登録された資料/)).not.toBeInTheDocument();
   });
 
   it('保存されていた thread_id が不正な形式なら使わない', async () => {

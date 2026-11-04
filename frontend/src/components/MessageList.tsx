@@ -162,7 +162,6 @@ export function MessageList({
       {messages.length === 0 && !waiting && !resumed && history === 'idle' && (
         <div className="empty-state">
           <h2 className="empty-title">何を調べますか？</h2>
-          <p>登録された資料（設定資料・規程・取扱説明書・店舗案内など）について質問できます。回答には、根拠にした資料が付きます。</p>
           {onExample && (
             <div className="example-chips" role="group" aria-label="質問の例">
               {EXAMPLE_QUESTIONS.map((question) => (
