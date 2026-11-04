@@ -922,7 +922,9 @@ describe('資料一覧: 対象と資料種別', () => {
 
 describe('資料一覧: 検索・絞り込み・並び替え', () => {
   const DAY = 24 * 60 * 60 * 1000;
-  const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+  // 基準時刻は 1 回だけ取る。呼び出しごとに Date.now() を読むと、同じ日数の 2 件が 1 ms ずれて並び順が入れ替わる
+  const NOW = Date.now();
+  const ago = (days: number) => new Date(NOW - days * DAY).toISOString();
   // サーバーの順（ファイル名順）。更新・ページ数・状態を変えてある
   const LIST_5 = {
     configured: true,
