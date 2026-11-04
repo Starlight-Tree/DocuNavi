@@ -51,6 +51,24 @@ const PHASE_LABELS: Record<ChatPhase, string> = {
 const STICK_TO_BOTTOM_PX = 80;
 const COPIED_LABEL_MS = 2000;
 
+/** コピーの線画（重なった 2 枚）。アイコンのライブラリは使わず、線だけの SVG を直に置く。 */
+function CopyIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="7" y="7" width="9.5" height="9.5" rx="1.8" />
+      <path d="M13 7V5.3A1.8 1.8 0 0 0 11.2 3.5H5.3A1.8 1.8 0 0 0 3.5 5.3v5.9A1.8 1.8 0 0 0 5.3 13H7" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4.5 10.5l3.5 3.5 7.5-8" />
+    </svg>
+  );
+}
+
 type CopyState = { id: string; ok: boolean } | null;
 
 export function MessageList({
@@ -144,7 +162,6 @@ export function MessageList({
       {messages.length === 0 && !waiting && !resumed && history === 'idle' && (
         <div className="empty-state">
           <h2 className="empty-title">何を調べますか？</h2>
-          <p>登録された資料（設定資料・規程・取扱説明書・店舗案内など）について質問できます。回答には、根拠にした資料が付きます。</p>
           {onExample && (
             <div className="example-chips" role="group" aria-label="質問の例">
               {EXAMPLE_QUESTIONS.map((question) => (
@@ -200,12 +217,17 @@ export function MessageList({
               <div className="message-actions">
                 <button
                   type="button"
-                  className="btn-link"
+                  className="icon-action"
                   onClick={() => void copyText(message)}
                   aria-label="この回答をコピー"
+                  title="この回答をコピー"
                 >
-                  {copied ? (copied.ok ? 'コピーしました' : 'コピーできませんでした') : 'コピー'}
+                  {copied?.ok ? <CheckIcon /> : <CopyIcon />}
                 </button>
+                {/* 結果は、アイコンの形だけに頼らず、読み上げにも伝える（見える文字は出さない） */}
+                <span role="status" className={copied?.ok === false ? 'icon-action-failed' : 'visually-hidden'}>
+                  {copied ? (copied.ok ? 'コピーしました' : 'コピーできませんでした') : ''}
+                </span>
               </div>
             )}
           </article>

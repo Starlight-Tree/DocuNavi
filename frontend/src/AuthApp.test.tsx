@@ -77,7 +77,10 @@ describe('ログイン: 画面', () => {
     const { chatInits } = installFetch(() => replyResponse());
     const { user } = setup(fakeAuth());
 
-    const account = await screen.findByRole('button', { name: /a@example\.com/ });
+    const account = await screen.findByRole('button', { name: 'アカウントメニュー' });
+    expect(account).toHaveAttribute('title', 'アカウントメニュー'); // ホバーの表示
+    expect(account.querySelector('.ws-account-avatar svg')).not.toBeNull(); // イニシャルではなく人型アイコン
+    expect(account.querySelector('.ws-account-avatar')?.textContent).toBe(''); // 文字は入れない
     expect(screen.queryByRole('menuitem', { name: 'ログアウト' })).not.toBeInTheDocument();
     await user.click(account);
     expect(screen.getByRole('menuitem', { name: 'ログアウト' })).toBeInTheDocument();
@@ -114,7 +117,7 @@ describe('ログイン: 画面', () => {
     await screen.findByText(DEFAULT_REPLY);
     await waitFor(() => expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('thread-9'));
 
-    await user.click(screen.getByRole('button', { name: /a@example\.com/ }));
+    await user.click(screen.getByRole('button', { name: 'アカウントメニュー' }));
     await user.click(screen.getByRole('menuitem', { name: 'ログアウト' }));
 
     expect(await screen.findByRole('button', { name: 'Google でログイン' })).toBeInTheDocument();

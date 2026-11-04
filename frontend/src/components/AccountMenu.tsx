@@ -12,6 +12,16 @@ interface AccountMenuProps {
   knowledgeCurrent: boolean;
 }
 
+/** 線画の人型。`SidebarIcon` と同じく、アイコンのライブラリは使わず、線だけの SVG を直に置く。 */
+function PersonIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="10" cy="7" r="3.2" />
+      <path d="M3.5 17c0-3.3 2.9-5.5 6.5-5.5s6.5 2.2 6.5 5.5" />
+    </svg>
+  );
+}
+
 /**
  * サイドバー下部のアカウント。表示名のボタンを押すと、メニュー（ナレッジ・ログアウト）が上に開く。
  * ログインを使わない構成でも、ナレッジへ行く入口として出す（表示名とログアウトは出さない）。
@@ -93,10 +103,12 @@ export function AccountMenu({ label, onSignOut, onOpenKnowledge, knowledgeCurren
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
+        aria-label={signedIn ? 'アカウントメニュー' : undefined}
+        title={signedIn ? 'アカウントメニュー' : undefined}
         onClick={() => setOpen((v) => !v)}
       >
         <span className="ws-account-avatar" aria-hidden="true">
-          {signedIn ? ([...label][0]?.toUpperCase() ?? '') : '≡'}
+          {signedIn ? <PersonIcon /> : '≡'}
         </span>
         <span className="ws-account-name">{signedIn ? label : 'メニュー'}</span>
         <span aria-hidden="true">▴</span>

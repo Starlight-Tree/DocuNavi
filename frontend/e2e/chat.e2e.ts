@@ -130,7 +130,7 @@ test('資料一覧の対象の選択は一覧を絞るだけ。資料ごとの�
   // チャットに戻ると、入力欄の回答対象に反映されている（質問は送られていない）
   await chatLink(page).click();
   await expect(targetButton(page)).toContainText('選択した資料');
-  await expect(targetButton(page)).toContainText('6 件');
+  await expect(targetButton(page)).toContainText('6件');
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toHaveCount(0);
 
   // 選んだ資料（ザーハード 1〜3 を含む）で質問すると、選んだ資料の ID が送られ、その資料から答える
