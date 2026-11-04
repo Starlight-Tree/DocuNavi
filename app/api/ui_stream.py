@@ -7,7 +7,7 @@
 1 回の応答のチャンクの並び（正常時）:
 
     start（messageId、messageMetadata = {thread_id, mode}）
-    [本文の前と途中に] data-status（transient。data = {phase: analyzing | searching | generating}。履歴に入らない）
+    [本文の前と途中に] data-status（transient。data = {phase: analyzing | searching | generating}。履歴に入らない。通常の質問は searching → generating。analyzing は、追質問の検索語を補うときと、従来の agent の形の 1 回目）
     text-start → text-delta … → text-end      （LLM の応答ごと。ツール呼び出しの前置きがあれば複数）
     [最終回答が直前の部分と違うときだけ] text-start → text-delta → text-end
     message-metadata（messageMetadata = {context, sources, collection, target, hit_count}。sources は context の出典と同じ順の
