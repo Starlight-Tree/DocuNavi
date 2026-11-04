@@ -19,10 +19,12 @@ interface MessageListProps {
   phase?: ChatPhase | null;
   /** 送信から回答の完了までの間。生成中の吹き出しは、コピーを出さず、読み上げも完了まで待たせる。 */
   busy?: boolean;
-  /** 再読み込み後など、thread_id は引き継いでいるが、画面に履歴が無い状態。 */
-  resumed?: boolean;
   /** 保存済みの会話のやり取りを取得している間（loading）と、失敗したとき（error）。 */
   history?: HistoryStatus;
+  /** 履歴の取得に失敗したときの「再試行」。会話 ID は変えない。渡さなければ、ボタンは出さない。 */
+  onRetryHistory?: () => void;
+  /** 履歴の取得に失敗したときの「新しい会話」。渡さなければ、ボタンは出さない。 */
+  onNewConversation?: () => void;
   /** 空の画面の質問例を押したときに、その質問を送る。渡さなければ、質問例は出さない。 */
   onExample?: (text: string) => void;
   /**
@@ -76,8 +78,9 @@ export function MessageList({
   waiting,
   phase = null,
   busy = false,
-  resumed = false,
   history = 'idle',
+  onRetryHistory,
+  onNewConversation,
   onExample,
   onAskAll,
 }: MessageListProps) {
@@ -146,20 +149,24 @@ export function MessageList({
       )}
 
       {messages.length === 0 && !waiting && history === 'error' && (
-        <p className="empty-state" role="alert" data-testid="history-error">
-          {MSG_HISTORY_FAILED}
-        </p>
+        <div className="empty-state" role="alert" data-testid="history-error">
+          <p>{MSG_HISTORY_FAILED}</p>
+          <div className="history-error-actions">
+            {onRetryHistory && (
+              <button type="button" className="btn btn-secondary" onClick={onRetryHistory}>
+                再試行
+              </button>
+            )}
+            {onNewConversation && (
+              <button type="button" className="btn btn-secondary" onClick={onNewConversation}>
+                新しい会話
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
-      {messages.length === 0 && !waiting && resumed && history === 'idle' && (
-        <p className="empty-state" data-testid="resumed-notice">
-          前回の会話の続きです（これまでのやり取りは画面に表示されません）。
-          <br />
-          最初からやり直すには、右上の「新しい会話」を押してください。
-        </p>
-      )}
-
-      {messages.length === 0 && !waiting && !resumed && history === 'idle' && (
+      {messages.length === 0 && !waiting && history === 'idle' && (
         <div className="empty-state">
           <h2 className="empty-title">何を調べますか？</h2>
           {onExample && (

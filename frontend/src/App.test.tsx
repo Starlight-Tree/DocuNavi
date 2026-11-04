@@ -475,27 +475,10 @@ describe('チャット UI: 会話の管理', () => {
     expect(chatBodies()[1]).toEqual({ message: '再読み込み後', thread_id: 'keep-me' });
   });
 
-  it('thread_id を引き継いだが履歴が画面に無いときは、そのことを知らせる', async () => {
-    installFetch(() => replyResponse({ thread_id: 'keep-me' }));
-    const first = setup();
-    await sendMessage(first.user, '一つ目');
-    await screen.findByText(DEFAULT_REPLY);
-    first.unmount();
-
-    const second = setup();
-    expect(screen.getByTestId('resumed-notice')).toHaveTextContent('前回の会話の続き');
-
-    // 「新しい会話」で通常の案内に戻る
-    await second.user.click(screen.getByRole('button', { name: '新しい会話' }));
-    expect(screen.queryByTestId('resumed-notice')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '何を調べますか？' })).toBeInTheDocument();
-  });
-
-  it('新規の会話では「前回の続き」を出さない', () => {
+  it('新規の会話では、通常の最初の画面を出す', () => {
     installFetch(() => replyResponse());
     setup();
 
-    expect(screen.queryByTestId('resumed-notice')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '何を調べますか？' })).toBeInTheDocument();
     // 見出しの下の説明文は出さない（質問の例だけが続く）
     expect(screen.queryByText(/登録された資料/)).not.toBeInTheDocument();
