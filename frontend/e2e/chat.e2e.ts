@@ -23,8 +23,14 @@ test('質問を送ると、偽の検索の出典つきの回答が画面に出�
 // シナリオ 2〜: 回答対象（対象）。偽の DB（tests/e2e_server.py の _FakePool）が、対象 5 つ（ザーハード・みなとコーヒー・つばさ大学学生寮・
 // あおば電機 AW-820・準備中の対象。資料が 1 件も見えない対象は出ない）と資料種別 4 つを返し、偽の検索はザーハード（zahard）だけを持つ。対象が違えば 0 件になる。
 const targetButton = (page: Page) => page.getByRole('button', { name: /^回答対象/ });
-const docsLink = (page: Page) => page.getByRole('navigation', { name: '画面' }).getByRole('link', { name: '資料' });
-const chatLink = (page: Page) => page.getByRole('navigation', { name: '画面' }).getByRole('link', { name: 'チャット' });
+// 上部に「チャット」「資料」の入口は無い。資料一覧へは左下のメニューの「ナレッジ」、チャットへはロゴで戻る
+const docsLink = {
+  click: async (page: Page) => {
+    await page.locator('.ws-account-button').click();
+    await page.getByRole('menuitem', { name: 'ナレッジ' }).click();
+  },
+};
+const chatLink = (page: Page) => page.getByRole('link', { name: 'ドキュナビ' });
 const pickTarget = async (page: Page, name: RegExp) => {
   await targetButton(page).click();
   await page.getByRole('menuitemradio', { name }).click();
@@ -110,7 +116,7 @@ test('資料一覧の対象の選択は一覧を絞るだけ。「全○資料�
   await chatLink(page).click();
   await expect(targetButton(page)).toContainText('すべての資料');
 
-  await docsLink(page).click();
+  await docsLink.click(page);
   await page.getByRole('combobox', { name: '対象' }).selectOption('zahard');
   await page.getByRole('button', { name: /^全\d+資料を回答に使う$/ }).click();
   await expect(page.getByRole('alertdialog')).toBeHidden(); // 会話が無いので、確認なしで切り替わる
@@ -145,7 +151,7 @@ test('会話があるときの「全○資料を回答に使う」は、資料�
   await page.getByRole('button', { name: '送信' }).click();
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
 
-  await docsLink(page).click();
+  await docsLink.click(page);
   await page.getByRole('combobox', { name: '対象' }).selectOption('minato-coffee');
   const ask = page.getByRole('button', { name: /^全\d+資料を回答に使う$/ });
   await ask.click();
@@ -183,31 +189,33 @@ test('対象の一覧を読めなくても、「すべて」での質問は妨�
   await page.getByRole('button', { name: '送信' }).click();
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
 
-  await docsLink(page).click();
+  await docsLink.click(page);
   await expect(page.getByRole('combobox', { name: '対象' })).toBeVisible();
   await expect(page.getByRole('button', { name: /回答に使う$/ })).toHaveCount(0);
 });
 
-test('最初の画面はチャットで、上部にタブは無い。サイドバーの「資料」で資料一覧へ、ロゴとサイドバーの「チャット」でチャットへ戻り、入力途中の文は残る', async ({ page }) => {
+test('最初の画面はチャットで、上部にタブは無い。左下のメニューの「ナレッジ」で資料一覧へ、ロゴでチャットへ戻り、入力途中の文は残る', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('textbox', { name: 'メッセージ' })).toBeVisible();
   await expect(page).toHaveURL(/\/$/); // URL は書き換えない
   await expect(page.getByRole('navigation', { name: '表示する画面' })).toHaveCount(0);
-  await expect(chatLink(page)).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('navigation', { name: '画面' })).toHaveCount(0); // 上部に「チャット」「資料」の入口は無い
   const input = page.getByRole('textbox', { name: 'メッセージ' });
   await input.fill('書きかけ');
 
-  await docsLink(page).click();
+  await docsLink.click(page);
   await expect(page).toHaveURL(/tab=documents/);
   await expect(page.getByRole('combobox', { name: '対象' })).toBeVisible();
-  await expect(docsLink(page)).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: 'ナレッジ' })).toBeVisible();
 
   await page.getByRole('link', { name: 'ドキュナビ' }).click();
   await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
-  await docsLink(page).click();
-  await chatLink(page).click();
+  await docsLink.click(page);
+  await page.getByRole('main', { name: 'ナレッジ' }).getByRole('button', { name: '閉じる' }).click(); // 右上の「× 閉じる」
+  await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
+  await expect(input).toBeFocused();
 });
 
 test('左サイドバーは閉じられる。閉じるとチャットが広がり、再表示のボタンが残る。会話・入力途中の文・回答対象は変わらず、資料一覧でも同じ', async ({ page }) => {
@@ -236,7 +244,7 @@ test('左サイドバーは閉じられる。閉じるとチャットが広が�
   // 開いて資料一覧へ移り、そこで閉じても、再表示のボタンが資料一覧にある
   await page.getByRole('button', { name: 'サイドバーを開く' }).click();
   await expect(sidebar).toBeVisible();
-  await docsLink(page).click();
+  await docsLink.click(page);
   await page.getByRole('button', { name: 'サイドバーを閉じる' }).click();
   await expect(page.getByRole('combobox', { name: '対象' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'サイドバーを開く' })).toBeVisible();

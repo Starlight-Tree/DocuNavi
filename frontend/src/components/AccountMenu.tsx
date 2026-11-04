@@ -2,16 +2,23 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
 interface AccountMenuProps {
-  /** ログイン中の利用者の表示名（メールアドレスなど）。 */
-  label: string;
-  onSignOut: () => void;
+  /** ログイン中の利用者の表示名（メールアドレスなど）。ログインを使わない構成では渡さない（ボタンは「メニュー」になる）。 */
+  label?: string | undefined;
+  /** ログアウト。ログインを使わない構成では渡さない（項目を出さない）。 */
+  onSignOut?: (() => void) | undefined;
+  /** 「ナレッジ」（資料一覧）を開く。 */
+  onOpenKnowledge: () => void;
+  /** いま資料一覧を開いているか。 */
+  knowledgeCurrent: boolean;
 }
 
 /**
- * サイドバー下部のアカウント。表示名のボタンを押すと、メニュー（ログアウト）が上に開く。
+ * サイドバー下部のアカウント。表示名のボタンを押すと、メニュー（ナレッジ・ログアウト）が上に開く。
+ * ログインを使わない構成でも、ナレッジへ行く入口として出す（表示名とログアウトは出さない）。
  * 開いたら先頭の項目にフォーカスを置く。↑↓ で移動、Esc で閉じてボタンへ戻る。メニューの外を押しても閉じる。
  */
-export function AccountMenu({ label, onSignOut }: AccountMenuProps) {
+export function AccountMenu({ label, onSignOut, onOpenKnowledge, knowledgeCurrent }: AccountMenuProps) {
+  const signedIn = onSignOut !== undefined && label !== undefined;
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -50,19 +57,33 @@ export function AccountMenu({ label, onSignOut }: AccountMenuProps) {
   return (
     <div className="ws-account">
       {open && (
-        <div ref={menuRef} id={menuId} role="menu" aria-label="アカウント" className="ws-account-menu" onKeyDown={handleKeyDown}>
-          <p className="ws-account-who">{label}</p>
+        <div ref={menuRef} id={menuId} role="menu" aria-label={signedIn ? 'アカウント' : 'メニュー'} className="ws-account-menu" onKeyDown={handleKeyDown}>
+          {signedIn && <p className="ws-account-who">{label}</p>}
           <button
             type="button"
             role="menuitem"
             className="ws-account-item"
+            aria-current={knowledgeCurrent ? 'page' : undefined}
             onClick={() => {
               setOpen(false);
-              onSignOut();
+              onOpenKnowledge();
             }}
           >
-            ログアウト
+            ナレッジ
           </button>
+          {signedIn && (
+            <button
+              type="button"
+              role="menuitem"
+              className="ws-account-item"
+              onClick={() => {
+                setOpen(false);
+                onSignOut();
+              }}
+            >
+              ログアウト
+            </button>
+          )}
         </div>
       )}
       <button
@@ -75,9 +96,9 @@ export function AccountMenu({ label, onSignOut }: AccountMenuProps) {
         onClick={() => setOpen((v) => !v)}
       >
         <span className="ws-account-avatar" aria-hidden="true">
-          {[...label][0]?.toUpperCase() ?? ''}
+          {signedIn ? ([...label][0]?.toUpperCase() ?? '') : '≡'}
         </span>
-        <span className="ws-account-name">{label}</span>
+        <span className="ws-account-name">{signedIn ? label : 'メニュー'}</span>
         <span aria-hidden="true">▴</span>
       </button>
     </div>

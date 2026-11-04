@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
+import { openKnowledge, goChat } from './test/navigation';
 import { AuthProvider } from './auth/AuthContext';
 import { MSG_SCOPE_CONFLICT } from './api/chat';
 import { fakeAuth } from './test/auth';
@@ -339,7 +340,7 @@ describe('回答対象: 会話の途中で変える（確認）', () => {
 
 describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
   async function openDocuments(user: User) {
-    await user.click(within(await screen.findByRole('navigation', { name: '画面' })).getByRole('link', { name: '資料' }));
+    await openKnowledge(user);
   }
   const targetSelect = () => screen.findByRole('combobox', { name: '対象' });
   const askArea = () => screen.findByRole('group', { name: '回答に使う資料' });
@@ -378,7 +379,7 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
     expect(screen.queryByText(/一覧の絞り込みは/)).not.toBeInTheDocument();
     expect(screen.queryByText(/現在のチャットの/)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('link', { name: 'チャット' }));
+    await goChat(user);
 
     expect(await menuButton()).toHaveTextContent('すべての資料');
   });
@@ -430,7 +431,7 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
     expect(within(await askArea()).getByRole('button', { name: '全1資料を回答に使う' })).toBeDisabled();
     expect(chatBodies).toHaveLength(0); // 質問は自動で送らない
 
-    await user.click(screen.getByRole('link', { name: 'チャット' }));
+    await goChat(user);
     expect(await menuButton()).toHaveTextContent('みなとコーヒー');
 
     await ask(user, '営業時間は？');
@@ -451,7 +452,7 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?tab=documents');
     expect(within(await askArea()).getByRole('button', { name: '全4資料を回答に使う' })).toBeDisabled();
-    await user.click(screen.getByRole('link', { name: 'チャット' }));
+    await goChat(user);
     expect(await menuButton()).toHaveTextContent('すべての資料');
 
     await ask(user, '全体の質問');
@@ -479,7 +480,7 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(button).toHaveFocus();
     expect(window.location.search).toBe('?tab=documents&target=minato-coffee');
-    await user.click(screen.getByRole('link', { name: 'チャット' }));
+    await goChat(user);
     expect(await menuButton()).toHaveTextContent('すべての資料');
     expect(screen.getByText(DEFAULT_REPLY)).toBeInTheDocument();
   });
@@ -498,7 +499,7 @@ describe('回答対象: 資料一覧の絞り込みとは別のもの', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?tab=documents&target=minato-coffee');
     expect(within(await askArea()).getByRole('button', { name: '全1資料を回答に使う' })).toBeDisabled();
-    await user.click(screen.getByRole('link', { name: 'チャット' }));
+    await goChat(user);
     expect(await menuButton()).toHaveTextContent('みなとコーヒー');
     expect(screen.queryByText(DEFAULT_REPLY)).not.toBeInTheDocument();
   });
@@ -698,7 +699,7 @@ describe('回答対象: 対象の一覧を読めないとき', () => {
     install({ targets: () => errorResponse(503, '失敗') });
     const { user } = setup();
     await screen.findByText('対象の一覧を読み込めませんでした。');
-    await user.click(within(screen.getByRole('navigation', { name: '画面' })).getByRole('link', { name: '資料' }));
+    await openKnowledge(user);
 
     const select = await screen.findByRole('combobox', { name: '対象' });
     expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
@@ -864,7 +865,7 @@ describe('チャットが最初の画面。回答対象は入力欄の中のチ�
     setup();
 
     expect(await screen.findByRole('textbox', { name: 'メッセージ' })).toBeVisible();
-    expect(screen.getByRole('link', { name: 'チャット' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('heading', { name: 'ナレッジ' })).not.toBeInTheDocument(); // 最初の画面はチャット
     expect(screen.queryByRole('combobox', { name: '対象' })).not.toBeInTheDocument();
     expect(window.location.search).toBe('');
   });
@@ -896,11 +897,11 @@ describe('チャットが最初の画面。回答対象は入力欄の中のチ�
     const { user } = setup();
     await user.type(input(), '書きかけ');
 
-    await user.click(within(await screen.findByRole('navigation', { name: '画面' })).getByRole('link', { name: '資料' }));
+    await openKnowledge(user);
 
     expect(window.location.search).toBe('?tab=documents');
     expect(await screen.findByRole('combobox', { name: '対象' })).toBeVisible();
-    await user.click(screen.getByRole('link', { name: 'チャット' }));
+    await goChat(user);
     expect(input()).toHaveValue('書きかけ');
   });
 });

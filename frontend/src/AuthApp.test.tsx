@@ -81,6 +81,7 @@ describe('ログイン: 画面', () => {
     expect(screen.queryByRole('menuitem', { name: 'ログアウト' })).not.toBeInTheDocument();
     await user.click(account);
     expect(screen.getByRole('menuitem', { name: 'ログアウト' })).toBeInTheDocument();
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['ナレッジ', 'ログアウト']); // ログイン中は、ナレッジとログアウトの順
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('menuitem', { name: 'ログアウト' })).not.toBeInTheDocument();
     expect(account).toHaveFocus();

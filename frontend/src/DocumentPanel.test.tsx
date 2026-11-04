@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+import { openKnowledge } from './test/navigation';
 import { jsonResponse, replyResponse } from './test/helpers';
 
 // 出典を押して右のパネルを開く流れ（A 案）: 抽出テキストで根拠を強調し、「元のPDF」へ切り替えたら出典のページを開く。
@@ -222,7 +223,7 @@ describe('出典を押して右のパネルを開く', () => {
     await openCitation(user, 1);
     const panelBefore = await findPanel();
 
-    await user.click(screen.getByRole('link', { name: '資料' }));
+    await openKnowledge(user);
 
     expect(window.location.search).toBe('?tab=documents&doc=7&view=text&page=3&chunk=1');
     expect(await findPanel()).toBe(panelBefore); // タブを移っても、同じパネルのまま
@@ -428,7 +429,7 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
     expect(tabs(panel)).toEqual(['抽出テキスト', '元のPDF', '関係図']);
 
     // 関係図の無い資料（カフェ）には、タブも、案内の文も出さない
-    await user.click(screen.getByRole('link', { name: '資料' }));
+    await openKnowledge(user);
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
     const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
     // 一覧から開いたときは、元のPDF（あれば）から。出典のハイライトに依存せず、資料全体を見る
@@ -471,7 +472,7 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
     expect(panel.getAllByRole('listitem')).toHaveLength(2);
 
     // 資料一覧から別の資料を開いたときは、この案内を引き継がない
-    await user.click(screen.getByRole('link', { name: '資料' }));
+    await openKnowledge(user);
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
     const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
     await cafe.findByTitle('cafe_store_guide.pdf の元PDF');

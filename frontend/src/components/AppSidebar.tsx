@@ -17,6 +17,8 @@ interface AppSidebarProps {
   collapseRef?: Ref<HTMLButtonElement>;
   onGoChat: () => void;
   onGoDocuments: () => void;
+  /** 資料一覧（ナレッジ）への入口を、上部の「チャット / 資料」ではなく、左下のメニューに置く。UI モックは渡さない。 */
+  knowledgeInMenu?: boolean | undefined;
   /** 会話の履歴（ログイン中だけ）。 */
   history?: ReactNode;
   /** 登録資料の数。分からない間は渡さない。 */
@@ -48,10 +50,10 @@ function inApp(action: () => void) {
 }
 
 /**
- * 共通の左サイドバー。画面の切り替え（チャット / 資料）と、新しい会話、会話の履歴、アカウントのメニュー（ログアウト）を持つ。
- * 画面の切り替えはここだけで行い、上部には同じ目的のタブを置かない。閉じるボタンで畳める。
+ * 共通の左サイドバー。新しい会話、会話の履歴、アカウントのメニュー（ナレッジ・ログアウト）を持つ。閉じるボタンで畳める。
+ * `knowledgeInMenu` でないとき（UI モック）は、上部に画面の切り替え（チャット / 資料）を出す。
  */
-export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation, onCollapse, collapseRef, onGoChat, onGoDocuments, history, documentCount }: AppSidebarProps) {
+export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation, onCollapse, collapseRef, onGoChat, onGoDocuments, knowledgeInMenu, history, documentCount }: AppSidebarProps) {
   const modeInfo = mode ? (MODE_LABELS[mode] ?? { label: mode, hint: `モード: ${mode}` }) : null;
   return (
     <div className="ws-sidebar">
@@ -70,21 +72,23 @@ export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation
       <button type="button" className="btn btn-primary ws-new" onClick={onNewConversation}>
         <span aria-hidden="true">＋ </span>新しい会話
       </button>
-      <nav aria-label="画面">
-        <ul className="ws-nav">
-          <li>
-            <a href="?tab=chat" className="ws-nav-item" aria-current={view === 'chat' ? 'page' : undefined} onClick={inApp(onGoChat)}>
-              チャット
-            </a>
-          </li>
-          <li>
-            <a href="?tab=documents" className="ws-nav-item" aria-current={view === 'documents' ? 'page' : undefined} onClick={inApp(onGoDocuments)}>
-              資料
-              {documentCount !== undefined && <span className="ws-count">{documentCount}</span>}
-            </a>
-          </li>
-        </ul>
-      </nav>
+      {!knowledgeInMenu && (
+        <nav aria-label="画面">
+          <ul className="ws-nav">
+            <li>
+              <a href="?tab=chat" className="ws-nav-item" aria-current={view === 'chat' ? 'page' : undefined} onClick={inApp(onGoChat)}>
+                チャット
+              </a>
+            </li>
+            <li>
+              <a href="?tab=documents" className="ws-nav-item" aria-current={view === 'documents' ? 'page' : undefined} onClick={inApp(onGoDocuments)}>
+                資料
+                {documentCount !== undefined && <span className="ws-count">{documentCount}</span>}
+              </a>
+            </li>
+          </ul>
+        </nav>
+      )}
       {history}
       <div className="ws-side-foot">
         {modeInfo && (
@@ -93,7 +97,11 @@ export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation
             {modeInfo.label}
           </span>
         )}
-        {userLabel && onSignOut && <AccountMenu label={userLabel} onSignOut={onSignOut} />}
+        {knowledgeInMenu ? (
+          <AccountMenu label={userLabel} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} />
+        ) : (
+          userLabel && onSignOut && <AccountMenu label={userLabel} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} />
+        )}
       </div>
     </div>
   );
