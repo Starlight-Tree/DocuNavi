@@ -1,6 +1,7 @@
 """検証済みの本文（Markdown の小集合）を、テスト用の PDF にする。
 
-reportlab と、埋め込める日本語の TrueType フォントが要る。アプリの依存には入れていない（`evals/synth/requirements.txt`）。
+reportlab と、埋め込める日本語の TrueType フォント（通常と太字の静的な TTF。既定は Noto Sans JP の Regular / Bold。
+`python -m evals.synth.make_fonts` で作る）が要る。アプリの依存には入れていない（`evals/synth/requirements.txt`）。
 全ページの上に「テスト用の架空資料」の帯を入れ、PDF のメタデータ（Subject・Keywords）にも印を入れる。
 同じ入力・同じ reportlab・同じフォントなら、同じバイト列になる（作成日時を固定する）。
 reportlab は呼び出し時に読み込む（無い環境でも、このモジュールの定数と、他のモジュールは使える）。
@@ -19,10 +20,14 @@ BANNER_LINES = (
     f"【{NOTICE}】",
     "検索の評価のために作った架空の内容です。実在の人物・団体・製品・数値とは関係ありません。",
 )
-DEFAULT_FONT = Path(
-    "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"
-)  # Debian の fonts-ipafont-gothic（IPA フォント）
+FONT_DIR = Path(__file__).resolve().parent / "fonts"  # Git 管理外（OFL のフォント。make_fonts.py が作る）
+NOTO_REGULAR = FONT_DIR / "NotoSansJP-Regular.ttf"
+NOTO_BOLD = FONT_DIR / "NotoSansJP-Bold.ttf"
+IPA_FONT = Path("/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf")  # Debian の fonts-ipafont-gothic。太字は無い
+DEFAULT_FONT = NOTO_REGULAR if NOTO_REGULAR.exists() else IPA_FONT
+DEFAULT_BOLD_FONT = NOTO_BOLD if NOTO_BOLD.exists() else None
 _FONT_NAME = "SynthJP"
+_BOLD_NAME = "SynthJP-Bold"
 
 
 class RenderUnavailable(RuntimeError):
@@ -31,13 +36,17 @@ class RenderUnavailable(RuntimeError):
 
 def _escape(text: str) -> str:
     text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
     return re.sub(r"\[\^(\d+)\]", r"<super>\1</super>", text)
 
 
-def render_pdf(md: str, out_path: Path, *, font_path: Path, doc_id: str, title: str) -> None:
+def render_pdf(
+    md: str, out_path: Path, *, font_path: Path, doc_id: str, title: str, bold_font_path: Path | None = None
+) -> None:
     try:
         from reportlab import rl_config
         from reportlab.lib import colors
+        from reportlab.lib.fonts import addMapping
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import ParagraphStyle
         from reportlab.lib.units import mm
@@ -53,14 +62,35 @@ def render_pdf(md: str, out_path: Path, *, font_path: Path, doc_id: str, title: 
         raise RenderUnavailable(f"フォントがありません: {font_path}")
 
     rl_config.invariant = 1  # 作成日時・ID を固定する
+    if bold_font_path is not None and not bold_font_path.exists():
+        raise RenderUnavailable(f"太字のフォントがありません: {bold_font_path}")
     pdfmetrics.registerFont(TTFont(_FONT_NAME, str(font_path)))
+    bold_name = _FONT_NAME
+    if bold_font_path is not None:  # 太字の字体が無ければ、`<b>` も通常の字体で描く（記号は出さない）
+        pdfmetrics.registerFont(TTFont(_BOLD_NAME, str(bold_font_path)))
+        bold_name = _BOLD_NAME
+    pdfmetrics.registerFontFamily(
+        _FONT_NAME, normal=_FONT_NAME, bold=bold_name, italic=_FONT_NAME, boldItalic=bold_name
+    )
+    addMapping(_FONT_NAME, 0, 0, _FONT_NAME)
+    addMapping(_FONT_NAME, 1, 0, bold_name)
 
     def style(name: str, size: float, leading: float, **kw) -> ParagraphStyle:
-        return ParagraphStyle(name, fontName=_FONT_NAME, fontSize=size, leading=leading, wordWrap="CJK", **kw)
+        kw.setdefault("fontName", _FONT_NAME)
+        return ParagraphStyle(name, fontSize=size, leading=leading, wordWrap="CJK", bulletFontName=_FONT_NAME, **kw)
 
     body = style("body", 10.5, 18, spaceAfter=6)
-    h1 = style("h1", 17, 24, spaceAfter=10)
-    h2 = style("h2", 13, 20, spaceBefore=10, spaceAfter=5)
+    h1 = style("h1", 17, 24, spaceAfter=10, keepWithNext=1, fontName=bold_name)
+    h2 = style("h2", 13, 20, spaceBefore=10, spaceAfter=5, keepWithNext=1, fontName=bold_name)
+    h3 = ParagraphStyle(
+        "h3", parent=body, fontName=bold_name, fontSize=11.5, leading=18, spaceBefore=6, spaceAfter=3, keepWithNext=1
+    )
+    li = ParagraphStyle("li", parent=body, leftIndent=16, bulletIndent=5, spaceAfter=3)
+    li2 = ParagraphStyle("li2", parent=li, leftIndent=32, bulletIndent=21)
+    cont = ParagraphStyle("cont", parent=body, leftIndent=16, spaceAfter=3)
+    lead = ParagraphStyle(
+        "lead", parent=body, keepWithNext=1, spaceAfter=3
+    )  # 太字だけの行（小見出し）は、次の段落と離さない
     cell = style("cell", 9, 14)
     note = style("note", 8.5, 13, spaceAfter=2)
 
@@ -70,8 +100,15 @@ def render_pdf(md: str, out_path: Path, *, font_path: Path, doc_id: str, title: 
             story.append(Paragraph(_escape(str(value)), h1))
         elif kind == "h2":
             story.append(Paragraph(_escape(str(value)), h2))
+        elif kind == "h3":
+            story.append(Paragraph(_escape(str(value)), h3))
+        elif kind in ("li", "li2"):
+            story.append(Paragraph(_escape(str(value)), li if kind == "li" else li2, bulletText="•"))
+        elif kind == "cont":
+            story.append(Paragraph(_escape(str(value)), cont))
         elif kind == "p":
-            story.append(Paragraph(_escape(str(value)), body))
+            heading_like = re.fullmatch(r"(\d+\.\s*)?\*\*[^*]+\*\*", str(value)) is not None
+            story.append(Paragraph(_escape(str(value)), lead if heading_like else body))
         elif kind == "footnote":
             story.append(Paragraph(_escape(str(value)), note))
         elif kind == "table":

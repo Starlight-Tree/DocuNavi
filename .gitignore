@@ -39,3 +39,4 @@ evals/results/graph_rules_ext_compare.json
 
 # 生成物（evals/synth: テスト用の架空資料。本番の検索に混ぜない。コミットしない）
 /evals/synth/out/
+/evals/synth/fonts/
