@@ -1,0 +1,49 @@
+{
+  "model": "intfloat/multilingual-e5-large",
+  "name": "multilingual-e5-large",
+  "dims": 1024,
+  "max_seq_length": 512,
+  "prefixes": {
+    "query": "query: ",
+    "doc": "passage: "
+  },
+  "chunks": 421,
+  "encode_docs_seconds": 70.1,
+  "query_latency_ms": {
+    "median": 169.2,
+    "max": 324.4,
+    "note": "8 コアの CPU・1 本ずつ。本番の機器の値ではない"
+  },
+  "n": {
+    "exact": 50,
+    "guides": 14,
+    "total": 64
+  },
+  "hit": {
+    "total": {
+      "1": 52,
+      "2": 58,
+      "3": 60,
+      "5": 61
+    },
+    "exact": {
+      "1": 41,
+      "2": 46,
+      "3": 47,
+      "5": 48
+    },
+    "guides": {
+      "1": 11,
+      "2": 12,
+      "3": 13,
+      "5": 13
+    }
+  },
+  "mrr": 0.8776,
+  "missed_at_3": [
+    "e029",
+    "e032",
+    "e049",
+    "t005"
+  ]
+}
