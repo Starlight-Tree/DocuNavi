@@ -73,11 +73,17 @@ describe('ログイン: 画面', () => {
     expect(alert).not.toHaveTextContent('secret detail');
   });
 
-  it('ログイン中は、メールアドレスとログアウトを出し、チャットの要求にトークンを付ける', async () => {
+  it('ログイン中は、メールアドレスのボタンを出し、押すとメニューにログアウトが出る。チャットの要求にトークンを付ける', async () => {
     const { chatInits } = installFetch(() => replyResponse());
     const { user } = setup(fakeAuth());
 
-    expect(await screen.findByText('a@example.com')).toBeInTheDocument();
+    const account = await screen.findByRole('button', { name: /a@example\.com/ });
+    expect(screen.queryByRole('menuitem', { name: 'ログアウト' })).not.toBeInTheDocument();
+    await user.click(account);
+    expect(screen.getByRole('menuitem', { name: 'ログアウト' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menuitem', { name: 'ログアウト' })).not.toBeInTheDocument();
+    expect(account).toHaveFocus();
     await ask(user, '質問');
 
     await screen.findByText(DEFAULT_REPLY);
@@ -107,7 +113,8 @@ describe('ログイン: 画面', () => {
     await screen.findByText(DEFAULT_REPLY);
     await waitFor(() => expect(window.sessionStorage.getItem(THREAD_ID_STORAGE_KEY)).toBe('thread-9'));
 
-    await user.click(screen.getByRole('button', { name: 'ログアウト' }));
+    await user.click(screen.getByRole('button', { name: /a@example\.com/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'ログアウト' }));
 
     expect(await screen.findByRole('button', { name: 'Google でログイン' })).toBeInTheDocument();
     expect(auth.signOut).toHaveBeenCalledTimes(1);
@@ -184,7 +191,7 @@ describe('ログイン: 共有リンクの画面を保つ', () => {
     expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe('?tab=documents&doc=3&view=graph&item=a11p1');
   });
 
-  it('資料一覧が既定（画面の指定なし）のときは、何も預けない（前に預けた分も捨てる）', async () => {
+  it('チャットが既定（画面の指定なし）のときは、何も預けない（前に預けた分も捨てる）', async () => {
     installFetch(() => replyResponse());
     saveReturnTo('?tab=documents&doc=9');
     window.history.replaceState(null, '', '/');
@@ -195,14 +202,14 @@ describe('ログイン: 共有リンクの画面を保つ', () => {
     expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBeNull();
   });
 
-  it('チャットを開いているときは、チャットを預ける（既定ではないので）', async () => {
+  it('資料一覧を開いているときは、資料一覧を預ける（既定ではないので）。チャットは既定なので預けない', async () => {
     installFetch(() => replyResponse());
-    window.history.replaceState(null, '', '/?tab=chat&code=secret');
+    window.history.replaceState(null, '', '/?tab=documents&code=secret');
     const { user } = setup(fakeAuth({ user: null }));
 
     await user.click(await screen.findByRole('button', { name: 'Google でログイン' }));
 
-    expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe('?tab=chat');
+    expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe('?tab=documents');
   });
 
   it('ログインして戻ったら、預けた画面の状態を URL に戻し、預け場所を空にする', async () => {

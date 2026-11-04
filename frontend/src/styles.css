@@ -1344,20 +1344,18 @@ textarea {
   outline: none;
 }
 
-.composer-scope {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 0.6rem;
-  margin: 0;
-  padding: 0.45rem 0.8rem 0;
-  color: var(--text-muted);
-  font-size: 0.8rem;
+/* 入力欄の下の行（回答対象のチップ・文字数・停止と送信）は、枠の中に入れる */
+.composer-field .composer-footer {
+  margin-top: 0;
+  padding: 0.35rem 0.6rem 0.5rem;
 }
 
-.composer-scope-name {
-  color: var(--text);
-  font-weight: 600;
+.composer-footer-start {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
 }
 
 /* チャットの上の帯。メッセージの一覧だけがスクロールするので、置くだけで固定される */
@@ -1390,23 +1388,20 @@ textarea {
   font-weight: 600;
 }
 
-/* 質問対象の帯（チャットの上）。いま何について質問しているかと、変更のメニューを、ここ 1 か所に置く */
-.target-bar {
-  position: relative;
-  column-gap: 0.75rem;
+/* 回答対象のチップ（入力欄の中）。いま何を回答に使うかと、変更のメニューを、ここ 1 か所に置く。メニューは上に開く */
+.scope-picker {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
 }
 
-.target-bar-label {
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.target-menu-wrap {
+.scope-picker-wrap {
   position: relative;
 }
 
-.target-button {
+.scope-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -1417,20 +1412,28 @@ textarea {
   background: var(--surface-muted);
   color: var(--text);
   font: inherit;
-  font-weight: 600;
+  font-size: 0.9rem;
   cursor: pointer;
 }
 
-.target-button:disabled {
+.scope-chip strong {
+  font-weight: 700;
+}
+
+.scope-chip:disabled {
   border-color: var(--border);
   color: var(--text-muted);
   cursor: not-allowed;
 }
 
-.target-menu {
+.scope-chip-static {
+  cursor: default;
+}
+
+.scope-menu {
   position: absolute;
   z-index: 20;
-  top: calc(100% + 0.3rem);
+  bottom: calc(100% + 0.3rem);
   left: 0;
   min-width: 20rem;
   max-height: 22rem;
@@ -1444,7 +1447,7 @@ textarea {
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.15);
 }
 
-.target-menu-item {
+.scope-menu-item {
   display: grid;
   grid-template-columns: 1.2rem minmax(0, 1fr) auto;
   align-items: center;
@@ -1460,37 +1463,33 @@ textarea {
   cursor: pointer;
 }
 
-.target-menu-item:hover:not(:disabled),
-.target-menu-item:focus-visible {
+.scope-menu-item:hover:not(:disabled),
+.scope-menu-item:focus-visible {
   background: var(--surface-muted);
 }
 
-.target-menu-item:disabled {
+.scope-menu-item:disabled {
   color: var(--text-muted);
   cursor: default;
 }
 
-.target-menu-check {
+.scope-menu-check {
   color: var(--accent);
   font-weight: 700;
 }
 
-.target-menu-text {
+.scope-menu-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.target-menu-note,
-.target-menu-count,
-.target-bar-hint,
-.target-bar-failure {
+.scope-menu-note,
+.scope-menu-count,
+.scope-picker-hint,
+.scope-picker-failure {
   color: var(--text-muted);
   font-size: 0.78rem;
-}
-
-.target-bar-hint {
-  margin-left: auto;
 }
 
 .scope-warning {

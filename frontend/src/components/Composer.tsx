@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { FormEvent, KeyboardEvent } from 'react';
+import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { MAX_MESSAGE_LENGTH } from '../api/chat';
 
 interface ComposerProps {
@@ -8,17 +8,11 @@ interface ComposerProps {
   onSend: (text: string) => boolean;
   /** 回答の生成を止める。 */
   onStop: () => void;
-  /**
-   * いまの検索範囲の表示（「すべての資料」「設定資料」など）。入力欄の中に出す。渡さなければ（グループの機能を出さないとき）何も出さない。
-   */
-  scopeLabel?: string | undefined;
-  /** 範囲に添える一言（「この会話では固定」「資料はまだありません」など）。 */
-  scopeNote?: string | undefined;
-  /** 範囲の見出し（既定は「検索範囲」。対象で絞る画面は「質問対象」）。 */
-  scopeCaption?: string | undefined;
+  /** 入力欄の中（下の行の左）に置く、回答対象のチップ。渡さなければ何も出さない。 */
+  scopeControl?: ReactNode;
 }
 
-export function Composer({ pending, onSend, onStop, scopeLabel, scopeNote, scopeCaption = '検索範囲' }: ComposerProps) {
+export function Composer({ pending, onSend, onStop, scopeControl }: ComposerProps) {
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const canSend = !pending && draft.trim().length > 0;
@@ -58,14 +52,6 @@ export function Composer({ pending, onSend, onStop, scopeLabel, scopeNote, scope
         メッセージ
       </label>
       <div className="composer-field">
-        {scopeLabel !== undefined && (
-          <p id="composer-scope" className="composer-scope">
-            <span className="composer-scope-name">
-              {scopeCaption}: {scopeLabel}
-            </span>
-            {scopeNote && <span className="composer-scope-note">{scopeNote}</span>}
-          </p>
-        )}
         <textarea
           ref={inputRef}
           id="message-input"
@@ -76,22 +62,25 @@ export function Composer({ pending, onSend, onStop, scopeLabel, scopeNote, scope
           maxLength={MAX_MESSAGE_LENGTH}
           rows={1}
           placeholder="メッセージを入力（Enter で送信 / Shift+Enter で改行）"
-          aria-describedby={scopeLabel !== undefined ? 'composer-scope message-counter' : 'message-counter'}
+          aria-describedby="message-counter"
         />
-      </div>
-      <div className="composer-footer">
-        <span id="message-counter" className="counter">
-          {draft.length} / {MAX_MESSAGE_LENGTH}
-        </span>
-        <div className="composer-actions">
-          {pending && (
-            <button type="button" className="btn btn-secondary" onClick={onStop}>
-              停止
+        <div className="composer-footer">
+          <div className="composer-footer-start">
+            {scopeControl}
+            <span id="message-counter" className="counter">
+              {draft.length} / {MAX_MESSAGE_LENGTH}
+            </span>
+          </div>
+          <div className="composer-actions">
+            {pending && (
+              <button type="button" className="btn btn-secondary" onClick={onStop}>
+                停止
+              </button>
+            )}
+            <button type="submit" className="btn btn-primary" disabled={!canSend}>
+              送信
             </button>
-          )}
-          <button type="submit" className="btn btn-primary" disabled={!canSend}>
-            送信
-          </button>
+          </div>
         </div>
       </div>
     </form>
