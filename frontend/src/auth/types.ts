@@ -1,5 +1,5 @@
 /**
- * ログインの窓口。画面とチャットの通信は、この型にだけ依存する（Supabase の SDK は supabase.ts に閉じ込める）。
+ * ログインの窓口。画面とチャットの通信は、この型にだけ依存する（Better Auth の SDK は betterAuth.ts に閉じ込める）。
  * テストでは、これを満たす偽物を AuthProvider に渡す。
  */
 
@@ -13,11 +13,11 @@ export interface AuthClient {
   getUser: () => Promise<AuthUser | null>;
   /** 有効なアクセストークン。期限が近ければ、ここで更新してから返す。ログインしていなければ null。 */
   getAccessToken: () => Promise<string | null>;
-  /** リフレッシュトークンで更新して、新しいアクセストークンを返す。更新できなければ null。 */
+  /** 新しいアクセストークンを取り直して返す。取れなければ（セッションが無効なら）null。 */
   refreshAccessToken: () => Promise<string | null>;
   /** ログイン状態の変化（ログイン・ログアウト・別タブでの変更・更新の失敗）を受け取る。戻り値で購読をやめる。 */
   onChange: (listener: (user: AuthUser | null) => void) => () => void;
-  /** Google のログイン画面へ移る（戻ってきたときに、SDK がセッションを作る）。 */
+  /** Google のログイン画面へ移る（戻ってきたときに、セッションの Cookie ができる）。 */
   signInWithGoogle: () => Promise<void>;
   /** この端末のセッションを破棄する。 */
   signOut: () => Promise<void>;

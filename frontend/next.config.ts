@@ -3,6 +3,9 @@ import type { NextConfig } from 'next';
 // 設定すると、API のパスを、このオリジンから FastAPI へ rewrites で中継する（NEXT_PUBLIC_API_BASE_URL は空にする）。
 // 未設定なら中継しない（ブラウザーが NEXT_PUBLIC_API_BASE_URL の API を直接呼ぶ）。
 const apiProxyTarget = process.env.API_PROXY_TARGET?.replace(/\/+$/, '');
+// 認証の API（データ用 Worker の /api/auth/*）を、この画面と同じオリジンから使えるようにする中継先（Cookie を同じオリジンに保つため）。
+// 未設定なら中継しない（NEXT_PUBLIC_AUTH_BASE_URL で別のオリジンを直接指す）
+const authProxyTarget = process.env.AUTH_PROXY_TARGET?.replace(/\/+$/, '');
 
 const nextConfig: NextConfig = {
   // E2E が、認証なし・認証ありの 2 つのビルドを別のフォルダーに作って同時に立てるための切り替え（既定は .next）
@@ -17,10 +20,12 @@ const nextConfig: NextConfig = {
     return [{ source: '/mock/:path*', destination: '/', permanent: false }];
   },
   async rewrites() {
-    if (!apiProxyTarget) return [];
-    return ['/health', '/chat', '/chat/stream', '/threads', '/threads/:path*', '/documents', '/documents/:path*', '/collections'].map(
+    const auth = authProxyTarget ? [{ source: '/api/auth/:path*', destination: `${authProxyTarget}/api/auth/:path*` }] : [];
+    if (!apiProxyTarget) return auth;
+    const api = ['/health', '/chat', '/chat/stream', '/threads', '/threads/:path*', '/documents', '/documents/:path*', '/collections'].map(
       (source) => ({ source, destination: `${apiProxyTarget}${source}` }),
     );
+    return [...auth, ...api];
   },
 };
 
