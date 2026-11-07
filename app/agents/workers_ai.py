@@ -248,6 +248,17 @@ def strip_think(text: str) -> str:
     return stripper.feed(text) + stripper.flush()
 
 
+def content_text(value: Any) -> str:
+    """応答の content を文字列にする。Workers AI は、数字だけの断片（"1" や "10"）を、文字列ではなく数値で返すことがある（実 API で確認）。"""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    return ""
+
+
 def _tool_call_args(arguments: Any) -> dict[str, Any]:
     if isinstance(arguments, dict):
         return arguments
@@ -381,7 +392,13 @@ class ChatWorkersAI(BaseChatModel):
         if estimated:
             prompt_tokens = len(json.dumps(body["messages"], ensure_ascii=False))
             completion_tokens = max(answer_chars, 1)
-        neurons = neurons_for(prompt_tokens, completion_tokens)
+        # 応答の usage に neurons があれば、それを使う（2026-11-07 の実 API で、料金表からの計算と一致することを確認した）
+        reported = usage.get("neurons") if usage else None
+        neurons = (
+            float(reported)
+            if isinstance(reported, (int, float)) and not isinstance(reported, bool)
+            else neurons_for(prompt_tokens, completion_tokens)
+        )
         self.budget.add(neurons)
         logger.info(
             "Workers AI: 入力 %d・出力 %d トークン%s、%.1f Neurons（本日 %.0f / 予算 %.0f）、最初の応答 %s、全体 %.2f 秒",
@@ -427,7 +444,7 @@ class ChatWorkersAI(BaseChatModel):
             message = data["choices"][0]["message"]
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise WorkersAIError("Workers AI の応答の形式が想定と違います", 502) from exc
-        text = strip_think(message.get("content") or "")
+        text = strip_think(content_text(message.get("content")))
         calls = [
             {
                 "name": call["function"]["name"],
@@ -471,7 +488,7 @@ class ChatWorkersAI(BaseChatModel):
                         usage = event["usage"]
                     for choice in event.get("choices") or []:
                         delta = choice.get("delta") or {}
-                        text = stripper.feed(delta.get("content") or "")
+                        text = stripper.feed(content_text(delta.get("content")))
                         calls = [
                             tool_call_chunk(
                                 name=(call.get("function") or {}).get("name"),
