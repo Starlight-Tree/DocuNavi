@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
 // E2E は、偽の LLM・偽の検索で立てた本物の API（tests/e2e_server.py）と、E2E 用にビルドした Next.js の画面を、別のポートで立てて、
-// 実ブラウザーでつなぐ。画面と API が別オリジンなのは、本番（Vercel → Cloud Run）と同じ。実 API は使わない。
+// 実ブラウザーでつなぐ。画面と API が別オリジンなのは、本番（Worker → Cloud Run）と同じ。実 API は使わない。
 const API_PORT = Number(process.env.E2E_PORT ?? 8100);
 const API_URL = `http://127.0.0.1:${API_PORT}`;
 // 画面: 3100 = ログインを使わない画面（NEXT_PUBLIC_AUTH_ENABLED が空のビルド）、

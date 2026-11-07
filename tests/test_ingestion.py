@@ -1,6 +1,5 @@
 """PDF の取り込み（app/ingestion）の、DB を使わない部分。
 
-本物の Postgres での保存・差分は tests/test_ingestion_postgres.py（TEST_DATABASE_URL があるときだけ動く）。
 PDF は tests/pdf_fixtures.py が組み立てる最小のもの（抽出専用。実物の PDF での確認は evals/corpora/ で別に行う）。
 """
 

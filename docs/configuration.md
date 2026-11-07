@@ -34,10 +34,12 @@
 | `WORKERS_AI_THINKING` | `default` | `off` で `chat_template_kwargs.enable_thinking=false` を送る（このモデルが受け付けるかは、実 API で確かめるまで未確認）。それ以外は何も送らない |
 | `GEMINI_THINKING_LEVEL` | （空） | 主モデルの `thinking_level`（`minimal`・`low`・`medium`・`high`）。空ならモデルの既定のまま（送らない）。どのモデルがどの値に対応するかは、実 API で確かめるまで未確認。不正値は無視する |
 | `GEMINI_FALLBACK_THINKING_LEVEL` | （空） | フォールバックのモデルの `thinking_level`。主モデルとは別の変数（対応する値が違いうる） |
-| `DATABASE_URL` | （空） | Postgres の接続 URL。**本物の LLM では必須**（資料の検索が DB を読む。空だと起動を失敗させる）。会話履歴の保存先も兼ねる（モックモードで空ならプロセス内メモリ）。**秘密情報**（パスワードを含む）なのでコミットせず、ログにも出さない。下記「資料の検索」「会話履歴の保存先」 |
-| `DATABASE_POOL_MAX_SIZE` | `5` | 1 インスタンスが DB へ張る接続の上限。不正値・1 未満は既定値に戻る |
-| `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Supabase Auth の JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
-| `SUPABASE_URL` | （空） | `AUTH_MODE=required` のとき必須。プロジェクトの URL（`https://<ref>.supabase.co`。公開してよい値だが、このリポジトリには書かない）。JWT の公開鍵（JWKS）の取得先と、発行元の確認に使う |
+| `D1_API_URL` | （空） | データ用 Worker（`docunavi-api`）の URL。**本物の LLM では必須**（資料の検索が D1 + Vectorize を読む。空だと起動を失敗させる）。会話履歴の保存先も兼ねる（モックモードで空ならプロセス内メモリ）。下記「資料の検索」「会話履歴の保存先」 |
+| `D1_API_TOKEN` | （空） | データ用 Worker に送るトークン（Secret `d1-api-token`）。**秘密情報**なのでコミットせず、ログにも出さない。`D1_API_URL` を設定したときに必要 |
+| `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Better Auth が発行した JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
+| `AUTH_BASE_URL` | （空） | `AUTH_MODE=required` のとき必須。Better Auth の公開オリジン（画面の Worker `docunavi-web` の URL。`https://<ホスト>` の形で、パスは付けない。`http` はローカルだけ）。JWT の公開鍵（`{AUTH_BASE_URL}/api/auth/jwks`）の取得先と、発行元（`iss`）の確認に使う |
+| `AUTH_AUDIENCE` | `docunavi` | JWT の対象（`aud`）として受け付ける値 |
+| `AUTH_JWKS_URL` | （空） | 公開鍵の取得先を上書きする（通常は使わない） |
 | `ACCESS_MODE` | `off` | 利用者のロールごとに、見える資料グループを制限するか（下記「資料グループのアクセス制御」）。`off` は制限なし（DB も読まない）、`shadow` は制限せずに絞り込まれる件数をログに出す、`enforce` は実際に制限する。知らない値は起動を失敗させる。`shadow` と `enforce` は `DATABASE_URL` と、マイグレーション `20261026045921` の適用が要る（無ければ起動を失敗させる） |
 
 ## 資料の検索
@@ -45,18 +47,18 @@
 チャットの検索（`search_documents`）は、**DB の `chunks` へのベクトル検索だけ**です（`app/search/vector.py`）。決めた理由と、見直す条件は
 [search-design.md](search-design.md)、測定は [evals/README.md](../evals/README.md) にあります。
 
-- **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元。質問ごとに API を 1 回呼ぶ）、`chunks.embedding` との
-  コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。対象は DB の `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループの文書のチャンクだけ。下の「検索の範囲」）で、ローカルの PDF は読みません。
+- **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元。質問ごとに API を 1 回呼ぶ）、Vectorize のベクトルとの
+  コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。本文とメタデータは D1 から取ります。対象は D1 の `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループの文書のチャンクだけ。下の「検索の範囲」）で、PDF は読みません。
   返す形は `[ファイル名]\n見出し\n本文` です。
-- **必要なもの。** 本物の LLM では `DATABASE_URL`（履歴と同じ接続プールを借りる。`DATABASE_POOL_MAX_SIZE` は共有）と `GEMINI_API_KEY`（質問の埋め込み用。
-  Vertex AI で LLM を使う場合も、埋め込みは API キーで呼ぶ。`EMBEDDING_USE_VERTEXAI=true` のときだけ、埋め込みは Vertex AI で、キーは要らない）。DB には、`python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で、
-  `storage/pdf/<資料群の名前>/` の PDF を取り込み・埋め込み済みであること。ディレクトリ名は `documents.collection`（資料のグループ）になります。
+- **必要なもの。** 本物の LLM では `D1_API_URL` と `D1_API_TOKEN`（履歴と同じデータ用 Worker への接続を借りる）と `GEMINI_API_KEY`（質問の埋め込み用。
+  Vertex AI で LLM を使う場合も、埋め込みは API キーで呼ぶ。`EMBEDDING_USE_VERTEXAI=true` のときだけ、埋め込みは Vertex AI で、キーは要らない）。D1 と Vectorize に、取り込み・埋め込み済みであること。本番は、R2 の PDF を取り込みジョブ（`docunavi-ingest-sync` が毎時、`docunavi-ingest-queue` が R2 の通知で）が `python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で入れます。
+  R2 の最上位のプレフィックスが `documents.collection`（資料のグループ）になります（`hero/` は画像の置き場で、資料群ではありません）。
 - **検索の範囲。** `/chat` と `/chat/stream` は、任意の `collection`（グループの識別名）を受け付けます。会話ごとに検索の範囲は固定され（最初の発言で決まる）、
   同じ会話に違う範囲を送ると 409 になります。`collection` を省略した場合は、従来どおり DB の全資料が対象です。仕様は [api.md](api.md) の「検索対象（`collection`）」。
 - **モックモード。** `GEMINI_API_KEY` が未設定なら、資料の検索も回答もしない固定の返答を返します（DB も API も要らない。画面と API の動作確認用）。
-- **起動の検査。** 本物の LLM のとき、`DATABASE_URL` が無い、`GEMINI_API_KEY` が無い、DB に検索できる資料（`ready`）が無い、
+- **起動の検査。** 本物の LLM のとき、`D1_API_URL` が無い、`GEMINI_API_KEY` が無い、DB に検索できる資料（`ready`）が無い、
   `ready` の文書に埋め込みが無い・古い（モデル・次元・入力のハッシュが違う）チャンクがある、のどれかなら、起動を失敗させます。
-  PDF を足す・差し替えたら、取り込みと埋め込みをやり直します（再起動は要りません。検索は DB を読むため）。
+  PDF を R2 に足す・差し替えたら、取り込みと埋め込みをやり直します（再起動は要りません。検索は D1 と Vectorize を読むため）。
 - **しきい値。** 類似度が 0.65（`app/search/vector.py` の `MIN_SIMILARITY`）未満のチャンクは返しません。粗い下限で、「資料にない」の判断は LLM に任せます
   （理由と評価は [search-design.md](search-design.md)）。変えるときは、評価をやり直します。
 - **失敗したとき。** クエリの埋め込みや DB の問い合わせが失敗したら、別の経路には戻らず、`/chat`・`/chat/stream` が 503（「資料の検索に失敗しました。…」の固定文）を返し、
@@ -74,43 +76,29 @@
 ## ログイン（認証）
 
 `AUTH_MODE=required` にすると、`/chat`・`/chat/stream`・`/documents`（資料一覧。`docs/api.md`）が `Authorization: Bearer <アクセストークン>` を要求します
-（`/health` は認証なし）。トークンは Supabase Auth（Google ログイン）が発行する JWT で、バックエンド（`app/auth.py`）が検証します。
+（`/health` は認証なし）。トークンは Better Auth（データ用 Worker の `/api/auth/*`。Google ログイン）が発行する JWT で、バックエンド（`app/auth.py`）が検証します。
 `AUTH_MODE=off`（既定）では何も確かめず、従来どおり匿名で動きます。**公開する前に `required` にしてください。**
+2026-11-08 に、Supabase Auth から Better Auth へ移しました（それ以前の記録は Git の履歴）。
 
-- **検証すること:** 署名（`{SUPABASE_URL}/auth/v1/.well-known/jwks.json` の公開鍵。ES256 / RS256 だけ。`alg=none` と HS256 は受け付けない）、
-  `exp` `iss`（`{SUPABASE_URL}/auth/v1`）`aud`（`authenticated`）`sub` が全部あること、`sub` が UUID であること、`role` が `authenticated` であること。
-  匿名ログイン（`is_anonymous`）は受け付けない（ゲストは作らない）。失敗は、固定メッセージの 401（`WWW-Authenticate: Bearer`）。鍵を取得できないときは 503。
-- **鍵が無いときは止まる:** 起動時に JWKS を取得し、公開鍵が 1 つも無ければ（Supabase の JWT 署名鍵が共有秘密 HS256 のままの場合）、**共有秘密の検証へは切り替えず、起動を失敗させます。**
-  `SUPABASE_URL` が無い・JWKS を取得できない場合も同じです。Supabase の「JWT Keys」で非対称鍵（ECC P-256 など）に移してください。
+- **検証すること:** 署名（`{AUTH_BASE_URL}/api/auth/jwks` の公開鍵。ES256 / RS256 だけ。`alg=none` と HS256 は受け付けない）、
+  `exp` `iss`（`AUTH_BASE_URL`）`aud`（`AUTH_AUDIENCE`。既定 `docunavi`）`sub` が全部あること、`sub` が英数字・`_`・`-` の 8〜64 文字であること。
+  失敗は、固定メッセージの 401（`WWW-Authenticate: Bearer`）。鍵を取得できないときは 503。
+- **鍵が無いときは止まる:** 起動時に JWKS を取得し、公開鍵が 1 つも無ければ、**共有秘密の検証へは切り替えず、起動を失敗させます。**
+  `AUTH_BASE_URL` が無い・不正な形・JWKS を取得できない場合も同じです。
 - **鍵の取り直し:** 取得した鍵は 10 分使い、過ぎたら取り直します（取り直しに失敗したら前の鍵で続けます）。知らない `kid` のトークンでは、60 秒に 1 回までしか取り直しません。
 - **会話と利用者の紐づけ:** 履歴のキーを `<利用者 ID>:<thread_id>` にします。利用者 ID は、検証に通ったトークンの `sub` だけから取り、クライアントが送った値は使いません。
   `thread_id` は `:` を含められないので、他人の接頭辞を作って会話に届くことはできません。クライアントに返す `thread_id` は、接頭辞なしのままです。
   同じ `thread_id` でも、利用者が違えば別の会話です。**`off` のときの履歴（接頭辞なしのキー）には、`required` から届きません。**
-- **会話の一覧と本人による削除**（`GET /threads`、`DELETE /threads/{thread_id}`。[api.md](api.md)）は、ログイン中のチャット画面の左サイドバーから使えます（会話を選ぶと、`GET /threads/{thread_id}/messages` で以前のやり取りを取得して並べ、続きから始まります。出典パネルは付きません。ページを再読み込みしただけのときは、`thread_id` を引き継ぐだけで、以前のやり取りは取得しません）。
-  **資料ごとの権限は、まだありません**（利用者の紐づけは会話のキーだけ。専用のテーブルは作っていません）。
+- **会話の一覧と本人による削除**（`GET /threads`、`DELETE /threads/{thread_id}`。[api.md](api.md)）は、ログイン中のチャット画面の左サイドバーから使えます（会話を選ぶと、`GET /threads/{thread_id}/messages` で表示します）。
   運用者が `python -m app.history_admin --thread-id` で消すときは、保存されているキー（`<利用者 ID>:<thread_id>`）を渡します。
 - ログにトークンは出しません。出すのは失敗の種類（例外のクラス名）だけです。
 
-ブラウザー側（Google ログイン）は、`frontend` のビルド時に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を渡すと有効になります
-（Vercel の環境変数。[frontend/README.md](../frontend/README.md)）。どちらかが無ければログイン画面は出ず、従来どおり認証なしで動きます
-（その状態でバックエンドが `required` だと、チャットは 401 になります）。トークンの更新はブラウザー側の SDK が行い、期限切れだけではログイン画面に戻りません。
+ブラウザー側（Google ログイン）は、`frontend` のビルド時に `NEXT_PUBLIC_AUTH_ENABLED` と `NEXT_PUBLIC_AUTH_BASE_URL` を渡すと有効になります
+（Worker `docunavi-web` のビルド時の環境変数。`frontend/deploy-web.sh` が設定する。[frontend/README.md](../frontend/README.md)）。
+有効でなければログイン画面は出ず、認証なしで動きます（その状態でバックエンドが `required` だと、チャットは 401 になります）。
 
-**Supabase と Google 側の設定（コードとは別。利用者のコンソール操作）:**
-1. Google Cloud Console で OAuth クライアント（ウェブ アプリケーション）を作る。承認済みのリダイレクト URI は、Supabase の Google プロバイダの画面に出る `https://<ref>.supabase.co/auth/v1/callback`。
-2. Supabase の Authentication → Providers → Google を有効にして、クライアント ID とシークレットを入れる。
-3. Authentication → URL Configuration で、Site URL と Redirect URLs に画面の URL（開発は `http://localhost:3000`。2026-10-24 までは Vite の `http://localhost:5173`）を入れる。
-4. Project Settings → JWT Keys で、署名鍵が非対称鍵（ECC P-256 / RSA）であることを確かめる。
-- Supabase でメール確認を切る設定は、メールとパスワードのログインを使うときの開発用の話で、Google ログインでは使いません。
-
-**確認の状況（2026-10-19）:** ローカル（バックエンド `AUTH_MODE=required`、画面は `npm run dev`）で、実際の Supabase・Google を使って確かめました。
-Supabase の JWKS は公開鍵 1 個（ES256）で、バックエンドの起動時の検査が通りました。トークンなしの `/chat` は 401 でした。ブラウザーでは、
-Google ログイン → 画面に戻る → 質問を送って回答が返る、までをユーザーが通しました（モックの返答と、本物の LLM・DB の回答の両方）。
-自動テスト（`tests/test_auth.py`、`frontend/src/AuthApp.test.tsx`・`frontend/src/auth/`）は、これまでどおり手元で作った鍵と偽の JWKS を使います。
-
-トークンの期限切れ後の更新（`supabase-js` の実際の動作）は、通ったと利用者が報告した（2026-10-20。以前の確認で、日付・環境・待った時間の詳細は記録がない）。
-
-**未確認:** Docker イメージ（画面の設定を外した、API だけの今のイメージを Cloud Build でビルドして配備した記録は無い。`docs/deploy.md` の「F」）、
-Cloud Run などの公開環境での動作。
+自動テスト（`tests/test_auth.py`、`frontend/src/auth/`）は、手元で作った鍵と偽の JWKS を使います。
+**未確認:** トークンの期限切れ後の更新（Better Auth のクライアントの実際の動作）の、記録に残る確認。Google OAuth のシークレットの入れ替え（`docs/cloudflare-migration.md`）。
 
 ## 資料グループのアクセス制御
 
@@ -170,23 +158,21 @@ Cloud Run などの公開環境での動作。
 
 **MCP（`docunavi-mcp`）:** 運用者専用で、利用者のロールを持たない。`Scope.ALL` を明示して**全グループ**を検索する。利用者には公開しない（IAM の `roles/run.invoker` を持つ運用者だけが呼べる）。
 
-**ロールの割り当て:** 画面（[access-admin.md](access-admin.md)。Django Admin。ローカルで実装・テスト済みで、**本番にはまだ無い**）ができるまでは、運用者が SQL で `chatbot.user_roles` を更新する。
-画面ができても、ロールの作成と、ロールが持つグループの編集は SQL のまま（4a の対象外）。`chatbot_app`（API が使うロール）は SELECT だけなので、
-書き込みは運用者の権限（`postgres` など）で行う。変更は `chatbot.access_audit` に残る（`actor` は接続したロール）。例:
+**ロールの割り当て:** 運用者が、D1 の `user_roles` を SQL で更新します（Django の管理画面は 2026-11-08 に廃止しました。経緯は [access-admin.md](access-admin.md)）。
+ロールの作成と、ロールが持つグループの編集も SQL です。API は D1 を読むだけで、書き込みは運用者の権限（Cloudflare の資格情報）で行います。変更は `access_audit` に残す想定です。例:
 
 ```sql
--- ロールを作る → ロールが見るグループを決める → 利用者（JWT の sub）に割り当てる
-insert into chatbot.roles (name, label) values ('cafe-staff', '店舗の担当');
-insert into chatbot.role_collection_access (role, collection) values ('cafe-staff', 'cafe');
-insert into chatbot.user_roles (user_id, role) values ('00000000-0000-0000-0000-000000000000', 'cafe-staff');
+-- ロールを作る → ロールが見るグループを決める → 利用者（JWT の sub = "user".id）に割り当てる
+insert into roles (name, label) values ('cafe-staff', '店舗の担当');
+insert into role_collection_access (role, collection) values ('cafe-staff', 'cafe');
+insert into user_roles (user_id, role) values ('<"user".id>', 'cafe-staff');
 ```
 
-利用者の UUID は Supabase の Authentication の画面で確認する（メールとの対応は、このリポジトリでは持たない）。
+利用者の ID は D1 の `"user"` 表で確認する（メールとの対応は `"user".email`）。2026-11-08 時点で、本番の `user_roles` は空です。
 
 **確かめた範囲:** `tests/test_access.py`（偽の DB。10 経路の漏れ、`default` ロールが `off` と同じ結果になること、`ACCESS_MODE` の 3 値、`scope` を渡し忘れても全件を検索しないこと、
-会話の伏せ方）と `tests/test_access_postgres.py`（ローカルの Postgres 17。見えるグループを引く SQL、一覧の SQL の絞り込み、端から端までの挙動）。
-**未確認:** 検索の SQL（pgvector が要るので、ローカルの Postgres では動かせない。絞り込みの条件は一覧の SQL と共通で、そちらは確かめた）、本番の DB・本番のロール（`chatbot_app`）での動作、
-`shadow` のログを実際の利用で観察した結果、Supabase の Data API に `chatbot` スキーマが公開されていないこと（RLS はこの段階では入れていない）。
+会話の伏せ方）。**未確認:** 本番の D1 での `shadow` のログを実際の利用で観察した結果、`access_audit` に書き込む手順。
+
 
 ## 対象と資料種別（`target` / `doc_type`）
 
@@ -249,7 +235,7 @@ update chatbot.documents set target = 'minato-coffee' where id = 6;
 **旧版（`target` を知らないバックエンド）へ戻すと危険。** 2026-11-03 に、一時 Postgres 17 で確かめた（旧版 = `git archive HEAD` の `app/`）。新しいコードで `target` 付きの会話を作り、
 同じ会話を旧コードで続けると、(1) 検索に `target` が渡らず**全資料を探す**（範囲が広がる）、(2) その 1 ターンで保存されていた `target` が**チェックポイントから消える**（進めても戻らない）。
 
-- **新しい画面の公開を止める**（Vercel を前の版へ戻す）と、**`target` 対応のバックエンドを旧版へ戻す**ことは、別の操作。前者は安全（バックエンドは旧 UI の `collection` だけの送信も受ける）。
+- **新しい画面の公開を止める**（Worker `docunavi-web` を前の版へ戻す）と、**`target` 対応のバックエンドを旧版へ戻す**ことは、別の操作。前者は安全（バックエンドは旧 UI の `collection` だけの送信も受ける）。
 - 旧版へ戻してよいのは、`target` 付きの会話が 0 件のときだけ。戻す前に確かめる（読むだけ）:
   `select count(distinct thread_id) from chatbot.checkpoints where checkpoint->'channel_values'->>'target' is not null;` → 0 のときだけ。`tests/test_classification_postgres.py` が、この形（inline で残る）に依存して通ることを確かめている。
 - 0 でないとき、戻す先は「`target` 対応の 1 つ前のリビジョン」にする（互換版）。それも無いときは、旧版へ戻さず、新しいリビジョンを直して出す。
@@ -260,55 +246,28 @@ update chatbot.documents set target = 'minato-coffee' where id = 6;
 **確かめた範囲（2026-11-03、ローカルのみ）:** `tests/test_target_scope.py`（API の 409・422・403・復元・メタデータ・履歴の取得）、`tests/test_classification_postgres.py`（一時 Postgres 17 + pgvector 0.8.0。M1・バックフィル・検索の本物の SQL・
 キャッシュ・enforce のロール・チャットの端から端まで。pgvector が無い環境では検索と API の部分だけスキップ）。
 **未確認:** 本番の DB・`chatbot_app`・Cloud Run・Vercel での動作、本物の埋め込み（Gemini）での対象つきの検索の質、旧版の画面（Vercel の前の版）が新しいバックエンドに送る `collection` だけの会話の実機の確認、
-Django 管理画面（`ops/access_admin/`）への影響（`target` は読まない。`manage.py check` は未実行）。
+Django 管理画面（`ops/access_admin/`。2026-11-08 に廃止）への影響（`target` は読まない。`manage.py check` は未実行）。
 
 ## 会話履歴の保存先
 
-`DATABASE_URL` が空なら、履歴は従来どおりプロセス内メモリ（`MemorySaver`）に置きます。再起動で消え、複数のインスタンスの間では共有されません。
-設定すると、同じ `thread_id` の履歴を Postgres に保存します（LangGraph の checkpointer。`app/history.py`）。再起動しても、別のインスタンスでも続きから話せます。
+`D1_API_URL` が空なら、履歴はプロセス内メモリ（`MemorySaver`）に置きます。再起動で消え、複数のインスタンスの間では共有されません。
+設定すると、同じ `thread_id` の履歴を D1 に保存します（データ用 Worker 経由。LangGraph の checkpointer は `app/d1_saver.py`、接続は `app/history.py`）。再起動しても、別のインスタンスでも続きから話せます。
 
 ```text
-DATABASE_URL=postgresql://ユーザー:パスワード@ホスト:5432/データベース
+D1_API_URL=https://<データ用 Worker のホスト>
+D1_API_TOKEN=…   # Secret `d1-api-token`。値は出さない
 ```
 
-パスワードに記号があるときは URL エンコードします。`/health` の `history` が `postgres` なら、DB に保存しています（`memory` なら、設定が届いていません）。
+`/health` の `history` が `d1` なら、D1 に保存しています（`memory` なら、設定が届いていません）。表（`checkpoints` `checkpoint_writes`）は `workers/api/migrations/` が作ります（アプリは作りません）。
 
-- **起動時:** 接続プールを開き、テーブル（`checkpoint_migrations` `checkpoints` `checkpoint_blobs` `checkpoint_writes`）が無ければ作ります。
-  10 秒たっても DB に届かないときは、**起動を失敗させます**（メモリに切り替えると、履歴が黙って失われるため）。
-  複数のインスタンスが初回に同時に起動すると、テーブルの作成が競合して失敗することがあるので、最大 3 回まで間を空けてやり直します。
-- **実行中:** DB が使えないときの `/chat` は 503（固定メッセージ）です。LLM の失敗（502 など）とは区別します。`/health` は DB に触れません
-  （DB の障害で、すべてのインスタンスが「異常」になって再起動されないようにするため）。
-- **接続数:** 上限は `DATABASE_POOL_MAX_SIZE` です。`--max-instances` × この値が、DB の接続数の上限に収まるようにします。
-  取り出すときに接続が生きているか確かめるので、DB やプーラーに接続を切られた後でも、次のリクエストは成功します。
-- **プーラーとの相性:** prepared statement を使いません。transaction mode のプーラー（Supabase の 6543 番など）でも動く設計です。
-  Supabase の Shared pooler の transaction mode（ポート 6543）経由で、起動（テーブルの作成）・`/chat` の往復・再起動をまたいだ続きを
-  確認しました（2026-10-14、開発コンテナから。LLM はモック）。ポートは利用者の報告によります（エージェントは `.env` を開かないので、
-  URL を見ていません）。ローカルと CI の Postgres 17 でも確認しています。
-  直接接続（`db.<プロジェクト>.supabase.co`）は IPv6 のみで、開発コンテナからは届きませんでした。プーラーの URL を使います
-  （ユーザー名は `ロール名.プロジェクトID`）。
-- **DB のロール:** 起動時にテーブルを作るので、作成の権限が要ります。`postgres` などの強い権限のロールではなく、このアプリ専用のロールとスキーマを使うことを勧めます。
-  次の例は、ローカルの Postgres 17 で、起動・往復・他のテーブルが読めないことを確かめました。Supabase でも、同じ形（専用ロール、そのロールが
-  所有するスキーマ、ロールの `search_path`）で、テーブルが `public` ではなくアプリのスキーマにできることを確かめました（2026-10-14。
-  テーブルの所在は、利用者が SQL Editor で確かめた結果の報告によります）。名前は例です。アプリが使うのは URL とロールの
-  `search_path` だけなので、別の名前でも動きます。
-
-  ```sql
-  create role chatbot_app login password '…';
-  grant chatbot_app to postgres;  -- Supabase では必要（下の説明）。ローカルの Postgres では無くても通る
-  create schema chatbot authorization chatbot_app;
-  alter role chatbot_app set search_path = chatbot;
-  ```
-
-  Supabase の `postgres` は superuser ではないため、`grant` が無いと `create schema … authorization` が
-  `must be able to SET ROLE "chatbot_app"` で失敗します（利用者の報告。superuser でない作成者のロールを用意したローカルの
-  Postgres 17 で、同じ文言のエラーと、`grant` で通ることを確かめました）。Supabase の Data API には出さないでください
-  （Settings → API → Exposed schemas にアプリのスキーマを入れない）。2026-10-14 時点で、この画面の設定は確かめていません。
-
-- **データの扱い:** 発言と回答の本文が DB に残ります。**保存期間の方針は 90 日（最後の動きから）です**（2026-10-14）。**Cloud Run では、週 1 回の Job が、最後の動きから 7 日たった会話を削除します**（2026-10-20 に作成。様子を見て延ばす。[deploy.md](deploy.md) の D）。実際に会話が消えた実績は、まだありません（古い会話が無いため）。
-  期間を過ぎた会話・特定の会話は、運用者が次のコマンドで消せます
-  （アプリと同じ `DATABASE_URL` を使い、`.env` も読みます。既定は件数の表示だけで、`--apply` を付けたときだけ削除します）。
-  アプリ自体は実行しません。定期実行は、同じイメージの Cloud Run Job を、Cloud Scheduler から週次で呼んでいます（[deploy.md](deploy.md) の D）。
-  それ以外の環境（ローカルなど）では、運用者が手で実行します。
+- **起動時:** Worker へ接続を開き、開けなければ**起動を失敗させます**（メモリに切り替えると、履歴が黙って失われるため）。
+- **実行中:** D1 が使えないときの `/chat` は 503（固定メッセージ）です。LLM の失敗（502 など）とは区別します。`/health` は D1 に触れません
+  （D1 の障害で、すべてのインスタンスが「異常」になって再起動されないようにするため）。
+- **データの扱い:** 発言と回答の本文が D1 に残ります。**保存期間の方針は 90 日（最後の動きから）です**（2026-10-14）。
+  期間を過ぎた会話・特定の会話は、運用者が次のコマンドで消せます（アプリと同じ `D1_API_URL` / `D1_API_TOKEN` を使い、`.env` も読みます。
+  既定は件数の表示だけで、`--apply` を付けたときだけ削除します）。アプリ自体は実行しません。
+  定期実行は、Cloud Run Job `docunavi-history-cleanup` を Cloud Scheduler から呼ぶ形です（[deploy.md](deploy.md) の D）。
+  **2026-11-08 から、この Job は D1 に向けて、`--apply` なし（件数の表示だけ）で動いています。** 削除を戻す時期は未決です（それまで履歴は消えません）。
 
   ```bash
   python -m app.history_admin --older-than-days 90            # 90 日以上動きのない会話の数を表示（削除しない）
@@ -316,12 +275,11 @@ DATABASE_URL=postgresql://ユーザー:パスワード@ホスト:5432/データ�
   python -m app.history_admin --thread-id <thread_id> --apply # 1 件の会話を削除する
   ```
 
-  「動きのない」は、会話の最新のチェックポイントの時刻で決めます（続けて使われる会話は消えません）。表示するのは件数だけです
-  （`thread_id` は出しません）。Supabase では、`--thread-id` での削除と、`--older-than-days` の件数の表示（0 件）を確かめました
-  （2026-10-14）。`--older-than-days --apply` は、Supabase にまだ古い会話が無いため、Supabase では未実行です（ローカルと CI の Postgres では確認済み）。
+  「動きのない」は、会話の最新のチェックポイントの時刻で決めます（続けて使われる会話は消えません）。表示するのは件数だけです（`thread_id` は出しません）。
+  D1 に向けた件数の表示は、2026-11-08 に Cloud Run Job で確かめました（対象 0 件）。`--apply` での削除は、D1 では未実行です。
   `AUTH_MODE=off` のあいだは、`thread_id` を知っていれば誰でも続きを書けます。`required` なら、履歴のキーに利用者 ID が付き、
   他の利用者の会話には届きません（上の「ログイン（認証）」）。本人からの削除要求には、API（`DELETE /threads/{thread_id}`）で応えられます。
-  画面はまだありません。公開する前に、画面を作るか、運用者が `history_admin` で消すかを決めてください。
+
 
 ## 検索の進め方（1 回の LLM 呼び出し）
 
@@ -524,9 +482,9 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 ## 回答だけ Workers AI に切り替える（試験）
 
 `CHAT_ANSWER_BACKEND=workers_ai` で、**回答の生成だけ**を Cloudflare Workers AI の `@cf/qwen/qwen3-30b-a3b-fp8`（追加学習なし）に切り替えられる（`app/agents/workers_ai.py`）。
-既定は Gemini のままで、本番（Cloud Run・Vercel）は切り替えない。
+既定は Gemini のままで、本番（Cloud Run・Cloudflare Workers）は切り替えない。
 
-- **変わらないもの:** 検索（質問の埋め込みは Gemini のまま。`DATABASE_URL` と `GEMINI_API_KEY` が要る）、履歴、入力・出力のガード、追質問の検索語の補完（Gemini）。
+- **変わらないもの:** 検索（質問の埋め込みは Gemini のまま。`D1_API_URL` と `GEMINI_API_KEY` が要る）、履歴、入力・出力のガード、追質問の検索語の補完（Gemini）。
   `CHAT_RETRIEVAL_MODE` の既定（`direct`）で、LLM は 1 回。履歴の「検索の呼び出しと結果」は、OpenAI 互換のチャットの形で送る。
 - **使わないもの:** ヘッジ・再試行・有料キー・`GEMINI_FALLBACK_MODEL`。失敗しても Gemini へ自動では切り替えず、固定メッセージの 429/500/504/502 になる。
   `<think>…</think>`（推論の過程）は取り除き、画面にも履歴にも出さない。モデル名は固定（環境変数で替えられない）。

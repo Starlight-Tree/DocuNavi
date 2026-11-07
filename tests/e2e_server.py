@@ -5,7 +5,7 @@
 実 API（Gemini・埋め込み・DB・Supabase）は使わない。アプリ本体（app/）は変えず、tests/conftest.py と同じく
 環境変数と差し替えだけで固定する: モックモード・メモリ履歴・認証なし、検索は ScopedFakeSearch（FakeSearch に資料のグループを付けたもの）、
 グラフの LLM は SearchingMockLLM。GET /documents・GET /collections・GET /targets・GET /doc-types だけ、偽の DB（このファイルの _FakePool）から答える。
-画面は配信しない。画面は別のポートの Next.js（frontend を E2E 用にビルドしたもの）で、本番（Vercel → Cloud Run）と同じ別オリジン。
+画面は配信しない。画面は別のポートの Next.js（frontend を E2E 用にビルドしたもの）で、本番（Worker → Cloud Run）と同じ別オリジン。
 CORS は E2E_WEB_ORIGINS（カンマ区切りのオリジン）だけに許す。画面側のオリジンが違えば、ブラウザーが API を呼べず、テストが失敗する。
 """
 

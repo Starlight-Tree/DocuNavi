@@ -8,6 +8,13 @@
 下の「段階」の表は 2026-10-13 の計画のままで、番号は変えていない。実装が進んだので、いまの状態と、これからの順序をここに置く。
 順序は、「公開に要る守りを先に、検索の高度化は取りこぼしが出てから」。
 
+**2026-11-08 の状態（Cloudflare への移行後）**
+
+- 本番は Cloudflare に移った。画面は Worker `docunavi-web`、データは Worker `docunavi-api`（D1 + Vectorize + Better Auth）、PDF 原本は R2。Cloud Run には API（`docunavi`）、MCP（`docunavi-mcp`）、SSE 中継、バッチ Job が残る。経緯と構成は [cloudflare-migration.md](cloudflare-migration.md)、[architecture.md](architecture.md)。
+- Vercel は廃止した。Supabase は、本番のサービスとジョブからは使わなくなった（2026-11-08 に Cloud Run の設定で確認）。`docunavi-admin` とジョブ `docunavi-admin-migrate` は 2026-11-08 に削除した（Cloud Run の一覧で確認）。Secret `admin-database-url` などは残っている。解約はユーザーが行う（未実施）。
+- 取り込みジョブ 3 件と履歴削除ジョブは D1 に向けた（2026-11-08）。変更のない資料の突き合わせ（`unchanged` 80 件）は確認した。**新しい PDF を入れたときの D1・Vectorize への書き込みは未確認。** 履歴削除ジョブは `--apply` なし（履歴は消えない）で、戻す時期は未決。
+- 残り: Supabase 関連の残りの削除（psycopg。`supabase/` は削除した）、壊れた評価スクリプト（`scripts/eval_vector.py` `eval_answers.py`。D1 に未対応）の扱い。
+
 **できていること**
 
 - Cloud Run への公開（段階 0。2026-10-20。プロジェクト `docunavi-app`、サービス `docunavi`、リージョン `asia-northeast1`。ログインと質問は利用者が確認。Google の新しい OAuth クライアントでも同日に確認。正規の URL は `https://docunavi-<PROJECT_NUMBER>.asia-northeast1.run.app` の 1 つ。通った手順と詰まった点は [deploy.md](deploy.md) の「実際に通った記録」）
@@ -22,7 +29,7 @@
 - チャットの画面（Markdown 表示、例題、「続けて聞く」）
 - 画面の状態を URL に持たせる（タブ・資料・表示・ページ・種別。ログインの往復でも保つ。往復の動作は、公開環境の本物のログインで確認済み〔2026-10-20、利用者の報告〕）
 - 本番で別モデルへのフォールバックを有効にした（2026-10-21。`GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite`、リビジョン `docunavi-00011-vuy`。実 API で、主モデルで始めた会話を両方向に続けられることを確認。**実際に切り替わった回は、まだ一度も見ていない**〔下の「受動確認」〕。検証の範囲は [configuration.md](configuration.md) の「検証の状況」）
-- 画面の Next.js 化と Vercel での配信（2026-10-25 に完了。本番 URL `https://docunavi-eosin.vercel.app`、`main` へのプッシュで本番が更新される。最終確認の結果は下の「実装順序」の①）
+- 画面の Next.js 化と Vercel での配信（2026-10-25 に完了。当時の本番 URL は `https://docunavi-eosin.vercel.app`、`main` へのプッシュで本番が更新された。最終確認の結果は下の「実装順序」の①。**2026-11-08 に Cloudflare の Worker `docunavi-web` へ移し、Vercel のプロジェクトは削除した。現在の本番 URL は `https://docunavi-web.wataru-apps.workers.dev`、デプロイは手動の `deploy.yml`**）
 - 開発・配備まわり（2026-10-21）: 読み取り専用の Docker ソケットプロキシ（ホストで検証して反映済み。[.devcontainer/README.md](../.devcontainer/README.md)）、Compose で画面の開発サーバー `frontend` を別コンテナに分ける変更（ホストで確認済み。[development.md](development.md) の「検証の記録」）、タグ付きプレビューの手順と `scripts/preview.sh`（[deploy.md](deploy.md) の「タグ付きプレビュー」）、gcloud のログインを名前付きボリュームに残す変更
 - 開発コンテナの再ビルドを速くした（2026-10-31、利用者の決定）: gh・psql・Go・Playwright のライブラリー（Chromium の実行に要る共有ライブラリーとフォント）を `postCreateCommand` の導入から `.devcontainer/Dockerfile`（イメージのビルド時。apt と Go の tar は cache mount、Go は SHA-256 照合）へ移した。`postCreateCommand` からは apt の導入が無くなり、残るのはボリュームの所有者の修正、Chromium の取得と起動確認（本体は `playwright-browsers` ボリュームのまま）、ツールの存在確認、Vercel CLI の導入（Node は feature でイメージの後に入るため Dockerfile へは移せない）。`install-gh.sh`・`install-psql.sh`・`install-go.sh` は残してある（呼ばない。Go の版とハッシュは Dockerfile と重複）。Vercel CLI は今回の変更では残し、削除は別のコミットで行う予定（承認済み）。再ビルド後の確認（2026-10-31）: feature（Node・Python）、Chromium の起動、gh・psql・go・gcloud・docker、MCP の接続、バックエンドとフロントエンドのテスト（pytest 2477 件通過・48 件スキップ、vitest 326 件通過、型検査）が通った。`postCreateCommand` の所要時間は、コンテナ内のファイルと npm ログの時刻からの概算で、`cli-tools` が約 1〜2 分強（以前は約 7 分 23 秒の見積り。残りの大半は Vercel CLI）。正確な値はホストの Dev Containers のログにある。**未確認:** キャッシュを使わない再ビルド全体の所要時間、`search_documents` の実際の呼び出し（課金のため行っていない）、e2e テスト、`make test-db`。
 - 開発コンテナから Vercel CLI を削除した（2026-10-31、利用者の承認。上の Dockerfile への移設とは別のコミット）: `install-vercel.sh` を消し、`postCreateCommand` の `cli-tools` から外した。必要なときは `npx --yes vercel@63.1.2`（`.devcontainer/README.md` の「開発環境の Vercel CLI」）。Vercel MCP とプラグインは変わらない。手順 7 の記述（下の ① の行）は当時の記録なので、そのまま残す。**確認済み（2026-10-31）:** `npx --yes vercel@63.1.2 --version` が成功する。初回は約 93 秒（npm から取得）、2 回目以降は約 1.1 秒（npm のキャッシュ）。削除後の再ビルドでの `postCreateCommand` の所要時間は、約 10 秒（2026-10-31 時点。コンテナ内のファイルと npm のログの時刻からの推定で、時間を計って測ったものではない）。**未確認:** `vercel login` と認証を伴う操作。
@@ -81,7 +88,7 @@
   仕様は [api.md](api.md)。**実時間は変わらない（22〜31 秒は縮まっていない）。** 内訳（検索・埋め込み・最初の Gemini 呼び出しのどれが何秒か）は未計測で、実 API の呼び出しが要る（承認が要る）。
   **未確認:** 実 API・本番（Cloud Run の h2c → Vercel の画面）での段階の表示と、実際の 429・504 が `data-failure` で画面に届くこと、停止ボタンの切断が本番でこれまでどおり取り消されること（切断のログの文言が変わりうる。[configuration.md](configuration.md) の「クライアントの切断」）。
   **CLAUDE.md の「切断は失敗ではない」の節に、「レスポンスは最初の本文が届くまで始めない」とあるのは、この変更で古くなった（承認を得て直す）。**
-- **開発コンテナまわりの完成形の構想**（2026-10-21、別の会話で整理して利用者が記録を頼んだもの。**未着手・順序表には入れない**。急がず、必要になってから段階的に進める）。
+- **開発コンテナまわりの完成形の構想**（2026-10-21、**このうち、ローカルの `db`（Postgres）とネットワーク `backend-net` は 2026-11-08 に廃止した。アプリが D1 に移ったため。以下は当時の記録**。別の会話で整理して利用者が記録を頼んだもの。**未着手・順序表には入れない**。急がず、必要になってから段階的に進める）。
   着手前（2026-10-21）は、開発コンテナ（`docunavi-devcontainer`）と読み取り専用の Docker プロキシ（`docunavi-docker-proxy`）の 2 つがネットワーク `docunavi-dev` にあり、`api` と `frontend` はホストで `docker compose up` したときだけ動く、という形だった。
   構想は、これを 5 つのコンテナと 3 つのネットワークにする形。
   - コンテナ: `docunavi-devcontainer`、`docunavi-docker-proxy`、`docunavi-api`（:8000）、`docunavi-frontend`（:3000、ホストに公開。2026-10-24 までは Vite の :5173）、`docunavi-db`（Postgres。ローカルかステージングの DB を、アプリ用に置く）。
@@ -217,8 +224,8 @@ Supabase と Cloud SQL の選び方の目安:
 何もしなくてよいもの。
 
 - API の向き先: `frontend/src/api/chat.ts` の `NEXT_PUBLIC_API_BASE_URL`（空なら同一オリジン）
-- CORS: `app/main.py` の `CORS_ORIGINS`（コードの既定は `*`。本番は 2026-10-25 時点で Vercel の URL だけに絞り済み）
-- API は画面を配信しない（Vite の画面の配信 `app/frontend.py` は 2026-10-24 に外した）。画面は Vercel の `frontend`
+- CORS: `app/main.py` の `CORS_ORIGINS`（コードの既定は `*`。本番は 2026-10-25 時点で Vercel の URL だけに絞り済み。2026-11-08 以降の画面のオリジンは Worker `docunavi-web`）
+- API は画面を配信しない（Vite の画面の配信 `app/frontend.py` は 2026-10-24 に外した）。画面は Cloudflare の Worker `docunavi-web`（`frontend`。2026-11-08 までは Vercel）
 - Cloud Run 向けの作り: `$PORT`、非 root、SIGTERM を直接受ける起動、Vertex AI の ADC
 
 ## 先に要る変更

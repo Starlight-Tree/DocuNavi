@@ -1,8 +1,0 @@
-**/__pycache__
-**/*.pyc
-staticfiles
-accessadmin/tests
-config/test_runner.py
-config/dev_db.py
-config/settings/test.py
-README.md

@@ -2,7 +2,7 @@
 
 全体の方針・禁止事項は、ルートの [CLAUDE.md](../CLAUDE.md)。使い方・環境変数・E2E・仕様メモは [README.md](README.md)。UI/UX の変更は、ルートの CLAUDE.md の「UI/UX」の節と `.claude/rules/ui-review.md`（モックの承認が先）。
 
-Vercel が配信する画面。`main` へのプッシュで本番が更新される。API は別オリジン（Cloud Run の FastAPI。`/chat/stream` だけは Go の SSE 中継 `ops/sse-relay/`）。**画面はブラウザーだけで描く SPA**（`app/client-app.tsx` が `src/Root.tsx` を `ssr: false` で読む）。サーバー側の処理（Server Components の取得、Route Handlers、Server Actions）を足さない。
+Cloudflare の Worker `docunavi-web`（OpenNext）が配信する画面。本番へは、`main` へのプッシュでは出ない（ユーザーが手動の `deploy.yml` を実行する）。API は別オリジン（Cloud Run の FastAPI。`/chat/stream` だけは Go の SSE 中継 `ops/sse-relay/`）。**画面はブラウザーだけで描く SPA**（`app/client-app.tsx` が `src/Root.tsx` を `ssr: false` で読む）。サーバー側の処理（Server Components の取得、Route Handlers、Server Actions）を足さない（例外: `app/api/auth/[...all]/route.ts`。`/api/auth/*` をデータ用 Worker へ中継するだけ）。
 
 ## 層の境界（依存は上から下の一方向）
 
@@ -10,11 +10,11 @@ Vercel が配信する画面。`main` へのプッシュで本番が更新され
 |---|---|---|---|
 | ページ | `app/` | App Router の入口だけ（`page.tsx` → `client-app.tsx`） | 画面の中身 |
 | 画面の骨格 | `src/Root.tsx` `src/App.tsx` | プロバイダーの組み立て、タブ・URL に応じた画面の切り替え | API の呼び出し |
-| コンポーネント | `src/components/` | 表示と入力。状態は props で受ける | `fetch`、環境変数、Supabase |
+| コンポーネント | `src/components/` | 表示と入力。状態は props で受ける | `fetch`、環境変数、認証の SDK |
 | hooks | `src/hooks/` | 取得・状態・副作用。`api/` と `lib/` を組み合わせる | JSX |
 | 共通の部品 | `src/hooks/useLoaded.ts` | `Loaded<T>`（loading / error / ready）、`useLoaded`、`useAuthedJsonFetch`。資料・会話・資料グループ・対象と資料種別の hooks が共有する | 個別の API の知識 |
 | APIクライアント | `src/api/` | `fetch`、応答の検証、固定のエラー文、型（`chat` `collections` `classifications` `documents` `graph` `threads`） | React、状態 |
-| 認証 | `src/auth/` | Supabase Auth（`supabase.ts` だけが SDK を持つ）、トークン付き `fetch`（`authFetch.ts`）、ログイン状態（`AuthContext.tsx`） | チャットの知識 |
+| 認証 | `src/auth/` | Better Auth（`betterAuth.ts` だけが SDK を持つ）、トークン付き `fetch`（`authFetch.ts`）、ログイン状態（`AuthContext.tsx`） | チャットの知識 |
 | 純粋な関数 | `src/lib/` | 出典の取り出し、関係図の計算、URL・ストレージ、整形。React に依存しない（`markdown.tsx` を除く） | 通信 |
 | テスト | `src/**/*.test.ts(x)`、`src/test/`、`e2e/` | 単体・UI は Vitest（`fetch` を差し替える）。E2E は Playwright（偽の LLM・偽の検索） | 実 API |
 
@@ -24,7 +24,7 @@ Vercel が配信する画面。`main` へのプッシュで本番が更新され
 
 ## 守ること
 
-- **`NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。** 入れてよいのは Supabase の URL と publishable key、API・中継の URL だけ。secret key・`DATABASE_URL`・`GEMINI_API_KEY` を入れない。読むのは `api/chat.ts`（API・中継の URL）と `auth/supabase.ts` だけ。
+- **`NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。** 入れてよいのは API・中継・認証（Better Auth）の URL と、ログインの有効/無効の値だけ。秘密鍵・`D1_API_TOKEN`・`GEMINI_API_KEY` を入れない。読むのは `api/chat.ts`（API・中継の URL）と `auth/betterAuth.ts`（`NEXT_PUBLIC_AUTH_ENABLED` `NEXT_PUBLIC_AUTH_BASE_URL`）だけ。
 - **サーバーのエラー本文を画面に出さない。** 固定のメッセージにする（`api/` の `ChatApiError`）。ただし、サーバーが固定の日本語の `detail` を返す 401 / 403 / 429 / 500 / 502 / 503 / 504 は、その文をそのまま見せる（`api/chat.ts` の `SERVER_DETAIL_STATUSES`。503 は `ops/sse-relay/` の上限の文面と対）。
 - **返答は HTML として解釈しない。** `dangerouslySetInnerHTML` を使わない。
 - **履歴・資料グループの権限はサーバーが決める。** 画面で隠すだけにしない。権限の単位は資料グループ（`collection`）のまま。チャットの質問対象は「対象」（`target`。`GET /targets`）で、検索は「見える資料 ∩ 対象」。
@@ -32,7 +32,7 @@ Vercel が配信する画面。`main` へのプッシュで本番が更新され
   `useChat` の範囲は `{all | target | collection}`。対象と `collection` は同時に送らない（サーバーが 422）。旧 `?collection=` の URL は、資料一覧の「旧フィルター」として知らせ、解除できる（対象と同時なら AND）。
 - **二重送信を防ぐ**（`useChat.ts` の `pendingRef`）。**停止は切断**（サーバーが LLM 呼び出しを取り消す）。この 2 つを壊さない。
 - **依存を足さない・上げない**（`package.json` と `package-lock.json`）。変えるときは承認を得る。
-- **デプロイしない。** 本番は `main` へのプッシュ（承認が要る）で更新される。`vercel` の書き込み系 MCP・CLI を使わない。
+- **デプロイしない。** 本番は、ユーザーが手動で実行する `deploy.yml`（Environment の承認つき）で更新される。`wrangler deploy` などの書き込み系を、自分で実行しない。
 
 ## 検査（変更したら実行する）
 

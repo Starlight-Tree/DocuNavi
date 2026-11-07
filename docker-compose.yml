@@ -3,36 +3,6 @@
 name: docunavi
 
 services:
-  # 資料の検索と会話履歴用のローカル Postgres（pgvector 入り。本番の Supabase とは別）。
-  # ホストにポートを公開せず、internal の backend-net（外へも出られない）にだけ置く。api からだけ db:5432 で届く。
-  # 空の状態で始まる。資料の取り込みと埋め込みは、api が healthy になってから別に行う（docs/development.md の「ローカルの db」）。
-  db:
-    image: pgvector/pgvector:0.8.7-pg17
-    container_name: docunavi-db
-    # 表示用ラベル（.vscode/settings.json の groupByLabel が読む）。動作には影響しない。
-    labels:
-      local.ui.group: "app-docunavi"
-    environment:
-      POSTGRES_DB: docunavi
-      POSTGRES_PASSWORD: "${LOCAL_DB_PASSWORD:-docunavi-local}"
-      # db/local-init/01-bootstrap.sh が chatbot_app のパスワードに使う
-      APP_DB_PASSWORD: "${LOCAL_DB_PASSWORD:-docunavi-local}"
-    volumes:
-      - pg-data:/var/lib/postgresql/data
-      # pg-data が空の初回の起動でだけ実行される（ロール・スキーマ・vector 型の「入れ物」だけ。テーブルは作らない）
-      - ./db/local-init:/docker-entrypoint-initdb.d:ro
-      # マイグレーションを db の中から psql で適用するため（手順は docs/development.md）。起動時には実行されない
-      - ./supabase/migrations:/migrations:ro
-    networks:
-      - backend-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d docunavi"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
-
   api:
     build:
       context: .
@@ -49,15 +19,8 @@ services:
     environment:
       # ホスト↔コンテナ間のボリュームでファイル変更通知が届かない環境（Docker Desktop 等）向け
       WATCHFILES_FORCE_POLLING: "true"
-      # .env の DATABASE_URL（本番と同じ DB のことがある）は使わず、compose の db に向ける（environment は env_file より優先される）。
-      # ロールは db/local-init/01-bootstrap.sh が作る chatbot_app。パスワードに URL で特別な文字（@ : / など）は使えない
-      DATABASE_URL: "postgresql://chatbot_app:${LOCAL_DB_PASSWORD:-docunavi-local}@db:5432/docunavi"
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
       - frontend-net
-      - backend-net
     volumes:
       # app/ の親が /code になるため `app.main:app` のモジュールパスが保たれ、
       # tools.py の ../../storage/pdf も /code/storage/pdf に解決される。
@@ -75,8 +38,8 @@ services:
 
   # 本番相当の起動の確認用（profile `prod`。普段の `docker compose up` や開発コンテナの runServices には含まれない）。
   # `api` との違い: マウントなし・--reload なし（イメージに COPY したコードを、Dockerfile の CMD = hypercorn でそのまま動かす）、ポート非公開、再起動しない。
-  # 本番（Cloud Run）と同じイメージの作りと起動コマンドが、ローカルの db に対して起動検査を通るかを見るためのもの。画面（frontend）は付けない。
-  # 起動と確認: docker compose up -d --build db api-prod → docker compose exec api-prod …（docs/development.md の「本番相当の起動の確認」）
+  # 本番（Cloud Run）と同じイメージの作りと起動コマンドが、起動検査を通るかを見るためのもの（ローカルの api は D1 につながない）。画面（frontend）は付けない。
+  # 起動と確認: docker compose up -d --build api-prod → docker compose exec api-prod …（docs/development.md の「本番相当の起動の確認」）
   api-prod:
     profiles: ["prod"]
     build:
@@ -86,15 +49,8 @@ services:
     env_file:
       - path: .env
         required: false
-    environment:
-      # api と同じく、.env の DATABASE_URL は使わず、compose の db に向ける
-      DATABASE_URL: "postgresql://chatbot_app:${LOCAL_DB_PASSWORD:-docunavi-local}@db:5432/docunavi"
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
       - frontend-net
-      - backend-net
     # command・volumes・ports は置かない（Dockerfile の CMD がそのまま動く。$PORT は未指定なので 8000）
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -107,7 +63,7 @@ services:
   # 画面の開発サーバー（frontend/ の next dev。http://localhost:3000）。api とは別のコンテナで、ホットリロードで動く。
   # /chat /health /documents /threads は、next.config.ts の rewrites が、サービス名 api（Compose 内の名前解決）へ転送する
   # （API_PROXY_TARGET。NEXT_PUBLIC_API_BASE_URL は空にして、ブラウザーからは同じオリジンに見せる）。
-  # api が healthy になってから起動する。本番の画面は Vercel が配信し、api（Cloud Run）は画面を配信しない。
+  # api が healthy になってから起動する。本番の画面は Cloudflare の Worker が配信し、api（Cloud Run）は画面を配信しない。
   frontend:
     image: node:24-slim
     container_name: docunavi-frontend
@@ -143,15 +99,10 @@ services:
       retries: 30
 
 # frontend-net: frontend と api（api は Gemini など外へも出る。frontend は npm install で外へ出る）。
-# backend-net: api と db だけ。internal なので、db は外へ出られず、ホストからも届かない。
 networks:
   frontend-net:
     name: docunavi-frontend-net
-  backend-net:
-    name: docunavi-backend-net
-    internal: true
 
 volumes:
   frontend_next_node_modules:
   frontend_next_cache:
-  pg-data:

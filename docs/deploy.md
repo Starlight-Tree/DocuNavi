@@ -2,7 +2,7 @@
 
 **本番環境で実行済みです（2026-10-20 初回公開）。** 本文書の手順に基づき、Cloud Run へのサービス配備・公開、Cloud Build でのビルド、Secret Manager やサービスアカウントの連携、およびバッチ Job や予算ガードが本番稼働しています（実際に通った手順やつまずきの詳細は末尾の「実際に通った記録（2026-10-20）」を参照）。
 
-**資料の検索が DB のベクトル検索になったため（[search-design.md](search-design.md)）、本物の LLM のデプロイには `DATABASE_URL` が必須です**
+**資料の検索が Vectorize + D1 の検索になったため（[search-design.md](search-design.md)）、本物の LLM のデプロイには `D1_API_URL` と `D1_API_TOKEN`（データ用 Worker `docunavi-api`）が必須です**
 （下の C。「任意」ではありません）。さらに、質問の埋め込みは API キーで呼ぶので、**A（Vertex AI）でも `GEMINI_API_KEY` の Secret が要ります**
 （B の Secret の作り方。`EMBEDDING_USE_VERTEXAI=true` にした場合は、埋め込みも Vertex AI になりキーは不要。[configuration.md](configuration.md) の「埋め込みを Vertex AI で呼ぶ」。本番は未切り替え）。本番では `GEMINI_API_KEY` と `DATABASE_URL` を Secret Manager から注入して稼働させています。
 本番の Cloud Run（`docunavi-00025-qey`）には `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認）、LLM は B（キー）の経路です。Secret の参照の中身は**要確認**です。
@@ -180,8 +180,8 @@ as_me gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$R
   --update-secrets "GEMINI_API_KEY_PAID=gemini-api-key-paid:latest"
 ```
 
-- **`--set-secrets` ではなく `--update-secrets` を使う。** `--set-secrets` は既存の Secret を置き換える。上の B のデプロイの例（`GEMINI_API_KEY` と有料キーの 2 つだけ）をそのまま使うと、`DATABASE_URL` が外れて起動に失敗する。
-  足したあとは、`gcloud run services describe` で `GEMINI_API_KEY` と `DATABASE_URL` が残っていることを確かめる。
+- **`--set-secrets` ではなく `--update-secrets` を使う。** `--set-secrets` は既存の Secret を置き換える。上の B のデプロイの例（`GEMINI_API_KEY` と有料キーの 2 つだけ）をそのまま使うと、`D1_API_TOKEN` が外れて起動に失敗する。
+  足したあとは、`gcloud run services describe` で `GEMINI_API_KEY` と `D1_API_TOKEN` が残っていることを確かめる。
 - **AI Studio の一覧に出すには、プロジェクトのインポートが要る。** 一覧には、取り込んだプロジェクトのキーだけが出る（「プロジェクトをインポート」で `docunavi-app` を選ぶ。`docunavi-ops` は取り込まない）。
   CLI で作ったキーは Cloud Console の「API とサービス → 認証情報」にも出る。
 - **有料の階層（Tier 1）にするには、AI Studio で最低 $5 の前払いが要る。** 請求階層が「無料トライアル」・ステータスが「前払いが必要」のうちは、有料の枠として使える保証がない。
@@ -190,20 +190,15 @@ as_me gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$R
 - **前払いの残高が尽きると、有料キーは 402 を返す。** 切り替えの条件は 429 だけなので、その場合は切り替わらず、無料キーの 429 がそのまま返る。
 - 2026-10-20 の記録: `docunavi-app` が Tier 1 と表示され、前払い ¥800 を購入した（利用者の報告）。有料キーでの実 API の呼び出しは確認済み（同日、Secret の値で `gemini-3.1-flash-lite` を 1 回呼んで HTTP 200。キーは 39 文字で、Tier 1 の課金も通っている。利用者が実行した結果の報告）。本物の 429 での切り替えと 60 秒の保持は未確認。
 
-### C. DB に接続する（本物の LLM では必須）
+### C. データ用 Worker に接続する（本物の LLM では必須）
 
-`DATABASE_URL` は、資料の検索（DB のベクトル検索）と会話履歴の保存先を兼ねます。無いと、本物の LLM では起動に失敗します（[configuration.md](configuration.md) の「資料の検索」「会話履歴の保存先」）。
-接続 URL はパスワードを含むので、キーと同じく **Secret Manager から渡します。**
+`D1_API_URL`（データ用 Worker の URL。公開してよい値）と `D1_API_TOKEN`（Secret `d1-api-token`）は、資料の検索（Vectorize + D1）と会話履歴の保存先を兼ねます。
+無いと、本物の LLM では起動に失敗します（[configuration.md](configuration.md) の「資料の検索」「会話履歴の保存先」）。
+トークンは Worker の `DATA_API_TOKEN` に対応する値で、キーと同じく **Secret Manager から渡します。** Secret `d1-api-token` は 2026-11-07 に作成済みです
+（作り方と移行の経緯は [cloudflare-migration.md](cloudflare-migration.md)）。新しい実行用サービスアカウントで使うときは、読み取りを許します。
 
 ```bash
-read -rsp 'DATABASE_URL: ' DATABASE_URL; echo
-# 貼り付けの先頭の 1 文字が欠けた事故があったので、先頭を確かめてから登録する（下の「実際に通った記録」）
-case "$DATABASE_URL" in
-  postgresql://*) printf '%s' "$DATABASE_URL" | as_me gcloud secrets create database-url --data-file=- --project "$PROJECT_ID" ;;
-  *) echo "先頭が postgresql:// ではありません。登録しません。" ;;
-esac
-unset DATABASE_URL
-as_me gcloud secrets add-iam-policy-binding database-url \
+as_me gcloud secrets add-iam-policy-binding d1-api-token \
   --member="serviceAccount:${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role=roles/secretmanager.secretAccessor --project "$PROJECT_ID"
 ```
@@ -211,23 +206,21 @@ as_me gcloud secrets add-iam-policy-binding database-url \
 デプロイのコマンドに、次を足します（A では `--set-env-vars` と並べて、B では `--set-secrets` の値をカンマでつなぎます）。
 
 ```bash
-  --set-secrets "DATABASE_URL=database-url:latest"
+  --set-env-vars "D1_API_URL=https://docunavi-api.wataru-apps.workers.dev" \
+  --set-secrets "D1_API_TOKEN=d1-api-token:latest"
 ```
 
-- `--max-instances` × `DATABASE_POOL_MAX_SIZE`（既定 5）が、DB の接続数の上限に収まるようにします（2 インスタンスなら 10 本）。
-- DB に届かないと、**起動に失敗してリビジョンが Ready になりません**（メモリへは切り替わりません）。ログで原因を確かめます。
-- Cloud Run から Supabase への接続は、**プーラーの URL（ポート 6543、transaction mode）で届くことを確かめました（2026-10-20。`/health` の `history` が `postgres`）。**
-  直接接続は既定で IPv6 のため、IPv4 で届くプーラーの接続 URL を使います。
-- 会話履歴は、**週 1 回の Job が、最後の動きから 7 日たった会話を削除します**（2026-10-20 に Job と Scheduler を作成。方針の 90 日は変えていません）。手順と確認の記録は、次の D です。
+- Worker に届かないと、**起動に失敗してリビジョンが Ready になりません**（メモリへは切り替わりません）。ログで原因を確かめます。
+- 現在アクセスできるサービスアカウントは `docunavi-run`（API）、`docunavi-mcp`（MCP）、`docunavi-ingester`（取り込みと履歴削除のジョブ）です（2026-11-08 に確認）。
+- 会話履歴の削除は、Cloud Run Job `docunavi-history-cleanup`（下の D）です。**2026-11-08 から `--apply` なし（件数の表示だけ）で動いていて、履歴は消えません。**
 
 ### D. 会話履歴の削除（Cloud Run Job + Cloud Scheduler。最初は 7 日）
 
-**削除の日数は、最初は 7 日にします**（2026-10-20 に決定）。7 日の動きは、ローカルの Postgres で、時刻を書き換えて日がたつ様子を作って確かめました
-（`tests/test_history_postgres.py` の `test_purge_at_seven_days_follows_the_clock`。6 日目は残り、8 日目に消え、続きを話した会話は残る）。本物の Supabase では未実行です。
+**削除の日数は、最初は 7 日にします**（2026-10-20 に決定）。
 方針の 90 日（`docs/configuration.md`）は変えておらず、様子を見て、下の `7` を書き換えて延ばします。
 最後の動きから 7 日たった会話は消え、サイドバーの一覧からも消えます（戻せません）。実行は週 1 回なので、実際に消えるのは 7〜14 日後です。
 
-**実行済みです（2026-10-20 JST、利用者が `as_me` で実行）。** B・C まで済んで、サービスが `/health` の `history` を `postgres` にして動いてからの手順です
+**実行済みです（2026-10-20 JST、利用者が `as_me` で実行）。** B・C まで済んで、サービスが `/health` の `history` を保存先（当時は `postgres`、いまは `d1`）にして動いてからの手順です
 （Cloud Run が始まる前は、Job も Scheduler も作れません。請求先アカウントと、上の準備 0・1 が前提です）。
 Job と Scheduler の作成は書き込みなので、あなたが実行します（`as_me`）。
 
@@ -243,7 +236,7 @@ Job と Scheduler の作成は書き込みなので、あなたが実行しま�
 - 削除の実体は `python -m app.history_admin --older-than-days 7 --apply`（[configuration.md](configuration.md)）。同じ条件で何度実行しても、
   消える会話は「7 日以上動きのない会話」だけなので、再実行されても害はありません（一覧を取ってから消すまでに新しい発言が入った会話が消えうる点だけは、`history_admin` の説明のとおり）。
 - 削除のために HTTP ルートは作りません（認証が無いため）。Job はアプリのイメージを使い、コマンドだけを上書きします。
-- Job は `DATABASE_URL` の Secret（C の `database-url`）だけを渡します。LLM のキーは要りません。Cloud Run から DB に届くことは、C の確認（`/health`）が先です。
+- Job は `D1_API_URL` と `D1_API_TOKEN`（C の `d1-api-token`）だけを渡します。LLM のキーは要りません。データ用 Worker に届くことは、C の確認（`/health`）が先です。
 
 ```bash
 # 1. Cloud Scheduler の API を有効にする（初回だけ）
@@ -259,13 +252,15 @@ as_me gcloud run jobs create "$JOB" \
   --project "$PROJECT_ID" --region "$REGION" \
   --image "$IMAGE" \
   --service-account "${RUN_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-secrets "DATABASE_URL=database-url:latest" \
+  --set-env-vars "D1_API_URL=https://docunavi-api.wataru-apps.workers.dev" \
+  --set-secrets "D1_API_TOKEN=d1-api-token:latest" \
   --command python \
   --args=-m,app.history_admin,--older-than-days,7 \
   --max-retries 1 --task-timeout 300
 ```
 
 3 では、わざと `--apply` を付けていません（件数を表示するだけの Job）。最初の 1 回は手動で実行し、ログで件数を見てから `--apply` を足します。
+**2026-11-08 の時点で、本番の Job は D1 に向けて、5 の `--apply` を足していない状態です**（イメージは `docunavi:37ef884`）。`--apply` を戻す時期は未決です。
 
 ```bash
 # 4. 手動で 1 回実行する（件数を表示するだけ。--wait で終わるまで待つ）
@@ -298,8 +293,8 @@ as_me gcloud scheduler jobs create http "${JOB}-weekly" \
   上の `logging read` で「削除した会話: N 件」を見ます。Scheduler から動いたかは、`run jobs executions list` の「RUN BY」が Scheduler 用のアカウントで、完了していれば分かります（2026-10-20 に確認済み。ただし、その実行の「削除した会話: N 件」の行そのものは読んでいません）。
 - **イメージの更新:** Job のイメージは作った時点のものです。サービスをデプロイし直したら、`as_me gcloud run jobs update "$JOB" --image "$IMAGE" …` で合わせます
   （古いイメージでも、`history_admin` が変わらなければ動きます）。
-- **確認済み（2026-10-20）:** Job の実行（イメージに `python` と `history_admin` が入って動く）、Cloud Run の Job から Supabase への接続（件数 0 件の表示まで）、Scheduler から Job を呼ぶ権限、`--args` での `--apply` の追加。
-- **未確認:** 実際に会話が削除される動き。`history_admin` の `--apply` は、Supabase（実 DB）では `--thread-id` でだけ確かめていて、`--older-than-days --apply` で消えた実績はまだ無い（古い会話が無いため。ローカルと CI の Postgres では確認済み）。
+- **確認済み:** Job の実行（イメージに `python` と `history_admin` が入って動く）、Scheduler から Job を呼ぶ権限、`--args` での `--apply` の追加（2026-10-20）。D1 に向けた Job の実行（件数 0 件の表示、`exit(0)`）は 2026-11-08 に確認した。
+- **未確認:** 実際に会話が削除される動き。`--older-than-days --apply` で消えた実績は、D1 ではまだ無い（古い会話が無いため）。
 - **失敗に気づく:** 失敗しても通知は出ません（Cloud Monitoring のアラートは未設定）。当面は、月に 1 度、`logging read` で最後の実行を見ます。
 
 ### 値の根拠
@@ -320,9 +315,9 @@ as_me gcloud scheduler jobs create http "${JOB}-weekly" \
 
 | 守り | 設定 | 備考 |
 |---|---|---|
-| 費用の上限 | `--max-instances 2`（上の A に入っている） | `2 × DATABASE_POOL_MAX_SIZE` が DB の接続数に収まること（C） |
+| 費用の上限 | `--max-instances 2`（上の A に入っている） | |
 | 予算アラート | 下の `budgets create` | 通知だけで、使用は止まらない。上限そのものは `--max-instances` |
-| ログイン | `AUTH_MODE=required` と `SUPABASE_URL`（[configuration.md](configuration.md) の「ログイン（認証）」） | 起動時に JWKS を取得する。取れなければリビジョンが Ready にならない |
+| ログイン | `AUTH_MODE=required` と `AUTH_BASE_URL`・`AUTH_AUDIENCE`（[configuration.md](configuration.md) の「ログイン（認証）」） | 起動時に JWKS を取得する。取れなければリビジョンが Ready にならない |
 | CORS | `CORS_ORIGINS` | 画面は同じオリジンから配信されるので、CORS は要らない。**空**（何も許可しない）か、サービスの URL に絞る。`*` のままにしない |
 
 ```bash
@@ -333,21 +328,21 @@ as_me gcloud billing budgets create --billing-account=<請求先アカウント 
   --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0
 ```
 
-デプロイのコマンドの `--set-env-vars` に足す（`SUPABASE_URL` は公開してよい値だが、このリポジトリには書かない）:
+デプロイのコマンドの `--set-env-vars` に足す（`AUTH_BASE_URL` は画面の Worker のオリジンで、公開してよい値）:
 
 ```bash
-  AUTH_MODE=required,SUPABASE_URL=<https://<ref>.supabase.co>,CORS_ORIGINS=<画面（Vercel）のオリジン。例: https://….vercel.app>
+  AUTH_MODE=required,AUTH_BASE_URL=<画面（Worker `docunavi-web`）のオリジン>,AUTH_AUDIENCE=docunavi,CORS_ORIGINS=<画面（Worker `docunavi-web`）のオリジン。例: https://docunavi-web.wataru-apps.workers.dev>
 ```
 
 **未対応（公開の前に要る）:**
 
-- **画面のログインは、画面側（Vercel の `frontend`）の環境変数 `NEXT_PUBLIC_SUPABASE_*` で有効にする。** Cloud Run のイメージに画面の設定は入らない（2026-10-24 から。画面は Cloud Run が配信しない）。画面にログイン設定が無いと、`AUTH_MODE=required` では質問できない（`/chat/stream` が 401）。
-- トークンの期限切れ後の更新は未確認（Cloud Run から Supabase の DB と JWKS に届くことは、2026-10-20 に確かめた）。
+- **画面のログインは、画面側（`frontend`）の環境変数で有効にする（2026-10 の当時は Vercel の `NEXT_PUBLIC_SUPABASE_*`。2026-11-08 からは Worker のビルドで `NEXT_PUBLIC_AUTH_ENABLED=1`、認証は Better Auth）。** Cloud Run のイメージに画面の設定は入らない（2026-10-24 から。画面は Cloud Run が配信しない）。画面にログイン設定が無いと、`AUTH_MODE=required` では質問できない（`/chat/stream` が 401）。
+- トークンの期限切れ後の更新は未確認。
 - 課金の有効化は、このセッションでは確認できなかった（gcloud にログインしていない）。
 
 ### F. イメージのビルド（`cloudbuild.yaml`）
 
-イメージは API だけです（画面は Vercel の `frontend` が配信するので、ビルド引数も画面の設定もありません。2026-10-24 から）。
+イメージは API だけです（画面は Worker `docunavi-web`（`frontend`）が配信するので、ビルド引数も画面の設定もありません。2026-10-24 から）。
 `--source .` でも同じイメージができますが、Artifact Registry に置くイメージの名前（コミットの短縮 SHA）を決めるために、`cloudbuild.yaml` を使います（`scripts/preview.sh build` も同じ）。
 配備は、できたイメージを `--image` で行います。
 **Cloud Build での実行は確かめました（2026-10-20。約 1 分半で SUCCESS。この時点のイメージは、Vite の画面の設定を埋め込んでいた）。画面を外した今のイメージを Cloud Build でビルドして配備した記録は、まだありません（`cloudbuild.yaml` の内容は `tests/test_cloudbuild.py` が確かめる）。**
@@ -485,7 +480,7 @@ GUARD_SA=budget-guard
 ```bash
 URL=$(as_me gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')
 TOKEN=$(as_me gcloud auth print-identity-token)
-curl -s -H "Authorization: Bearer $TOKEN" "$URL/health"   # {"status":"ok","mode":"gemini","history":"postgres"} なら本物の LLM と DB に繋がっている
+curl -s -H "Authorization: Bearer $TOKEN" "$URL/health"   # {"status":"ok","mode":"gemini","history":"d1"} なら本物の LLM と D1 に繋がっている
 curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" "$URL/"   # 200
 unset TOKEN
 ```
@@ -504,7 +499,7 @@ curl -s localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"
 ```
 
 - `mode` が `mock` なら、認証の設定が届いていません。
-- `history` が `memory` なら、`DATABASE_URL` が届いていません（C を使う場合）。
+- `history` が `memory` なら、`D1_API_URL` が届いていません（C を使う場合）。
 - 500 は、モデル名やロケーション、権限の誤りの可能性が高いです。Vertex AI はリージョンごとに提供モデルが違うため、
   `GEMINI_MODEL` と `GOOGLE_CLOUD_LOCATION` を確認してください（[configuration.md](configuration.md)）。
 - ログは `gcloud run services logs read "$SERVICE" --project "$PROJECT_ID" --region "$REGION"`
@@ -532,7 +527,7 @@ curl -s localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"
 ## タグ付きプレビュー（本番に流す前に、画面を専用 URL で確かめる）
 
 **実行済み（2026-10-21）。** 手順 1〜4・7 は実際に通った（記録は節の末尾の「実際に通った記録（2026-10-21）」）。
-手順 5（Supabase のワイルドカード）と、タグ付き URL でのログインの戻り（手順 6 の前半）は、確かめていない（下の「注意と未確認」）。
+手順 5（ログインの戻り先）と、タグ付き URL でのログインの戻り（手順 6 の前半）は、確かめていない（下の「注意と未確認」）。
 フラグの名前は `gcloud run deploy --help` と `gcloud run services update-traffic --help` で確かめた。
 
 書き込みの 4 つ（ビルド・配備・昇格・ロールバック）は、`scripts/preview.sh`（`build` / `deploy <コミット> [<タグ>]` / `promote <タグ>` / `rollback <リビジョン>`）にまとめてある。
@@ -580,7 +575,7 @@ as_me gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
   --image "$IMAGE" --no-traffic --tag "$TAG"
 ```
 
-- **`--set-env-vars` と `--set-secrets` を付けない。** 付けると、既存の Secret の参照（`GEMINI_API_KEY_PAID` `DATABASE_URL` など）が置き換わって消える。イメージだけを変える。
+- **`--set-env-vars` と `--set-secrets` を付けない。** 付けると、既存の Secret の参照（`GEMINI_API_KEY_PAID` `D1_API_TOKEN` など）が置き換わって消える。イメージだけを変える。
 - `--no-traffic` は、デプロイ前に `LATEST` へ向いていたトラフィックを、そのときの具体的なリビジョンに固定してから新しいリビジョンを作る（`--help` の記述）。
   このサービスは、すでにリビジョン名で固定されている（`docunavi-00005-zl7`）ので、変わらない。以後の `LATEST` はトラフィックを受けない。
 
@@ -591,7 +586,7 @@ gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGIO
 ```
 
 見ること: 新しいリビジョンが `tag: <TAG>` と `url: https://<TAG>---…` を持ち、`percent` が付いていない（0%）こと。`PROD_REV` が `percent: 100` のままであること。
-続けて、タグ付き URL の `/health`（`mode` が `gemini`、`history` が `postgres`）。
+続けて、タグ付き URL の `/health`（`mode` が `gemini`、`history` が `d1`）。
 
 ```bash
 curl -s "https://${TAG}---<describe に出た、タグを除いたホスト名>/health"
@@ -600,21 +595,11 @@ curl -s "https://${TAG}---<describe に出た、タグを除いたホスト名>/
 サービスが公開（`allUsers`）なので、タグ付き URL も認証なしで届く（2026-10-21 に確認。`/` と `/health` が 200）。
 あわせて、新しいリビジョンの環境変数の名前と Secret の参照が、本番と同じであることを確かめる（`gcloud run revisions describe <リビジョン> --format=json` から、`env` の名前と `valueFrom` の有無だけを取り出す。値は出さない）。
 
-### 5. Supabase の Redirect URLs（初回だけ。あなた）
+### 5. ログインの戻り先（2026-11-08 に Supabase を廃止。手順は未整備）
 
-Authentication → URL Configuration → Redirect URLs に、次を 1 行足す（画面のみ。MCP と SQL では変えられない）。
-
-```
-https://*---docunavi-xe42miq4da-an.a.run.app/**
-```
-
-- 画面は `redirectTo` に `window.location.origin` を渡す（`frontend/src/auth/supabase.ts`）ので、コードの変更は要らない。Google 側の設定も変えない（Google の戻り先は Supabase）。
-- `*` は `.` と `/` を含まない文字列に一致する（Supabase の公式）。タグには `.` が入らないので、どのタグにも一致する。**実際の URL の形は、手順 4 の `describe` の出力で確かめる**（ハッシュ付きの URL の形で出る）。
-- **サービスの URL は 2 つの形がある。** `https://docunavi-xe42miq4da-an.a.run.app`（`gcloud` が出す形。タグ付き URL もこの形）と、
-  `https://docunavi-<PROJECT_NUMBER>.asia-northeast1.run.app`（プロジェクト番号の形。2026-10-21 に、本番の画面を開いていた URL）。どちらも同じサービスに届く。
-  上のワイルドカードは前者のタグ付き URL にだけ一致する。後者の形でログインを確かめるなら、`https://*---docunavi-<PROJECT_NUMBER>.asia-northeast1.run.app/**` も要る（未登録・未確認）。
-- 本番の Redirect URLs は `docs/deploy.md` の「実際に通った記録」の 8 のとおり、正規の URL 1 つ。ハッシュ付きの URL を本番の入口にしない方針は変えない。タグ付き URL は確認専用。
-- 登録後、手順 6 でログインがタグ付き URL に戻ることを確かめる。戻らない（Site URL に飛ぶ）なら、登録した文字列と実 URL を見比べる。
+旧環境では、Supabase の Redirect URLs にタグ付き URL のワイルドカードを足していました。Better Auth では、その設定は不要になりました。
+タグ付き URL（Cloud Run のプレビュー）でログインが戻るかは、**確かめていません**（画面の本番は Worker `docunavi-web` で、Cloud Run の API にはログインの戻り先がありません）。
+Cloud Run のタグ付き URL は API の確認用で、ログイン込みの画面の確認は Worker 側で行います。
 
 ### 6. 画面で確かめる（あなた）
 
@@ -694,7 +679,7 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
 
 **状態: 設定ファイルだけ書いた（2026-10-24）。トリガーも専用のサービスアカウントも未作成で、一度も動かしていない。**
 `deploy/*` のタグを push したときだけ、Cloud Build がビルドして `--no-traffic --tag` で配備する（`cloudbuild-deploy.yaml`）。
-役割の分け方は、`main` への push は Vercel（`frontend`）とテストだけ、Cloud Run はタグ push だけ。**本番のトラフィックは自動では変えない**（100% への切り替えは `./scripts/preview.sh promote`、戻すのは `rollback`。あなたが実行）。
+役割の分け方は、`main` への push はテストだけ（2026-11-08 までは Vercel の `frontend` も更新された。いまの画面は手動の `deploy.yml`）、Cloud Run はタグ push だけ。**本番のトラフィックは自動では変えない**（100% への切り替えは `./scripts/preview.sh promote`、戻すのは `rollback`。あなたが実行）。
 
 - タグ名は `deploy/<Cloud Run のタグ名>`（例: `deploy/h2c-20261024` → タグ `h2c-20261024`）。形が違えば、ビルドの前に止まる（検査のシェルは、手元で 7 通りの入力を確認済み）。
 - 配備は `--set-env-vars` `--set-secrets` `--use-http2` を付けない。環境変数・Secret・ポート名（`http1` か `h2c`）は、サービスの最新の設定を引き継ぐ。
@@ -750,6 +735,8 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
 ## 実際に通った記録（2026-10-20）
 
+> 2026-10-20 の初回公開の記録です（当時は Supabase の Postgres・Supabase Auth を使っていました。2026-11-08 に D1 + Better Auth へ移行）。日付つきの記録として残し、書き換えません。現在の手順は上の C・D です。
+
 上の節を、この順に `as_me`（あなた自身の権限）で実行して、公開まで通りました。ID（プロジェクト番号など）は書きません。
 
 **現状:** サービス `docunavi`（`asia-northeast1`、リビジョン `docunavi-00002-…`）、イメージのタグはコミットの短いハッシュ（`cc5709c`）、公開済み（`allUsers` に `roles/run.invoker`）。
@@ -771,7 +758,7 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
      --set-env-vars "AUTH_MODE=required,SUPABASE_URL=${SUPABASE_URL},CORS_ORIGINS=${WEB_ORIGIN}"
    ```
 
-   `AUTH_MODE` と `SUPABASE_URL` は `.env` ではなく、このフラグで渡します。`CORS_ORIGINS` は画面（Vercel）のオリジン（`WEB_ORIGIN`。画面と API は別オリジンなので、空や `*` のままにしない。本番は設定済み）。
+   `AUTH_MODE` と `SUPABASE_URL` は `.env` ではなく、このフラグで渡します。`CORS_ORIGINS` は画面（Worker `docunavi-web`）のオリジン（`WEB_ORIGIN`。画面と API は別オリジンなので、空や `*` のままにしない。本番は設定済み）。
 6. 「確かめる」の `curl`（ID トークン付き）。
 7. 公開（「公開する・戻す」）。
 8. **Supabase の Redirect URLs に、サービスの URL を足す**（画面のみ。MCP と SQL では変えられない）。Authentication → URL Configuration → Redirect URLs に `<サービスの URL>/**`。
@@ -812,7 +799,7 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
 ## 管理画面（`docunavi-admin`。ロードマップ ⑧ のフェーズ 4a）
 
-ロール別の資料グループの割り当て画面（Django Admin）は、別の非公開の Cloud Run サービス（`docunavi-admin`）として本番配備済みです（2026-10-26、ステージ R0〜R9 完了）。手順・環境変数・Secret・戻し方は [access-admin.md](access-admin.md) を参照してください。
+ロール別の資料グループの割り当て画面（Django Admin）は、別の非公開の Cloud Run サービス（`docunavi-admin`）として配備していました（2026-10-26、ステージ R0〜R9 完了）。**2026-11-08 に、サービス `docunavi-admin` とジョブ `docunavi-admin-migrate` を削除し、`ops/access_admin/` もリポジトリから削除しました。** 当時の手順・環境変数・Secret・戻し方は、廃止の記録として [access-admin.md](access-admin.md) に残してあります。
 
 ## 続き
 

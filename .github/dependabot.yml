@@ -13,13 +13,12 @@ updates:
     commit-message:
       prefix: ci
 
-  # Dockerfile のベースイメージ（FROM）を最新に保つ。Dockerfile は置き場所ごとに別のディレクトリ（ops/access_admin は管理画面）。
+  # Dockerfile のベースイメージ（FROM）を最新に保つ。Dockerfile は置き場所ごとに別のディレクトリ。
   - package-ecosystem: docker
     directories:
       - /
       - /.devcontainer
       - /ops/mcp_probe
-      - /ops/access_admin
       - /ops/mcp_search
       - /ops/r2_key_issuer
       - /ops/r2_wire

@@ -11,7 +11,7 @@ from evals.synth.validate import validate_body
 
 BIBLES = Path(__file__).resolve().parents[1] / "evals" / "synth" / "bibles"
 TARGETS = {"zahard", "minato-coffee", "tsubasa-dorm", "aoba-aw820"}
-DOC_TYPES = {"setting", "store-guide", "regulation", "manual"}  # supabase/migrations の document_types の語彙
+DOC_TYPES = {"setting", "store-guide", "regulation", "manual"}  # workers/api/migrations の document_types の語彙
 
 
 @pytest.fixture(scope="module")

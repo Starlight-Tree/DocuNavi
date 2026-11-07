@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 npm ci --no-audit --no-fund
-npx wrangler whoami >/dev/null 2>&1 || npx wrangler login
+if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then npx wrangler whoami >/dev/null 2>&1 || npx wrangler login; fi
 npx wrangler d1 migrations apply docunavi --remote
 npx wrangler deploy
 mkdir -p .secrets && chmod 700 .secrets

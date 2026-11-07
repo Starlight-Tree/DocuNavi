@@ -1,7 +1,7 @@
 # ドキュナビ（DocuNavi）フロントエンド（frontend）
 
 資料に答える RAG チャットボット（FastAPI バックエンド）の Web 画面です。Next.js（App Router）+ React + TypeScript で、
-**Vercel が配信します**。バックエンド（Cloud Run の FastAPI）は API だけを持ち、画面は配信しません（構成は [docs/target-architecture.md](../docs/target-architecture.md)）。
+**Cloudflare の Worker `docunavi-web`（OpenNext）が配信します**（デプロイは、ユーザーが手動で実行する `.github/workflows/deploy.yml`。`main` へのプッシュでは出ません）。バックエンド（Cloud Run の FastAPI）は API だけを持ち、画面は配信しません（構成は [docs/target-architecture.md](../docs/target-architecture.md)）。
 画面は今までどおりブラウザーだけで描きます（`app/client-app.tsx` が `src/Root.tsx` を `ssr: false` で読み込む SPA）。
 
 - メッセージの送信（`POST /chat/stream`）と、回答の逐次表示（SSE）。`thread_id` による会話の継続
@@ -43,7 +43,7 @@ Compose の `frontend` サービスも、この形（`API_PROXY_TARGET=http://ap
 ## UI モック（`/mock`）
 
 PC 向けの画面の整理案（左サイドバー + チャット / 資料 + 右パネル）を、サンプルデータで操作できる試作です。`src/mock/` に閉じていて、本体の画面・認証・API には触れません
-（通信も保存もしない。再読み込みで初期状態に戻る。回答は定型文）。`UI_MOCK=1` で起動・ビルドしたときだけ開き、それ以外（Vercel の本番を含む）では `/` へ戻ります（`next.config.ts`）。
+（通信も保存もしない。再読み込みで初期状態に戻る。回答は定型文）。`UI_MOCK=1` で起動・ビルドしたときだけ開き、それ以外（本番を含む）では `/` へ戻ります（`next.config.ts`）。
 
 ```bash
 cd frontend
@@ -75,7 +75,7 @@ UI_MOCK=1 npm run dev        # http://localhost:3000/mock（?view=documents で�
 
 | 変数 | 既定値 | 用途 |
 |---|---|---|
-| `NEXT_PUBLIC_API_BASE_URL` | 空（相対 URL） | API のベース URL。**ビルド時に埋め込まれる**。本番（Vercel）では Cloud Run の URL を設定し、バックエンドの `CORS_ORIGINS` に Vercel のオリジンを入れる |
+| `NEXT_PUBLIC_API_BASE_URL` | 空（相対 URL） | API のベース URL。**ビルド時に埋め込まれる**。本番（Worker）では、ビルドに使う `deploy-web.sh` が Cloud Run の URL を埋め込む。バックエンドの `CORS_ORIGINS` に、画面のオリジン（`docunavi-web.wataru-apps.workers.dev`）を入れる |
 | `NEXT_PUBLIC_STREAM_BASE_URL` | 空（`NEXT_PUBLIC_API_BASE_URL` を使う） | `/chat/stream` だけの接続先（Go の SSE 中継 [ops/sse-relay](../ops/sse-relay/README.md)）。**ビルド時に埋め込まれる**ので、変えるには再ビルド（再デプロイ）が要る。空に戻すと中継を通さない。ほかのエンドポイントは変わらない |
 | `API_PROXY_TARGET` | 未設定（転送しない） | 開発サーバーが API のパスを転送する先。**ビルド時に決まる**。`NEXT_PUBLIC_API_BASE_URL` を空にするときに使う |
 | `NEXT_PUBLIC_AUTH_ENABLED` / `NEXT_PUBLIC_AUTH_BASE_URL` | 空 | `1` か `true` で Google ログイン（Better Auth）を使う。**ビルド時に埋め込まれる**。認証の API は同じオリジンの `/api/auth/*`（`AUTH_PROXY_TARGET` の先へ中継）。`NEXT_PUBLIC_AUTH_BASE_URL` はテスト用の上書き |
@@ -102,7 +102,7 @@ frontend/
 ├── playwright.config.ts, e2e/
 └── src/
     ├── api/                  # chat.ts（トランスポート用の fetch と /health）、collections.ts、classifications.ts（/targets・/doc-types）、documents.ts、threads.ts、graph.ts
-    ├── auth/                 # Google ログイン（Better Auth）。types.ts = 窓口の型、supabase.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
+    ├── auth/                 # Google ログイン（Better Auth）。types.ts = 窓口の型、betterAuth.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
     ├── hooks/                # useChat（AI SDK の useChat を包む）、useBackendMode、useCollections、useDocuments、useThreads、useLoaded（取得状態 Loaded と認証つき fetch の共通部品）
     ├── lib/                  # relationGraph（関係図の選び方・並べ方・影響の分類）、sources（出典の取り出し）、storage、urlState、markdown ほか
     ├── components/           # AppSidebar / DocumentPanel / PanelHost / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen / DocumentsView / ThreadSidebar / RelationGraphView ほか

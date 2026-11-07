@@ -8,7 +8,6 @@ import logging
 import re
 import uuid
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -18,9 +17,6 @@ from app.api import collections
 from app.d1 import D1Error
 
 SECRET = "postgresql://user:pw@db.example.com/x AIzaSECRETKEY"
-MIGRATION = (
-    Path(__file__).resolve().parent.parent / "supabase" / "migrations" / "20261025205258_document_collections.sql"
-)
 
 
 def row(
@@ -218,40 +214,3 @@ def test_off_needs_no_token(client, use_pool, monkeypatch):
     monkeypatch.setenv("AUTH_MODE", "off")
     use_pool(FakePool(rows=[]))
     assert client.get("/collections").status_code == 200
-
-
-# --- マイグレーション 0006 の中身（文字列の検査。実際の適用は DB が要る） --------------------------------------
-
-
-def test_the_migration_name_pattern_matches_the_api_and_ingestion_pattern():
-    from app.api import documents
-    from app.ingestion import service
-
-    sql = MIGRATION.read_text(encoding="utf-8")
-    pattern = "^[A-Za-z0-9_-]{1,40}$"
-    assert pattern in sql
-    assert documents._COLLECTION_PATTERN.pattern == "[A-Za-z0-9_-]{1,40}"
-    assert service.COLLECTION_PATTERN.pattern == "[A-Za-z0-9_-]{1,40}"
-
-
-def test_the_migration_is_rerunnable_and_has_no_foreign_key():
-    sql = MIGRATION.read_text(encoding="utf-8")
-    code = "\n".join(line for line in sql.splitlines() if not line.lstrip().startswith("--")).lower()
-    assert "create table if not exists chatbot.document_collections" in code
-    assert "on conflict (name) do nothing" in code
-    assert "drop trigger if exists" in code and "create or replace function" in code
-    assert "references" not in code and "foreign key" not in code
-    assert "enable row level security" not in code
-    assert "grant select on chatbot.document_collections to chatbot_app" in code
-    # documents / chunks には触れない
-    assert "alter table chatbot.documents" not in code and "chatbot.chunks" not in code
-
-
-def test_the_seeded_groups_are_the_three_existing_ones_with_their_labels():
-    sql = MIGRATION.read_text(encoding="utf-8")
-    seeded = re.findall(r"\('([A-Za-z0-9_-]+)', '([^']+)', '([^']*)', (\d+)\)", sql)
-    assert [(n, label) for n, label, _, _ in seeded] == [
-        ("zahard", "設定資料"),
-        ("cafe", "店舗案内"),
-        ("guides", "規程・取扱説明書"),
-    ]

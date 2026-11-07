@@ -1,4 +1,4 @@
-# ---- 実行用イメージ（FastAPI + LangGraph。API だけ。画面は Vercel の frontend が配信する）-----------
+# ---- 実行用イメージ（FastAPI + LangGraph。API だけ。画面は Cloudflare の Worker `docunavi-web`（frontend）が配信する）-----------
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

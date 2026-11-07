@@ -59,9 +59,9 @@ _DETAIL_SCOPE_CHANGED = (
     "この会話の検索対象と違う検索対象が送られました。会話の途中では変えられません。"
     "検索対象を変えるときは、新しい会話を始めてください。"
 )
-# 検索対象（資料のグループ）の識別名。documents.collection と同じ形（supabase/migrations/20261018175020）
+# 検索対象（資料のグループ）の識別名。documents.collection と同じ形（workers/api/migrations/0001_schema.sql）
 COLLECTION_PATTERN = r"^[A-Za-z0-9_-]{1,40}$"
-# 質問の対象（documents.target）の識別名。document_targets.name と同じ形（supabase/migrations/20261103150000）
+# 質問の対象（documents.target）の識別名。document_targets.name と同じ形（workers/api/migrations/0001_schema.sql）
 TARGET_PATTERN = r"^[a-z0-9][a-z0-9-]{0,39}$"
 _DETAIL_BOTH_SCOPES = "target と collection は同時に指定できません。"
 _DETAIL_DOCUMENTS_AND_SCOPE = "document_ids は target・collection と同時に指定できません。"

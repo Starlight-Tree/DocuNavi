@@ -7,7 +7,6 @@
 3. 範囲（`scope`）を渡し忘れても、全件を検索しないこと。
 4. `ACCESS_MODE=off|shadow|enforce` の挙動（shadow は制限せず件数をログに出す。enforce は引けなければ 503）。
 5. 過去の会話は表示するが、いま見えないグループの検索結果に基づく回答は、画面にも LLM にも出さないこと。
-SQL が本物の Postgres で期待どおりに絞るかは tests/test_access_postgres.py（pgvector が要る検索の SQL だけは、どのテストでも動かせない）。
 """
 
 import asyncio
