@@ -328,7 +328,9 @@ def main() -> None:
     ap.add_argument("--sample", type=float, default=1.0, help="上流の /stats を読む間隔（秒）")
     ap.add_argument("--settle", type=float, default=15.0, help="終了後、上流の active が基準に戻るのを待つ最大秒数")
     ap.add_argument(
-        "--origin", default="https://docunavi-web.wataru-apps.workers.dev", help="Origin ヘッダー（断りの CORS の確認用）"
+        "--origin",
+        default="https://docunavi-web.wataru-apps.workers.dev",
+        help="Origin ヘッダー（断りの CORS の確認用）",
     )
     ap.add_argument(
         "--max-allowed",
