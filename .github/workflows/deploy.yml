@@ -1,6 +1,7 @@
 name: Deploy
 
-# main の CI が成功したあと、Cloudflare の 2 つの Worker（データ用 docunavi-api と画面用 docunavi-web）を本番へデプロイする。
+# Cloudflare の 2 つの Worker（データ用 docunavi-api と画面用 docunavi-web）を、手動の実行で本番へデプロイする。
+# ・自動では起動しない（workflow_dispatch だけ）。main の CI が成功したことは、実行する人が確かめる。
 # ・Environment「production」の必須レビュアーの承認を待つ（承認するまで、本番には何も書かない）。
 # ・Cloudflare の API トークンは GitHub に置かない。GitHub の OIDC トークンで Infisical にログインし、実行時に取る。
 #   Infisical のマシン ID は、Subject を environment:production に固定している（設定の値は .claude/rules/secrets.md）。
@@ -8,11 +9,8 @@ name: Deploy
 # ・アクションは、改ざんされたタグを掴まないよう、コミット SHA で固定している（コメントは対応するタグ）。
 
 on:
-  # workflow_run は、フォークの PR の CI からも起きうる。下の if で、main へのプッシュの CI だけに絞っている。
-  workflow_run:  # zizmor: ignore[dangerous-triggers] CI 成功後の連鎖。信頼しないコードは、チェックアウトも実行もしない
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  # 手動の実行だけ。画面の「Run workflow」で main を選ぶ（下の if で、main 以外は動かさない）。
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,10 +23,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy to Cloudflare (docunavi-api, docunavi-web)
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -38,8 +33,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # CI が通ったコミットそのものをデプロイする（承認を待つ間に main が進んでも、別のコミットは出さない）
-          ref: ${{ github.event.workflow_run.head_sha }}
+          # 実行を始めた時点のコミット（github.sha）をデプロイする。承認を待つ間に main が進んでも、別のコミットは出さない
+          ref: ${{ github.sha }}
           persist-credentials: false  # 後続のステップで git の認証は使わない
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:

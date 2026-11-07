@@ -1,7 +1,7 @@
 name: CI
 
-# テストとビルドだけを行う。デプロイは含まない。main の CI が成功すると、deploy.yml が Cloudflare へデプロイする
-# （Environment「production」の承認つき）。そのため、このワークフローの名前（CI）を変えない。
+# テストとビルドだけを行う。デプロイは含まない。Cloudflare へのデプロイは、deploy.yml を手動で実行する
+# （main の CI が成功したことを確かめてから。Environment「production」の承認つき）。
 # アクションは、改ざんされたタグを掴まないよう、コミット SHA で固定している（コメントは対応するタグ）。
 on:
   push:
