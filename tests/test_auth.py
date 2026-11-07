@@ -454,3 +454,26 @@ def test_app_starts_when_required_is_satisfied(required, signer):
     with TestClient(app) as started:
         assert _post(started, signer.token()).status_code == 200
         assert started.get("/health").status_code == 200  # /health は認証なし
+
+
+def test_fetch_jwks_document_sends_a_non_default_user_agent(monkeypatch):
+    """既定の Python-urllib は Cloudflare に 403（error 1010）で弾かれるので、UA を明示する。"""
+    seen = {}
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self, _limit):
+            return b'{"keys": []}'
+
+    def fake_urlopen(request, timeout):
+        seen["ua"] = request.get_header("User-agent")
+        return _Response()
+
+    monkeypatch.setattr(auth.urllib.request, "urlopen", fake_urlopen)
+    assert auth.fetch_jwks_document("https://example.test/jwks") == {"keys": []}
+    assert seen["ua"] and "urllib" not in seen["ua"].lower()

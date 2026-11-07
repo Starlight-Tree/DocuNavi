@@ -101,6 +101,9 @@ def _is_local_host(host: str | None) -> bool:
         return False
 
 
+_JWKS_USER_AGENT = "docunavi-api/1.0"
+
+
 def issuer() -> str:
     return auth_base_url()
 
@@ -112,7 +115,10 @@ def jwks_url() -> str:
 
 def fetch_jwks_document(url: str) -> dict[str, Any]:
     """JWKS を取得して JSON として返す（同期。呼び出し側がスレッドで実行する）。"""
-    request = urllib.request.Request(url, headers={"Accept": "application/json"})  # noqa: S310 (http/https は検証済み)
+    # 既定の UA（Python-urllib）は Cloudflare に 403（error 1010）で弾かれ、起動時の検査が落ちる。
+    request = urllib.request.Request(  # noqa: S310 (http/https は検証済み)
+        url, headers={"Accept": "application/json", "User-Agent": _JWKS_USER_AGENT}
+    )
     with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT_SECONDS) as response:  # noqa: S310
         body = response.read(_MAX_JWKS_BYTES + 1)
     if len(body) > _MAX_JWKS_BYTES:
