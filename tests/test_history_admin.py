@@ -1,5 +1,4 @@
-"""app/history_admin.py の、DB を使わない部分（引数の検査と、DATABASE_URL 未設定の扱い）。
-"""
+"""app/history_admin.py の、DB を使わない部分（引数の検査と、DATABASE_URL 未設定の扱い）。"""
 
 import pytest
 
