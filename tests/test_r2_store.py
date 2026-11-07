@@ -527,6 +527,24 @@ def test_the_json_variable_wins_over_the_file(tmp_path: Path) -> None:
     assert r2_store.config_from_env({**ENV, "R2_CREDENTIALS_FILE": str(path)}).access_key_id == KEY_ID
 
 
+def test_separate_key_variables_are_used_after_the_json_and_the_file(tmp_path: Path) -> None:
+    base = {"R2_ACCOUNT_ID": "acct", "R2_BUCKET": "b"}
+    keys = {"R2_ACCESS_KEY_ID": NEW_KEY_ID, "R2_SECRET_ACCESS_KEY": NEW_SECRET}
+    config = r2_store.config_from_env({**base, **keys})
+    assert config.access_key_id == NEW_KEY_ID and config.secret_access_key == NEW_SECRET
+    assert r2_store.config_from_env({**ENV, **keys}).access_key_id == KEY_ID  # JSON の変数が先
+    path = tmp_path / "credentials.json"
+    path.write_text(creds_json(KEY_ID, SECRET_KEY))
+    assert r2_store.config_from_env({**base, **keys, "R2_CREDENTIALS_FILE": str(path)}).access_key_id == KEY_ID
+
+
+def test_only_one_of_the_separate_key_variables_is_reported_as_missing() -> None:
+    env = {"R2_ACCOUNT_ID": "acct", "R2_BUCKET": "b", "R2_ACCESS_KEY_ID": KEY_ID}
+    with pytest.raises(r2_store.R2ConfigError) as error:
+        r2_store.config_from_env(env)
+    assert "missing: R2_CREDENTIALS_JSON" in str(error.value) and KEY_ID not in str(error.value)
+
+
 def test_an_unreadable_credentials_file_is_a_config_error_without_the_path(tmp_path: Path) -> None:
     env = {"R2_ACCOUNT_ID": "acct", "R2_BUCKET": "b", "R2_CREDENTIALS_FILE": str(tmp_path / "missing.json")}
     with pytest.raises(r2_store.R2ConfigError) as error:
