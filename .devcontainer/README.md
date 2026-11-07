@@ -323,7 +323,7 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 - **運用は CLI のみ**（ユーザーが決定、2026-11-02）。VS Code 拡張（`Infisical.infisical-vscode`）は使わない。`devcontainer.json` の `extensions` にも入れない。
 - **ログイン状態（2 つは別物）:**
   - CLI のマシンアイデンティティ（**Viewer 固定**）: `~/.infisical/identity/` の `client-id` と `client-secret`（ボリューム `infisical-config`。600）。ボリュームが残る限り残る。
-  - `infisical login`（ユーザーのログイン）は使わない。キーリングが無く、データ本体（`~/infisical-keyring`）がボリュームの外なので、リビルドで消える。
+  - `infisical login`（ユーザーのログイン。2026-11-07 から、利用者の決定で残す）: データ本体（`~/infisical-keyring`）は、`persist-infisical-login.sh` がボリューム（`~/.infisical/keyring`）へ移して symlink にする（`postStartCommand` が毎回呼ぶ）。再ビルドでも残る。暗号化のパスフレーズは同じボリュームの `infisical-config.json` にあるので、保管時の保護ではない。消すときは `infisical logout`。（方針は `.claude/rules/secrets.md`）
 - **資格情報を置く（利用者が端末で。値は引数・履歴・チャットに出ない）:**
   `bash -c 'umask 077; d=$HOME/.infisical/identity; mkdir -p "$d"; read -rp "Client ID: " i; printf %s "$i" > "$d/client-id"; read -rsp "Client Secret: " s; echo; printf %s "$s" > "$d/client-secret"; unset i s'`
 - **再ビルド後の確認（読み取りだけ。値は表示しない）:**

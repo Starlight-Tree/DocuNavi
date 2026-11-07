@@ -89,7 +89,7 @@
 	// （成功・登録済み・失敗のどれかが残る）。
 	// vercel（公式の Vercel MCP。.devcontainer/register-vercel-mcp.sh）も同じ形で登録する。ログは /tmp/register-vercel-mcp.log。
 	// Vercel プラグイン（.devcontainer/install-vercel-plugin.sh。project スコープ。導入済みなら何もしない）も同じ形で入れる。ログは /tmp/install-vercel-plugin.log。
-	"postStartCommand": "REGISTER_SUPABASE_WAIT_TRIES=4 bash .devcontainer/register-supabase-write.sh > /tmp/register-supabase-write.log 2>&1 || true; REGISTER_VERCEL_MCP_WAIT_TRIES=4 bash .devcontainer/register-vercel-mcp.sh > /tmp/register-vercel-mcp.log 2>&1 || true; REGISTER_INFISICAL_MCP_WAIT_TRIES=4 bash .devcontainer/register-infisical-mcp.sh > /tmp/register-infisical-mcp.log 2>&1 || true; INSTALL_VERCEL_PLUGIN_WAIT_TRIES=4 bash .devcontainer/install-vercel-plugin.sh > /tmp/install-vercel-plugin.log 2>&1 || true",
+	"postStartCommand": "bash .devcontainer/persist-infisical-login.sh > /tmp/persist-infisical-login.log 2>&1 || true; REGISTER_SUPABASE_WAIT_TRIES=4 bash .devcontainer/register-supabase-write.sh > /tmp/register-supabase-write.log 2>&1 || true; REGISTER_VERCEL_MCP_WAIT_TRIES=4 bash .devcontainer/register-vercel-mcp.sh > /tmp/register-vercel-mcp.log 2>&1 || true; REGISTER_INFISICAL_MCP_WAIT_TRIES=4 bash .devcontainer/register-infisical-mcp.sh > /tmp/register-infisical-mcp.log 2>&1 || true; INSTALL_VERCEL_PLUGIN_WAIT_TRIES=4 bash .devcontainer/install-vercel-plugin.sh > /tmp/install-vercel-plugin.log 2>&1 || true",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
