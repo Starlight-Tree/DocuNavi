@@ -229,6 +229,29 @@ def test_streaming_joins_the_text_drops_reasoning_and_counts_usage() -> None:
     assert llm.budget.used == pytest.approx(neurons_for(2000, 100))
 
 
+def test_numeric_content_fragments_are_kept_as_text() -> None:
+    """実 API は、数字だけの断片を数値で返すことがある（"地球の" "1" "/" "10" → 1 と 10 が数値）。"""
+    llm = model(
+        Upstream(sse(delta(content="地球の"), delta(content=1), delta(content="/"), delta(content=10), "[DONE]"))
+    )
+    assert run(collect(llm, HELLO)).content == "地球の1/10"
+    assert run(model(Upstream(completion(10))).ainvoke(HELLO)).content == "10"
+
+
+def test_reported_neurons_are_used_when_the_response_has_them() -> None:
+    llm = model(
+        Upstream(
+            sse(
+                delta(content="答え"),
+                {"choices": [], "usage": {"prompt_tokens": 21, "completion_tokens": 64, "neurons": 2.5}},
+                "[DONE]",
+            )
+        )
+    )
+    run(collect(llm, HELLO))
+    assert llm.budget.used == pytest.approx(2.5)
+
+
 def test_streaming_assembles_a_tool_call_from_fragments() -> None:
     fragments = [
         delta(tool_calls=[{"index": 0, "id": "t1", "function": {"name": "search_documents", "arguments": '{"que'}}]),
