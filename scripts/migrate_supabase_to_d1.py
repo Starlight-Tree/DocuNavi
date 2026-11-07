@@ -52,10 +52,33 @@ def _vocab(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{**r, "created_at": _ms(r["created_at"]), "updated_at": _ms(r["updated_at"])} for r in rows]
 
 
+def _migrate_images(db: SyncD1, images: list[dict[str, Any]]) -> None:
+    from app.r2_store import default_store
+
+    store = default_store()
+    image_cols = [
+        "id", "document_id", "kind", "status", "mime_type", "r2_key", "byte_size", "width", "height",
+        "document_hash", "prompt_sha256", "model", "created_at", "approved_at",
+    ]  # fmt: skip
+    rows = []
+    for img in images:
+        key = f"hero/{img['document_id']}/{img['id']}.{EXTENSIONS[img['mime_type']]}"
+        data = bytes(img["data"])
+        store.put(key, data, content_type=img["mime_type"])
+        rows.append({**img, "r2_key": key, "byte_size": len(data)})
+    _flush(db, [_insert("document_images", image_cols, r) for r in rows])
+    print(f"画像を R2 と D1 へ書きました: {len(rows)} 件")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Supabase → Cloudflare（D1 + Vectorize + R2）の一度きりの移行")
     parser.add_argument("--apply", action="store_true", help="実際に書き込む（無ければ件数を数えるだけ）")
     parser.add_argument("--skip-vectors", action="store_true", help="ベクトルを Vectorize へ送らない（SQL の検証用）")
+    parser.add_argument(
+        "--images-only",
+        action="store_true",
+        help="画像だけを R2 と D1 へ書く（documents の INSERT OR REPLACE が chunks を連鎖削除するので、稼働中の D1 にはこちらを使う）",
+    )
     parser.add_argument("--skip-images", action="store_true", help="画像を R2 へ送らない")
     args = parser.parse_args(argv)
 
@@ -114,6 +137,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     doc_meta = {d["id"]: d for d in documents}
     try:
         with SyncD1() as db:
+            if args.images_only:
+                _migrate_images(db, images)
+                return 0
             statements: list[tuple[str, list[Any]]] = []
             vocab_cols = ["name", "label", "description", "sort_order", "created_at", "updated_at"]
             for table, rows in (
@@ -155,21 +181,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"ベクトルを Vectorize へ送りました: {sent} 件")
 
             if images and not args.skip_images:
-                from app.r2_store import default_store
-
-                store = default_store()
-                image_cols = [
-                    "id", "document_id", "kind", "status", "mime_type", "r2_key", "byte_size", "width", "height",
-                    "document_hash", "prompt_sha256", "model", "created_at", "approved_at",
-                ]  # fmt: skip
-                rows = []
-                for img in images:
-                    key = f"hero/{img['document_id']}/{img['id']}.{EXTENSIONS[img['mime_type']]}"
-                    data = bytes(img["data"])
-                    store.put(key, data, content_type=img["mime_type"])
-                    rows.append({**img, "r2_key": key, "byte_size": len(data)})
-                _flush(db, [_insert("document_images", image_cols, r) for r in rows])
-                print(f"画像を R2 と D1 へ書きました: {len(rows)} 件")
+                _migrate_images(db, images)
 
             counts = {
                 t: db.execute(f"SELECT count(*) AS n FROM {t}")[0]["n"]
