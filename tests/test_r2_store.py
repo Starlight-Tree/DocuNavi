@@ -150,6 +150,11 @@ def test_collections_are_the_top_level_prefixes_across_pages(s3) -> None:
     assert r2_store.R2Store(s3, "b").collections() == ["cafe", "guides", "zahard"]
 
 
+def test_collections_leave_out_the_hero_image_prefix(s3) -> None:
+    s3.objects["hero/1/3.jpg"] = b"\xff\xd8"
+    assert r2_store.R2Store(s3, "b").collections() == ["cafe", "guides", "zahard"]
+
+
 def test_pdf_keys_are_under_the_prefix_and_only_pdfs(s3) -> None:
     s3.objects["cafe/readme.txt"] = b"x"
     s3.objects["cafe/UPPER.PDF"] = PDF_A

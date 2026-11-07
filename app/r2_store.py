@@ -46,6 +46,8 @@ _AUTH_CODES = {
     "403",
 }
 _CRED_KEYS = ("access_key_id", "secret_access_key")
+# 資料群ではないプレフィックス。ヒーロー画像（D1 の document_images.r2_key）が同じバケットの hero/ に入る
+NON_COLLECTION_PREFIXES = frozenset({"hero"})
 
 
 class R2ConfigError(Exception):
@@ -162,9 +164,9 @@ class R2Store:
             token = page["NextContinuationToken"]
 
     def collections(self) -> list[str]:
-        """バケット直下の「資料群」（`cafe/` のような最上位のプレフィックス）を名前順に。"""
+        """バケット直下の「資料群」（`cafe/` のような最上位のプレフィックス）を名前順に。画像の置き場（`hero/`）は含めない。"""
         names = [p["Prefix"].rstrip("/") for page in self._pages(Delimiter="/") for p in page.get("CommonPrefixes", [])]
-        return sorted(n for n in names if n)
+        return sorted(n for n in names if n and n not in NON_COLLECTION_PREFIXES)
 
     def pdf_keys(self, prefix: str) -> list[str]:
         """プレフィックス配下の PDF のキー（拡張子の大小は問わない）を名前順に。"""
