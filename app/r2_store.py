@@ -73,6 +73,10 @@ def config_from_env(env: Mapping[str, str] | None = None) -> R2Config:
             values["R2_CREDENTIALS_JSON"] = Path(path).read_text(encoding="utf-8").strip()
         except OSError:
             raise R2ConfigError("R2_CREDENTIALS_FILE cannot be read") from None
+    key_id, secret = env.get("R2_ACCESS_KEY_ID", "").strip(), env.get("R2_SECRET_ACCESS_KEY", "").strip()
+    # Infisical など、鍵を 2 つの変数で渡す経路（JSON・ファイルが先）
+    if not values["R2_CREDENTIALS_JSON"] and key_id and secret:
+        values["R2_CREDENTIALS_JSON"] = json.dumps({"access_key_id": key_id, "secret_access_key": secret})
     missing = [name for name, value in values.items() if not value]
     if missing:
         raise R2ConfigError(f"missing: {', '.join(missing)}")
