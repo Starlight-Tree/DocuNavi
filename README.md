@@ -4,17 +4,17 @@
 架空の惑星「ザーハード」の設定資料（`zahard/`）、架空のカフェチェーン「みなとコーヒー」の店舗案内（`cafe/`）、
 架空の洗濯乾燥機の取扱説明書・学生寮の入寮規程（`guides/`）があります。
 
-チャット（`/chat`・`/chat/stream`）は、DB（Supabase / pgvector）に取り込んだ資料を、質問の埋め込みとのコサイン類似度で検索します
+チャット（`/chat`・`/chat/stream`）は、DB（D1 + Vectorize。データ用 Worker 経由。2026-11-08 に Supabase / pgvector から移行）に取り込んだ資料を、質問の埋め込みとのコサイン類似度で検索します
 （検索の設計と、見直す条件は [docs/search-design.md](docs/search-design.md)）。本物の LLM には `DATABASE_URL` と `GEMINI_API_KEY` が要ります
 （[docs/configuration.md](docs/configuration.md)）。
-バックエンド（FastAPI）は API だけを持ちます。チャット画面（Next.js + React + TypeScript、`frontend/`）は Vercel が配信します。
+バックエンド（FastAPI）は API だけを持ちます。チャット画面（Next.js + React + TypeScript、`frontend/`）は Cloudflare の Worker `docunavi-web` が配信します。
 
 - **FastAPI**: HTTP API（`/chat`, `/chat/stream`, `/health`）
 - **LangGraph**: 入力ガード → エージェント（ツール呼び出しのループ）→ 出力ガード
 - **Gemini**（主モデルはコード既定の `gemini-3.1-flash-lite`、フォールバックは `gemini-3.5-flash-lite`）: 回答生成。Gemini API キー、または `GOOGLE_GENAI_USE_VERTEXAI=true` のとき Vertex AI（ADC）で認証し、どちらも未設定ならモックモードで動く。
   本番の Cloud Run（`docunavi-00025-qey`）には `GEMINI_MODEL` と `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く、`GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite` がある（2026-10-31 に `gcloud run services describe` で確認）。本番のキーの渡し方は**要確認**
 - **RAG**: PDF を、ページの文字の位置から見出し・段落・表を組み立ててチャンクにし、DB に取り込んで埋め込む（`python -m app.ingestion`）。質問ごとに埋め込みを作り、類似度の高いチャンクを LLM に渡す
-- **画面**: `frontend/`（Next.js + React + TypeScript）。Vercel が配信し、ブラウザーが API（Cloud Run の FastAPI）を直接呼ぶ。FastAPI は画面を配信しない
+- **画面**: `frontend/`（Next.js + React + TypeScript）。Cloudflare の Worker `docunavi-web` が配信し、ブラウザーが API（Cloud Run の FastAPI）を直接呼ぶ。FastAPI は画面を配信しない
 
 ## 起動
 
@@ -31,8 +31,8 @@ uvicorn app.main:app --reload
 
 Docker Compose を使う場合は、ホスト側で `docker compose up --build` を実行します（`.env` が無くても起動し、その場合はモックモードです）。
 画面の開発サーバー（Next.js のホットリロード）は別のコンテナ `frontend` で動き、<http://localhost:3000> で開きます（`api` が healthy になってから起動し、初回は `npm install` で時間がかかります）。
-`api` はポートを公開せず、`frontend` のプロキシ（`next.config.ts` の rewrites）経由で使います。検索の DB は compose の `db`（ローカルの Postgres。空で始まる）で、`.env` の `DATABASE_URL` は使いません。
-実キーで動かすには資料の取り込みが要ります（[docs/development.md](docs/development.md) の「ローカルの db」）。
+`api` はポートを公開せず、`frontend` のプロキシ（`next.config.ts` の rewrites）経由で使います。ローカルの `api` は D1 につながず、モックモードで動きます。
+実キーでも、ローカルの `api` は D1 につながらないので、検索は動きません（[docs/development.md](docs/development.md) の「ローカルの構成」）。
 `curl` で API を直接確かめるときは、`docker compose -f docker-compose.yml -f docker-compose.api-port.yml up -d` で 8000 番を `127.0.0.1` に公開します（`/` は 404 です。画面は配信しません）。
 片方だけ再起動するには `docker compose restart frontend`（または `api`）。ログは `docker compose logs -f frontend`。変更通知が届かずホットリロードが効かないときは、`docker-compose.yml` の `WATCHPACK_POLLING` のコメントを外します。
 
@@ -105,7 +105,7 @@ cd frontend && npm test    # フロントエンド（Vitest）
 | [docs/api.md](docs/api.md) | `/health`・`/chat`・`/chat/stream` の仕様、エラー |
 | [docs/development.md](docs/development.md) | テスト、CI、依存の更新 |
 | [docs/deploy.md](docs/deploy.md) | Cloud Run へのデプロイ手順と本番運用の記録 |
-| [docs/roadmap.md](docs/roadmap.md) | これからの拡張計画（DB、認証、Cloudflare、R2、Vercel）と、先に要る変更 |
+| [docs/roadmap.md](docs/roadmap.md) | これからの拡張計画（DB、認証、Cloudflare、R2、画面の分離）と、先に要る変更 |
 | [docs/decisions/](docs/decisions/README.md) | 重要な決定と、その理由（1 件 1 ファイル） |
 | [.devcontainer/README.md](.devcontainer/README.md) | 開発コンテナの gcloud・gh のログインとガード |
 | [CLAUDE.md](CLAUDE.md) | エージェント（Claude Code）が守ること |

@@ -1,6 +1,6 @@
 """資料グループの一覧（読み取り専用）。画面が、グループの表示名・説明・資料の数を出すために読む。
 
-- 登録済みの情報は `document_collections`（表示名・説明・並び順。supabase/migrations/20261025205258）にある。検索の絞り込みに使う値は
+- 登録済みの情報は `document_collections`（表示名・説明・並び順。workers/api/migrations/0001_schema.sql）にある。検索の絞り込みに使う値は
   `documents.collection` の名前で、この表は検索に関係しない
 - 表に無い名前が `documents.collection` にあれば、未登録のグループとして返す（`registered: false`、表示名は名前そのもの、説明は空）。
   フォルダを置いて取り込むだけで、画面から選べるようにするため

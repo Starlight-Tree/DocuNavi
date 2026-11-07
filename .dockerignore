@@ -11,7 +11,7 @@
 **/__pycache__
 **/*.pyc
 **/node_modules
-# 画面は Vercel の frontend が配信する。API のイメージには要らないので、ビルドコンテキストに入れない
+# 画面は Cloudflare の Worker `docunavi-web`（frontend）が配信する。API のイメージには要らないので、ビルドコンテキストに入れない
 frontend
 .pytest_cache
 .mypy_cache

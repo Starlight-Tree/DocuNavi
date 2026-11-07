@@ -3,7 +3,6 @@
 確かめるのは、リクエストの検証（空・不正な ID・target / collection との同時指定は 422）、検索への受け渡し（会話の状態ではなく
 ターンごとの config で渡り、会話に固定されない）、選んだターンは会話の対象に代わって選んだ資料だけを探すこと、
 検索の SQL の引数と返った行の再確認（選ばれていない資料は返さない）、空の並びは何も探さないこと。
-Postgres の本物の SQL は tests/test_classification_postgres.py の側に置く。
 """
 
 import asyncio

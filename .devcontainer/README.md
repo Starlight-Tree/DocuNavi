@@ -216,59 +216,10 @@ gcloud などが書けなくなるおそれがあるためです）。読み取�
 | エージェントに PR の作成まで任せたい | 書き込み専用の短期トークンを、読み取り用とは別に持つ。実行は人間の承認を残す |
 | 90 日の更新も負担になった | GitHub App 化を検討する |
 
-## 開発環境の Vercel CLI
+## 開発環境の Vercel（廃止）
 
-開発コンテナには Vercel CLI を**入れていません**（2026-10-31 に削除。以前は `install-vercel.sh` が 63.1.2 を `npm install -g` で入れていました）。
-`frontend` を Vercel へ最初に 1 回デプロイするために入れたもので（`docs/target-architecture.md` の「段階 7」）、そのあとは Git 連携（`main` へのプッシュ）に移したので、
-常用はしません。npm の導入は作成のたびに約 1〜2 分かかっていました。
-
-必要なときだけ、版を固定して `npx` で実行します。
-
-```bash
-npx --yes vercel@63.1.2 --version
-npx --yes vercel@63.1.2 login      # ブラウザーでの承認。終わったら logout
-```
-
-- **ログイン情報はイメージにもボリュームにも残しません。** 再ビルドすると消えます。使うたびに `vercel login` を行い、
-  終わったら `vercel logout` します。長期の `VERCEL_TOKEN` はコンテナに置きません。
-- ログイン中のトークン（`~/.local/share/com.vercel.cli`）は、コンテナの中のエージェントから読める経路が残ります（gcloud の「限界」と同じ）。
-  エージェントはこれを読まず、`vercel` の認証系のコマンドも実行しません。デプロイや環境変数の変更はあなたが実行します。
-- 版を上げるときは、公開日（2 週間以上前か）を `npm view vercel time` で確かめてから、上のコマンドの版を書き換えます。
-- Vercel の操作の多くは、Vercel MCP（次の節）で足ります。CLI が要るのは、`vercel login` を伴う手動のデプロイなど、MCP で届かないものだけです。
-- 確認済み（2026-10-31）: `npx --yes vercel@63.1.2 --version` が、このコンテナで成功する。初回は約 93 秒（npm から取得）、2 回目以降は約 1.1 秒（npm のキャッシュ）。
-- 未確認: `vercel login` と、認証を伴う操作。
-
-## 開発環境の Vercel MCP
-
-公式の Vercel MCP（`https://mcp.vercel.com`。2026-10-24 に利用者の指示で導入。以前の「保留」を解除）を、プロジェクトの**ローカル登録**で使います。`.mcp.json` には入れません（リポジトリは変わりません）。
-公式の手順は `vercel.com/docs/agent-resources/vercel-mcp`（証拠等級 B）。
-
-- **登録:** `devcontainer.json` の `postStartCommand` が、起動のたびに `.devcontainer/register-vercel-mcp.sh` を前景で呼び、今のパスに登録し直します（登録だけで、認証はしません。ログは `/tmp/register-vercel-mcp.log`）。
-  手で入れるなら `claude mcp add --scope local --transport http vercel https://mcp.vercel.com`（`claude` の実体が PATH に無いときは、スクリプトが VS Code の拡張から探します）。
-- **認証:** OAuth。`/mcp` でブラウザーから承認します。個人アカウント（Hobby。チームは 0 件）は、初回に `authorize_team_access` の同意リンクを開いて承認する必要がありました（承認前は 403）。
-- **トークンの扱い（CLI と違う点）:** OAuth のトークンは `~/.claude` のボリュームに残る見込みです（Supabase MCP では再ビルド後も残った。Vercel では未確認）。CLI の「ログインを残さない」とは方針が異なります。
-  公式の文書では、接続すると AI が Vercel のアカウントと同じ権限を持ちます。読み取り専用の接続は文書に見当たりません。使わないときは、Vercel の連携の設定から接続を取り消せます。
-- **権限:** ツールは 200 以上あり、請求・ドメイン・DNS・鍵・ファイアウォール・デプロイ・環境変数の変更を含みます。書き込み系は、`.claude/settings.local.json`（Git の管理外）の規則で止めます（2026-10-24 に導入）。許可 = 読み取り 12 件、毎回確認 = `update_project`（保護の設定も変えられる）・`create_deployment`・環境変数の変更など 9 件、拒否 = 請求・ドメイン・DNS・鍵・ファイアウォールなど 19 件。
-  拒否した 19 件がツールの一覧から消えたことは確認しました。
-- **未確認:** 再ビルド後に自動で登録が戻ること、再ビルド後に再認証が要らないこと、「毎回確認」の項目で実際に確認が出ること。
-
-## 開発環境の Vercel プラグイン
-
-Claude Code 用の公式プラグイン `vercel/vercel-plugin`（2026-10-25 に利用者の決定で導入。経緯は `docs/roadmap.md` の⑦）。目的は **Vercel の知識の注入とスキルだけ**で、操作（デプロイ・環境変数・ログ）は上の Vercel MCP を使う。
-公式の文書は `vercel.com/docs/agent-resources/vercel-plugin`（証拠等級 B）。
-
-- **導入:** `devcontainer.json` の `postStartCommand` が、起動のたびに `.devcontainer/install-vercel-plugin.sh` を前景で呼ぶ（導入済みなら何もしない。ログは `/tmp/install-vercel-plugin.log`）。
-  中身は `claude plugin marketplace add vercel/vercel-plugin --scope project` と `claude plugin install vercel-plugin@vercel --scope project`。有効化の宣言（`extraKnownMarketplaces`・`enabledPlugins`）は `.claude/settings.json` に書かれて Git に残る。プラグインの本体は `~/.claude/plugins/`（永続ボリューム）。
-  導入後の確認（2026-10-25、証拠等級 A）: `claude plugin list` が `vercel-plugin@vercel`、版 0.54.1、scope project、enabled。`gitCommitSha` は審査したコミット `3c88cfc` と一致し、登録されたフックの 5 ファイル + `hooks.json` は、審査した版と SHA-256 が一致した。
-- **テレメトリ:** `.claude/settings.json` の `env` で `VERCEL_PLUGIN_TELEMETRY=off`（日次・スキルの送信の両方が止まることはコードで確認）。導入の直後、`~/.config/vercel-plugin/` は存在しない。**フックが動いたあとの確認は、次のセッションで行う（未確認）。**
-  `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1` も同じ場所にある（コンテナに GitHub の SSH 鍵が無く、セッション内の `/plugin` や更新は HTTPS に戻らないため）。
-- **版の固定:** 上流にタグが無く、固定できない。審査したのは v0.54.1、コミット `3c88cfc8de5d1e124d23b0ef23f32c5aa127c845`（`install-vercel-plugin.sh` に記載。導入後の版がずれたら警告だけ出す）。自動更新は Claude Code の既定でオフのまま使う。
-  **更新の手順:** 上流の差分（`hooks/` と `.mcp.json` と `plugin.json`）を読む → 問題なければ `claude plugin update vercel-plugin@vercel` → 審査した版とコミットをスクリプトと文書で書き換える。
-- **付属の MCP（`mcp.vercel.com`）:** プラグインの `.mcp.json` に入っていて、上の Vercel MCP と重複する。書き込みを含む強い権限なので無効にする方針だった。**ただし、再ビルド後の `/mcp`（2026-10-25）に、プラグイン由来のサーバーは出なかった（既存の `vercel` だけ）。別のサーバーとしては動いていないので、deny 規則は要らない。**
-- **使わないもの:** `/vercel-plugin:deploy prod`（本番は `main` へのプッシュの Git 連携だけ）。
-- **Bun:** 公式の前提は Bun だが、この環境に無い。`claude plugin list` が「パッケージは入っていない」と注記する。登録されたフックは Node の組み込みモジュールだけを import していて（読んだ範囲）、影響は無い見込み。スキルの再生成用で、使わない。
-- **確認済み（再ビルド後、2026-10-25）:** スキルとエージェントが読み込まれる。フックが動き、`~/.config/vercel-plugin/` は作られない。`CLAUDE_ENV_FILE` へは書かれない（Vercel の目印があるプロジェクトでだけ `export` を追記する作りで、このリポジトリのルートには目印が無い。一時ファイルで実行して空だった）。空の状態からの導入は、`CLAUDE_CONFIG_DIR` を分けて試し、1 回で入り、2 回目は何もしなかった。
-- **未確認:** ルートに `vercel.json` や `next.config` などを置いたときの `export` の追記（その場合は `VERCEL_PLUGIN_*` が数個、環境ファイルに入る見込み）。実際の再ビルドで `postStartCommand` が空のボリュームから入れること（上は同じスクリプトの別環境での実行）。
+開発コンテナに Vercel の CLI・MCP・プラグインは入れません。本番を Cloudflare に移し、Vercel のプロジェクトを削除しました（2026-11-08。経緯は `docs/cloudflare-migration.md`）。
+導入していた手順と確認の記録は、Git の履歴にあります（このファイルの 2026-11-08 より前の版）。
 
 ## 開発環境のブラウザー確認（Playwright MCP）
 
@@ -300,24 +251,9 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 - 再ビルドで確かめたのは、Chromium のキャッシュ（ボリューム）が残ること、MCP の登録が有効なことです。ライブラリーの導入は、以前は `postCreateCommand` の apt で、再ビルド直後にロックの競合で失敗したことがありました。
   今はライブラリーをイメージに入れたので、`postCreateCommand` に apt は残りません（ロックの競合も、試し直しの処理もありません）。移したあとの再ビルドで、Chromium の起動（`--version` と、ヘッドレスでの DOM の出力）と Playwright MCP での画面の操作を確かめました。
 
-## 開発環境の Supabase CLI（2026-11-02。設定の追加まで。リビルドと初回ログインは未実施）
-
-詳細・理由・リスクは [docs/supabase-cli.md](../docs/supabase-cli.md) の「開発コンテナの Supabase CLI」。ここには、開発コンテナの定義との対応だけを書く。
-
-- **導入:** `Dockerfile`（版 v2.122.0。公式の `checksums.txt` の SHA-256 を照合。arm64 だけ）。`postCreateCommand` の `cli-tools` が、PATH にあるかを見る。
-- **ログイン情報:** 名前付きボリューム `supabase-config` を `~/.supabase` にマウントする（`docker-compose.yml`）。所有者と 700 は `postCreateCommand` の `supabase-volume`。再ビルドで残る見込み（未確認）。
-  DB の接続文字列（`~/.pg`、`pg-config`）とは別のボリューム。
-- **初回ログイン（利用者が端末で）:** `supabase login --no-browser`。確認コードを入力する。トークンをチャットに貼らない。`--token` を使わない。
-- **再ビルド後の確認（読み取りだけ）:**
-  1. `supabase --version`（2.122.0）。
-  2. `stat -c '%a %n' ~/.supabase ~/.supabase/access-token`（700 / 600。中身は表示しない）。
-  3. `supabase projects list 2>&1 | grep -c "$(cat supabase/.temp/project-ref)"`（1 ならトークンが有効で、link 先が見える。管理 API の読み取りだけで、DB には接続しない）。
-- **再ログインが要るとき:** トークンの期限切れ・失効、ボリュームの削除（`docker volume rm supabase-config-<id>`、`down -v`、`prune`、OrbStack の仮想ディスクごとの削除。**これらはボリュームでは防げない**）。
-- **消し方:** `docker volume rm supabase-config-<id>`（ホスト）、または `rm -rf ~/.supabase/*`（コンテナ）。トークンはダッシュボードの Access Tokens から失効する。
-
 ## 開発環境の Infisical（2026-11-02。設定の追加まで。リビルドと検証は未実施）
 
-開発用の秘密情報の置き場（Infisical Cloud の Free プラン）。本番（Cloud Run・Vercel）の秘密は対象外。サードパーティの Feature は使わない。
+開発用の秘密情報の置き場（Infisical Cloud の Free プラン）。本番（Cloud Run・Cloudflare の Worker）の秘密は対象外。サードパーティの Feature は使わない。
 
 - **CLI:** `Dockerfile`（公式の .deb v0.44.11。公式の `checksums.txt` の SHA-256 を照合。arm64 だけ）。`cli-tools` が PATH にあるかを見る。テレメトリーと更新確認は止めてある（`INFISICAL_DISABLE_*`）。
 - **運用は CLI のみ**（ユーザーが決定、2026-11-02）。VS Code 拡張（`Infisical.infisical-vscode`）は使わない。`devcontainer.json` の `extensions` にも入れない。
@@ -333,39 +269,6 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
 - **公式 MCP（`infisical`。2026-11-07）:** `.devcontainer/infisical-mcp.sh`（`@infisical/mcp@0.0.25`）を、`register-infisical-mcp.sh` がローカル登録する（起動のたびに `postStartCommand` が呼ぶ。登録は `~/.claude` のボリュームに残る）。資格情報は登録に入れず、`~/.infisical/identity` から起動時に読む（Client Secret を発行し直しても、登録はそのまま）。使えるツールは `list-projects` `list-secrets` `create-secret` だけで、値は `<masked>` になる。マシン ID は viewer なので、`create-secret` は権限で断られる。**秘密の値は MCP で入れない**（値がエージェントの会話を通る）。値の登録は、利用者が端末で CLI を使う（`read -rs` で受け、一時ファイルを `infisical secrets set --file` に渡す）。`identity` の形式は `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=…` と `…_CLIENT_SECRET=…` の 2 行の 1 ファイル（上の `client-id` `client-secret` の 2 ファイルという記述は古い）。
 - **消し方:** `docker volume rm infisical-config-<id>`（ホスト）、または `rm -rf ~/.infisical/*`（コンテナ）。資格情報の失効は、Infisical の画面（Machine Identities）で行う（手順は未確認）。
 - **注意:** Free プランにはシークレットの版管理も監査ログも無い。CLI での更新・削除は戻せないので、原本は別の場所にも残す。
-
-## Supabase MCP
-
-**2026-11-01 の整理:** 読み取り専用の共有 `supabase-read`（`.mcp.json`）を削除し、書き込み可能なローカル登録 `supabase-write` を `supabase` に改名した（利用者の指示）。以下の「読み取り専用」「共有」の記述は、整理前の記録（2026-10-18〜21）で、現在の構成ではない。現在は、ローカル登録の `supabase` だけで、読み取りのツールも書き込み可能な接続を通る。`.claude/settings.json` の deny（`apply_migration`）と、`~/.claude/settings.json` の `ask`（`mcp__supabase__*`）で守る。
-
-リポジトリ直下の `.mcp.json` に、`supabase-read`（読み取り専用。2026-10-21 に `supabase` から改名。2026-11-01 に削除）の定義がありました。DB の中身（`documents` / `chunks` など）を、エージェントが読んで確かめるためのものです。
-
-- **読み取り専用です。** URL の `read_only=true` で、書き込み（マイグレーションの適用、書き込みの SQL）を止めます。実際の接続で確かめました（2026-10-18）。
-  `apply_migration` のツールは出ず、`CREATE TEMP TABLE` は読み取り専用のトランザクションとして拒否され、`list_tables` などの読み取りは通りました。
-- **プロジェクト参照は、リポジトリに書きません。** URL の `${SUPABASE_PROJECT_REF}` は、環境変数から展開します。
-  値（Supabase の Project Settings → General の Reference ID）は、自分の `~/.claude/settings.json` の `env` に `"SUPABASE_PROJECT_REF": "<参照ID>"` として書くのが主な手順です。
-  このファイルは `~/.claude` のボリュームにあるので、再ビルドしても残り、リポジトリには入りません。設定したあとは `/mcp` で再接続すると反映されます。
-  未設定のときは接続に失敗します（接続できません。空にすると、プロジェクトを絞らない接続になりうるので、空にはしません）。
-  代わりに、ホスト側の環境変数を渡す方法もあります。`devcontainer.json` の `containerEnv` に `"SUPABASE_PROJECT_REF": "${localEnv:SUPABASE_PROJECT_REF}"` を足します（この方法では確かめていません）。
-  macOS で Dock から VS Code を起動すると、シェルの環境変数が届かないことがあります。ターミナルから `code .` で開くか、設定したあとで VS Code を起動し直します。
-- **認証は OAuth です。** トークンは設定ファイルに無く、初回は `/mcp` の画面でブラウザーからログインします。トークンは `~/.claude` のボリュームにあり、再ビルドのあとに再認証は要りませんでした（2026-10-18 に 2 回の再ビルドで確認。1 回の環境での結果です）。
-- **接続は、ローカル登録の `supabase` です**（2026-11-01 までは、共有の `supabase-read` と区別するため `supabase-write` という別名でした）。
-  `claude mcp add --scope local --transport http supabase "https://mcp.supabase.com/mcp?project_ref=<参照ID>&features=database,docs"`。
-  **本番 DB の DDL は、この登録の `apply_migration` では適用しません**（`apply_migration` は `.claude/settings.json` で deny。2026-10-26 から Supabase CLI の `db push --linked` で、`supabase/migrations/` の SQL を適用する。手順は [docs/supabase-cli.md](../docs/supabase-cli.md)）。参照 ID は、リポジトリにも会話の記録にも残しません。
-  ローカル登録は作業ディレクトリのパスがキーです。フォルダー名を変えると、設定が残っていても外れます（2026-10-20、chatbot → docunavi で `supabase-write` が一覧から消えた）。
-  そのため、`devcontainer.json` の `postStartCommand` が、起動のたびに `.devcontainer/register-supabase-write.sh` を前景で呼び、今のパスに登録し直します（登録だけで、認証はしません。待ちは最大 20 秒。ログは `/tmp/register-supabase-write.log`）。
-  バックグラウンドにしないのは、子プロセスが起動処理の終了で止められるためです。`( … &)` と `setsid nohup … &` の 2 通りとも、2026-10-20 の再ビルドでログができず、登録も戻りませんでした（診断用に起動の先頭へ目印のファイルを書いて、`postStartCommand` 自体は動いていると確かめた）。
-  前景の書き方は、登録を外した状態からの再ビルドで、自動で登録が戻ることを確かめました（2026-10-20）。パスを変えた直後の最初のセッションだけは、Claude Code が設定を読むほうが登録より早いので、Window の再読み込みが要ります。確かめるときは、先にそのパスの登録を外してから再ビルドします（残っていると、自動登録が失敗しても `/mcp` に出てしまうため）。
-- 変数が未設定でも、`.mcp.json` 全体は壊れません（`claude mcp list` に警告が出て、`${…}` の文字のまま使われます。公式の説明で、スクラッチの読み込みでも確認しました）。Playwright は影響を受けません。
-
-### `supabase`（旧 `supabase-write`）の破壊的な SQL が `declined` になる
-
-`DELETE` などの破壊的な SQL を流すと、承認の画面が出ないまま `{"status":"declined"}` が返ることがあります（2026-10-21、`delete … where id = 22` で複数回）。
-
-- **実測：** Supabase MCP は、破壊的な SQL の前に確認要求（elicitation。本文は `This SQL includes destructive operations` で始まる）を送ります。`settings.json` の `Elicitation` フック（matcher `supabase`。2026-11-01 まで `supabase-write`、`.claude/hooks/accept-supabase-elicitation.py`）に、その要求が届くことは、ログで確かめました。
-- **推測（未確認）：** 要求に誰も答えないために `declined` になり、VS Code 拡張が確認の画面を出せないためと見ています。拡張側の実装は確かめていません。権限のモードや `ask` ルールが原因ではありませんでした。
-- **フックの既定：** `ENFORCE = False` で、記録だけして何も答えません。サーバー名・本文の接頭辞・プロジェクト参照・`mode=form` がすべて合うときだけ答える作りで、例外のときは答えません。
-- **ログの見方：** `~/.claude/elicitation-hook.log` に 1 要求 1 行（`server`、`match`、`enforce`、時刻。本文は残さない）。`supabase`（記録が古いと `supabase-write`）の行が増えて `match: true` なら、要求が届いたことを示します。`enforce` は、そのときのフックの設定です。
 
 ## 開発環境の Docker（読み取り専用のソケットプロキシ）
 

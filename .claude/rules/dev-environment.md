@@ -18,10 +18,10 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 
 ## ツールの入れ場所（2026-10-31）
 
-- gcloud・gh・psql・Go・docker-cli・Playwright のライブラリーは、`.devcontainer/Dockerfile`（イメージのビルド時）に入れる。`postCreateCommand` に apt の導入を足さない（作成のたびに毎回走り、キャッシュされない）
+- gcloud・gh・Go・docker-cli・Playwright のライブラリーは、`.devcontainer/Dockerfile`（イメージのビルド時）に入れる。`postCreateCommand` に apt の導入を足さない（作成のたびに毎回走り、キャッシュされない）
 - Chromium の本体は、名前付きボリューム `playwright-browsers` のまま（`install-playwright.sh` が取得と起動確認を行う）
-- Node の feature はイメージの後に入るので、npm で入れるものは Dockerfile に移せない。Vercel CLI は入れない（2026-10-31 に削除。必要なときは `npx --yes vercel@63.1.2`）
-- `install-gh.sh`・`install-psql.sh`・`install-go.sh` は残してある（`postCreateCommand` からは呼ばない）。Go の版とハッシュは `install-go.sh` と Dockerfile の両方にあるので、上げるときは両方を合わせる
+- Node の feature はイメージの後に入るので、npm で入れるものは Dockerfile に移せない。Vercel の CLI・MCP・プラグインは入れない（2026-11-08 に本番を Cloudflare に移し、Vercel は廃止。`.devcontainer/README.md` の「開発環境の Vercel（廃止）」）
+- `install-gh.sh`・`install-go.sh` は残してある（`postCreateCommand` からは呼ばない）。Go の版とハッシュは `install-go.sh` と Dockerfile の両方にあるので、上げるときは両方を合わせる
 
 ## ルール・メモリーの置き場所
 

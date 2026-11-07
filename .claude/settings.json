@@ -1,7 +1,6 @@
 {
   "outputStyle": "Concise",
   "env": {
-    "VERCEL_PLUGIN_TELEMETRY": "off",
     "CLAUDE_CODE_PLUGIN_PREFER_HTTPS": "1"
   },
   "permissions": {
@@ -58,8 +57,7 @@
       "Bash(docker compose config *)",
       "Bash(docker compose up *)",
       "Bash(docker compose down *)",
-      "Bash(docker compose restart *)",
-      "mcp__supabase__apply_migration"
+      "Bash(docker compose restart *)"
     ],
     "ask": [
       "Bash(git push)",
@@ -68,8 +66,7 @@
       "Bash(git restore *)",
       "Bash(scripts/mcp-proxy.sh)",
       "mcp__cloudflare__execute",
-      "mcp__playwright__browser_run_code_unsafe",
-      "Bash(curl *api.supabase.com/v1/projects/*/database/password*)"
+      "mcp__playwright__browser_run_code_unsafe"
     ],
     "defaultMode": "auto",
     "disableBypassPermissionsMode": "disable"
@@ -91,7 +88,7 @@
         ]
       },
       {
-        "matcher": "mcp__vercel__.*|mcp__supabase__.*|mcp__playwright__browser_run_code_unsafe",
+        "matcher": "mcp__playwright__browser_run_code_unsafe",
         "hooks": [
           {
             "type": "command",
@@ -106,7 +103,7 @@
     ],
     "PermissionRequest": [
       {
-        "matcher": "mcp__vercel__.*|mcp__supabase__.*|mcp__playwright__browser_run_code_unsafe|Bash",
+        "matcher": "mcp__playwright__browser_run_code_unsafe|Bash",
         "hooks": [
           {
             "type": "command",
@@ -121,7 +118,7 @@
     ],
     "PermissionDenied": [
       {
-        "matcher": "mcp__vercel__.*|mcp__supabase__.*|mcp__playwright__browser_run_code_unsafe|Bash",
+        "matcher": "mcp__playwright__browser_run_code_unsafe|Bash",
         "hooks": [
           {
             "type": "command",
@@ -136,7 +133,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "mcp__vercel__.*|mcp__supabase__.*|mcp__playwright__browser_run_code_unsafe",
+        "matcher": "mcp__playwright__browser_run_code_unsafe",
         "hooks": [
           {
             "type": "command",
@@ -151,7 +148,7 @@
     ],
     "PostToolUseFailure": [
       {
-        "matcher": "mcp__vercel__.*|mcp__supabase__.*|mcp__playwright__browser_run_code_unsafe",
+        "matcher": "mcp__playwright__browser_run_code_unsafe",
         "hooks": [
           {
             "type": "command",
@@ -178,32 +175,6 @@
           }
         ]
       }
-    ],
-    "Elicitation": [
-      {
-        "matcher": "supabase",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/.claude/hooks/accept-supabase-elicitation.py"
-            ],
-            "timeout": 10
-          }
-        ]
-      }
     ]
-  },
-  "extraKnownMarketplaces": {
-    "vercel": {
-      "source": {
-        "source": "github",
-        "repo": "vercel/vercel-plugin"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "vercel-plugin@vercel": true
   }
 }

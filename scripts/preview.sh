@@ -9,7 +9,7 @@
 # イメージの名前は <コミット> の短縮 SHA から決める（HEAD とのずれを防ぐ）。build はビルドの入力が作業ツリーなので、
 # <コミット> が HEAD と一致し、追跡中のファイルに未コミットの変更が無いときだけ動く。
 # deploy は --set-env-vars / --set-secrets を付けない（付けると、有料キーの Secret など、いまの設定が消える）。
-# Secret・トークンは書かない。画面は Vercel の frontend が配信するので、イメージは API だけ（ビルドに渡す設定は無い）。
+# Secret・トークンは書かない。画面は Cloudflare の Worker `docunavi-web`（frontend）が配信するので、イメージは API だけ（ビルドに渡す設定は無い）。
 #
 # 使い方:
 #   ./scripts/preview.sh build

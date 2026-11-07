@@ -1,6 +1,9 @@
 # ロール別の資料グループの管理画面（Django Admin。ロードマップ ⑧ のフェーズ 4a）
 
-運用者だけが使う管理画面。利用者へのロールの割り当て（`chatbot.user_roles`）を、SQL ではなく画面で行う。実装は [ops/access_admin/](../ops/access_admin/)。
+**廃止済み（2026-11-08）。** 本番のロール表が Supabase から D1 に移ったため、Cloud Run のサービス `docunavi-admin` とジョブ `docunavi-admin-migrate` を削除し、`ops/access_admin/` もリポジトリから削除した。
+以下は廃止前の記録で、書き換えていない。実装は Git の履歴にある。ロールの割り当ては、いまは D1 の `user_roles` を SQL で更新する（[configuration.md](configuration.md) の「資料グループのアクセス制御」）。
+
+運用者だけが使う管理画面。利用者へのロールの割り当て（`chatbot.user_roles`）を、SQL ではなく画面で行う。実装は `ops/access_admin/`（削除済み。Git の履歴）。
 アクセス制御そのものの仕様（`ACCESS_MODE`、10 経路、`default` ロール）は [configuration.md](configuration.md) の「資料グループのアクセス制御」。
 
 **状態（2026-10-26）:** ステージ R0〜R9 まで完了。Supabase に migration を適用し、非公開の Cloud Run `docunavi-admin`（リビジョン `docunavi-admin-00003-cvr`、イメージ `docunavi-admin:799de59`）に配備済み。
@@ -75,7 +78,7 @@
 
 ## ローカルでの確認
 
-[ops/access_admin/README.md](../ops/access_admin/README.md)。テストは `cd ops/access_admin && ../../.venv-django/bin/python manage.py test`
+`ops/access_admin/README.md`（削除済み）。テストは `cd ops/access_admin && ../../.venv-django/bin/python manage.py test`
 （一時 Postgres が要る。`chatbot` / `auth` の身代わりと実際の migration の SQL を入れたテンプレート DB から作り、各テストは `SET LOCAL ROLE access_admin` で動く）。
 契約テストは `tests/test_access_admin_contract.py`（アプリ本体の `visible_collections` の SQL と、管理画面の計算を、ロールのあらゆる組み合わせで突き合わせる）。
 

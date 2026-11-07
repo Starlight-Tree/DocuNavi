@@ -5,7 +5,7 @@
 実用上の必要は小さい（資料は 6 件）。主な価値は、リモート MCP サーバーと、Cloud Run の IAM 認証を学ぶこと。
 
 ```text
-Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サービス（新規）──▶ search_vector.search ──▶ Postgres（pgvector）
+Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サービス（新規）──▶ search_vector.search ──▶ データ用 Worker（Vectorize + D1）
                                                                                     └─▶ 質問の埋め込み（Gemini API、無料キー）
 ```
 
@@ -13,7 +13,7 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 
 | 項目 | 決定 | 理由 |
 |---|---|---|
-| サービス構成 | **別サービス**（既存の `docunavi` には足さない） | `docunavi` は公開で Supabase の JWT 認証、MCP は IAM 認証で、方式が合わない。接続数・最大インスタンス・秘密情報も別に絞れる |
+| サービス構成 | **別サービス**（既存の `docunavi` には足さない） | `docunavi` は公開で Better Auth の JWT 認証、MCP は IAM 認証で、方式が合わない。接続数・最大インスタンス・秘密情報も別に絞れる |
 | 最初のツール | **資料の検索**（`search_documents` 相当、読み取り専用）。「資料への質問」は作らない | 「質問」は中で Gemini が回答を作り、呼び出し側の LLM と二重になる。ガードレールと出典の扱いも重くなる。検索なら質問の埋め込み 1 回で済む |
 | 利用者 | **Claude Code だけ** | まず自分で使う。ほかのエージェントは後 |
 | 資料グループの制限 | **かけない（運用者専用・全グループ）** | 利用者のロールを持たないので、`search_vector.search(..., scope=Scope.ALL)` と明示して全グループを検索する。利用者ごとの資料グループの制限（`ACCESS_MODE`。`docs/configuration.md` の「資料グループのアクセス制御」）は API 側だけにかかる。この MCP を利用者に公開しない（`roles/run.invoker` を持つ運用者だけが呼べる）。利用者に公開するなら、先にこの方針を見直す |
@@ -103,6 +103,7 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 ## 配備と確認（2026-10-21）
 
 - **配備:** サービス `docunavi-mcp`（`asia-northeast1`、非公開、最大 1 インスタンス、並行 10、`DATABASE_POOL_MAX_SIZE=2`）、専用のサービスアカウント `docunavi-mcp`。Secret は `database-url-readonly`（読み取り専用ロールの URL。新規）と `gemini-api-key`（無料キー。アプリと共用）の `secretAccessor` だけ。有料キー（`gemini-api-key-paid`）は渡していない。`run.invoker` は利用者本人だけ。
+- **2026-11-08 の変更（現在の状態）:** データを Supabase から Cloudflare（D1 + Vectorize）へ移したため、`docunavi-mcp` は `D1_API_URL` と `D1_API_TOKEN`（Secret `d1-api-token`）で、データ用 Worker 経由で検索する（リビジョン `docunavi-mcp-00002-mqj`。環境変数は `GEMINI_API_KEY`、`D1_API_URL`、`D1_API_TOKEN` だけ）。`database-url-readonly` と読み取り専用ロールは使わなくなった（Secret は未削除）。Claude Code 側の接続名は `docunavi-search` から `app-docunavi` に変えた。上の「配備」「読み取り専用ロールでの検索」と、以下の記録は、移行前（Supabase 時代）のもの。
 - **Docker のビルド:** Cloud Build で `SUCCESS`（1 分 16 秒）。アプリの固定済みの依存と `mcp==1.30.0` は、競合なく入った。
 - **実際の検索（1 回、無料キー）:** プロキシ（`gcloud run services proxy docunavi-mcp --port 3001`）経由で `search_documents` を呼び、質問「糸くずフィルターの掃除」に対して、洗濯機の説明書の該当箇所が 1 位（類似度 0.80）で返った。Cloud Run のログでは、Gemini の埋め込みの呼び出しは 1 回（200）、質問の本文はログに出ていない。
 - **読み取り専用ロールでの検索:** 同じ検索の SQL が `readonly` ロールで動くこと、書き込みは `read-only transaction` で拒否されること、会話履歴の表は読めないことを、配備の前に確かめた。

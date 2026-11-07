@@ -1,6 +1,6 @@
 # SSE 中継
 
-Go（標準ライブラリだけ）で作った、FastAPI の前に置く SSE の中継。**Cloud Run（`docunavi-sse-relay`）に配備済みで、本番の画面（Vercel）の `/chat/stream` はこの中継を通る**（2026-10-25 から。環境変数 `NEXT_PUBLIC_STREAM_BASE_URL`）。Compose には、まだ入れていない（CI は、`go vet` と `-race` のテストを実行する）。
+Go（標準ライブラリだけ）で作った、FastAPI の前に置く SSE の中継。**Cloud Run（`docunavi-sse-relay`）に配備済みで、本番の画面（Worker `docunavi-web`）の `/chat/stream` はこの中継を通る**（2026-10-25 から。環境変数 `NEXT_PUBLIC_STREAM_BASE_URL`。2026-11-08 までは Vercel の画面）。Compose には、まだ入れていない（CI は、`go vet` と `-race` のテストを実行する）。
 本番で確かめたのは、実質問の `POST /chat/stream` が 200（約 3.0 秒）、CORS の `OPTIONS` が 200、回答と引用の表示まで（2026-10-25、各 1 回）。
 **切断の伝播（1 回の実測）:** 回答本文の最初のチャンク（`[DONE]` 前）を受け取った直後にブラウザーから切断すると、21 ミリ秒後に API が
 「クライアントが切断したため LLM 呼び出しを取り消しました」を記録した。切断は生成の終盤だった可能性があり、生成の途中を長く切った試験ではない。

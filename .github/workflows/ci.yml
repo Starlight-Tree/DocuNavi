@@ -66,90 +66,6 @@ jobs:
       - name: Apply the D1 migration locally
         run: npx wrangler d1 migrations apply docunavi --local
 
-  admin:
-    name: Access admin (Django) tests and image
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # ops/access_admin（ロール別の資料グループの管理画面。docs/access-admin.md）。テストは、chatbot / auth の身代わりと
-    # supabase/migrations の実際の SQL を入れた使い捨ての DB を作るので、スーパーユーザーで接続できる Postgres が要る。
-    # テスト専用のダミーの認証情報で、秘密情報は入っていない。
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 15
-    env:
-      ADMIN_TEST_DB_HOST: 127.0.0.1
-      ADMIN_TEST_DB_PORT: "5432"
-      ADMIN_TEST_DB_USER: postgres
-      ADMIN_TEST_DB_PASSWORD: postgres
-    defaults:
-      run:
-        working-directory: ops/access_admin
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false  # 後続のステップで git の認証は使わない
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          # Dockerfile のベースイメージ（python:3.12-slim）と、依存を固定した版にそろえる
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: ops/access_admin/requirements.txt
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      # chatbot の表を写すモデルは managed = False。モデルを変えたのに migration が無い状態を、ここで落とす
-      - name: Models match migrations (makemigrations --check)
-        run: python manage.py makemigrations --check --dry-run
-      - name: Django system check
-        run: python manage.py check
-      # 権限のテスト（access_admin の権限が、承認した最小の集合であること）、TOTP の関門、割り当ての安全装置を含む
-      - name: Run Django tests
-        run: python manage.py test --noinput
-      # ここから Docker。ビルドの文脈は ops/access_admin（アプリ本体の app/ は使わない）
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-      - name: Build the admin image (not pushed)
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
-        with:
-          context: ops/access_admin
-          push: false
-          load: true
-          tags: docunavi-admin:ci
-          cache-from: type=gha,scope=admin
-          cache-to: type=gha,mode=max,scope=admin
-      # DB には接続しない（ダミーの URL）。起動時の設定検査（manage.py check）が通り、/healthz が応えて、
-      # DB が無いときに /readyz が 503 の固定文（接続先やパスワードを含まない）を返すことを確かめる。
-      - name: Start the image and check /healthz and /readyz
-        run: |
-          docker run -d --name docunavi-admin -p 8080:8080 \
-            -e ADMIN_SECRET_KEY=ci-only-ci-only-ci-only-ci-only-ci-only \
-            -e ADMIN_ALLOWED_HOSTS=localhost,127.0.0.1 \
-            -e ADMIN_DATABASE_URL=postgresql://nobody:CI-DUMMY-PASSWORD@127.0.0.1:1/postgres \
-            docunavi-admin:ci
-          for _ in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8080/healthz > healthz.txt 2>/dev/null; then break; fi
-            sleep 1
-          done
-          grep -qx ok healthz.txt
-          code=$(curl -s -o readyz.json -w '%{http_code}' http://127.0.0.1:8080/readyz)
-          cat readyz.json
-          test "$code" = 503
-          grep -q '"status": *"unavailable"' readyz.json
-          if grep -qi 'CI-DUMMY-PASSWORD' readyz.json; then echo "readyz の応答にパスワードが出ている" >&2; exit 1; fi
-          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/admin/)
-          test "$code" = 302
-      - name: Show container logs on failure
-        if: failure()
-        run: docker logs docunavi-admin
-        working-directory: .
-
   workflow-lint:
     name: Workflow lint (actionlint, zizmor)
     runs-on: ubuntu-latest
@@ -248,7 +164,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       # キーを渡さないので、アプリはモックモードで起動する。固定した依存で実際に動くことと、
-      # /health と /chat が、イメージの中で応答することを確かめる（画面は Vercel の frontend が配信する）。
+      # /health と /chat が、イメージの中で応答することを確かめる（画面は Cloudflare の Worker `docunavi-web`（frontend）が配信する）。
       - name: Start the image and check it responds
         run: |
           docker run -d --name docunavi -p 8000:8000 docunavi:ci

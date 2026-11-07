@@ -1,6 +1,6 @@
 """資料の分類の一覧（読み取り専用）。画面が、対象（`/targets`）と資料種別（`/doc-types`）の表示名・説明・資料の数を出すために読む。
 
-- 登録済みの語彙は `document_targets` / `document_types`（表示名・説明・並び順。supabase/migrations/20261103150000）。
+- 登録済みの語彙は `document_targets` / `document_types`（表示名・説明・並び順。workers/api/migrations/0001_schema.sql）。
   資料の分類は `documents.target` / `documents.doc_type`（外部キー。未分類は NULL）。
 - **見える資料のある分類だけを返す**（資料が 1 件も見えない対象・種別は、存在しないのと同じに、一覧に出さない）。
   件数も、利用者が見える資料（`ACCESS_MODE=enforce` なら、見えるグループの資料）だけを数える。
