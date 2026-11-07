@@ -376,6 +376,9 @@ def test_apply_on_vertex_ai_does_not_need_an_api_key(_env, monkeypatch, capsys):
     monkeypatch.setenv("D1_API_URL", "https://unused.invalid")
     monkeypatch.setenv("GEMINI_API_KEY", "")
     monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
+
+    # 本物のクライアントは作らない。Vertex AI は ADC を探すので、ADC の無い CI では DB より先に失敗する
+    monkeypatch.setattr(cli, "GeminiEmbedder", lambda *args, **kwargs: object())
     assert cli.main(["--apply"]) == 1
     assert "GEMINI_API_KEY" not in capsys.readouterr().err
 
