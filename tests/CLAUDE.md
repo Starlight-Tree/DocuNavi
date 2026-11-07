@@ -20,9 +20,6 @@
 | 評価の道具（scripts/・evals/） | `test_eval_*` `test_bm25_*` `test_relations` | `test_eval_graph.py` |
 | 開発環境のガード・フック | `test_guard_*` `test_hook_event_log` `test_session_rules_hook` `test_check_sensitive_terms` `test_preview_script` | `test_guard_cloud_cli.py` |
 
-- **Postgres が要るテスト**は、`TEST_DATABASE_URL` が無いとスキップされる。DB だけを使うファイルは `test_<対象>_postgres.py` と名づける。ほかにも、同じ環境変数で DB の部分だけをスキップするファイルがある。DB 込みの全体は `make test-db`（ポート 55432。他のセッションが使っていたら失敗して止まる〔止めない〕）。
-- 同じ内容をメモリー版と Postgres 版で確かめるときは、ファイルを分け、冒頭の docstring で互いを指す（`test_threads.py` ↔ `test_threads_postgres.py`）。
-
 ## fixture と補助モジュール
 
 | 種類 | 置き場所 | 命名 |
@@ -49,5 +46,4 @@
 ```bash
 .venv/bin/python -m pytest -q                 # .venv/bin/pytest のシバンが古いパスを指すことがあるので、python -m を使う
 .venv/bin/python -m pytest tests/test_search_pipeline.py
-make test-db PYTEST=".venv/bin/python -m pytest"   # 一時 Postgres 17 込み
 ```

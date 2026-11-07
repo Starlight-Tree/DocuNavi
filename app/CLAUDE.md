@@ -24,9 +24,9 @@
 ## 型・データ
 
 - `app/` に `models/` は無い。検索の結果は `Hit`（NamedTuple。`search/types.py`）、資料の範囲は `Scope`、LangGraph の状態は `app/agents/state.py` の `AgentState`。
-- DB の表を変えるのは `supabase/migrations/` だけ。アプリのコードから DDL を流さない。
+- DB の表を変えるのは `workers/api/migrations/`（D1）だけ。アプリのコードから DDL を流さない。
 
 ## テスト
 
-- `tests/conftest.py` がモックモードに固定し、検索も偽物に差し替える。テストで実 API・DB を呼ばない（Postgres のテストは `TEST_DATABASE_URL` が無ければスキップ）。
+- `tests/conftest.py` がモックモードに固定し、検索も偽物に差し替える。テストで実 API・DB を呼ばない。
 - 検索を差し替えるテストがある（`tests/conftest.py` は `tools.search_chunks_async` を差し替え、`tests/test_search_pipeline*.py` と `scripts/eval_pipeline.py` は `search_vector.search` などを差し替える）。名前を変えると、差し替えが空振りして本物を呼ぶ。

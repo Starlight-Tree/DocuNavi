@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Infisical の公式 MCP（infisical）を、このプロジェクトのローカル登録に入れる。初回の登録、または登録が失われたときの復旧用。
-# 仕組みは register-vercel-mcp.sh と同じ（設定は ~/.claude のボリューム内。通常の再ビルドでは残る。ローカル登録は作業ディレクトリの
+# 設定は ~/.claude のボリューム内。通常の再ビルドでは残る。ローカル登録は作業ディレクトリの
 # パスがキーなので、フォルダー名を変えると外れる。起動のたびに devcontainer.json の postStartCommand が呼び、今のパスに登録し直す）。
 #
 # ・登録するのは起動スクリプト（.devcontainer/infisical-mcp.sh）だけ。資格情報は登録に入れない（~/.infisical/identity から読む）。

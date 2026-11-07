@@ -6,14 +6,8 @@
 
 ## 取り違えない
 
-| | `ops/django-saas/`（ここ） | `ops/access_admin/` |
-|---|---|---|
-| 位置づけ | 学習用の試作（利用者向けの画面と API の形） | 運用者 1 人向けのロール割り当て画面。非公開の Cloud Run `docunavi-admin` に配備済み |
-| DB | 一時 Postgres の `saas` スキーマ（`chatbot` は身代わり） | 本番の `saas` スキーマ。`chatbot` は `managed=False` |
-| 依存 | `ops/django-saas/requirements.txt` | `ops/access_admin/requirements.txt` |
-
-- 互いのモデル・ロール・設定を使い回さない。試作の `Role`（owner / admin / member / viewer）と、`app/access.py` のロール（資料グループの束）は別物。
-- `ops/access_admin/` の規約は、ルートの CLAUDE.md の `ops/access_admin/` の項。
+運用者向けのロール割り当て画面 `ops/access_admin/`（別物）は、2026-11-08 に廃止して削除した。
+- 試作の `Role`（owner / admin / member / viewer）と、`app/access.py` のロール（資料グループの束）は別物。
 
 ## 構成（アプリは `saas` ひとつ）
 

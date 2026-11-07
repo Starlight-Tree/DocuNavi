@@ -1,43 +1,39 @@
 # CLAUDE.md
 
 資料（架空の惑星「ザーハード」の設定資料と、PDF の資料）に答える RAG チャットボット。FastAPI + LangGraph + Gemini のバックエンドと、
-Next.js + React + TypeScript のフロントエンド（Vercel が配信。FastAPI は配信しない）。入口は [README.md](README.md)、
-詳細は [docs/](docs/)（構成は `architecture.md`、API は `api.md`、環境変数と LLM の挙動は `configuration.md`、計画は `roadmap.md`、決定の記録は `decisions/`）。領域ごとの規約は `app/` `frontend/` `tests/` `docs/` `evals/` `ops/django-saas/`（学習用の試作。製品の Django は `ops/access_admin/`）`ops/sse-relay/` の各 `CLAUDE.md`、パス別の規則は `.claude/rules/`。
+Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `docunavi-web` が配信。FastAPI は配信しない）。入口は [README.md](README.md)、
+詳細は [docs/](docs/)（構成は `architecture.md`、API は `api.md`、環境変数と LLM の挙動は `configuration.md`、計画は `roadmap.md`、決定の記録は `decisions/`）。領域ごとの規約は `app/` `frontend/` `tests/` `docs/` `evals/` `ops/django-saas/`（学習用の試作。製品には入っていない）`ops/sse-relay/` の各 `CLAUDE.md`、パス別の規則は `.claude/rules/`。
 
 ## よく使うコマンド
 
 | 目的 | コマンド |
 |---|---|
 | バックエンド起動 | `uvicorn app.main:app --reload`（`.env` が無い・キー未設定ならモックモード） |
-| バックエンドのテスト | `pytest`（`tests/conftest.py` がモックモードに固定し、検索も偽物に差し替える。実 API・DB は呼ばない）。Postgres のテストは `TEST_DATABASE_URL` が無いとスキップ |
-| Postgres 込みのテスト | `make test-db`（一時的な Postgres 17 を起動 → `pytest` 全体 → 停止。ポート 55432、初回だけ約 20MB を取得。他のセッションが使っていたら失敗して止まる〔止めない〕）。個別手順は [docs/development.md](docs/development.md) |
+| バックエンドのテスト | `pytest`（`tests/conftest.py` がモックモードに固定し、検索も偽物に差し替える。実 API・DB は呼ばない） |
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
-| Docker | 開発コンテナは Compose ベースで、開くと `db` `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`api` と `db` はポート非公開（`dev` から直接は届かない）。実キーでは、資料を `db` に取り込むまで `api` が unhealthy のまま止まる。**未確認:** `api` から Gemini への到達、`stopCompose`、ホストのブラウザー（`localhost:3000`）での HMR。構成の詳細・確認の日付・手順は [docs/development.md](docs/development.md) |
+| Docker | 開発コンテナは Compose ベースで、開くと `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`api` はポート非公開（`dev` から直接は届かない）。ローカルの `api` は D1 につながず、モックモードで動く（実キーでも `D1_API_URL` が無いと unhealthy のまま止まる）。**未確認:** `api` から Gemini への到達、`stopCompose`、ホストのブラウザー（`localhost:3000`）での HMR。構成の詳細・確認の日付・手順は [docs/development.md](docs/development.md) |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
-目標構成（Vercel の Next.js は実装済み。Cloudflare の Worker は決定済みだが未実装）と、Go・Django などを採用する条件は [docs/target-architecture.md](docs/target-architecture.md)。
+目標構成（画面は Cloudflare の Worker `docunavi-web`、データは Worker `docunavi-api` + D1 で、2026-11-08 から本番）と、Go・Django などを採用する条件は [docs/target-architecture.md](docs/target-architecture.md)。
 新しいサービス・言語・フレームワーク・DB・インフラを足す前に、それを読んで、ユーザーに確認する。
 
 - `app/api/routes.py`: `/chat` `/chat/stream` `/health`。LLM の失敗は固定メッセージの 429/504/500/502 に変換する。画面は SSE の `/chat/stream`（組み立ては `ui_stream.py`）を使う
 - `app/agents/`: LangGraph（`graph.py`）、検索ツール（`tools.py`）、ガードレール（`guardrails.py`。完成した回答の検査と、ストリーミング中の `StreamingOutputGuard`）、
   ヘッジ付き再試行・フォールバック・有料キー切り替え（`resilience.py`）
-- `app/search/vector.py`: 資料の検索（Supabase / pgvector）。`search_documents` の実体で、アプリの検索はこれだけ。
-  本物の LLM では `DATABASE_URL` と `GEMINI_API_KEY` が必須。起動時に DB の状態を検査し、合わなければ起動を失敗させる。
+- `app/search/vector.py`: 資料の検索（Cloudflare Vectorize + D1）。`search_documents` の実体で、アプリの検索はこれだけ。
+  本物の LLM では `D1_API_URL`（データ用 Worker の URL）と `GEMINI_API_KEY` が必須。起動時に D1 の資料と埋め込みの状態を検査し、合わなければ起動を失敗させる。
   失敗しても別の経路には戻らず、API は 503 の固定文を返す。モックモード（キー未設定）は資料を検索しない固定の返答。設計は `docs/search-design.md`
-- `app/history.py`: 会話履歴。`DATABASE_URL` があれば Postgres、空ならメモリ。開けなければ起動を失敗させ、メモリへは切り替えない。削除コマンドは `app/history_admin.py`（既定は件数の表示だけ、`--apply` で削除。アプリからは使わない）
-- `app/auth.py`: `AUTH_MODE=off`（既定）は匿名、`required` は `/chat` と `/chat/stream` に Supabase の JWT（JWKS の ES256/RS256 だけ。`exp` `iss` `aud` `sub` 必須）を要求し、
+- `app/history.py`: 会話履歴。`D1_API_URL` があれば D1（データ用 Worker 経由）、空ならメモリ。開けなければ起動を失敗させ、メモリへは切り替えない。削除コマンドは `app/history_admin.py`（既定は件数の表示だけ、`--apply` で削除。アプリからは使わない）
+- `app/auth.py`: `AUTH_MODE=off`（既定）は匿名、`required` は `/chat` と `/chat/stream` に Better Auth（データ用 Worker。Google ログイン）が発行した JWT（JWKS の ES256/RS256 だけ。`exp` `iss` `aud` `sub` 必須）を要求し、
   履歴のキーを `<sub>:<thread_id>` にする（`sub` 以外から利用者 ID を取らない）。公開鍵が無ければ共有秘密には切り替えず、起動を失敗させる。
-  ローカルでの実ログインは確認済み。トークン期限切れ後の更新、Docker、公開環境は未確認（`docs/configuration.md` の「ログイン（認証）」）
+  本番は 2026-11-08 から Better Auth。**未確認:** トークン期限切れ後の更新の記録に残る確認（`docs/configuration.md` の「ログイン（認証）」）
 - `app/access.py` / `app/scope.py`: ロール別の資料グループ制御（`ACCESS_MODE=off`（既定）/`shadow`/`enforce`）。検索は `scope` が必須（`Scope.ALL` は明示。MCP は運用者専用で全グループ）。本番は 2026-10-26 から `enforce`（`docs/configuration.md` の「資料グループのアクセス制御」）
-- `ops/access_admin/`: ロールの割り当てを行う Django Admin（運用者専用・非公開の Cloud Run 予定）。**実装はローカルのみ。DB（migration）も Cloud Run も未適用**（段階 R0–R9 は `docs/access-admin.md`）。
-  Django が `migrate` するのは `saas` スキーマだけで、`chatbot` の表は `supabase/migrations/` だけが変える（Django 側は `managed=False`）。TOTP 未登録では入れない。本番 DB の書き込み・migration の適用・デプロイ・`user_roles` の書き込みは、操作ごとに承認を得る。
-  変更したら `manage.py check`・`makemigrations --check`・Django のテストを実行する。`services.py` の「見えるグループ」は `tests/test_access_admin_contract.py` が `app/access.py` と照合する
 - `app/api/threads.py`（会話の一覧・発言・削除。`required` では本人の分だけ、`off` は一覧が 404）、`app/api/documents.py`（資料一覧。読み取り専用）、
   `app/api/graph.py`（入寮規程の関係図。`app/relations/` が規則ベースで PDF から都度計算する実験。DB に保存しない）。仕様は `docs/api.md`
-- 画面: `frontend/`（Next.js。2026-10-26 に `frontend-next/` から改名）。Vercel が配信し、FastAPI は画面を配信しない（`/` は 404）。API は別オリジンなので `CORS_ORIGINS` が要る。規約は `frontend/CLAUDE.md`、README は `frontend/README.md`
+- 画面: `frontend/`（Next.js。2026-10-26 に `frontend-next/` から改名）。Workers `docunavi-web` が配信し、FastAPI は画面を配信しない（`/` は 404）。API は別オリジンなので `CORS_ORIGINS` が要る。規約は `frontend/CLAUDE.md`、README は `frontend/README.md`
 - `storage/pdf/<名前>/`: PDF の資料（`cafe` `guides` `zahard`）。検索は DB を読むので、PDF を足しても `python -m app.ingestion` と
   `python -m app.ingestion.embed` をするまで検索には出ない。`cafe` `guides` は `evals/corpora/<同じ名前>/` の写し（作り直したら両方を更新）、`zahard` は .txt から作った PDF（`docs/configuration.md` の「評価用の PDF の写し」）。
   2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は実物で確かめるまでアプリには置かない
@@ -49,7 +45,7 @@ Next.js + React + TypeScript のフロントエンド（Vercel が配信。FastA
   `Read(./.env)` の拒否ルールの対象で、Bash でも開かない。拒否されたら回避せず（別の書き方・スクリプト経由で同じことをしない）、
   ユーザーに伝える。実キーの値の照合はせず、`AIza…` 形式のパターンで検査する。
 - **エラー本文は固定メッセージ。** 例外の文字列やサーバーのパスを API の応答に含めない。
-- **API に画面を配信させない。** 画面は Vercel の `frontend`。`/{path}` のような全捕捉ルートも足さない（API の 405 やリダイレクトが壊れる）。
+- **API に画面を配信させない。** 画面は Workers の `docunavi-web`（`frontend`）。`/{path}` のような全捕捉ルートも足さない（API の 405 やリダイレクトが壊れる）。
 - **LLM の呼び出しは不安定になりうる。** 遅い呼び出しは待たずに追加の試行を投げ（ヘッジ）、最初の成功を採る。追加の試行はトークンを増やし、
   モデルの変更も料金と品質に響くので、変える前に確認する。`/chat/stream` は「最初のチャンクが届いた試行」を採り、採った後は別の試行へ切り替えない
   （送った本文と食い違うため）。数値と環境変数は `docs/configuration.md` の「LLM の遅延・失敗への対処」。
@@ -76,8 +72,8 @@ Next.js + React + TypeScript のフロントエンド（Vercel が配信。FastA
 ## セキュリティの運用
 
 - **`SECURITY.md` は置かない**（非公開・個人開発）。公開する段階で、GitHub の Private Vulnerability Reporting と一緒に検討する。
-- **画面に渡してよいのは公開用の値だけ。** `NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。入れてよいのは Supabase の URL と publishable key だけ。
-  secret key・`DATABASE_URL`・`GEMINI_API_KEY` は入れない。
+- **画面に渡してよいのは公開用の値だけ。** `NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。入れてよいのは API・中継・認証（Better Auth）の URL など、公開してよい値だけ。
+  秘密鍵・`D1_API_TOKEN`・`GEMINI_API_KEY` は入れない。
 - **設定は環境変数で渡す。** 認証・DB・LLM の値をコード・文書・コミットに書かない。`.env` と `frontend/.env.local` は Git 管理外。
 - **他の人が届く環境（Cloud Run など）は `AUTH_MODE=required`。** `off`（既定）は、自分だけが使うローカル開発用。
 - **キーを誤ってコミット・公開したら、失効させて作り直す。** 履歴から消すだけでは足りない。
@@ -128,7 +124,7 @@ gcloud と gh には、誤操作や、取り込んだ文書に埋め込まれた
   日常の ID を固定していると素のままでは失敗することがある。失敗したら、ユーザーに実行してもらう。ログインはボリュームに残る（2026-10-21 から。再ビルドでも消えない）。
   コンテナの中にはユーザー自身のログイン（リフレッシュトークン）が残る（フックを通らない経路では読める。README の「限界」）。SA のキーは作らない・保存しない。
 
-## MCP の接続（docunavi-search）
+## MCP の接続（app-docunavi）
 
 非公開の `docunavi-mcp` へは、`headersHelper`（`scripts/mcp-auth-header.sh`）で直接つなぐ。ローカルプロキシは使わない。診断と経緯は [docs/mcp-tool-design.md](docs/mcp-tool-design.md)。
 
@@ -167,7 +163,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
   `.github/workflows/deploy.yml` は**手動の実行だけ**（`workflow_dispatch`。自動では起動しない）。ユーザーが `main` の CI の成功を確かめて GitHub の Actions で実行し、Environment「production」の承認（ユーザー）を待って、Cloudflare の Worker（`workers/api` = `docunavi-api`〔D1 の migration を含む〕、`frontend` = `docunavi-web`）を本番へデプロイする。
   Cloudflare の資格情報は GitHub に置かず、OIDC で Infisical（`docunavi-deploy`）から取る（[.claude/rules/secrets.md](.claude/rules/secrets.md)）。
   プッシュの承認を求めるときは、`workers/` `frontend/` の変更が含まれるか（＝ユーザーが `deploy.yml` を実行したときに本番へ出る）を添える。プッシュだけでは Worker は本番に出ない。`deploy.yml` の実行と承認はユーザーが GitHub で行い、私は操作しない。
-  Worker の秘密（`wrangler secret put`）はこの経路に含めない。Cloud Run（FastAPI・中継）は自動デプロイしない。Vercel は解約予定の間、`main` へのプッシュで `frontend` の本番が更新される（[docs/target-architecture.md](docs/target-architecture.md)）。
+  Worker の秘密（`wrangler secret put`）はこの経路に含めない。Cloud Run（FastAPI・中継）は自動デプロイしない。
 - **CI の結果の扱い:** プッシュのたびに待たない。設定・文書・拡張だけの変更は、見にも行かない。アプリ本体・テスト・Docker・`ci.yml`・`frontend/` を変えたら、
   プッシュ後に一度だけ `gh run list` で確認し、未確認でも次の独立した作業へ進む。次の作業が前のコミットの CI に依存するとき、デプロイや公開の前、
   ユーザーが結果を求めたときは、完了まで見て報告する。失敗したら、失敗ステップとログの要点を出す。

@@ -551,7 +551,7 @@ func TestRelayRejectsBeyondLimitAndFreesSlotOnDisconnect(t *testing.T) {
 	waitActive(t, l, limit)
 
 	req, _ := http.NewRequest("POST", relay.URL+"/chat/stream", strings.NewReader("{}"))
-	req.Header.Set("Origin", "https://docunavi-eosin.vercel.app")
+	req.Header.Set("Origin", "https://docunavi-web.wataru-apps.workers.dev")
 	start := time.Now()
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -575,7 +575,7 @@ func TestRelayRejectsBeyondLimitAndFreesSlotOnDisconnect(t *testing.T) {
 	if resp.Header.Get("Retry-After") != rejectRetryAfter {
 		t.Fatalf("Retry-After = %q", resp.Header.Get("Retry-After"))
 	}
-	if resp.Header.Get("Access-Control-Allow-Origin") != "https://docunavi-eosin.vercel.app" {
+	if resp.Header.Get("Access-Control-Allow-Origin") != "https://docunavi-web.wataru-apps.workers.dev" {
 		t.Fatalf("許可リストのオリジンには、ブラウザーが読めるよう値を返す: %q", resp.Header.Get("Access-Control-Allow-Origin"))
 	}
 	if resp.Header.Get("Access-Control-Allow-Credentials") != "" {

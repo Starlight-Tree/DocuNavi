@@ -1,7 +1,6 @@
 """会話の一覧（GET /threads）、発言の取得（GET /threads/{id}/messages）と本人による削除（DELETE /threads/{id}）。履歴はメモリ。
 
 確かめるのは、本人の会話だけが出ること、題名、他人の会話を消せないこと、匿名（off）の扱い、失敗時の固定メッセージ。
-Postgres での同じ確認は tests/test_threads_postgres.py（TEST_DATABASE_URL があるときだけ）。
 """
 
 import time

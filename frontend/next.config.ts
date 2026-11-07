@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['127.0.0.1'],
   // `next dev` が AGENTS.md を自動で作るのを止める
   agentRules: false,
-  // UI モック（/mock）は、UI_MOCK=1 で起動・ビルドしたときだけ開く。本番（Vercel）では設定しないので、/ へ戻す
+  // UI モック（/mock）は、UI_MOCK=1 で起動・ビルドしたときだけ開く。本番（Worker）では設定しないので、/ へ戻す
   async redirects() {
     if (process.env.UI_MOCK === '1') return [];
     return [{ source: '/mock/:path*', destination: '/', permanent: false }];

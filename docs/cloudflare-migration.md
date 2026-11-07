@@ -38,5 +38,5 @@
 - Vectorize はメタデータだけの更新ができない。資料の `collection` / `target` を後から変えたら、そのチャンクの `embedding_model` を NULL に戻して
   `python -m app.ingestion.embed --apply` を実行する（再埋め込みの費用は小さい）。
 - 会話履歴は移さない（捨てる方針）。ユーザーは Better Auth で作り直す（初回ログインで作られる）。`user_roles` は 0 件だった。
-- ロールの割り当ては、いまは SQL（`workers/api` の D1）で行う。Django の管理画面（`ops/access_admin/`）は使わない。専用の CLI は未作成。
+- ロールの割り当ては、いまは SQL（`workers/api` の D1）で行う。Django の管理画面（`ops/access_admin/`）は 2026-11-08 に廃止した。専用の CLI は未作成。
 - 評価用のスクリプト（`scripts/eval_answers.py` `eval_vector.py`）は Postgres 前提のまま。

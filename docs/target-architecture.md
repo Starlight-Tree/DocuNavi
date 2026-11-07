@@ -23,11 +23,11 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 
 証拠等級: A = 実機・実測で確認 / B = 公式の文書 / C = 第三者の記事・別の AI の回答 / 不明。
 
-## 今の構成（実装済み）
+## 今の構成（実装済み。ただし 2026-11-08 に画面・認証・データを Cloudflare へ移した。現在の構成は [cloudflare-migration.md](cloudflare-migration.md)。以下は移行前の記録）
 
 ```
-ブラウザー → Vercel（frontend。Next.js の画面）
-         → Cloud Run（FastAPI。API だけ。画面は配信しない）→ Supabase（Postgres + pgvector、Auth）
+ブラウザー → Cloudflare Worker `docunavi-web`（frontend。Next.js の画面。2026-11-08 に Vercel から移した）
+         → Cloud Run（FastAPI。API だけ。画面は配信しない）→ Supabase（Postgres + pgvector、Auth。2026-11-08 までの構成）
                                                           → Cloudflare R2（PDF の原本）
 
 （2026-10-24 までは、Cloud Run が Vite のビルド成果物も配信していた。外した。下の「FastAPI の静的配信」）
@@ -38,7 +38,7 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 ## 目標構成（決定。未実装）
 
 ```
-ブラウザー → Next.js（Vercel。app.、DNS のみ）
+ブラウザー → Next.js（Cloudflare Worker `docunavi-web`。app.、DNS のみ）
           → api.（Cloudflare のプロキシ）→ Worker → Cloud Run（FastAPI）→ Supabase / R2
 ```
 
@@ -86,16 +86,16 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 | 要素 | 状態 | 根拠 | 採用の条件・備考 |
 |---|---|---|---|
 | Cloud Run の FastAPI | 実装済み | 本番で稼働 | - |
-| Supabase Auth / Postgres + pgvector | 実装済み | 本番で稼働 | - |
+| Supabase Auth / Postgres + pgvector | 2026-11-08 に D1 + Vectorize + Better Auth へ移行（アプリは未使用。Supabase の解約は未実施） | [cloudflare-migration.md](cloudflare-migration.md) | 移行前は本番で稼働 |
 | Cloudflare R2（原本） | 実装済み | 本番で稼働 | - |
 | ローカル Supabase（開発環境） | 中止（2026-10-25、利用者の指示。段階 0 の記録は残す） | 利用者の指示（2026-10-25）。段階 0 の実測（A）: ES256 の JWKS、`vector`、`pgroonga` | Compose の `db` との関係は未決。段階 0 の検証環境は 2026-10-25 に削除済み（今は動いていない）。上の「開発環境: ローカル Supabase」 |
-| Next.js（Vercel） | 実装済み | 本番 URL `https://docunavi-eosin.vercel.app` で稼働（2026-10-24 にデプロイ）。Cloud Run は 2026-10-25 に API のみのリビジョンを promote 済み | 確認の結果と未確認の点は roadmap の①。決めたこと: 下の「段階 7 の前に決めること」 |
+| Next.js（Worker `docunavi-web`） | 実装済み（2026-11-08 に Vercel から移行。Vercel のプロジェクトは削除済み） | 本番 URL `https://docunavi-web.wataru-apps.workers.dev`。移行前は `https://docunavi-eosin.vercel.app`（2026-10-24 にデプロイ）。Cloud Run は 2026-10-25 に API のみのリビジョンを promote 済み | 確認の結果と未確認の点は roadmap の①。決めたこと: 下の「段階 7 の前に決めること」 |
 | Cloudflare Worker + プロキシ | 決定（未実装） | 利用者の決定。SSE の通過は測定済み（A、プローブ。下記） | 自分のドメインが要る（roadmap 段階 3） |
 | Cloud Run の `--use-http2` + h2c 対応サーバー（hypercorn） | **本番に適用済み**（2026-10-25） | 切断の伝わりをプローブで測定（A）。本番（`docunavi-00016-ces`）で、ブラウザーの停止ボタンによる取り消しを確認済み（A。roadmap ②の追記） | 適用済み。旧リビジョン（HTTP/1.1）へ戻すと取り消しは効かなくなる |
 | Hono | 候補 | 不明 | Worker のルートが増えたとき。今のプローブは素の Worker |
 | Go の SSE 中継 | **本番に配備済み**（2026-10-25） | 開発コンテナ内の疑似 SSE 測定（A）を経て、Cloud Run（`docunavi-sse-relay`、h2c）へ配備。`/chat/stream` を中継 | 画面の `NEXT_PUBLIC_STREAM_BASE_URL` 経由で稼働中 |
 | gRPC のサーバーストリーミング | 条件付き | 未測定 | 下記 |
-| Django（組織・課金・管理画面） | **管理画面を本番に配備済み**（2026-10-26） | 学習用の試作（`ops/django-saas/`）を経て、運用者向けロール割り当て画面（`ops/access_admin/`）を非公開 Cloud Run（`docunavi-admin`）に配備 | 本番の SaaS 組織・課金管理機能としては未着手・条件待ち。運用者用管理画面として稼働中 |
+| Django（組織・課金・管理画面） | **管理画面は 2026-10-26 に配備し、2026-11-08 に廃止した** | 学習用の試作（`ops/django-saas/`）を経て、運用者向けロール割り当て画面（`ops/access_admin/`）を非公開 Cloud Run（`docunavi-admin`）に配備 | 本番の SaaS 組織・課金管理機能としては未着手・条件待ち。運用者用管理画面は廃止済み（ロールの割り当ては D1 の SQL） |
 | Celery + Redis | 条件付き | 不明 | 下記。今の取り込みは Cloud Run の Job + Scheduler で足りている（A、本番で稼働） |
 | LLM ゲートウェイ（LiteLLM Proxy、Bifrost、claude-code-router / CCR） | 非推奨・廃止（削除済み）。LiteLLM gateway is removed and no longer used. | アプリ内実装（ヘッジ・フォールバック・有料キー）で充足。開発時の AI 支援は Claude Code（VS Code 拡張）。Gemini CLI is not part of the docunavi runtime | 採用しない。外部プロキシやルーティング層は置かず、必要な耐障害性はアプリ（`app/agents/resilience.py`）で担保する |
 
@@ -242,6 +242,8 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 - 画像生成の Cloud Run Job は、星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理する。このリポジトリに `job/` は置かない。
 
 ## 段階 7（Vercel）の前に決めること
+
+> 2026-11-08 に、画面を Vercel から Cloudflare の Worker `docunavi-web` へ移し、Vercel のプロジェクトを削除した。本番へのデプロイは、`main` へのプッシュ（Git 連携）ではなく、手動の `.github/workflows/deploy.yml`（Environment の承認つき）。以下は、当時の決定の記録で、Vercel の記述は現在のものではない。
 
 **決定（2026-10-24、利用者）:**
 

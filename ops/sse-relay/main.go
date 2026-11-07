@@ -51,7 +51,7 @@ var heartbeatComment = []byte(": ping\n\n")
 
 // 環境変数 CORS_ORIGINS が未設定のときに、断る応答の CORS を許すオリジン（本番の画面と、ローカルの開発）
 var defaultAllowedOrigins = []string{
-	"https://docunavi-eosin.vercel.app",
+	"https://docunavi-web.wataru-apps.workers.dev",
 	"http://localhost:3000",
 	"http://127.0.0.1:3000",
 }

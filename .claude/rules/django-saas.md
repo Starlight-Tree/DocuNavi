@@ -5,7 +5,7 @@ paths:
 
 # Django の試作（ops/django-saas/）を触るとき
 
-詳細は [ops/django-saas/CLAUDE.md](../../ops/django-saas/CLAUDE.md)。製品の Django は `ops/access_admin/` で、別物（モデル・ロール・設定を使い回さない）。
+詳細は [ops/django-saas/CLAUDE.md](../../ops/django-saas/CLAUDE.md)。製品には入っていない（運用者向けの管理画面 `ops/access_admin/` は 2026-11-08 に廃止した）。
 
 - 規則（`permissions.py` `member_admin.py`）は HTTP に依存させない。`views.py` と `web_views.py` は、規則を呼んで結果を返すだけにする
 - 例外の文字列を応答に含めない。失敗は固定の文（`MemberError` など）で返す。入っていない組織は存在を知らせず 404

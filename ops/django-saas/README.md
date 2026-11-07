@@ -24,7 +24,7 @@ cd ../.. && scripts/test-postgres-down.sh                     # 一時 Postgres 
 
 ## 構成
 
-Claude Code 向けの規約と、層ごとの責務の表は [CLAUDE.md](CLAUDE.md)。製品の Django（運用者向けのロール割り当て）は `ops/access_admin/` で、これとは別。アプリは `saas` ひとつ。
+Claude Code 向けの規約と、層ごとの責務の表は [CLAUDE.md](CLAUDE.md)。運用者向けのロール割り当て画面（`ops/access_admin/`）は、これとは別物で、2026-11-08 に廃止して削除した。アプリは `saas` ひとつ。
 
 - `config/`: `settings.py`（`saas` スキーマだけを使う。秘密を持たない）・`urls.py`（`/admin/` `/api/` `/`）・`wsgi.py`
 - `saas/urls.py`: API の経路（`/api/me/orgs/` `/api/orgs/<id>/` `/api/orgs/<id>/members/`）

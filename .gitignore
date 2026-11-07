@@ -1,7 +1,5 @@
 node_modules/
 .env
-# psql の接続情報（パスワードを含む）。置き場所は ~/.pgpass でリポジトリの外だが、誤ってコピーしてもコミットしない
-.pgpass
 .venv/
 # ops/django-saas（学習用の Django）専用の仮想環境
 .venv-django/
@@ -24,8 +22,6 @@ __pycache__/
 test-results/
 playwright-report/
 
-# ops/access_admin（管理画面）の collectstatic の出力
-/ops/access_admin/staticfiles/
 
 # このマシン専用の Compose の重ね書き（ホストの絶対パスを含む）
 .devcontainer/docker-compose.local.yml

@@ -1,6 +1,4 @@
 """app/history_admin.py の、DB を使わない部分（引数の検査と、DATABASE_URL 未設定の扱い）。
-
-本物の Postgres での削除は tests/test_history_postgres.py（TEST_DATABASE_URL があるときだけ動く）。
 """
 
 import pytest

@@ -17,7 +17,7 @@ description: 検索の実装（app/search/）を、動作を変えずに移動�
 
 ## 手順（1 ファイルずつ）
 
-1. **基準を取る。** 変更前に `ruff check .` と `pytest` を実行して、通っていることを確かめる。Postgres のテストも通すなら `make test-db`（`.venv/bin/pytest` のシバンが旧パスを指して動かないときは `make test-db PYTEST=".venv/bin/python -m pytest"`）。
+1. **基準を取る。** 変更前に `ruff check .` と `pytest` を実行して、通っていることを確かめる。
 2. **参照元を洗い出す。** `grep -rn "<名前>" app tests scripts ops docs` で、import、`monkeypatch.setattr` の対象（文字列でモジュールを指すもの）、docstring・文書のパスを全部出す。
    参照元の例: `app/agents/tools.py`、`app/main.py`、`ops/mcp_search/main.py`、`scripts/eval_pipeline.py`、`tests/` の検索まわり。
    外からは `from app.search import vector as search_vector` の別名で読み、`monkeypatch` の対象名を変えない。ロガー名は `app.search_pipeline` `app.search_vector` のまま（`__name__` に戻さない）。

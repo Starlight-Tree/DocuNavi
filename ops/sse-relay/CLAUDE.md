@@ -2,7 +2,7 @@
 
 全体の方針・禁止事項は、ルートの [CLAUDE.md](../../CLAUDE.md)。状態・本番の測定・再配備の前提は [README.md](README.md)。Go を採った理由と条件は `docs/target-architecture.md` の「Go の SSE 中継」と `docs/go-architecture-plan.md`。
 
-画面（Vercel）の `POST /chat/stream` を FastAPI へ中継するだけの小さなサービス。標準ライブラリだけ。**Cloud Run `docunavi-sse-relay` に配備済みで、本番の画面はここを通る。** 新しいパス・認証・ビジネスロジックを足さない。
+画面（Worker `docunavi-web`）の `POST /chat/stream` を FastAPI へ中継するだけの小さなサービス。標準ライブラリだけ。**Cloud Run `docunavi-sse-relay` に配備済みで、本番の画面はここを通る。** 新しいパス・認証・ビジネスロジックを足さない。
 
 ## 構成（`main.go` ひとつ。分けない）
 
