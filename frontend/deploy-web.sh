@@ -10,7 +10,7 @@ export NEXT_PUBLIC_STREAM_BASE_URL="${NEXT_PUBLIC_STREAM_BASE_URL:-https://docun
 # /api/auth/* を中継する先（データ用 Worker）
 export AUTH_PROXY_TARGET="${AUTH_PROXY_TARGET:-https://docunavi-api.wataru-apps.workers.dev}"
 npm ci --no-audit --no-fund
-npx wrangler whoami >/dev/null 2>&1 || npx wrangler login
+if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then npx wrangler whoami >/dev/null 2>&1 || npx wrangler login; fi
 npm run build:cf
 npx wrangler deploy
 echo "deployed: docunavi-web"
