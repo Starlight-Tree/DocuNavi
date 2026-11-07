@@ -42,8 +42,8 @@ MASKED_ANSWER_TEXT = "この回答は、現在利用できない資料に基づ�
 # 利用者が見えるグループ。user_roles が 1 件も無い利用者（user_id が NULL の匿名も）は default ロール
 _VISIBLE_SQL = (
     "SELECT DISTINCT a.collection AS collection FROM role_collection_access a "
-    "WHERE a.role IN (SELECT r.role FROM user_roles r WHERE r.user_id = %(uid)s::uuid) "
-    "OR (a.role = %(default)s AND NOT EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = %(uid)s::uuid))"
+    "WHERE a.role IN (SELECT r.role FROM user_roles r WHERE r.user_id = %(uid)s) "
+    "OR (a.role = %(default)s AND NOT EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = %(uid)s))"
 )
 # いま存在する全グループ。登録済み（document_collections）と、資料にだけあるもの（documents.collection）の両方
 _KNOWN_SQL = (
@@ -83,7 +83,7 @@ async def visible_collections(user_id: str | None) -> frozenset[str]:
     """利用者が見えるグループ。毎回 DB から引く（キャッシュなし）。ロールが 1 つも無い利用者（None を含む）は default ロール。"""
     pool = get_pool()
     if pool is None:
-        raise AccessUnavailable("DB の接続プールが開いていません")
+        raise AccessUnavailable("DB の接続が開いていません")
     async with pool.connection() as conn:
         cursor = await conn.execute(_VISIBLE_SQL, {"uid": user_id, "default": DEFAULT_ROLE})
         rows = await cursor.fetchall()
@@ -98,7 +98,7 @@ async def visible_with_completeness(user_id: str | None) -> tuple[frozenset[str]
     """
     pool = get_pool()
     if pool is None:
-        raise AccessUnavailable("DB の接続プールが開いていません")
+        raise AccessUnavailable("DB の接続が開いていません")
     async with pool.connection() as conn:
         cursor = await conn.execute(_VISIBLE_SQL, {"uid": user_id, "default": DEFAULT_ROLE})
         visible = frozenset(row["collection"] for row in await cursor.fetchall())
@@ -203,7 +203,7 @@ async def verify_access_config() -> None:
         return
     pool = get_pool()
     if pool is None:
-        raise AccessConfigError(f"ACCESS_MODE={mode} には DATABASE_URL が必要です。")
+        raise AccessConfigError(f"ACCESS_MODE={mode} には D1_API_URL が必要です。")
     try:
         async with pool.connection() as conn:
             cursor = await conn.execute(_PROBE_SQL, {"default": DEFAULT_ROLE})

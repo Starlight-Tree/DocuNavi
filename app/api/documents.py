@@ -11,7 +11,7 @@
 import asyncio
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Any
 from urllib.parse import quote
 
@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from app.access import Access, request_access
 from app.history import get_pool
 from app.pdf_originals import find_original
+from app.r2_store import default_store
 from app.scope import ALLOWED_FILTER_SQL
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ _LIST_SQL = (
     "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, "
     "d.target AS target, d.doc_type AS doc_type, d.status AS status, "
     "d.failure_reason AS failure_reason, d.pages AS pages, d.updated_at AS updated_at, "
-    "count(c.id) AS chunk_count, count(c.embedding) AS embedded_count, "
+    "count(c.id) AS chunk_count, count(c.embedding_model) AS embedded_count, "
     "EXISTS (SELECT 1 FROM document_images i WHERE i.document_id = d.id AND i.kind = 'hero' AND i.status = 'approved') "
     "AS hero_image "
     "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id "
@@ -64,13 +65,13 @@ _DOCUMENT_SQL = (
 )
 # 承認済みのヒーロー画像。資料と同じ行から引く（資料の可視性の判定を、PDF の配信と同じ行に対して行うため）
 _HERO_SQL = (
-    "SELECT d.collection AS collection, i.mime_type AS mime_type, i.data AS data "
+    "SELECT d.collection AS collection, i.mime_type AS mime_type, i.r2_key AS r2_key "
     "FROM documents d JOIN document_images i ON i.document_id = d.id "
     "WHERE d.id = %(id)s AND i.kind = 'hero' AND i.status = 'approved'"
 )
 _CHUNKS_SQL = (
     "SELECT c.chunk_index AS chunk_index, c.page AS page, c.page_end AS page_end, c.kind AS kind, "
-    "c.heading AS heading, c.content AS content, c.embedding IS NOT NULL AS embedded, "
+    "c.heading AS heading, c.content AS content, c.embedding_model IS NOT NULL AS embedded, "
     "c.embedding_model AS embedding_model "
     "FROM chunks c WHERE c.document_id = %(id)s ORDER BY c.chunk_index LIMIT %(limit)s"
 )
@@ -98,7 +99,7 @@ class DocumentSummary(BaseModel):
 
 
 class DocumentList(BaseModel):
-    # False = DATABASE_URL が空で、資料の DB を使っていない（エラーではない）。文書が 0 件のときの documents == [] とは別
+    # False = D1_API_URL が空で、資料の DB を使っていない（エラーではない）。文書が 0 件のときの documents == [] とは別
     configured: bool
     documents: list[DocumentSummary]
 
@@ -147,6 +148,13 @@ def _classification(value: object) -> str | None:
     return value if isinstance(value, str) and _CLASSIFICATION_PATTERN.fullmatch(value) else None
 
 
+def _timestamp(value: object) -> datetime | None:
+    """D1 の時刻（UNIX ミリ秒の整数）を datetime（UTC）にする。"""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return datetime.fromtimestamp(value / 1000, tz=timezone.utc)
+    return None
+
+
 def _summary(row: dict[str, Any]) -> DocumentSummary:
     return DocumentSummary(
         id=row["id"],
@@ -158,10 +166,10 @@ def _summary(row: dict[str, Any]) -> DocumentSummary:
         status=row["status"],
         failure_reason=row.get("failure_reason"),
         pages=row.get("pages"),
-        updated_at=row.get("updated_at"),
+        updated_at=_timestamp(row.get("updated_at")),
         chunk_count=int(row.get("chunk_count") or 0),
         embedded_count=int(row.get("embedded_count") or 0),
-        hero_image=row.get("hero_image") is True,
+        hero_image=bool(row.get("hero_image")),
     )
 
 
@@ -275,6 +283,7 @@ async def document_file(
 
 
 _DETAIL_NO_HERO = "この資料の画像はありません。"
+MAX_HERO_BYTES = 5 * 1024 * 1024
 _HERO_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
 
 
@@ -298,7 +307,13 @@ async def document_hero(
     if not rows:
         raise HTTPException(status_code=404, detail=_DETAIL_NO_HERO)
     access.require_visible(rows[0].get("collection"), "ヒーロー画像", _DETAIL_NO_HERO)
-    mime_type, data = rows[0].get("mime_type"), rows[0].get("data")
-    if mime_type not in _HERO_MIME_TYPES or not isinstance(data, (bytes, bytearray, memoryview)):
+    mime_type, r2_key = rows[0].get("mime_type"), rows[0].get("r2_key")
+    if mime_type not in _HERO_MIME_TYPES or not isinstance(r2_key, str):
         raise HTTPException(status_code=404, detail=_DETAIL_NO_HERO)
-    return Response(content=bytes(data), media_type=mime_type, headers=headers)
+    try:
+        data = await asyncio.to_thread(lambda: default_store().get(r2_key, MAX_HERO_BYTES))
+    except Exception as exc:  # noqa: BLE001 - 上と同じ
+        raise _unavailable(exc) from None
+    if data is None:
+        raise HTTPException(status_code=404, detail=_DETAIL_NO_HERO)
+    return Response(content=data, media_type=mime_type, headers=headers)

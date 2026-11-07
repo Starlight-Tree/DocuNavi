@@ -257,7 +257,7 @@ def required(monkeypatch):
     """AUTH_MODE=required。署名の検証そのものは tests/test_auth.py が確かめるので、ここでは差し替える。"""
     user = str(uuid.uuid4())
     monkeypatch.setenv("AUTH_MODE", "required")
-    monkeypatch.setenv("SUPABASE_URL", "https://project-ref.supabase.co")
+    monkeypatch.setenv("AUTH_BASE_URL", "https://auth.docunavi.example")
 
     async def verify(token: str) -> str:
         if token != "good-token":

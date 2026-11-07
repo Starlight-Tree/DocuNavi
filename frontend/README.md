@@ -11,7 +11,7 @@
 - 動作モード（`mock` / `gemini`）のバッジ表示（`GET /health`）
 - 「資料一覧」タブ: DB に保存された資料を、文書ごと・チャンクの全文まで読み取り専用で表示（`GET /documents`、`GET /documents/{id}/chunks`）。
   DB 未設定・文書 0 件・取得失敗を分けて表示する
-- 会話の一覧・再開・削除（`GET /threads` ほか）、入寮規程の関係図（実験）、Google ログイン（Supabase Auth）
+- 会話の一覧・再開・削除（`GET /threads` ほか）、入寮規程の関係図（実験）、Google ログイン（Better Auth）
 
 回答の読み取り（SSE のパースと、メッセージの組み立て）は、AI SDK の `useChat`（`@ai-sdk/react`）に任せています。
 バックエンドの `/chat/stream` が AI SDK の UI message stream を返すので、トランスポートに URL と `fetch` を渡すだけです。
@@ -78,7 +78,7 @@ UI_MOCK=1 npm run dev        # http://localhost:3000/mock（?view=documents で�
 | `NEXT_PUBLIC_API_BASE_URL` | 空（相対 URL） | API のベース URL。**ビルド時に埋め込まれる**。本番（Vercel）では Cloud Run の URL を設定し、バックエンドの `CORS_ORIGINS` に Vercel のオリジンを入れる |
 | `NEXT_PUBLIC_STREAM_BASE_URL` | 空（`NEXT_PUBLIC_API_BASE_URL` を使う） | `/chat/stream` だけの接続先（Go の SSE 中継 [ops/sse-relay](../ops/sse-relay/README.md)）。**ビルド時に埋め込まれる**ので、変えるには再ビルド（再デプロイ）が要る。空に戻すと中継を通さない。ほかのエンドポイントは変わらない |
 | `API_PROXY_TARGET` | 未設定（転送しない） | 開発サーバーが API のパスを転送する先。**ビルド時に決まる**。`NEXT_PUBLIC_API_BASE_URL` を空にするときに使う |
-| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 空 | 両方そろっていると Google ログイン（Supabase Auth）を使う。**ビルド時に埋め込まれる**。publishable key は公開してよい鍵で、`service_role` は絶対に入れない。どちらかが空なら、ログイン画面は出ず認証なしで動く。バックエンドの `AUTH_MODE` と Supabase・Google 側の設定は [docs/configuration.md](../docs/configuration.md) の「ログイン（認証）」 |
+| `NEXT_PUBLIC_AUTH_ENABLED` / `NEXT_PUBLIC_AUTH_BASE_URL` | 空 | `1` か `true` で Google ログイン（Better Auth）を使う。**ビルド時に埋め込まれる**。認証の API は同じオリジンの `/api/auth/*`（`AUTH_PROXY_TARGET` の先へ中継）。`NEXT_PUBLIC_AUTH_BASE_URL` はテスト用の上書き |
 | `NEXT_DIST_DIR` | `.next` | ビルドの出力先。E2E が、認証なし・認証ありの 2 つのビルドを別のフォルダーに作るための切り替え |
 
 ## E2E
@@ -86,8 +86,8 @@ UI_MOCK=1 npm run dev        # http://localhost:3000/mock（?view=documents で�
 `npm run test:e2e` は、実ブラウザー（Chromium）から、画面と API を別のポートで立てて確かめます。実 API は使いません。
 
 - API: `tests/e2e_server.py`（偽の LLM・偽の検索の本物のアプリ。`127.0.0.1:8100`）。画面は配信せず、CORS は 2 つの画面のオリジンだけに許します
-- 画面: `npm run build:e2e` / `build:e2e:auth` のビルドを `next start` で立てます（`3100` = ログインなし、`3101` = 偽の Supabase の URL を入れたビルド）
-- シナリオ: `e2e/chat.e2e.ts`（質問 → 出典つきの回答）、`e2e/auth.e2e.ts`（偽の Supabase でのログイン、トークンの更新。`e2e/support/supabase-mock.ts`）
+- 画面: `npm run build:e2e` / `build:e2e:auth` のビルドを `next start` で立てます（`3100` = ログインなし、`3101` = ログインを有効にして偽の認証サーバーの URL を入れたビルド）
+- シナリオ: `e2e/chat.e2e.ts`（質問 → 出典つきの回答）、`e2e/auth.e2e.ts`（偽の Better Auth でのログイン、トークンの取り直し。`e2e/support/auth-mock.ts`）
 - 初回だけ、Chromium を入れます: `npx playwright install chromium`
 - 失敗時の成果物（`test-results/`・`playwright-report/`）は Git 管理外です。経緯は [docs/development.md](../docs/development.md)
 
@@ -102,7 +102,7 @@ frontend/
 ├── playwright.config.ts, e2e/
 └── src/
     ├── api/                  # chat.ts（トランスポート用の fetch と /health）、collections.ts、classifications.ts（/targets・/doc-types）、documents.ts、threads.ts、graph.ts
-    ├── auth/                 # Google ログイン（Supabase Auth）。types.ts = 窓口の型、supabase.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
+    ├── auth/                 # Google ログイン（Better Auth）。types.ts = 窓口の型、supabase.ts = SDK、authFetch.ts = トークンを付けて 401 なら 1 回更新、AuthContext.tsx = ログイン状態
     ├── hooks/                # useChat（AI SDK の useChat を包む）、useBackendMode、useCollections、useDocuments、useThreads、useLoaded（取得状態 Loaded と認証つき fetch の共通部品）
     ├── lib/                  # relationGraph（関係図の選び方・並べ方・影響の分類）、sources（出典の取り出し）、storage、urlState、markdown ほか
     ├── components/           # AppSidebar / DocumentPanel / PanelHost / MessageList / SourcesPanel / ErrorBanner / Composer / LoginScreen / DocumentsView / ThreadSidebar / RelationGraphView ほか

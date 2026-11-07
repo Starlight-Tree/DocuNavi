@@ -1,17 +1,16 @@
 """文書の題名（PDF の /Title → documents.title → 資料一覧）のテスト。実 DB・実 API は使わない。
 
 確かめるのは、題名の読み取りと整形、保存のときの扱い（渡さない = 残す／None = 消す／文字列 = 置き換える）、
-失敗した取り込みが題名に触れないこと、PostgresRepository が出す SQL の引数。
-本物の Postgres での確認は tests/test_ingestion_postgres.py（TEST_DATABASE_URL があるときだけ）。
+失敗した取り込みが題名に触れないこと、D1Repository の題名の扱い（偽の Worker = 本物の SQLite）。
+（）。
 """
-
-from contextlib import contextmanager
 
 import pytest
 
+from app.d1 import SyncD1
 from app.ingestion import chunker
 from app.ingestion.pdf_parser import MAX_TITLE_CHARS, clean_title, extract_title
-from app.ingestion.repository import _SETUP_SQL, KEEP_TITLE, MemoryRepository, PostgresRepository
+from app.ingestion.repository import KEEP_TITLE, D1Repository, MemoryRepository
 from app.ingestion.service import ingest
 from tests.pdf_fixtures import build_pdf, paragraphs
 
@@ -136,72 +135,43 @@ def test_a_pdf_that_fails_to_ingest_does_not_touch_the_stored_title(tmp_path):
     assert repo.documents["a.pdf"]["title"] == TITLE
 
 
-# --- PostgresRepository が出す SQL の引数（接続は偽物） -------------------------------------------------------
+# --- D1Repository の題名の扱い（偽の Worker = 本物の SQLite） -------------------------------------------------
 
 
-class _Cursor:
-    def __init__(self, rows):
-        self._rows = rows
-
-    def fetchone(self):
-        return self._rows[0] if self._rows else None
-
-    def fetchall(self):
-        return self._rows
+def _repo(worker):
+    return D1Repository(SyncD1("https://worker.test", transport=worker.transport()))
 
 
-class _FakeConn:
-    def __init__(self):
-        self.calls: list[tuple[str, tuple]] = []
-
-    @contextmanager
-    def transaction(self):
-        yield
-
-    def execute(self, sql, params=()):
-        self.calls.append((sql, tuple(params)))
-        if "INSERT INTO documents" in sql:
-            return _Cursor([(1,)])
-        return _Cursor([])
+def _title(worker):
+    return worker.rows("SELECT title FROM documents")[0]["title"]
 
 
-def _upsert_params(conn):
-    (call,) = [c for c in conn.calls if "INSERT INTO documents" in c[0]]
-    return call
+def test_d1_save_keeps_sets_or_clears_the_title(d1_worker):
+    repo = _repo(d1_worker)
+    repo.save("a.pdf", "h", 2, [], title=TITLE)
+    repo.save("a.pdf", "h", 2, [])  # 渡さない → 既存を残す
+    assert _title(d1_worker) == TITLE
+    repo.save("a.pdf", "h", 2, [], title="別の題名")  # 文字列 → 置き換える
+    assert _title(d1_worker) == "別の題名"
+    repo.save("a.pdf", "h", 2, [], title=None)  # None → 題名なしにする
+    assert _title(d1_worker) is None
 
 
-# 引数の並び: source, hash, status, reason, pages, title, collection, pages, keep
-@pytest.mark.parametrize(
-    ("kwargs", "title_param", "keep_param"),
-    [
-        ({}, None, True),  # 渡さない → 既存を残す
-        ({"title": None}, None, False),  # None → 題名なしにする
-        ({"title": TITLE}, TITLE, False),  # 文字列 → 置き換える
-    ],
-)
-def test_postgres_save_passes_the_title_and_the_keep_flag(kwargs, title_param, keep_param):
-    conn = _FakeConn()
-    PostgresRepository(conn, create_tables=False).save("a.pdf", "h", 2, [], **kwargs)
-    sql, params = _upsert_params(conn)
-    assert params[5] == title_param
-    assert params[8] is keep_param
-    assert "title = CASE WHEN %s THEN documents.title ELSE EXCLUDED.title END" in sql
-
-
-def test_postgres_mark_failed_keeps_the_stored_title():
-    conn = _FakeConn()
-    PostgresRepository(conn, create_tables=False).mark_failed("a.pdf", "h", "garbled")
-    _, params = _upsert_params(conn)
-    assert params[8] is True
+def test_d1_mark_failed_keeps_the_stored_title(d1_worker):
+    repo = _repo(d1_worker)
+    repo.save("a.pdf", "h", 2, [], title=TITLE)
+    repo.mark_failed("a.pdf", "h2", "garbled")
+    assert _title(d1_worker) == TITLE
 
 
 def test_the_default_is_the_keep_marker():
     import inspect
 
-    assert inspect.signature(PostgresRepository.save).parameters["title"].default is KEEP_TITLE
+    assert inspect.signature(D1Repository.save).parameters["title"].default is KEEP_TITLE
     assert inspect.signature(MemoryRepository.save).parameters["title"].default is KEEP_TITLE
 
 
-def test_the_setup_sql_has_the_title_column_for_new_and_existing_tables():
-    assert "title          text," in _SETUP_SQL
-    assert "ALTER TABLE documents ADD COLUMN IF NOT EXISTS title text;" in _SETUP_SQL
+def test_the_migration_has_the_title_column():
+    from tests.d1_fakes import MIGRATION
+
+    assert "title          TEXT," in MIGRATION.read_text(encoding="utf-8")

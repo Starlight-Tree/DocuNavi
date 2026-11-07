@@ -1,9 +1,9 @@
-"""資料のベクトル検索（Supabase / pgvector）。`search_documents` ツールの検索の実体で、アプリの検索はこれだけ。
+"""資料のベクトル検索（Cloudflare Vectorize + D1）。`search_documents` ツールの検索の実体で、アプリの検索はこれだけ。
 
-検索の経路は、質問（LLM が渡した検索クエリ）の埋め込みを 1 回作り（`gemini-embedding-2`、768 次元）、`chunks.embedding` との
-コサイン類似度が高い順に上位を取る。DB の `documents`（`status = 'ready'`）の全チャンクが対象で、ローカルの PDF は読まない。
+検索の経路は、質問（LLM が渡した検索クエリ）の埋め込みを 1 回作り（`gemini-embedding-2`、768 次元）、Vectorize のベクトルとの
+コサイン類似度が高い順に上位を取る（ベクトルの検索は Vectorize、本文とメタデータは D1。どちらもデータ用 Worker 経由）。DB の `documents`（`status = 'ready'`）の全チャンクが対象で、ローカルの PDF は読まない。
 保存側の入力の形・モデル・次元は `app/ingestion/embedding.py` が唯一の定義で、ここはそれに揃える。
-DB は既存の接続プール（`app/history.py` の `get_pool()`）を借りる。読むだけで、書かない。
+DB は既存の接続（`app/history.py` の `get_pool()`、`app/d1.py` の `D1Pool`）を借りる。読むだけで、書かない。
 
 - **しきい値（`MIN_SIMILARITY`）は粗い下限で、「資料にない」の判断は LLM に任せる。** 類似度では、資料にある話題の質問と
   資料にない質問を分けられない（答えのある質問の 1 位は 0.62〜0.89、資料にない話題だが関連する質問は 0.67〜0.78、無関係な質問は 0.66 以下）。
@@ -38,27 +38,47 @@ EMBED_TIMEOUT_SECONDS = 10.0
 
 _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
 
-_SEARCH_SQL = (
-    "SELECT d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, c.heading AS heading, "
-    "c.content AS content, c.page AS page, c.page_end AS page_end, "
-    "1 - (c.embedding OPERATOR(extensions.<=>) %(q)s::extensions.vector(768)) AS sim "
+# Vectorize が返したチャンク ID を、本文・メタデータに引き直す（範囲・対象・資料の条件は、Vectorize のフィルターに加えてここでも確かめる）
+_CHUNKS_SQL = (
+    "SELECT c.id AS chunk_id, d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, "
+    "c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end, c.chunk_index AS chunk_index "
     "FROM chunks c JOIN documents d ON d.id = c.document_id "
-    "WHERE d.status = 'ready' AND c.embedding IS NOT NULL "
-    "AND (%(collection)s::text IS NULL OR d.collection = %(collection)s::text) "
+    "WHERE c.id IN (SELECT value FROM json_each(%(ids)s)) AND d.status = 'ready' "
+    "AND (%(collection)s IS NULL OR d.collection = %(collection)s) "
     f"AND {ALLOWED_FILTER_SQL} "
     f"AND {TARGET_FILTER_SQL} "
     f"AND {DOCUMENTS_FILTER_SQL} "
-    "AND c.embedding_model = %(model)s AND c.embedding_dimensions = %(dims)s "
-    "ORDER BY c.embedding OPERATOR(extensions.<=>) %(q)s::extensions.vector(768), d.source, c.chunk_index "
-    "LIMIT %(k)s"
+    "AND c.embedding_model = %(model)s AND c.embedding_dimensions = %(dims)s"
 )
 
 _VERIFY_SQL = (
     "SELECT d.id AS id, d.source AS source, d.status AS status, c.heading AS heading, "
-    "c.content AS content, c.embedding IS NOT NULL AS has_vector, c.embedding_model AS model, "
+    "c.content AS content, c.embedding_model IS NOT NULL AS has_vector, c.embedding_model AS model, "
     "c.embedding_dimensions AS dims, c.embedding_input_hash AS input_hash "
     "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id"
 )
+
+# Vectorize の $in は 100 件まで。それを超える絞り込みはフィルターに載せず、D1 側の条件だけで絞る
+_VECTORIZE_IN_LIMIT = 100
+# 絞り込みで落ちる分を見込んで、top_k より多く取る（Vectorize の上限は 100）
+_OVERFETCH = 3
+_VECTORIZE_MAX_TOP_K = 100
+
+
+def _vector_filter(
+    collection: str | None, allowed: list[str] | None, target: str | None, doc_ids: list[int] | None
+) -> dict[str, Any]:
+    """Vectorize のメタデータフィルター（collection / target / document_id）。載せられない条件は D1 側で絞る。"""
+    flt: dict[str, Any] = {}
+    if collection is not None:
+        flt["collection"] = collection
+    elif allowed is not None and len(allowed) <= _VECTORIZE_IN_LIMIT:
+        flt["collection"] = {"$in": allowed}
+    if target is not None:
+        flt["target"] = target
+    if doc_ids is not None and len(doc_ids) <= _VECTORIZE_IN_LIMIT:
+        flt["document_id"] = {"$in": doc_ids}
+    return flt
 
 
 _client: Any | None = None
@@ -171,21 +191,30 @@ async def search(
         return []
     pool = get_pool()
     if pool is None:
-        raise VectorSearchError("DB の接続プールが開いていません")
-    literal = embedding.vector_literal(await embed_query(query))
+        raise VectorSearchError("DB の接続が開いていません")
+    vector = await embed_query(query)
+    doc_ids = None if document_ids is None else sorted(set(document_ids))
+    allowed = scope.sql_names()
+    top = min(max(top_k * _OVERFETCH, top_k), _VECTORIZE_MAX_TOP_K)
+    matches = await pool.vectors_query(vector, top, _vector_filter(collection, allowed, target, doc_ids))
+    if not matches:
+        return []
+    scores = {int(chunk_id): score for chunk_id, score in matches}
     params = {
-        "q": literal,
+        "ids": sorted(scores),
         "model": embedding.MODEL,
         "dims": embedding.DIMENSIONS,
-        "k": top_k,
         "collection": collection,
         "target": target,
-        "doc_ids": None if document_ids is None else sorted(set(document_ids)),
-        "allowed": scope.sql_names(),
+        "doc_ids": doc_ids,
+        "allowed": allowed,
     }
     async with pool.connection() as conn:
-        cursor = await conn.execute(_SEARCH_SQL, params)
-        rows = await cursor.fetchall()
+        cursor = await conn.execute(_CHUNKS_SQL, params)
+        found = await cursor.fetchall()
+    for row in found:
+        row["sim"] = scores[int(row["chunk_id"])]
+    rows = sorted(found, key=lambda r: (-r["sim"], r["source"], r["chunk_index"]))[:top_k]
     wanted = None if document_ids is None else set(document_ids)
     hits = [
         Hit(
@@ -217,7 +246,7 @@ async def verify() -> None:
     _api_key()
     pool = get_pool()
     if pool is None:
-        raise VectorSearchError("資料の検索には DATABASE_URL が要ります（DB の接続プールが開いていません）")
+        raise VectorSearchError("資料の検索には D1_API_URL が要ります（DB の接続が開いていません）")
     async with pool.connection() as conn:
         cursor = await conn.execute(_VERIFY_SQL)
         rows = await cursor.fetchall()

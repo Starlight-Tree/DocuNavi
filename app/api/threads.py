@@ -44,11 +44,12 @@ _DETAIL_NOT_FOUND = "指定された会話が見つかりません。"
 _DETAIL_UNAVAILABLE = "会話履歴を操作できませんでした。しばらく待ってから再試行してください。"
 
 # 一覧の元になる、会話ごとの最初と最後のチェックポイントの時刻。prefix は `<利用者 ID>:`（UUID で検証済み）
+# checkpoint は base64 の文字列で持つので、時刻は checkpoints.created_at（UNIX ミリ秒。書き込み時刻）を使う。
+# prefix は `<利用者 ID>:`（UUID で検証済み）。LIKE のワイルドカードを含まないので、先頭一致に使える
 _LIST_SQL = (
-    "SELECT thread_id, min((checkpoint->>'ts')::timestamptz) AS created_at, "
-    "max((checkpoint->>'ts')::timestamptz) AS updated_at "
-    "FROM checkpoints WHERE starts_with(thread_id, %(prefix)s) AND checkpoint_ns = '' "
-    "GROUP BY thread_id ORDER BY max((checkpoint->>'ts')::timestamptz) DESC NULLS LAST, thread_id LIMIT %(limit)s"
+    "SELECT thread_id, min(created_at) AS created_at, max(created_at) AS updated_at "
+    "FROM checkpoints WHERE substr(thread_id, 1, length(%(prefix)s)) = %(prefix)s AND checkpoint_ns = '' "
+    "GROUP BY thread_id ORDER BY max(created_at) DESC, thread_id LIMIT %(limit)s"
 )
 
 
@@ -154,11 +155,17 @@ def _parse_ts(value: Any) -> datetime | None:
         return None
 
 
+def _from_ms(value: Any) -> datetime | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return datetime.fromtimestamp(value / 1000, tz=UTC)
+    return None
+
+
 async def _recent_threads_postgres(prefix: str) -> list[tuple[str, datetime | None, datetime | None]]:
     async with get_pool().connection() as conn:
         cursor = await conn.execute(_LIST_SQL, {"prefix": prefix, "limit": MAX_THREADS})
         rows = await cursor.fetchall()
-    return [(row["thread_id"], row["created_at"], row["updated_at"]) for row in rows]
+    return [(row["thread_id"], _from_ms(row["created_at"]), _from_ms(row["updated_at"])) for row in rows]
 
 
 async def _recent_threads_memory(saver: BaseCheckpointSaver, prefix: str) -> list[tuple[str, Any, Any]]:

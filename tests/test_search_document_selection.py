@@ -176,6 +176,14 @@ class _Pool:
     def __init__(self, rows: list[dict[str, Any]]) -> None:
         self.rows = rows
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.vector_calls: list[tuple[int, dict[str, Any] | None]] = []
+
+    async def vectors_query(self, vector, top_k, filter=None):
+        self.vector_calls.append((top_k, filter))
+        for i, row in enumerate(self.rows):
+            row.setdefault("chunk_id", i + 1)
+            row.setdefault("chunk_index", i)
+        return [(str(row["chunk_id"]), float(row["sim"])) for row in self.rows]
 
     @asynccontextmanager
     async def connection(self):
@@ -223,8 +231,9 @@ def test_the_selected_ids_go_to_the_sql_and_rows_outside_the_selection_are_dropp
     hits = asyncio.run(search_vector.search("質問", 5, scope=Scope.ALL, document_ids=[2, 1, 2]))
 
     sql, params = vector_pool.calls[0]
-    assert "d.id = ANY(%(doc_ids)s::bigint[])" in sql
+    assert "d.id IN (SELECT value FROM json_each(%(doc_ids)s))" in sql
     assert params["doc_ids"] == [1, 2]
+    assert vector_pool.vector_calls[0][1] == {"document_id": {"$in": [1, 2]}}  # Vectorize のメタデータでも絞る
     assert [h.source for h in hits] == ["a.pdf", "b.pdf"]
 
     # SQL の条件を誤って、選ばれていない資料の行が返っても、返さない

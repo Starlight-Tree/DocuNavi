@@ -1,10 +1,11 @@
-"""ログイン（Supabase Auth が発行した JWT の検証）。
+"""ログイン（Better Auth（データ用 Worker）が発行した JWT の検証）。
 
 `AUTH_MODE=off`（既定）なら何も確かめず、従来どおり匿名で動く。`AUTH_MODE=required` のときは、`/chat` と
 `/chat/stream` が `Authorization: Bearer <access_token>` を要求し、署名・有効期限・発行元・対象・`sub` を確かめる。
 
-- 署名の検証は、`{SUPABASE_URL}/auth/v1/.well-known/jwks.json` の公開鍵（ES256 / RS256）だけで行う。
-  公開鍵が 1 つも無い（共有秘密 HS256 の旧方式のままの）ときは、共有秘密の検証へ黙って切り替えず、起動を失敗させる
+- 署名の検証は、`{AUTH_BASE_URL}/api/auth/jwks`（`AUTH_JWKS_URL` で上書きできる）の公開鍵（ES256 / RS256）だけで行う。
+  発行元（`iss`）は `AUTH_BASE_URL`、対象（`aud`）は `AUTH_AUDIENCE`（既定 docunavi）。
+  公開鍵が 1 つも無いときは、共有秘密の検証へ黙って切り替えず、起動を失敗させる
 - 利用者 ID は、検証に通ったトークンの `sub` だけから取る。クライアントが送った値は使わない
 - トークンの中身・Authorization ヘッダはログに出さない。ログに残すのは、失敗の種類（例外のクラス名）だけ
 """
@@ -14,10 +15,10 @@ import ipaddress
 import json
 import logging
 import os
+import re
 import time
 import urllib.error
 import urllib.request
-import uuid
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlsplit
@@ -31,7 +32,9 @@ AUTH_MODES = ("off", "required")
 # 署名に使ってよいアルゴリズム。alg=none や HS256（公開鍵を共有秘密として使う攻撃）を受け付けない
 ALLOWED_ALGORITHMS = ("ES256", "RS256")
 _ALLOWED_KEY_TYPES = ("EC", "RSA")
-AUDIENCE = "authenticated"
+DEFAULT_AUDIENCE = "docunavi"
+# Better Auth の利用者 ID（英数字と _ -）。履歴のキーの接頭辞に使うので、区切り文字（:）や空白を含む値は受け付けない
+_USER_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 _REQUIRED_CLAIMS = ["exp", "iss", "aud", "sub"]
 # 端末の時計のずれを許す秒数
 _LEEWAY_SECONDS = 10
@@ -40,7 +43,7 @@ _FETCH_TIMEOUT_SECONDS = 5.0
 _MAX_JWKS_BYTES = 1_000_000
 # 取得した鍵を使い続ける時間。過ぎたら取り直す（取り直しに失敗したときは、前の鍵を使い続ける）
 _KEYS_TTL_SECONDS = 600.0
-# 未知の kid を理由にした取り直しの最小間隔。でたらめな kid のトークンで、Supabase への問い合わせを増幅させないため
+# 未知の kid を理由にした取り直しの最小間隔。でたらめな kid のトークンで、JWKS への問い合わせを増幅させないため
 _MIN_REFRESH_INTERVAL_SECONDS = 60.0
 
 # クライアントへ返す固定メッセージ。例外の文字列・トークンは含めない
@@ -71,18 +74,22 @@ def auth_mode() -> str:
     return value
 
 
-def supabase_url() -> str:
-    """SUPABASE_URL（末尾のスラッシュなし）。未設定・不正な形なら AuthConfigError。"""
-    raw = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+def auth_base_url() -> str:
+    """AUTH_BASE_URL（Better Auth の公開オリジン。末尾のスラッシュなし）。未設定・不正な形なら AuthConfigError。"""
+    raw = os.environ.get("AUTH_BASE_URL", "").strip().rstrip("/")
     if not raw:
-        raise AuthConfigError("AUTH_MODE=required には SUPABASE_URL が必要です。")
+        raise AuthConfigError("AUTH_MODE=required には AUTH_BASE_URL が必要です。")
     parts = urlsplit(raw)
     local = _is_local_host(parts.hostname)
     if parts.scheme not in ("https", "http") or not parts.hostname or parts.query or parts.fragment or parts.path:
-        raise AuthConfigError("SUPABASE_URL は https://<ホスト> の形にしてください（パスや問い合わせは付けない）。")
+        raise AuthConfigError("AUTH_BASE_URL は https://<ホスト> の形にしてください（パスや問い合わせは付けない）。")
     if parts.scheme == "http" and not local:
-        raise AuthConfigError("SUPABASE_URL は https にしてください（http はローカルの Supabase だけ）。")
+        raise AuthConfigError("AUTH_BASE_URL は https にしてください（http はローカルだけ）。")
     return raw
+
+
+def audience() -> str:
+    return os.environ.get("AUTH_AUDIENCE", "").strip() or DEFAULT_AUDIENCE
 
 
 def _is_local_host(host: str | None) -> bool:
@@ -94,17 +101,24 @@ def _is_local_host(host: str | None) -> bool:
         return False
 
 
+_JWKS_USER_AGENT = "docunavi-api/1.0"
+
+
 def issuer() -> str:
-    return f"{supabase_url()}/auth/v1"
+    return auth_base_url()
 
 
 def jwks_url() -> str:
-    return f"{issuer()}/.well-known/jwks.json"
+    override = os.environ.get("AUTH_JWKS_URL", "").strip()
+    return override or f"{auth_base_url()}/api/auth/jwks"
 
 
 def fetch_jwks_document(url: str) -> dict[str, Any]:
     """JWKS を取得して JSON として返す（同期。呼び出し側がスレッドで実行する）。"""
-    request = urllib.request.Request(url, headers={"Accept": "application/json"})  # noqa: S310 (http/https は検証済み)
+    # 既定の UA（Python-urllib）は Cloudflare に 403（error 1010）で弾かれ、起動時の検査が落ちる。
+    request = urllib.request.Request(  # noqa: S310 (http/https は検証済み)
+        url, headers={"Accept": "application/json", "User-Agent": _JWKS_USER_AGENT}
+    )
     with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT_SECONDS) as response:  # noqa: S310
         body = response.read(_MAX_JWKS_BYTES + 1)
     if len(body) > _MAX_JWKS_BYTES:
@@ -204,12 +218,12 @@ async def verify_auth_config() -> None:
         count = await cache.refresh()
     except Exception as exc:
         raise AuthConfigError(
-            f"JWKS を取得できませんでした ({type(exc).__name__})。SUPABASE_URL を確認してください。"
+            f"JWKS を取得できませんでした ({type(exc).__name__})。AUTH_BASE_URL を確認してください。"
         ) from exc
     if count == 0:
         # 共有秘密（HS256）の旧方式のプロジェクトは、ここが空になる。黙って別の検証方式へ切り替えない
         raise AuthConfigError(
-            "JWKS に公開鍵（ES256 / RS256）がありません。Supabase の JWT 署名鍵を非対称鍵にしてください"
+            "JWKS に公開鍵（ES256 / RS256）がありません。Better Auth の jwt プラグイン（ES256）の鍵を確認してください"
             "（共有秘密による検証には切り替えません）。"
         )
     logger.info("認証: 必須（AUTH_MODE=required。JWKS の公開鍵 %d 個）", count)
@@ -235,7 +249,7 @@ async def verify_token(token: str) -> str:
             token,
             key.key,
             algorithms=[alg],
-            audience=AUDIENCE,
+            audience=audience(),
             issuer=issuer(),
             leeway=_LEEWAY_SECONDS,
             options={"require": _REQUIRED_CLAIMS},
@@ -245,14 +259,11 @@ async def verify_token(token: str) -> str:
 
     sub = claims.get("sub")
     try:
-        user_id = str(uuid.UUID(sub)) if isinstance(sub, str) else None
+        user_id = sub if isinstance(sub, str) and _USER_ID.fullmatch(sub) else None
     except ValueError:
         user_id = None
     if user_id is None:
         raise InvalidToken("sub")
-    # 匿名ログイン（Supabase の anonymous sign-in）は、ゲストを作らない方針なので受け付けない
-    if claims.get("role") != AUDIENCE or claims.get("is_anonymous") is True:
-        raise InvalidToken("role")
     return user_id
 
 

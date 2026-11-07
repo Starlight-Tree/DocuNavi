@@ -309,7 +309,7 @@ def test_the_document_screen_keeps_working_whatever_r2_answers(
 @pytest.fixture
 def ingest_env(monkeypatch):
     monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: False)
-    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setenv("D1_API_URL", "")
 
 
 def real_pdfs() -> dict[str, bytes]:
@@ -461,7 +461,7 @@ def test_verify_reports_an_unreadable_store_as_unavailable(r2) -> None:
 
 
 def _verify_env(monkeypatch, docs, s3: FakeS3) -> None:
-    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pw-DO-NOT-LOG@host/db")
+    monkeypatch.setenv("D1_API_URL", "https://worker.example")
     monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(s3, "b"))
     monkeypatch.setattr(r2_store, "_ready_documents", lambda: docs)
 
@@ -481,9 +481,9 @@ def test_verify_with_no_documents_is_not_a_success(monkeypatch, s3, capsys) -> N
 
 
 def test_verify_reports_config_and_failures_without_values(monkeypatch, s3, capsys) -> None:
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("D1_API_URL", raising=False)
     assert r2_store.main(["verify"]) == 2
-    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pw-DO-NOT-LOG@host/db")
+    monkeypatch.setenv("D1_API_URL", "https://worker.example")
 
     def unconfigured():
         raise r2_store.R2ConfigError("missing: R2_ACCOUNT_ID")

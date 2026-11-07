@@ -19,7 +19,7 @@ from pathlib import Path
 # app.main は import 時に load_dotenv() で .env を読むが、既存の環境変数は上書きしない。先に固定する（空は「既定」を意味する）
 os.environ["DATABASE_URL"] = ""
 os.environ["AUTH_MODE"] = "off"
-os.environ["SUPABASE_URL"] = ""
+os.environ["AUTH_BASE_URL"] = ""
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 # トレースを外部（LangSmith）へ送らない
 os.environ["LANGSMITH_TRACING"] = "false"

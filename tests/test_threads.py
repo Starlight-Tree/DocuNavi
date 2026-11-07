@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app import auth
 from app.api import routes, threads
-from tests.test_auth import SUPABASE_URL, Clock, JwksServer, Signer
+from tests.test_auth import AUTH_BASE_URL, Clock, JwksServer, Signer
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def required(monkeypatch, signer) -> None:
     monkeypatch.setattr(auth, "_cache", None)
     monkeypatch.setattr(auth, "_now", Clock())
     monkeypatch.setenv("AUTH_MODE", "required")
-    monkeypatch.setenv("SUPABASE_URL", SUPABASE_URL)
+    monkeypatch.setenv("AUTH_BASE_URL", AUTH_BASE_URL)
 
 
 @pytest.fixture

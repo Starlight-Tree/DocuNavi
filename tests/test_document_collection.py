@@ -4,10 +4,10 @@ import pytest
 
 from app.api import documents
 from app.ingestion import __main__ as cli
-from app.ingestion.repository import MemoryRepository, PostgresRepository
+from app.ingestion.repository import MemoryRepository
 from app.ingestion.service import collection_name, ingest
 from tests.pdf_fixtures import build_pdf, paragraphs
-from tests.test_document_title import _FakeConn, _upsert_params
+from tests.test_document_title import _repo
 from tests.test_documents import FakePool, summary_row
 
 BODY = [f"第{i}段落の本文はここに書かれています。" for i in range(1, 5)]
@@ -86,27 +86,35 @@ def test_a_name_that_cannot_be_decided_keeps_the_stored_one(tmp_path):
     assert repo.documents["a.pdf"]["collection"] == "guides"
 
 
-# --- Postgres への保存 ----------------------------------------------------------------------------------
+# --- D1 への保存 ---------------------------------------------------------------------------------------
 
 
-def test_postgres_save_passes_the_collection_and_keeps_the_stored_one_when_none():
-    conn = _FakeConn()
-    PostgresRepository(conn, create_tables=False).save("a.pdf", "h", 2, [], collection="guides")
-    sql, params = _upsert_params(conn)
-    assert params[6] == "guides"
-    assert "collection = COALESCE(EXCLUDED.collection, documents.collection)" in sql
-
-    conn = _FakeConn()
-    PostgresRepository(conn, create_tables=False).save("a.pdf", "h", 2, [])
-    assert _upsert_params(conn)[1][6] is None  # None は「上書きしない」（SQL 側が保存済みを残す）
+def _collection(worker):
+    return worker.rows("SELECT collection FROM documents")[0]["collection"]
 
 
-def test_a_failure_record_does_not_touch_the_collection():
-    conn = _FakeConn()
-    PostgresRepository(conn, create_tables=False).mark_failed("a.pdf", "h", "garbled")
-    sql, params = _upsert_params(conn)
-    assert params[6] is None
-    assert "COALESCE(EXCLUDED.collection, documents.collection)" in sql
+def test_d1_save_passes_the_collection_and_keeps_the_stored_one_when_none(d1_worker):
+    repo = _repo(d1_worker)
+    repo.save("a.pdf", "h", 2, [], collection="guides")
+    assert _collection(d1_worker) == "guides"
+    repo.save("a.pdf", "h", 2, [])  # None は「上書きしない」（SQL 側が保存済みを残す）
+    assert _collection(d1_worker) == "guides"
+    repo.save("a.pdf", "h", 2, [], collection="manuals")
+    assert _collection(d1_worker) == "manuals"
+
+
+def test_a_failure_record_does_not_touch_the_collection(d1_worker):
+    repo = _repo(d1_worker)
+    repo.save("a.pdf", "h", 2, [], collection="guides")
+    repo.mark_failed("a.pdf", "h2", "garbled")
+    assert _collection(d1_worker) == "guides"
+
+
+def test_d1_rejects_a_collection_of_the_wrong_shape_at_the_database(d1_worker):
+    from app.d1 import D1Error
+
+    with pytest.raises(D1Error):
+        _repo(d1_worker).save("a.pdf", "h", 2, [], collection="bad name!")
 
 
 # --- コマンド --------------------------------------------------------------------------------------------

@@ -132,7 +132,7 @@ def test_pool_is_opened_once_on_first_use(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_pool_without_database_url_is_a_search_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(history, "_pool", None)
-    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setenv("D1_API_URL", "")
     with pytest.raises(search_vector.VectorSearchError):
         asyncio.run(mcp_main._open_pool())
     assert history.get_pool() is None
@@ -140,27 +140,23 @@ def test_pool_without_database_url_is_a_search_error(monkeypatch: pytest.MonkeyP
 
 def test_pool_failing_to_open_is_closed_and_not_kept(monkeypatch: pytest.MonkeyPatch) -> None:
     """接続できなかったとき、プールを残さない（次の呼び出しでやり直せる）。"""
-    import psycopg_pool
+    from app import d1
 
     monkeypatch.setattr(history, "_pool", None)
-    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db.invalid/x")
+    monkeypatch.setenv("D1_API_URL", "https://worker.invalid")
     events: list[str] = []
 
     class FakePool:
-        def __init__(self, url: str, **kwargs: Any) -> None:
+        def __init__(self, url: str) -> None:
             events.append("init")
-            assert kwargs["open"] is False and kwargs["max_size"] == history.pool_max_size()
 
-        async def open(self, **kwargs: Any) -> None:
+        async def open(self) -> None:
             raise OSError(SECRET)
 
         async def close(self) -> None:
             events.append("close")
 
-        @staticmethod
-        async def check_connection(conn: Any) -> None: ...
-
-    monkeypatch.setattr(psycopg_pool, "AsyncConnectionPool", FakePool)
+    monkeypatch.setattr(d1, "D1Pool", FakePool)
     with pytest.raises(OSError):
         asyncio.run(mcp_main._open_pool())
     assert events == ["init", "close"] and history.get_pool() is None

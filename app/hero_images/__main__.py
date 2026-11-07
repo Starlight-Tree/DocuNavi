@@ -9,15 +9,16 @@
 """
 
 import argparse
-import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from dotenv import load_dotenv
 
+from app.d1 import D1Error, SyncD1
 from app.hero_images import HeroImageError, format_rows, import_images, list_images, load_plan, set_status
 from app.history import database_url
+from app.r2_store import R2ConfigError, default_store
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -36,32 +37,32 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     load_dotenv()
-    # 書き込める接続（HERO_IMAGES_DATABASE_URL）を優先する。アプリの DATABASE_URL のロール（chatbot_app）は document_images を読むだけ。
-    url = os.environ.get("HERO_IMAGES_DATABASE_URL", "").strip() or database_url()
+    url = database_url()
     if not url:
-        print("HERO_IMAGES_DATABASE_URL（または DATABASE_URL）が未設定です。", file=sys.stderr)
+        print("D1_API_URL と D1_API_TOKEN が未設定です。", file=sys.stderr)
         return 2
-    import psycopg
-
     try:
         plan = load_plan(args.plan) if args.command == "import" else None
-        with psycopg.connect(url, prepare_threshold=None, connect_timeout=10) as conn:
+        with SyncD1(url) as db:
             if args.command == "list":
-                print(format_rows(list_images(conn)))
+                print(format_rows(list_images(db)))
             elif args.command == "import":
                 assert plan is not None
-                for item in import_images(conn, plan, args.directory):
+                for item in import_images(db, default_store(), plan, args.directory):
                     print(
                         f"画像 {item.image_id}（資料 {item.document_id}、{item.bytes} バイト）を draft で入れました。"
                     )
                 print("画像を目で確かめてから、approve で承認してください（承認するまで画面には出ません）。")
             else:
-                print(set_status(conn, args.image_id, "approved" if args.command == "approve" else "rejected"))
+                print(set_status(db, args.image_id, "approved" if args.command == "approve" else "rejected"))
     except HeroImageError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    except psycopg.Error as exc:
-        print(f"DB の操作に失敗しました（{type(exc).__name__}）。", file=sys.stderr)  # 接続先・SQL は出さない
+    except R2ConfigError as exc:
+        print(f"R2 の設定が足りません（{exc}）。", file=sys.stderr)
+        return 2
+    except D1Error as exc:
+        print(f"DB の操作に失敗しました（{exc}）。", file=sys.stderr)  # URL・トークン・SQL は含まない
         return 1
     return 0
 

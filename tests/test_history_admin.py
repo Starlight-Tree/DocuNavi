@@ -12,7 +12,7 @@ from app import history_admin
 def _no_dotenv(monkeypatch):
     # .env の DATABASE_URL を読み込まないようにする（テストが本物の DB に触れないため）
     monkeypatch.setattr(history_admin, "load_dotenv", lambda *a, **k: False)
-    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setenv("D1_API_URL", "")
 
 
 def test_a_target_is_required(capsys):
@@ -40,4 +40,4 @@ def test_blank_thread_id_is_refused(capsys):
 
 def test_without_database_url_nothing_is_done(capsys):
     assert history_admin.main(["--older-than-days", "30", "--apply"]) == 2
-    assert "DATABASE_URL" in capsys.readouterr().err
+    assert "D1_API_URL" in capsys.readouterr().err

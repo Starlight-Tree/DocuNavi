@@ -5,8 +5,8 @@ import { defineConfig, devices } from '@playwright/test';
 // 実ブラウザーでつなぐ。画面と API が別オリジンなのは、本番（Vercel → Cloud Run）と同じ。実 API は使わない。
 const API_PORT = Number(process.env.E2E_PORT ?? 8100);
 const API_URL = `http://127.0.0.1:${API_PORT}`;
-// 画面: 3100 = ログインを使わない画面（NEXT_PUBLIC_SUPABASE_* が空のビルド）、
-// 3101 = 偽の Supabase の URL を入れたビルド（ログイン画面が出る。通信は e2e/support/supabase-mock.ts が差し替える）
+// 画面: 3100 = ログインを使わない画面（NEXT_PUBLIC_AUTH_ENABLED が空のビルド）、
+// 3101 = ログインを有効にして、偽の認証サーバーの URL を入れたビルド（ログイン画面が出る。通信は e2e/support/auth-mock.ts が差し替える）
 const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3100);
 const AUTH_WEB_PORT = Number(process.env.E2E_AUTH_WEB_PORT ?? 3101);
 const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
