@@ -1,0 +1,64 @@
+name: Deploy
+
+# main の CI が成功したあと、Cloudflare の 2 つの Worker（データ用 docunavi-api と画面用 docunavi-web）を本番へデプロイする。
+# ・Environment「production」の必須レビュアーの承認を待つ（承認するまで、本番には何も書かない）。
+# ・Cloudflare の API トークンは GitHub に置かない。GitHub の OIDC トークンで Infisical にログインし、実行時に取る。
+#   Infisical のマシン ID は、Subject を environment:production に固定している（設定の値は .claude/rules/secrets.md）。
+# ・Worker の秘密（wrangler secret put）は扱わない。値を変えるときだけ、手元で workers/api/deploy.sh を使う。
+# ・アクションは、改ざんされたタグを掴まないよう、コミット SHA で固定している（コメントは対応するタグ）。
+
+on:
+  # workflow_run は、フォークの PR の CI からも起きうる。下の if で、main へのプッシュの CI だけに絞っている。
+  workflow_run:  # zizmor: ignore[dangerous-triggers] CI 成功後の連鎖。信頼しないコードは、チェックアウトも実行もしない
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+# 移行の途中で止めない（cancel-in-progress: false）。待ちは 1 件に畳まれ、順序は保たれる。
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare (docunavi-api, docunavi-web)
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+      id-token: write  # Infisical へ OIDC でログインするための、GitHub のトークン発行
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # CI が通ったコミットそのものをデプロイする（承認を待つ間に main が進んでも、別のコミットは出さない）
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false  # 後続のステップで git の認証は使わない
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+      # CLOUDFLARE_API_TOKEN と CLOUDFLARE_ACCOUNT_ID を、このジョブの環境変数に入れる（値は伏せ字になる）
+      - name: Fetch the Cloudflare credentials from Infisical (OIDC)
+        uses: Infisical/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1.0.7
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: docunavi-deploy
+          env-slug: prod
+      # 先にデータ用 Worker（D1 の migration を含む）。画面用 Worker はそのあと。
+      - name: Deploy the data Worker (D1 migrations, then deploy)
+        working-directory: workers/api
+        run: |
+          npm ci --no-audit --no-fund
+          npx wrangler d1 migrations apply docunavi --remote
+          npx wrangler deploy
+      - name: Deploy the web Worker (OpenNext)
+        working-directory: frontend
+        run: ./deploy-web.sh

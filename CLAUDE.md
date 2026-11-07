@@ -163,8 +163,11 @@ README の「開発環境の GitHub CLI（gh）」を参照。
   テストが失敗しているとき、作業の途中のときは提案しない。検査は、追加行の秘密情報のパターンと、登録語
   （`scripts/check-sensitive-terms.sh origin/main..HEAD`。語は Git の管理外の `.git/sensitive-terms` に置く）。
 - **しないこと:** 強制プッシュと、公開済み履歴の書き換えはしない（必要なら相談する）。`git reset` と `git restore` は、承認を得てから行う。
-- **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、`frontend`（単体テスト・型検査・ビルド）、Go（中継と疑似の上流の `go vet`・`-race` テスト）、ワークフローの静的検査を行う。**デプロイは含まない。**
-  `main` へのプッシュで Vercel の `frontend` の本番が更新される。プッシュの承認を求めるときは、`frontend/` の変更が含まれるかを添える。Cloud Run への自動デプロイを足したら、この運用を見直す（Vercel の運用は [docs/target-architecture.md](docs/target-architecture.md)）。
+- **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、`frontend`（単体テスト・型検査・ビルド）、Go（中継と疑似の上流の `go vet`・`-race` テスト）、ワークフローの静的検査を行う。**CI 自体にデプロイは含まない。**
+  `main` の CI が成功すると `.github/workflows/deploy.yml` が起動し、Environment「production」の承認（ユーザー）を待って、Cloudflare の Worker（`workers/api` = `docunavi-api`〔D1 の migration を含む〕、`frontend` = `docunavi-web`）を本番へデプロイする。
+  Cloudflare の資格情報は GitHub に置かず、OIDC で Infisical（`docunavi-deploy`）から取る（[.claude/rules/secrets.md](.claude/rules/secrets.md)）。
+  プッシュの承認を求めるときは、`workers/` `frontend/` の変更が含まれるか（＝承認後に本番へ出る）と、`deploy.yml` の承認はユーザーが GitHub で行うことを添える。承認の画面は私が操作しない。
+  Worker の秘密（`wrangler secret put`）はこの経路に含めない。Cloud Run（FastAPI・中継）は自動デプロイしない。Vercel は解約予定の間、`main` へのプッシュで `frontend` の本番が更新される（[docs/target-architecture.md](docs/target-architecture.md)）。
 - **CI の結果の扱い:** プッシュのたびに待たない。設定・文書・拡張だけの変更は、見にも行かない。アプリ本体・テスト・Docker・`ci.yml`・`frontend/` を変えたら、
   プッシュ後に一度だけ `gh run list` で確認し、未確認でも次の独立した作業へ進む。次の作業が前のコミットの CI に依存するとき、デプロイや公開の前、
   ユーザーが結果を求めたときは、完了まで見て報告する。失敗したら、失敗ステップとログの要点を出す。
