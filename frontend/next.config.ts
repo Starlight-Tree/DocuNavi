@@ -8,6 +8,8 @@ const apiProxyTarget = process.env.API_PROXY_TARGET?.replace(/\/+$/, '');
 const authProxyTarget = process.env.AUTH_PROXY_TARGET?.replace(/\/+$/, '');
 
 const nextConfig: NextConfig = {
+  // route.ts がビルド時に中継先を読めるようにする（Workers の実行時には環境変数が無い）
+  env: { AUTH_PROXY_TARGET: authProxyTarget ?? '' },
   // E2E が、認証なし・認証ありの 2 つのビルドを別のフォルダーに作って同時に立てるための切り替え（既定は .next）
   distDir: process.env.NEXT_DIST_DIR || '.next',
   // 開発サーバーを 127.0.0.1 で開くと、既定ではブラウザーへの資産の配信が止まる（空白の画面になる）
@@ -20,12 +22,12 @@ const nextConfig: NextConfig = {
     return [{ source: '/mock/:path*', destination: '/', permanent: false }];
   },
   async rewrites() {
-    const auth = authProxyTarget ? [{ source: '/api/auth/:path*', destination: `${authProxyTarget}/api/auth/:path*` }] : [];
-    if (!apiProxyTarget) return auth;
+    // /api/auth/* は rewrites ではなく app/api/auth/[...all]/route.ts が中継する（rewrites は 302 をたどって Set-Cookie を捨てる）
+    if (!apiProxyTarget) return [];
     const api = ['/health', '/chat', '/chat/stream', '/threads', '/threads/:path*', '/documents', '/documents/:path*', '/collections'].map(
       (source) => ({ source, destination: `${apiProxyTarget}${source}` }),
     );
-    return [...auth, ...api];
+    return api;
   },
 };
 
