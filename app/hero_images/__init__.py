@@ -18,25 +18,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-MAX_IMAGE_BYTES = 5 * 1024 * 1024  # migration の document_images_size と同じ
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # workers/api/migrations/0001_schema.sql の document_images.byte_size と同じ
+_EXTENSIONS = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
 KIND = "hero"
 _DIGITS = re.compile(r"[0-9]+")
 
-SELECT_DOCUMENT_SQL = "SELECT content_hash FROM chatbot.documents WHERE id = %s"
+SELECT_DOCUMENT_SQL = "SELECT content_hash FROM documents WHERE id = ?"
 INSERT_SQL = (
-    "INSERT INTO chatbot.document_images (document_id, kind, status, mime_type, data, width, height, document_hash, prompt_sha256, model) "
-    "VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s) RETURNING id"
+    "INSERT INTO document_images (document_id, kind, status, mime_type, r2_key, byte_size, width, height, document_hash, prompt_sha256, model) "
+    "VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"
 )
-SELECT_IMAGE_SQL = "SELECT id, document_id, kind, status FROM chatbot.document_images WHERE id = %s FOR UPDATE"
+SELECT_IMAGE_SQL = "SELECT id, document_id, kind, status FROM document_images WHERE id = ?"
 DEMOTE_SQL = (
-    "UPDATE chatbot.document_images SET status = 'rejected', approved_at = NULL "
-    "WHERE document_id = %s AND kind = %s AND status = 'approved' AND id <> %s"
+    "UPDATE document_images SET status = 'rejected', approved_at = NULL "
+    "WHERE document_id = ? AND kind = ? AND status = 'approved' AND id <> ?"
 )
-APPROVE_SQL = "UPDATE chatbot.document_images SET status = 'approved', approved_at = now() WHERE id = %s"
-REJECT_SQL = "UPDATE chatbot.document_images SET status = 'rejected', approved_at = NULL WHERE id = %s"
+APPROVE_SQL = "UPDATE document_images SET status = 'approved', approved_at = unixepoch() * 1000 WHERE id = ?"
+REJECT_SQL = "UPDATE document_images SET status = 'rejected', approved_at = NULL WHERE id = ?"
 LIST_SQL = (
-    "SELECT id, document_id, kind, status, mime_type, octet_length(data) AS bytes, width, height, created_at "
-    "FROM chatbot.document_images ORDER BY document_id, id"
+    "SELECT id, document_id, kind, status, mime_type, byte_size AS bytes, width, height, created_at "
+    "FROM document_images ORDER BY document_id, id"
 )
 
 
@@ -132,8 +133,8 @@ class Imported:
     bytes: int
 
 
-def import_images(conn: Any, plan: Plan, directory: Path) -> list[Imported]:
-    """plan の各項目の画像（`<directory>/<資料ID>/<ハッシュ先頭 16 文字>.png`）を draft で入れる。1 件でも問題があれば、何も入れない。"""
+def import_images(db: Any, store: Any, plan: Plan, directory: Path) -> list[Imported]:
+    """plan の各項目の画像（`<directory>/<資料ID>/<ハッシュ先頭 16 文字>.png`）を R2 に置き、draft で入れる。1 件でも問題があれば、何も入れない。"""
     staged: list[tuple[PlanItem, bytes, ImageInfo]] = []
     for item in plan.items:
         path = directory / str(item.document_id) / f"{plan.short_hash}.png"
@@ -149,53 +150,54 @@ def import_images(conn: Any, plan: Plan, directory: Path) -> list[Imported]:
         if info is None:
             raise HeroImageError(f"資料 {item.document_id} の画像は、PNG / JPEG / WebP ではありません。")
         staged.append((item, data, info))
+    hashes: dict[int, str] = {}
+    for item, _, _ in staged:
+        rows = db.execute(SELECT_DOCUMENT_SQL, (item.document_id,))
+        if not rows:
+            raise HeroImageError(f"資料 {item.document_id} が DB にありません。")
+        hashes[item.document_id] = rows[0]["content_hash"]
     results: list[Imported] = []
-    with conn.transaction():
-        for item, data, info in staged:
-            row = conn.execute(SELECT_DOCUMENT_SQL, (item.document_id,)).fetchone()
-            if row is None:
-                raise HeroImageError(f"資料 {item.document_id} が DB にありません。")
-            inserted = conn.execute(
-                INSERT_SQL,
-                (
-                    item.document_id,
-                    KIND,
-                    info.mime_type,
-                    data,
-                    info.width,
-                    info.height,
-                    row[0],
-                    item.prompt_sha256,
-                    plan.model,
-                ),
-            ).fetchone()
-            results.append(Imported(int(inserted[0]), item.document_id, len(data)))
+    for item, data, info in staged:
+        key = f"hero/{item.document_id}/{plan.short_hash}-{item.prompt_sha256[:12]}.{_EXTENSIONS[info.mime_type]}"
+        store.put(key, data, content_type=info.mime_type)
+        inserted = db.execute(
+            INSERT_SQL,
+            (
+                item.document_id,
+                KIND,
+                info.mime_type,
+                key,
+                len(data),
+                info.width,
+                info.height,
+                hashes[item.document_id],
+                item.prompt_sha256,
+                plan.model,
+            ),
+        )
+        results.append(Imported(int(inserted[0]["id"]), item.document_id, len(data)))
     return results
 
 
-def set_status(conn: Any, image_id: int, status: str) -> str:
+def set_status(db: Any, image_id: int, status: str) -> str:
     """draft / rejected を approved に、または approved / draft を rejected にする。承認では、同じ資料の古い approved を rejected にする。"""
     if status not in ("approved", "rejected"):
         raise HeroImageError("状態は approved か rejected です。")
-    with conn.transaction():
-        row = conn.execute(SELECT_IMAGE_SQL, (image_id,)).fetchone()
-        if row is None:
-            raise HeroImageError(f"画像 {image_id} がありません。")
-        _, document_id, kind, current = row
-        if current == status:
-            return f"画像 {image_id}（資料 {document_id}）は、すでに {status} です。"
-        if status == "approved":
-            conn.execute(DEMOTE_SQL, (document_id, kind, image_id))
-            conn.execute(APPROVE_SQL, (image_id,))
-        else:
-            conn.execute(REJECT_SQL, (image_id,))
+    rows = db.execute(SELECT_IMAGE_SQL, (image_id,))
+    if not rows:
+        raise HeroImageError(f"画像 {image_id} がありません。")
+    document_id, kind, current = rows[0]["document_id"], rows[0]["kind"], rows[0]["status"]
+    if current == status:
+        return f"画像 {image_id}（資料 {document_id}）は、すでに {status} です。"
+    if status == "approved":
+        db.batch([(DEMOTE_SQL, (document_id, kind, image_id)), (APPROVE_SQL, (image_id,))])
+    else:
+        db.execute(REJECT_SQL, (image_id,))
     return f"画像 {image_id}（資料 {document_id}）を {status} にしました。"
 
 
-def list_images(conn: Any) -> list[Mapping[str, Any]]:
-    cursor = conn.execute(LIST_SQL)
-    columns = [column.name for column in cursor.description]
-    return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
+def list_images(db: Any) -> list[Mapping[str, Any]]:
+    return db.execute(LIST_SQL)
 
 
 def format_rows(rows: Sequence[Mapping[str, Any]]) -> str:

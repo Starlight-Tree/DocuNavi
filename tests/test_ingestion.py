@@ -31,7 +31,7 @@ def _small_chunks(monkeypatch):
 def _no_dotenv(monkeypatch):
     # .env の DATABASE_URL を読み込まないようにする（テストが本物の DB に触れないため）
     monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: False)
-    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setenv("D1_API_URL", "")
 
 
 def _write(path, pages):
@@ -282,7 +282,7 @@ def test_cli_without_pdfs_is_a_usage_error(tmp_path, capsys):
 def test_cli_apply_needs_database_url(tmp_path, capsys):
     _write(tmp_path / "guide.pdf", [BODY[:2]])
     assert cli.main(["--input", str(tmp_path), "--apply"]) == 2
-    assert "DATABASE_URL" in capsys.readouterr().err
+    assert "D1_API_URL" in capsys.readouterr().err
 
 
 def test_cli_dry_run_and_apply_are_exclusive(tmp_path):

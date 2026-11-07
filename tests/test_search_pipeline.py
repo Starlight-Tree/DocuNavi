@@ -329,9 +329,18 @@ def test_the_real_corpus_query_filters_by_scope_and_reads_only_ready_embedded_ch
     assert [c.text for c in chunks] == ["見出し\n本文"]  # SQL が誤っても、範囲外のグループは持たない
     sql, params = calls[0]
     assert (
-        "d.status = 'ready'" in sql and "c.embedding IS NOT NULL" in sql and "ORDER BY d.source, c.chunk_index" in sql
+        "d.status = 'ready'" in sql
+        and "c.embedding_model IS NOT NULL" in sql
+        and "ORDER BY d.source, c.chunk_index LIMIT" in sql
     )
-    assert params == {"collection": None, "target": None, "doc_ids": None, "allowed": ["zahard"]}
+    assert params == {
+        "collection": None,
+        "target": None,
+        "doc_ids": None,
+        "allowed": ["zahard"],
+        "limit": 250,
+        "offset": 0,
+    }
 
 
 # ---- ログ ----

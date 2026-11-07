@@ -12,11 +12,11 @@
 import logging
 from typing import Annotated, Any
 
-import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
 from app.access import Access, request_access
+from app.d1 import D1Error
 from app.history import get_pool
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ _LIST_SQL = (
     "count(d.id) AS document_count, count(d.id) FILTER (WHERE d.status = 'ready') AS ready_count "
     "FROM document_collections c FULL OUTER JOIN documents d ON d.collection = c.name "
     "WHERE coalesce(c.name, d.collection) IS NOT NULL "
-    "AND (%(allowed)s::text[] IS NULL OR coalesce(c.name, d.collection) = ANY(%(allowed)s::text[])) "
+    "AND (%(allowed)s IS NULL OR coalesce(c.name, d.collection) IN (SELECT value FROM json_each(%(allowed)s))) "
     "GROUP BY c.name, c.label, c.description, c.sort_order, d.collection "
     "ORDER BY c.sort_order NULLS LAST, coalesce(c.name, d.collection) LIMIT %(limit)s"
 )
@@ -61,7 +61,7 @@ class CollectionSummary(BaseModel):
 
 
 class CollectionList(BaseModel):
-    # False = DATABASE_URL が空で、資料の DB を使っていない（エラーではない）。グループが 0 件のときの collections == [] とは別
+    # False = D1_API_URL が空で、資料の DB を使っていない（エラーではない）。グループが 0 件のときの collections == [] とは別
     configured: bool
     collections: list[CollectionSummary]
 
@@ -93,10 +93,12 @@ async def list_collections(
         async with pool.connection() as conn:
             cursor = await conn.execute(_LIST_SQL, {"limit": _MAX_COLLECTIONS, "allowed": access.scope.sql_names()})
             rows = await cursor.fetchall()
-    except psycopg.errors.UndefinedTable:
-        # マイグレーション 0006 の前。ほかの失敗（接続など）とは、メッセージを分ける
-        logger.warning("資料グループの表がありません (UndefinedTable)")
-        raise HTTPException(status_code=503, detail=_DETAIL_NOT_READY, headers=_NO_STORE) from None
+    except D1Error as exc:
+        if "no such" in str(exc):  # 表が無い（migration の前）。ほかの失敗（接続など）とは、メッセージを分ける
+            logger.warning("資料グループの表がありません")
+            raise HTTPException(status_code=503, detail=_DETAIL_NOT_READY, headers=_NO_STORE) from None
+        logger.warning("資料グループを取得できませんでした (D1Error)")
+        raise HTTPException(status_code=503, detail=_DETAIL_UNAVAILABLE, headers=_NO_STORE) from None
     except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・SQL が入りうる。型の名前だけを残す
         logger.warning("資料グループを取得できませんでした (%s)", type(exc).__name__)
         raise HTTPException(status_code=503, detail=_DETAIL_UNAVAILABLE, headers=_NO_STORE) from None

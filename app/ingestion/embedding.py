@@ -17,11 +17,14 @@ extensions スキーマは無いので、検索のSQLでは `OPERATOR(extensions
 """
 
 import hashlib
+import json
 import math
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
+
+from app.d1 import MAX_BATCH
 
 MODEL = "gemini-embedding-2"
 DIMENSIONS = 768
@@ -227,30 +230,31 @@ def embed_pending(
     return report
 
 
-def vector_literal(values: Sequence[float]) -> str:
-    """pgvector のテキスト形式（'[0.1,0.2,...]'）。SQL では %s::extensions.vector(768) と受ける。"""
-    return "[" + ",".join(repr(float(v)) for v in values) + "]"
+class D1EmbeddingStore:
+    """chunks の埋め込みの記録（モデル・次元・入力ハッシュ）を D1 に、ベクトルそのものを Vectorize に書く。
 
-
-class PostgresEmbeddingStore:
-    """chunks の埋め込みの列（supabase/migrations/20261017184901・20261017185742）を読み書きする。接続は呼び出し側が開閉する。
-
-    作り直しの判定は、送る入力全体のハッシュ（Python 側の `input_hash`）で行うので、全行を読んで比べる（数百〜数千行の想定。
-    行が数万を超えたら、ハッシュを SQL 側で計算する形に変える）。
+    作り直しの判定は、送る入力全体のハッシュ（Python 側の `input_hash`）で行うので、全行を読んで比べる（数百〜数千行の想定）。
+    Vectorize のメタデータ（collection / target / document_id）は、ベクトルを書くときの資料の値。資料の分類を後から変えたときは、
+    その資料のチャンクの `embedding_model` を NULL に戻して再実行する（Vectorize はメタデータだけの更新ができない）。
     """
 
-    def __init__(self, conn: Any) -> None:
-        self._conn = conn
+    def __init__(self, client: Any) -> None:
+        self._db = client
 
     def _all_pending(self) -> list[PendingChunk]:
-        rows = self._conn.execute(
-            "SELECT id, content_hash, heading, content, embedding IS NOT NULL, embedding_model, embedding_dimensions, "
-            "embedding_input_hash FROM chunks ORDER BY id"
-        ).fetchall()
+        rows = self._db.execute(
+            "SELECT id, content_hash, heading, content, embedding_model IS NOT NULL AS has_vector, embedding_model, "
+            "embedding_dimensions, embedding_input_hash FROM chunks ORDER BY id"
+        )
         pending: list[PendingChunk] = []
-        for row_id, digest, heading, content, has_vector, model, dims, stored_input in rows:
-            chunk = PendingChunk(row_id, digest, heading, content)
-            current = has_vector and model == MODEL and dims == DIMENSIONS and stored_input == chunk.input_hash
+        for row in rows:
+            chunk = PendingChunk(row["id"], row["content_hash"], row["heading"], row["content"])
+            current = (
+                bool(row["has_vector"])
+                and row["embedding_model"] == MODEL
+                and row["embedding_dimensions"] == DIMENSIONS
+                and row["embedding_input_hash"] == chunk.input_hash
+            )
             if not current:
                 pending.append(chunk)
         return pending
@@ -262,24 +266,42 @@ class PostgresEmbeddingStore:
         return len(self._all_pending())
 
     def save_embeddings(self, rows: Sequence[tuple[PendingChunk, list[float]]]) -> int:
+        # 本文のハッシュと見出しが、埋め込みを作ったときのままの行だけを更新する（取り込みで入れ替わった行に、古い入力のベクトルを付けない）
         saved = 0
-        with self._conn.transaction():
-            for chunk, vector in rows:
-                # 本文のハッシュと見出しが、埋め込みを作ったときのままの行だけを更新する（取り込みで入れ替わった行に、
-                # 古い入力のベクトルを付けない）
-                cur = self._conn.execute(
-                    "UPDATE chunks SET embedding = %s::extensions.vector(768), embedding_model = %s, "
-                    "embedding_dimensions = %s, embedding_input_hash = %s "
-                    "WHERE id = %s AND content_hash = %s AND heading IS NOT DISTINCT FROM %s",
+        for i in range(0, len(rows), MAX_BATCH):
+            part = rows[i : i + MAX_BATCH]
+            self._db.batch(
+                [
                     (
-                        vector_literal(vector),
-                        MODEL,
-                        DIMENSIONS,
-                        chunk.input_hash,
-                        chunk.id,
-                        chunk.content_hash,
-                        chunk.heading,
-                    ),
+                        "UPDATE chunks SET embedding_model = ?, embedding_dimensions = ?, embedding_input_hash = ? "
+                        "WHERE id = ? AND content_hash = ? AND heading IS ?",
+                        (MODEL, DIMENSIONS, chunk.input_hash, chunk.id, chunk.content_hash, chunk.heading),
+                    )
+                    for chunk, _ in part
+                ]
+            )
+            ids = json.dumps([chunk.id for chunk, _ in part])
+            meta = {
+                row["id"]: row
+                for row in self._db.execute(
+                    "SELECT c.id AS id, c.embedding_input_hash AS input_hash, d.id AS document_id, d.collection AS collection, "
+                    "d.target AS target FROM chunks c JOIN documents d ON d.id = c.document_id "
+                    "WHERE c.id IN (SELECT value FROM json_each(?))",
+                    (ids,),
                 )
-                saved += cur.rowcount
+            }
+            vectors = []
+            for chunk, vector in part:
+                row = meta.get(chunk.id)
+                if row is None or row["input_hash"] != chunk.input_hash:
+                    continue  # 取り込みで入れ替わった行
+                metadata: dict[str, Any] = {"document_id": row["document_id"]}
+                if row["collection"] is not None:
+                    metadata["collection"] = row["collection"]
+                if row["target"] is not None:
+                    metadata["target"] = row["target"]
+                vectors.append({"id": str(chunk.id), "values": [float(v) for v in vector], "metadata": metadata})
+            if vectors:
+                self._db.vectors_upsert(vectors)
+                saved += len(vectors)
         return saved

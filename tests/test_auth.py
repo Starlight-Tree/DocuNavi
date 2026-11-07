@@ -1,6 +1,6 @@
 """ログイン（AUTH_MODE=required）の JWT 検証と、会話と利用者の紐づけ。
 
-実際の Supabase は呼ばない。テストごとに作った鍵で JWT を署名し、JWKS の取得（auth.fetch_jwks_document）を差し替える。
+実際の Better Auth は呼ばない。テストごとに作った鍵で JWT を署名し、JWKS の取得（auth.fetch_jwks_document）を差し替える。
 確かめるのは、受け付けないトークン、alg の混同、鍵の取り直しの間隔、起動時の検査、利用者ごとの会話の分離。
 """
 
@@ -23,8 +23,8 @@ from app import auth
 from app.api import routes
 from app.main import app
 
-SUPABASE_URL = "https://project-ref.supabase.co"
-ISSUER = f"{SUPABASE_URL}/auth/v1"
+AUTH_BASE_URL = "https://auth.docunavi.example"
+ISSUER = AUTH_BASE_URL
 KID = "key-1"
 USER_A = str(uuid.uuid4())
 USER_B = str(uuid.uuid4())
@@ -45,9 +45,8 @@ class Signer:
     def token(self, sub: str | None = USER_A, **overrides) -> str:
         claims: dict = {
             "iss": ISSUER,
-            "aud": "authenticated",
+            "aud": "docunavi",
             "sub": sub,
-            "role": "authenticated",
             "exp": int(time.time()) + 3600,
         }
         claims.update(overrides)
@@ -65,7 +64,7 @@ class JwksServer:
 
     def __call__(self, url: str) -> dict:
         self.calls += 1
-        assert url == f"{ISSUER}/.well-known/jwks.json"
+        assert url == f"{ISSUER}/api/auth/jwks"
         if self.error is not None:
             raise self.error
         return {"keys": self.keys}
@@ -102,7 +101,7 @@ def clock(monkeypatch) -> Clock:
 @pytest.fixture
 def required(monkeypatch, jwks, clock) -> None:
     monkeypatch.setenv("AUTH_MODE", "required")
-    monkeypatch.setenv("SUPABASE_URL", SUPABASE_URL)
+    monkeypatch.setenv("AUTH_BASE_URL", AUTH_BASE_URL)
 
 
 def _post(client: TestClient, token: str | None, thread_id: str | None = None, path: str = "/chat", **body):
@@ -162,13 +161,6 @@ def test_stream_reports_the_plain_thread_id(client, required, signer):
     res = _post(client, signer.token(), thread_id, path="/chat/stream")
     assert f'"thread_id": "{thread_id}"' in res.text or f'"thread_id":"{thread_id}"' in res.text
     assert _human_texts(f"{USER_A}:{thread_id}") == [QUESTION]
-
-
-def test_uppercase_sub_is_normalised_to_one_key(client, required, signer):
-    thread_id = str(uuid.uuid4())
-    _post(client, signer.token(sub=USER_A.upper()), thread_id)
-    _post(client, signer.token(sub=USER_A), thread_id)
-    assert _human_texts(f"{USER_A}:{thread_id}") == [QUESTION, QUESTION]
 
 
 def test_client_supplied_user_ids_are_never_used(client, required, signer):
@@ -260,12 +252,9 @@ def test_expired_token_is_401(client, required, signer):
         {"iss": None},
         {"exp": None},
         {"sub": None},
-        {"sub": "not-a-uuid"},
+        {"sub": "bad:id"},
         {"sub": ""},
         {"sub": 123},
-        {"role": "anon"},
-        {"role": None},
-        {"is_anonymous": True},
     ],
     ids=lambda o: json.dumps(o),
 )
@@ -283,7 +272,7 @@ def test_unknown_kid_is_401(client, required):
 
 def test_token_without_kid_is_401(client, required, signer):
     token = jwt.encode(
-        {"iss": ISSUER, "aud": "authenticated", "sub": USER_A, "exp": 4_000_000_000},
+        {"iss": ISSUER, "aud": "docunavi", "sub": USER_A, "exp": 4_000_000_000},
         signer.private_key,
         algorithm="ES256",
     )
@@ -292,7 +281,7 @@ def test_token_without_kid_is_401(client, required, signer):
 
 def test_alg_none_is_401(client, required):
     token = jwt.encode(
-        {"iss": ISSUER, "aud": "authenticated", "sub": USER_A, "role": "authenticated", "exp": 4_000_000_000},
+        {"iss": ISSUER, "aud": "docunavi", "sub": USER_A, "exp": 4_000_000_000},
         None,
         algorithm="none",
         headers={"kid": KID},
@@ -305,7 +294,7 @@ def test_hs256_signed_with_the_public_key_is_401(client, required, signer):
     public_pem = signer.private_key.public_key().public_bytes(
         serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
     )
-    payload = {"iss": ISSUER, "aud": "authenticated", "sub": USER_A, "role": "authenticated", "exp": 4_000_000_000}
+    payload = {"iss": ISSUER, "aud": "docunavi", "sub": USER_A, "exp": 4_000_000_000}
 
     # PyJWT 自身は PEM の公開鍵での HS256 署名を拒むので、署名は手で組み立てる
     def b64(data: bytes) -> bytes:
@@ -404,10 +393,10 @@ def test_startup_required_fetches_the_keys(required, jwks):
     assert jwks.calls == 1
 
 
-def test_startup_required_without_supabase_url_fails(monkeypatch, jwks, clock):
+def test_startup_required_without_auth_base_url_fails(monkeypatch, jwks, clock):
     monkeypatch.setenv("AUTH_MODE", "required")
-    monkeypatch.delenv("SUPABASE_URL", raising=False)
-    with pytest.raises(auth.AuthConfigError, match="SUPABASE_URL"):
+    monkeypatch.delenv("AUTH_BASE_URL", raising=False)
+    with pytest.raises(auth.AuthConfigError, match="AUTH_BASE_URL"):
         asyncio.run(auth.verify_auth_config())
 
 
@@ -421,16 +410,16 @@ def test_startup_required_without_supabase_url_fails(monkeypatch, jwks, clock):
         "x.supabase.co",
     ],
 )
-def test_startup_rejects_bad_supabase_urls(monkeypatch, jwks, clock, url):
+def test_startup_rejects_bad_auth_base_urls(monkeypatch, jwks, clock, url):
     monkeypatch.setenv("AUTH_MODE", "required")
-    monkeypatch.setenv("SUPABASE_URL", url)
+    monkeypatch.setenv("AUTH_BASE_URL", url)
     with pytest.raises(auth.AuthConfigError):
         asyncio.run(auth.verify_auth_config())
 
 
-def test_local_supabase_over_http_is_allowed(monkeypatch):
-    monkeypatch.setenv("SUPABASE_URL", "http://127.0.0.1:54321/")
-    assert auth.supabase_url() == "http://127.0.0.1:54321"
+def test_local_auth_over_http_is_allowed(monkeypatch):
+    monkeypatch.setenv("AUTH_BASE_URL", "http://127.0.0.1:8787/")
+    assert auth.auth_base_url() == "http://127.0.0.1:8787"
 
 
 def test_startup_fails_when_jwks_has_no_public_keys_and_does_not_fall_back(required, jwks):
@@ -454,7 +443,7 @@ def test_unknown_auth_mode_fails_instead_of_turning_auth_off(monkeypatch):
 
 def test_app_startup_fails_loudly_when_required_cannot_be_satisfied(monkeypatch, jwks):
     monkeypatch.setenv("AUTH_MODE", "required")
-    monkeypatch.setenv("SUPABASE_URL", SUPABASE_URL)
+    monkeypatch.setenv("AUTH_BASE_URL", AUTH_BASE_URL)
     jwks.keys = []
     with pytest.raises(auth.AuthConfigError):
         with TestClient(app):

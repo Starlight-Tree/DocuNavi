@@ -1,14 +1,16 @@
 """取り込んだ文書とチャンクの保存先。
 
-`MemoryRepository` はプロセス内（DATABASE_URL が無いときの確認用）、`PostgresRepository` は Postgres。
+`MemoryRepository` はプロセス内（D1_API_URL が無いときの確認用）、`D1Repository` は D1。
 チャンクの再利用は `chunk_index` ではなく、文書内の `content_hash` で判定する（段落を 1 つ挿入しても、
 後ろのチャンクが全部「変わった」ことにならない）。
 """
 
+import json
 from collections import Counter
 from collections.abc import Sequence
 from typing import Any, Protocol
 
+from app.d1 import MAX_BATCH
 from app.ingestion.chunker import Chunk
 
 
@@ -82,69 +84,24 @@ class MemoryRepository:
         doc.update(content_hash=document_hash, status="failed", failure_reason=reason)
 
 
-_SETUP_SQL = """
-CREATE TABLE IF NOT EXISTS documents (
-    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    source         text NOT NULL UNIQUE,
-    content_hash   text NOT NULL,
-    status         text NOT NULL CHECK (status IN ('ready', 'failed')),
-    failure_reason text,
-    pages          integer NOT NULL DEFAULT 0,
-    title          text,
-    collection     text CONSTRAINT documents_collection_format CHECK (collection IS NULL OR collection ~ '^[A-Za-z0-9_-]{1,40}$'),
-    created_at     timestamptz NOT NULL DEFAULT now(),
-    updated_at     timestamptz NOT NULL DEFAULT now()
-);
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS title text;
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS collection text
-    CONSTRAINT documents_collection_format CHECK (collection IS NULL OR collection ~ '^[A-Za-z0-9_-]{1,40}$');
-CREATE TABLE IF NOT EXISTS chunks (
-    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    document_id  bigint NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
-    chunk_index  integer NOT NULL,
-    page         integer NOT NULL,
-    page_end     integer,
-    kind         text NOT NULL DEFAULT 'text',
-    heading      text,
-    content      text NOT NULL,
-    content_hash text NOT NULL,
-    created_at   timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (document_id, chunk_index) DEFERRABLE INITIALLY DEFERRED
-);
-ALTER TABLE chunks ADD COLUMN IF NOT EXISTS page_end integer;
-ALTER TABLE chunks ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'text';
-CREATE INDEX IF NOT EXISTS chunks_document_hash_idx ON chunks (document_id, content_hash);
-"""
+class D1Repository:
+    """D1（データ用 Worker 経由）に、文書とチャンクを保存する。表は `workers/api/migrations/` が作る。
 
+    対話的なトランザクションは HTTP 越しにできないので、読んでから 1 回の `batch`（1 トランザクション）で書く。
+    消えるチャンクのベクトルは Vectorize からも消す（検索の結果に古い行が残らないように）。
+    """
 
-class PostgresRepository:
-    """psycopg の同期接続で、文書とチャンクを保存する。接続は呼び出し側が開閉する（autocommit なし）。"""
-
-    def __init__(self, conn: Any, *, create_tables: bool) -> None:
-        self._conn = conn
-        if create_tables:
-            self._setup()
-
-    def _setup(self) -> None:
-        with self._conn.transaction():
-            # 複数のコマンドが同時に初めて動いても、DDL が競合しないようにする
-            self._conn.execute("SELECT pg_advisory_xact_lock(hashtext('app.ingestion.setup'))")
-            self._conn.execute(_SETUP_SQL)
+    def __init__(self, client: Any) -> None:
+        self._db = client
 
     def stored_hashes(self, source: str) -> list[str] | None:
-        import psycopg
-
-        try:
-            with self._conn.transaction():
-                doc = self._conn.execute("SELECT id FROM documents WHERE source = %s", (source,)).fetchone()
-                if doc is None:
-                    return None
-                rows = self._conn.execute(
-                    "SELECT content_hash FROM chunks WHERE document_id = %s ORDER BY chunk_index", (doc[0],)
-                ).fetchall()
-        except psycopg.errors.UndefinedTable:
-            return None  # まだ取り込んだことが無い（確認だけのときは、テーブルを作らない）
-        return [row[0] for row in rows]
+        docs = self._db.execute("SELECT id FROM documents WHERE source = ?", (source,))
+        if not docs:
+            return None
+        rows = self._db.execute(
+            "SELECT content_hash FROM chunks WHERE document_id = ? ORDER BY chunk_index", (docs[0]["id"],)
+        )
+        return [row["content_hash"] for row in rows]
 
     def save(
         self,
@@ -156,38 +113,43 @@ class PostgresRepository:
         title: Title = KEEP_TITLE,
         collection: str | None = None,
     ) -> None:
-        with self._conn.transaction():
-            doc_id = self._upsert_document(source, document_hash, "ready", None, pages, title, collection)
-            existing = self._conn.execute(
-                "SELECT id, content_hash FROM chunks WHERE document_id = %s ORDER BY chunk_index", (doc_id,)
-            ).fetchall()
-            available: dict[str, list[int]] = {}
-            for row_id, digest in existing:
-                available.setdefault(digest, []).append(row_id)
+        doc_id = self._upsert_document(source, document_hash, "ready", None, pages, title, collection)
+        existing = self._db.execute(
+            "SELECT id, content_hash FROM chunks WHERE document_id = ? ORDER BY chunk_index", (doc_id,)
+        )
+        available: dict[str, list[int]] = {}
+        for row in existing:
+            available.setdefault(row["content_hash"], []).append(row["id"])
 
-            keep: list[tuple[int, Chunk]] = []
-            insert: list[Chunk] = []
-            for chunk in chunks:
-                ids = available.get(chunk.content_hash)
-                if ids:
-                    keep.append((ids.pop(0), chunk))
-                else:
-                    insert.append(chunk)
-            leftover = [row_id for ids in available.values() for row_id in ids]
+        keep: list[tuple[int, Chunk]] = []
+        insert: list[Chunk] = []
+        for chunk in chunks:
+            ids = available.get(chunk.content_hash)
+            if ids:
+                keep.append((ids.pop(0), chunk))
+            else:
+                insert.append(chunk)
+        leftover = [row_id for ids in available.values() for row_id in ids]
 
-            if leftover:
-                self._conn.execute("DELETE FROM chunks WHERE id = ANY(%s)", (leftover,))
-            for row_id, chunk in keep:
-                # (document_id, chunk_index) の一意制約は、コミット時に検査される（入れ替えで一時的に重なってよい）
-                self._conn.execute(
-                    "UPDATE chunks SET chunk_index = %s, page = %s, page_end = %s, kind = %s, heading = %s "
-                    "WHERE id = %s",
+        statements: list[tuple[str, Sequence[Any]]] = []
+        # (document_id, chunk_index) の一意制約は文ごとに検査される。入れ替えで重ならないよう、残す行は先に退避の番号へ動かす
+        statements.append(("UPDATE chunks SET chunk_index = -id WHERE document_id = ?", (doc_id,)))
+        if leftover:
+            statements.append(
+                ("DELETE FROM chunks WHERE id IN (SELECT value FROM json_each(?))", (json.dumps(leftover),))
+            )
+        for row_id, chunk in keep:
+            statements.append(
+                (
+                    "UPDATE chunks SET chunk_index = ?, page = ?, page_end = ?, kind = ?, heading = ? WHERE id = ?",
                     (chunk.index, chunk.page, chunk.page_end, chunk.kind, chunk.heading, row_id),
                 )
-            for chunk in insert:
-                self._conn.execute(
+            )
+        for chunk in insert:
+            statements.append(
+                (
                     "INSERT INTO chunks (document_id, chunk_index, page, page_end, kind, heading, content, content_hash) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         doc_id,
                         chunk.index,
@@ -199,10 +161,14 @@ class PostgresRepository:
                         chunk.content_hash,
                     ),
                 )
+            )
+        for i in range(0, len(statements), MAX_BATCH):
+            self._db.batch(statements[i : i + MAX_BATCH])
+        if leftover:
+            self._db.vectors_delete([str(row_id) for row_id in leftover])
 
     def mark_failed(self, source: str, document_hash: str, reason: str) -> None:
-        with self._conn.transaction():
-            self._upsert_document(source, document_hash, "failed", reason, None, KEEP_TITLE)
+        self._upsert_document(source, document_hash, "failed", reason, None, KEEP_TITLE)
 
     def _upsert_document(
         self,
@@ -217,23 +183,23 @@ class PostgresRepository:
         # 題名は、渡されたとき（文字列・None）だけ上書きする。渡されない（KEEP_TITLE）なら、保存済みのまま
         keep = isinstance(title, _KeepTitle)
         new_title = None if keep else title
-        row = self._conn.execute(
+        rows = self._db.execute(
             """
             INSERT INTO documents (source, content_hash, status, failure_reason, pages, title, collection)
-            VALUES (%s, %s, %s, %s, COALESCE(%s, 0), %s, %s)
+            VALUES (?, ?, ?, ?, COALESCE(?, 0), ?, ?)
             ON CONFLICT (source) DO UPDATE SET
-                content_hash = EXCLUDED.content_hash,
-                status = EXCLUDED.status,
-                failure_reason = EXCLUDED.failure_reason,
-                pages = COALESCE(%s, documents.pages),
-                title = CASE WHEN %s THEN documents.title ELSE EXCLUDED.title END,
-                collection = COALESCE(EXCLUDED.collection, documents.collection),
-                updated_at = now()
+                content_hash = excluded.content_hash,
+                status = excluded.status,
+                failure_reason = excluded.failure_reason,
+                pages = COALESCE(?, documents.pages),
+                title = CASE WHEN ? THEN documents.title ELSE excluded.title END,
+                collection = COALESCE(excluded.collection, documents.collection),
+                updated_at = unixepoch() * 1000
             RETURNING id
             """,
-            (source, document_hash, status, reason, pages, new_title, collection, pages, keep),
-        ).fetchone()
-        return row[0]
+            (source, document_hash, status, reason, pages, new_title, collection, pages, int(keep)),
+        )
+        return rows[0]["id"]
 
 
 def diff_counts(stored: list[str] | None, new: list[str]) -> tuple[int, int, int]:

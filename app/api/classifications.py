@@ -13,11 +13,11 @@
 import logging
 from typing import Annotated, Any
 
-import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
 from app.access import Access, request_access
+from app.d1 import D1Error
 from app.history import get_pool
 from app.scope import ALLOWED_FILTER_SQL
 
@@ -65,7 +65,7 @@ class ClassificationSummary(BaseModel):
 
 
 class TargetList(BaseModel):
-    # False = DATABASE_URL が空で、資料の DB を使っていない（エラーではない）。対象が 0 件のときの targets == [] とは別
+    # False = D1_API_URL が空で、資料の DB を使っていない（エラーではない）。対象が 0 件のときの targets == [] とは別
     configured: bool
     targets: list[ClassificationSummary]
 
@@ -88,7 +88,7 @@ def _summary(row: dict[str, Any]) -> ClassificationSummary:
 
 
 async def _read(sql: str, access: Access) -> list[ClassificationSummary] | None:
-    """見える資料のある分類。DATABASE_URL が空なら None。"""
+    """見える資料のある分類。D1_API_URL が空なら None。"""
     access.require_any()
     pool = get_pool()
     if pool is None:
@@ -97,13 +97,12 @@ async def _read(sql: str, access: Access) -> list[ClassificationSummary] | None:
         async with pool.connection() as conn:
             cursor = await conn.execute(sql, {"limit": _MAX_ITEMS, "allowed": access.scope.sql_names()})
             rows = await cursor.fetchall()
-    except psycopg.errors.UndefinedTable:
-        # M1 の前（表か列が無い）。ほかの失敗（接続など）とは、メッセージを分ける
-        logger.warning("資料の分類の表がありません (UndefinedTable)")
-        raise HTTPException(status_code=503, detail=_DETAIL_NOT_READY, headers=_NO_STORE) from None
-    except psycopg.errors.UndefinedColumn:
-        logger.warning("資料の分類の列がありません (UndefinedColumn)")
-        raise HTTPException(status_code=503, detail=_DETAIL_NOT_READY, headers=_NO_STORE) from None
+    except D1Error as exc:
+        if "no such" in str(exc):  # 表か列が無い（migration の前）。ほかの失敗（接続など）とは、メッセージを分ける
+            logger.warning("資料の分類の表か列がありません")
+            raise HTTPException(status_code=503, detail=_DETAIL_NOT_READY, headers=_NO_STORE) from None
+        logger.warning("資料の分類を取得できませんでした (D1Error)")
+        raise HTTPException(status_code=503, detail=_DETAIL_UNAVAILABLE, headers=_NO_STORE) from None
     except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・SQL が入りうる。型の名前だけを残す
         logger.warning("資料の分類を取得できませんでした (%s)", type(exc).__name__)
         raise HTTPException(status_code=503, detail=_DETAIL_UNAVAILABLE, headers=_NO_STORE) from None

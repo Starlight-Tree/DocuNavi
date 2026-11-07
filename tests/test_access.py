@@ -171,7 +171,7 @@ def test_scope_allows_only_its_groups_and_ungrouped_documents_need_all():
 
 
 def test_the_filter_sql_is_shared_by_the_search_and_the_document_list():
-    assert ALLOWED_FILTER_SQL in search_vector._SEARCH_SQL
+    assert ALLOWED_FILTER_SQL in search_vector._CHUNKS_SQL
     assert ALLOWED_FILTER_SQL in documents._LIST_SQL
 
 
@@ -571,7 +571,7 @@ def test_an_unknown_access_mode_fails_the_startup(monkeypatch):
 def test_shadow_and_enforce_need_a_database_at_startup(monkeypatch, mode):
     monkeypatch.setenv("ACCESS_MODE", mode)
     monkeypatch.setattr(access, "get_pool", lambda: None)
-    with pytest.raises(access.AccessConfigError, match="DATABASE_URL"):
+    with pytest.raises(access.AccessConfigError, match="D1_API_URL"):
         asyncio.run(access.verify_access_config())
 
 
