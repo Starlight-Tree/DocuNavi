@@ -299,3 +299,7 @@ Playwright が起動したブラウザーでは、Google が「安全でない�
 
 ファイルはログインの認証情報（リフレッシュトークン）なので、表示・貼り付け・コミットをしない。
 ホストの Chrome の拡張につなぐ `--extension` は、MCP が開発コンテナの中にあり Chrome がホストにあるので、この構成では使えない。
+
+## 開発コンテナの Compose 構成と確認の状況（CLAUDE.md から移動、2026-11-08）
+
+開発コンテナは Compose ベースで、開くと `db` `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`。`dev` は `docunavi-dev` だけで `api`・`db` に直接届かない）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`db`（ローカルの Postgres。pgvector 入り。ポート非公開・空で始まる）、`api`（ポート非公開。`DATABASE_URL` は `.env` ではなく `db` に固定。8000 番は `docker-compose.api-port.yml` を重ねたときだけ 127.0.0.1 に公開）、`frontend`（`frontend/` の next dev。:3000。2026-10-24 に Vite から置き換えた）が別コンテナ。実キーでは、資料を `db` に取り込むまで `api` が起動の検査に失敗して unhealthy のまま止まる（取り込み後は `docker compose restart api`。2026-10-22 に取り込み済みで healthy）。**未確認:** `api` から Gemini への到達（名前解決だけは 2026-10-26 に確認）、`stopCompose`、ホストのブラウザー（`localhost:3000`）での HMR（ファイル監視と、`host.docker.internal` からのブラウザー HMR は 2026-10-26 に確認。Google ログインの戻りも同日に確認済みで、Supabase の Redirect URLs に `http://localhost:3000` が要る）。Next.js 版の `frontend` の Docker での起動は 2026-10-25 にホストで確認済み（healthy、`/health` と `/` が通る）。

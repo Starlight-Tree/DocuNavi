@@ -14,7 +14,7 @@ Next.js + React + TypeScript のフロントエンド（Vercel が配信。FastA
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
-| Docker | 開発コンテナは Compose ベースで、開くと `db` `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`。`dev` は `docunavi-dev` だけで `api`・`db` に直接届かない）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`db`（ローカルの Postgres。pgvector 入り。ポート非公開・空で始まる）、`api`（ポート非公開。`DATABASE_URL` は `.env` ではなく `db` に固定。8000 番は `docker-compose.api-port.yml` を重ねたときだけ 127.0.0.1 に公開）、`frontend`（`frontend/` の next dev。:3000。2026-10-24 に Vite から置き換えた）が別コンテナ。実キーでは、資料を `db` に取り込むまで `api` が起動の検査に失敗して unhealthy のまま止まる（取り込み後は `docker compose restart api`。2026-10-22 に取り込み済みで healthy）。**未確認:** `api` から Gemini への到達（名前解決だけは 2026-10-26 に確認）、`stopCompose`、ホストのブラウザー（`localhost:3000`）での HMR（ファイル監視と、`host.docker.internal` からのブラウザー HMR は 2026-10-26 に確認。Google ログインの戻りも同日に確認済みで、Supabase の Redirect URLs に `http://localhost:3000` が要る）。Next.js 版の `frontend` の Docker での起動は 2026-10-25 にホストで確認済み（healthy、`/health` と `/` が通る）。検証の記録と手順は [docs/development.md](docs/development.md) |
+| Docker | 開発コンテナは Compose ベースで、開くと `db` `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`api` と `db` はポート非公開（`dev` から直接は届かない）。実キーでは、資料を `db` に取り込むまで `api` が unhealthy のまま止まる。**未確認:** `api` から Gemini への到達、`stopCompose`、ホストのブラウザー（`localhost:3000`）での HMR。構成の詳細・確認の日付・手順は [docs/development.md](docs/development.md) |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
@@ -174,14 +174,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
 
 ## UI/UX（画面の変更）
 
-手順と制約は `.claude/skills/ux-review/SKILL.md` と `.claude/rules/ui-review.md`。
-
-- 基準はデスクトップブラウザ（幅 1280px 前後）。スマホ実機での利用は想定しない。390px は「レイアウトが壊れないか」の確認だけで、モバイル向けの最適化はしない
-- 画面を変えたら、Before / After の Playwright スクリーンショットを撮る（保存先は `.playwright-mcp/`）
-- 「見た目を変える」依頼は、色・余白・書体・密度の変更を含める。機能だけの変更では、見た目の差が出ない
-- レイアウトを変える変更は、実装の前にモック（2 案以上、Claude Design）を作って選んでもらう。省く場合も、先に伝えて承認を得る
-- 競合など他社の比較は、証拠等級（A: 実機で確認 / B: 公式の文書 / C: 第三者の記事 / 不明）を付ける。実機で確認していないことを「確認済み」と書かない
-- 「UI/UX リサーチ」「他社と比べて」「モックのどちらがいいか」は、`.claude/skills/ux-review/SKILL.md` の「5. モックの比較リサーチ」に従い、過去の結果（`docs/ux-research.md`）を先に見て、終わったら追記する
+基準（デスクトップ 1280px 前後、スマホ実機は想定しない）、Before / After のスクリーンショット、モックの作成、比較リサーチの手順は、`.claude/rules/ui-review.md` と `.claude/skills/ux-review/SKILL.md`。
 
 ## 作業の進め方
 
