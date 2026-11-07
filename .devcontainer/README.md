@@ -330,6 +330,7 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
   1. `infisical --version`（0.44.11）と `dpkg -V infisical`（出力なし）。
   2. `stat -c '%a %U' ~/.infisical`（700 vscode）。`ls -A ~/.infisical`（初回は空）。
   3. `ls ~/.vscode-server/extensions | grep -ci infisical`（0。拡張は入れない）。
+- **公式 MCP（`infisical`。2026-11-07）:** `.devcontainer/infisical-mcp.sh`（`@infisical/mcp@0.0.25`）を、`register-infisical-mcp.sh` がローカル登録する（起動のたびに `postStartCommand` が呼ぶ。登録は `~/.claude` のボリュームに残る）。資格情報は登録に入れず、`~/.infisical/identity` から起動時に読む（Client Secret を発行し直しても、登録はそのまま）。使えるツールは `list-projects` `list-secrets` `create-secret` だけで、値は `<masked>` になる。マシン ID は viewer なので、`create-secret` は権限で断られる。**秘密の値は MCP で入れない**（値がエージェントの会話を通る）。値の登録は、利用者が端末で CLI を使う（`read -rs` で受け、一時ファイルを `infisical secrets set --file` に渡す）。`identity` の形式は `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=…` と `…_CLIENT_SECRET=…` の 2 行の 1 ファイル（上の `client-id` `client-secret` の 2 ファイルという記述は古い）。
 - **消し方:** `docker volume rm infisical-config-<id>`（ホスト）、または `rm -rf ~/.infisical/*`（コンテナ）。資格情報の失効は、Infisical の画面（Machine Identities）で行う（手順は未確認）。
 - **注意:** Free プランにはシークレットの版管理も監査ログも無い。CLI での更新・削除は戻せないので、原本は別の場所にも残す。
 
