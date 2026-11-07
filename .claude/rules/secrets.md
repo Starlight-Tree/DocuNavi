@@ -31,6 +31,7 @@
   - Subject: `repo:Starlight-Grove@154563471/docunavi@892933857:environment:production`（数値 ID つき。リポジトリの改名・移管で変わる）
   - Audience: `https://github.com/Starlight-Grove`、Access Token TTL: 600 秒
 - Cloudflare の API トークン: アカウントに限定。権限は Workers Scripts: Edit と D1: Edit から始め、足りなければ足す。有効期限は 90 日。
-  期限前に作り直し、Infisical の値を更新する（期限日は、作成したときにここへ書く）。IP 制限は、GitHub のランナーの IP が不定なので使えない。
+  期限前に作り直し、Infisical の値を更新する。IP 制限は、GitHub のランナーの IP が不定なので使えない。
+  現在のトークン `docunavi-github-actions-deploy` は 2026-11-08 に作成し、**期限は 2027-02-06**（作り直しは 2027-01 中）。
 - GitHub: Environment `production` に必須レビュアー（ユーザー）、Variable `INFISICAL_IDENTITY_ID`（公開してよい ID）。
 - 無料プランで OIDC Auth が使えることは、ユーザーが判断した（公式の文書では確認できていない。2026-11-08）。使えなくなったら、この経路は止まる。
