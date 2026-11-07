@@ -101,8 +101,8 @@ _CONFIG_ERRORS = _optional_classes(
 )
 # google.genai.errors.APIError は HTTP ステータスを code、本文を details に持つ
 _API_ERRORS = _optional_classes(("google.genai.errors", "APIError"))
-# 会話履歴の保存先（Postgres）の失敗。psycopg_pool の PoolTimeout なども psycopg.Error の子クラス
-_HISTORY_STORE_ERRORS = _optional_classes(("psycopg", "Error"))
+# 会話履歴の保存先（D1。データ用 Worker 経由）の失敗
+_HISTORY_STORE_ERRORS = _optional_classes(("app.d1", "D1Error"))
 
 
 class ChatRequest(BaseModel):

@@ -8,6 +8,8 @@ os.environ["GEMINI_API_KEY"] = ""
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 # .env に DATABASE_URL があっても、テストが本物の DB（会話履歴の保存先）へ書かないよう、空にしてメモリ履歴に固定する
 os.environ["DATABASE_URL"] = ""
+os.environ["D1_API_URL"] = ""
+os.environ["D1_API_TOKEN"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -53,3 +55,13 @@ def searching_llm(monkeypatch: pytest.MonkeyPatch):
     routes._graph_for.cache_clear()
     yield
     routes._graph_for.cache_clear()
+
+
+@pytest.fixture
+def d1_worker(monkeypatch):
+    """データ用 Worker の偽物（本物の SQLite + 総当たりのベクトル検索）。D1_API_URL / D1_API_TOKEN も差し込む。"""
+    from tests.d1_fakes import TOKEN, FakeWorker
+
+    monkeypatch.setenv("D1_API_URL", "https://worker.test")
+    monkeypatch.setenv("D1_API_TOKEN", TOKEN)
+    return FakeWorker()

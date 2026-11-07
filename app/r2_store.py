@@ -191,8 +191,8 @@ class R2Store:
             raise
         return str(response.get("ETag", "")).strip('"') or None
 
-    def put(self, key: str, data: bytes) -> None:
-        self._call("put_object", Key=key, Body=data, ContentType="application/pdf")
+    def put(self, key: str, data: bytes, content_type: str = "application/pdf") -> None:
+        self._call("put_object", Key=key, Body=data, ContentType=content_type)
 
 
 def _fresh_client() -> tuple[Any, str]:
@@ -268,23 +268,19 @@ def verify_originals(documents: Sequence[Mapping[str, Any]], find: Any) -> tuple
 
 
 def _ready_documents() -> list[dict[str, Any]]:
-    """DB の `status = 'ready'` の資料（id・source・content_hash）。接続は DATABASE_URL（アプリと同じ）。"""
-    import psycopg
-    from psycopg.rows import dict_row
+    """DB の `status = 'ready'` の資料（id・source・content_hash）。接続は D1_API_URL / D1_API_TOKEN（アプリと同じ）。"""
+    from app.d1 import SyncD1
 
-    with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, connect_timeout=10) as conn:
-        rows = conn.execute(
-            "SELECT id, source, content_hash FROM documents WHERE status = 'ready' ORDER BY id"
-        ).fetchall()
-    return [dict(row) for row in rows]
+    with SyncD1() as db:
+        return db.execute("SELECT id, source, content_hash FROM documents WHERE status = 'ready' ORDER BY id")
 
 
 def run_verify() -> int:
     """終了コード: 0 すべて一致 / 1 一致しないものがある・資料が 0 件・DB か R2 を読めない / 2 設定の不足。"""
     from app import pdf_originals
 
-    if not os.environ.get("DATABASE_URL", "").strip():
-        print("DATABASE_URL が設定されていません。", file=sys.stderr)
+    if not os.environ.get("D1_API_URL", "").strip():
+        print("D1_API_URL が設定されていません。", file=sys.stderr)
         return 2
     try:
         default_store()
@@ -310,7 +306,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         prog="python -m app.r2_store",
         description=(
             "upload: storage/pdf/ の PDF を R2 に置く（既定は計画の表示だけ。--apply で置く。読み書きのキーが要る）。"
-            "verify: DB の資料ごとに、R2 に元の PDF が一致して見つかるかを確かめる（読み取りのキーと DATABASE_URL が要る）"
+            "verify: DB の資料ごとに、R2 に元の PDF が一致して見つかるかを確かめる（読み取りのキーと D1_API_URL が要る）"
         ),
     )
     parser.add_argument("action", choices=["upload", "verify"])

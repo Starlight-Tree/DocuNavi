@@ -28,6 +28,7 @@ import os
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from app.scope import ALLOWED_FILTER_SQL, DOCUMENTS_FILTER_SQL, TARGET_FILTER_SQL, Scope, require_scope
 from app.search import vector as search_vector
@@ -48,8 +49,8 @@ _FALSE = {"off", "0", "false", "no"}
 
 _CORPUS_WHERE = (
     "FROM chunks c JOIN documents d ON d.id = c.document_id "
-    "WHERE d.status = 'ready' AND c.embedding IS NOT NULL "
-    "AND (%(collection)s::text IS NULL OR d.collection = %(collection)s::text) "
+    "WHERE d.status = 'ready' AND c.embedding_model IS NOT NULL "
+    "AND (%(collection)s IS NULL OR d.collection = %(collection)s) "
     f"AND {ALLOWED_FILTER_SQL} "
     f"AND {TARGET_FILTER_SQL} "
     f"AND {DOCUMENTS_FILTER_SQL} "
@@ -58,8 +59,10 @@ _CORPUS_SQL = (
     "SELECT d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, "
     "c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end "
     + _CORPUS_WHERE
-    + "ORDER BY d.source, c.chunk_index"
+    + "ORDER BY d.source, c.chunk_index LIMIT %(limit)s OFFSET %(offset)s"
 )
+# Worker の CPU 時間（Free プランは 1 回 10 ms）に収めるため、写しは小分けで取る
+_CORPUS_PAGE = 250
 # 写しに入っている資料の ID（`_CORPUS_SQL` と同じ条件）。対象を指定した検索で、写しが古くなっていないかを毎回確かめる軽い SQL
 _MEMBERSHIP_SQL = "SELECT DISTINCT d.id AS document_id " + _CORPUS_WHERE + "ORDER BY d.id"
 
@@ -160,16 +163,22 @@ async def _fetch_chunks(
 ) -> list[Chunk]:
     pool = search_vector.get_pool()
     if pool is None:
-        raise VectorSearchError("DB の接続プールが開いていません")
+        raise VectorSearchError("DB の接続が開いていません")
     params = {
         "collection": collection,
         "target": target,
         "doc_ids": None if document_ids is None else list(document_ids),
         "allowed": scope.sql_names(),
+        "limit": _CORPUS_PAGE,
     }
+    rows: list[dict[str, Any]] = []
     async with pool.connection() as conn:
-        cursor = await conn.execute(_CORPUS_SQL, params)
-        rows = await cursor.fetchall()
+        while True:
+            cursor = await conn.execute(_CORPUS_SQL, {**params, "offset": len(rows)})
+            page = await cursor.fetchall()
+            rows.extend(page)
+            if len(page) < _CORPUS_PAGE:
+                break
     return [
         Chunk(
             row["source"],
@@ -192,7 +201,7 @@ async def _membership(scope: Scope, collection: str | None, target: str) -> tupl
     """いま、この範囲・対象に入る資料の ID（昇順）。"""
     pool = search_vector.get_pool()
     if pool is None:
-        raise VectorSearchError("DB の接続プールが開いていません")
+        raise VectorSearchError("DB の接続が開いていません")
     params = {"collection": collection, "target": target, "doc_ids": None, "allowed": scope.sql_names()}
     async with pool.connection() as conn:
         cursor = await conn.execute(_MEMBERSHIP_SQL, params)

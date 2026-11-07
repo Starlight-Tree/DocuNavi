@@ -11,11 +11,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-import psycopg
 import pytest
 
 from app import auth
 from app.api import collections
+from app.d1 import D1Error
 
 SECRET = "postgresql://user:pw@db.example.com/x AIzaSECRETKEY"
 MIGRATION = (
@@ -145,7 +145,7 @@ def test_the_response_is_not_cached(client, use_pool):
 
 
 def test_a_missing_table_is_a_distinct_fixed_503(client, use_pool, caplog):
-    use_pool(FakePool(error=psycopg.errors.UndefinedTable(SECRET)))
+    use_pool(FakePool(error=D1Error("no such table: document_collections" + SECRET)))
     with caplog.at_level(logging.WARNING):
         res = client.get("/collections")
     assert res.status_code == 503
@@ -154,7 +154,7 @@ def test_a_missing_table_is_a_distinct_fixed_503(client, use_pool, caplog):
 
 
 def test_the_503_responses_are_not_cached_either(client, use_pool):
-    for error in (psycopg.errors.UndefinedTable("x"), RuntimeError("x")):
+    for error in (D1Error("no such table: x"), RuntimeError("x")):
         use_pool(FakePool(error=error))
         res = client.get("/collections")
         assert res.status_code == 503 and res.headers["cache-control"] == "no-store"
@@ -190,7 +190,7 @@ def required(monkeypatch):
     """AUTH_MODE=required。署名の検証そのものは tests/test_auth.py が確かめるので、ここでは差し替える。"""
     user = str(uuid.uuid4())
     monkeypatch.setenv("AUTH_MODE", "required")
-    monkeypatch.setenv("SUPABASE_URL", "https://project-ref.supabase.co")
+    monkeypatch.setenv("AUTH_BASE_URL", "https://auth.docunavi.example")
 
     async def verify(token: str) -> str:
         if token != "good-token":

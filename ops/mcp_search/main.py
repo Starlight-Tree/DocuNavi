@@ -27,9 +27,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_TOP_K = 2
 MAX_TOP_K = 5
 MAX_QUERY_CHARS = 500
-# app/history.py と同じ待ち時間
-_OPEN_TIMEOUT_SECONDS = 10.0
-
 _NOT_FOUND_TEXT = "該当する資料の箇所は見つかりませんでした。別のキーワードで再検索してください。"
 # 検索が使えなかったときに返す固定文。理由は返さない
 _SEARCH_FAILED_TEXT = "資料の検索に失敗しました。"
@@ -45,30 +42,15 @@ _pool_lock = asyncio.Lock()
 
 
 async def _open_pool() -> None:
-    """DATABASE_URL に接続プールを開き、`app.history` の置き場所に入れる。接続の設定は app/history.py に揃える。"""
-    from psycopg.rows import dict_row
-    from psycopg_pool import AsyncConnectionPool
+    """D1_API_URL のデータ用 Worker に接続し、`app.history` の置き場所に入れる。"""
+    from app.d1 import D1Pool
 
     url = history.database_url()
     if not url:
-        raise search_vector.VectorSearchError("資料の検索には DATABASE_URL が要ります")
-    pool = AsyncConnectionPool(
-        url,
-        min_size=1,
-        max_size=history.pool_max_size(),
-        timeout=_OPEN_TIMEOUT_SECONDS,
-        open=False,
-        check=AsyncConnectionPool.check_connection,
-        kwargs={
-            "autocommit": True,
-            "row_factory": dict_row,
-            # transaction mode のプーラー（Supabase の 6543 番など）でも動かす
-            "prepare_threshold": None,
-            "connect_timeout": int(_OPEN_TIMEOUT_SECONDS),
-        },
-    )
+        raise search_vector.VectorSearchError("資料の検索には D1_API_URL が要ります")
+    pool = D1Pool(url)
     try:
-        await pool.open(wait=True, timeout=_OPEN_TIMEOUT_SECONDS)
+        await pool.open()
     except BaseException:
         await pool.close()
         raise

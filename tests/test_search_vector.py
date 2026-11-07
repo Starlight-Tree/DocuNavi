@@ -43,12 +43,26 @@ class FakeCursor:
 
 
 class FakePool:
-    """psycopg_pool.AsyncConnectionPool の connection() / execute() / fetchall() だけの偽物。呼び出し（SQL, 引数）を記録する。"""
+    """D1Pool の connection() / execute() / fetchall() / vectors_query() だけの偽物。呼び出し（SQL, 引数）を記録する。"""
 
     def __init__(self, rows: list[dict[str, Any]] | None = None, error: Exception | None = None) -> None:
         self.rows = rows or []
         self.error = error
         self.calls: list[tuple[str, dict[str, Any] | None]] = []
+        self.vector_calls: list[tuple[int, dict[str, Any] | None]] = []
+
+    async def vectors_query(self, vector, top_k, filter=None):
+        """Vectorize の偽物。行の `sim` を点として返す（チャンク ID は行に無ければ連番）。"""
+        self.vector_calls.append((top_k, filter))
+        if self.error is not None:
+            raise self.error
+        matches = []
+        for i, row in enumerate(self.rows):
+            row.setdefault("chunk_id", i + 1)
+            row.setdefault("chunk_index", i)
+            if "sim" in row:
+                matches.append((str(row["chunk_id"]), float(row["sim"])))
+        return matches
 
     @asynccontextmanager
     async def connection(self):
@@ -172,13 +186,18 @@ def test_invalid_pages_become_none_so_the_screen_shows_nothing(vector_env, page,
 
 def test_a_second_hit_far_below_the_first_is_marked_weak_but_still_goes_to_the_model(vector_env):
     pool, _ = vector_env
-    pool.rows = [aoba_row(0.80), {**aoba_row(0.74), "content": "別の箇所"}, {**aoba_row(0.75), "content": "近い箇所"}]
+    pool.rows = [
+        aoba_row(0.80),
+        {**aoba_row(0.69), "content": "別の箇所"},
+        {**aoba_row(0.75), "content": "近い箇所"},
+    ]  # Vectorize の点で並べ直される
 
     message = call_tool("糸くずフィルターの掃除")
 
     # 1 位 0.80 との差が 0.06（> WEAK_GAP）の 2 件目は弱く、差が 0.05 ちょうどの 3 件目は弱くない。LLM に渡す文面は 3 件とも変わらない
-    assert [s["weak"] for s in message.artifact] == [False, True, False]
-    assert message.content.count("[aoba_aw820_manual.pdf]") == 3
+    # 点の高い順に top_k（2）件。0.80 と 0.75（差 0.05 ちょうど）はどちらも弱くない
+    assert [s["weak"] for s in message.artifact] == [False, False]
+    assert message.content.count("[aoba_aw820_manual.pdf]") == 2
 
 
 def test_the_gap_is_measured_from_the_first_hit_and_a_close_second_is_not_weak():
@@ -236,10 +255,12 @@ def test_ainvoke_returns_the_chunk_in_the_tool_format_and_reads_only_ready_docum
     )
     assert embedder.queries == ["糸くずフィルターの掃除"]
     ((sql, params),) = pool.calls
-    assert "OPERATOR(extensions.<=>)" in sql and "d.status = 'ready'" in sql
+    assert "json_each(%(ids)s)" in sql and "d.status = 'ready'" in sql
     assert "sources" not in params  # ローカルの PDF の一覧では絞らない。DB の検索できる資料の全部が対象
-    assert params["k"] == TOP_K and params["model"] == embedding.MODEL and params["dims"] == embedding.DIMENSIONS
-    assert params["q"] == embedding.vector_literal(VECTOR) and params["q"].count(",") == embedding.DIMENSIONS - 1
+    assert params["model"] == embedding.MODEL and params["dims"] == embedding.DIMENSIONS and params["ids"] == [1]
+    # ベクトルの検索は Vectorize（メタデータの絞り込みは空 = 全資料）。top_k より多めに取り、D1 の条件で絞り直す
+    ((top, flt),) = pool.vector_calls
+    assert top >= TOP_K and flt == {}
 
 
 def test_chunk_without_heading_is_returned_as_its_content(vector_env):
@@ -462,7 +483,7 @@ def test_verify_rejects_a_database_without_searchable_documents(monkeypatch):
 
 
 def test_verify_requires_the_database(monkeypatch):
-    with pytest.raises(search_vector.VectorSearchError, match="DATABASE_URL"):
+    with pytest.raises(search_vector.VectorSearchError, match="D1_API_URL"):
         run_verify(doc_rows(), monkeypatch, pool_open=False)
 
 
@@ -483,8 +504,8 @@ def test_startup_in_mock_mode_needs_neither_the_database_nor_the_embedding(monke
 
 
 def test_startup_with_a_real_llm_fails_without_the_database(monkeypatch):
-    # 本物の LLM なのに DATABASE_URL が無い（検索できない）まま動き出さない
+    # 本物の LLM なのに D1_API_URL が無い（検索できない）まま動き出さない
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-    with pytest.raises(search_vector.VectorSearchError, match="DATABASE_URL"):
+    with pytest.raises(search_vector.VectorSearchError, match="D1_API_URL"):
         with TestClient(app):
             pass

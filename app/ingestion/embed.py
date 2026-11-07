@@ -18,6 +18,7 @@ from collections.abc import Sequence
 
 from dotenv import load_dotenv
 
+from app.d1 import D1Error, SyncD1
 from app.history import database_url
 from app.ingestion.embedding import (
     DEFAULT_MAX_CALLS,
@@ -27,9 +28,9 @@ from app.ingestion.embedding import (
     MODEL,
     VERTEX_ENV,
     ApiBudget,
+    D1EmbeddingStore,
     EmbedReport,
     GeminiEmbedder,
-    PostgresEmbeddingStore,
     batch_size,
     embed_pending,
     use_vertex,
@@ -72,7 +73,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     load_dotenv()
     url = database_url()
     if not url:
-        print("DATABASE_URL が要ります（未設定です）。", file=sys.stderr)
+        print("D1_API_URL と D1_API_TOKEN が要ります（未設定です）。", file=sys.stderr)
         return 2
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if args.apply and api_key in _PLACEHOLDER_KEYS and not use_vertex():
@@ -82,18 +83,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
 
-    import psycopg
-
     budget = ApiBudget(args.max_calls)
     try:
-        # prepare_threshold=None: transaction mode のプーラーでも動かす（app/history.py と同じ）
-        with psycopg.connect(url, prepare_threshold=None, connect_timeout=10) as conn:
-            store = PostgresEmbeddingStore(conn)
+        with SyncD1(url) as client:
+            store = D1EmbeddingStore(client)
             embedder = GeminiEmbedder(api_key, budget) if args.apply else None
             report = embed_pending(store, embedder, budget, max_chunks=args.max_chunks, apply=args.apply)  # type: ignore[arg-type]
-    except psycopg.Error as exc:
-        # 例外の文字列には接続先が入りうる。クラス名だけを出す
-        print(f"DB の操作に失敗しました（{type(exc).__name__}）。", file=sys.stderr)
+    except D1Error as exc:
+        print(f"DB の操作に失敗しました（{exc}）。", file=sys.stderr)
         return 1
 
     _print_report(report, args.max_chunks, args.max_calls)

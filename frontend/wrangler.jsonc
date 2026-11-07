@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "docunavi-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "observability": { "enabled": true }
+  // 公開の値（NEXT_PUBLIC_*）と中継先（API_PROXY_TARGET / AUTH_PROXY_TARGET）は、ビルド時に環境変数で渡す（deploy.sh 参照）。
+}

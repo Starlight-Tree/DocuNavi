@@ -3,8 +3,13 @@ import type { NextConfig } from 'next';
 // 設定すると、API のパスを、このオリジンから FastAPI へ rewrites で中継する（NEXT_PUBLIC_API_BASE_URL は空にする）。
 // 未設定なら中継しない（ブラウザーが NEXT_PUBLIC_API_BASE_URL の API を直接呼ぶ）。
 const apiProxyTarget = process.env.API_PROXY_TARGET?.replace(/\/+$/, '');
+// 認証の API（データ用 Worker の /api/auth/*）を、この画面と同じオリジンから使えるようにする中継先（Cookie を同じオリジンに保つため）。
+// 未設定なら中継しない（NEXT_PUBLIC_AUTH_BASE_URL で別のオリジンを直接指す）
+const authProxyTarget = process.env.AUTH_PROXY_TARGET?.replace(/\/+$/, '');
 
 const nextConfig: NextConfig = {
+  // route.ts がビルド時に中継先を読めるようにする（Workers の実行時には環境変数が無い）
+  env: { AUTH_PROXY_TARGET: authProxyTarget ?? '' },
   // E2E が、認証なし・認証ありの 2 つのビルドを別のフォルダーに作って同時に立てるための切り替え（既定は .next）
   distDir: process.env.NEXT_DIST_DIR || '.next',
   // 開発サーバーを 127.0.0.1 で開くと、既定ではブラウザーへの資産の配信が止まる（空白の画面になる）
@@ -17,10 +22,12 @@ const nextConfig: NextConfig = {
     return [{ source: '/mock/:path*', destination: '/', permanent: false }];
   },
   async rewrites() {
+    // /api/auth/* は rewrites ではなく app/api/auth/[...all]/route.ts が中継する（rewrites は 302 をたどって Set-Cookie を捨てる）
     if (!apiProxyTarget) return [];
-    return ['/health', '/chat', '/chat/stream', '/threads', '/threads/:path*', '/documents', '/documents/:path*', '/collections'].map(
+    const api = ['/health', '/chat', '/chat/stream', '/threads', '/threads/:path*', '/documents', '/documents/:path*', '/collections'].map(
       (source) => ({ source, destination: `${apiProxyTarget}${source}` }),
     );
+    return api;
   },
 };
 

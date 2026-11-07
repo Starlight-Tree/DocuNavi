@@ -45,14 +45,27 @@ class HeroPool:
         yield Conn()
 
 
+class FakeStore:
+    """R2Store の偽物（画像のキー → バイト列）。"""
+
+    objects: dict[str, bytes] = {}
+
+    def get(self, key: str, max_bytes: int) -> bytes | None:
+        data = self.objects.get(key)
+        return data if data is not None and len(data) <= max_bytes else None
+
+
 def hero_row(collection: str | None = "guides", mime: str = "image/png", data: bytes = PNG) -> dict[str, Any]:
-    return {"collection": collection, "mime_type": mime, "data": data}
+    key = "hero/7/test.png"
+    FakeStore.objects[key] = data
+    return {"collection": collection, "mime_type": mime, "r2_key": key}
 
 
 @pytest.fixture
 def hero_pool(monkeypatch):
     def install(pool: HeroPool | None) -> HeroPool | None:
         monkeypatch.setattr(documents, "get_pool", lambda: pool)
+        monkeypatch.setattr(documents, "default_store", lambda: FakeStore())
         return pool
 
     return install
@@ -71,7 +84,7 @@ def test_serves_the_approved_image_bytes_unchanged(client, hero_pool):
 
 def test_the_query_only_reads_approved_hero_images():
     sql = documents._HERO_SQL
-    assert "i.status = 'approved'" in sql and "i.kind = 'hero'" in sql and "i.data" in sql
+    assert "i.status = 'approved'" in sql and "i.kind = 'hero'" in sql and "i.r2_key" in sql
 
 
 def test_a_document_without_an_approved_image_is_404(client, hero_pool):
@@ -135,4 +148,4 @@ def test_the_list_carries_a_flag_and_never_the_image_bytes(client, use_pool):
     body = client.get("/documents").json()["documents"]
     assert [d["hero_image"] for d in body] == [True, False]
     assert "data" not in body[0] and "hero_image" in documents._LIST_SQL.replace("AS hero_image", "hero_image")
-    assert "i.data" not in documents._LIST_SQL
+    assert "i.r2_key" not in documents._LIST_SQL

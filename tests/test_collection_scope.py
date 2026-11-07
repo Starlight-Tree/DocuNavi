@@ -18,6 +18,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from app.agents import tools
 from app.agents.tools import search_documents
 from app.api import routes
+from app.d1 import D1Error
 from app.scope import Scope
 from app.search.types import Hit
 
@@ -287,14 +288,12 @@ def test_the_messages_endpoint_restores_the_scope(client, search):
 
 
 def test_a_failure_reading_the_scope_is_a_fixed_503_without_the_exception_text(client, search, monkeypatch, caplog):
-    import psycopg
-
     thread = str(uuid.uuid4())
     chat(client, thread, "zahard")
     graph = routes.get_graph(True)
 
     async def broken(*args, **kwargs):
-        raise psycopg.OperationalError(SECRET)
+        raise D1Error(SECRET)
 
     monkeypatch.setattr(type(graph), "aget_state", broken)
 

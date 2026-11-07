@@ -1,6 +1,6 @@
 """チャンクの埋め込み（app/ingestion/embedding.py、embed.py）の、実 API と DB を使わない部分。
 
-実 API は呼ばない。SDK は偽物に差し替える。pgvector への UPDATE は、素の Postgres（CI）に pgvector が無いので、ここでは確かめない
+実 API は呼ばない。SDK は偽物に差し替える。保存先（D1 と Vectorize）の動きは tests/test_d1.py
 （Supabase で、実行の承認を得てから確かめる）。
 """
 
@@ -16,16 +16,15 @@ from app.ingestion.embedding import (
     DIMENSIONS,
     ApiBudget,
     BudgetExceeded,
+    D1EmbeddingStore,
     EmbeddingError,
     GeminiEmbedder,
     PendingChunk,
-    PostgresEmbeddingStore,
     check_vectors,
     document_text,
     embed_pending,
     input_hash,
     query_text,
-    vector_literal,
 )
 
 
@@ -87,10 +86,6 @@ def test_document_and_query_text_follow_the_documented_prefixes():
     assert document_text("会社の概要", "本文です。") == "title: 会社の概要 | text: 本文です。"
     assert document_text(None, "本文です。") == "title: none | text: 本文です。"
     assert query_text("営業時間は？") == "task: search result | query: 営業時間は？"
-
-
-def test_vector_literal_is_pgvector_text_format():
-    assert vector_literal([0.5, 1, -2.25]) == "[0.5,1.0,-2.25]"
 
 
 def test_input_hash_covers_the_prefix_the_heading_and_the_content():
@@ -360,17 +355,17 @@ def test_rows_whose_text_changed_meanwhile_are_not_counted_as_saved():
 @pytest.fixture
 def _env(monkeypatch):
     monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: False)
-    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setenv("D1_API_URL", "")
     monkeypatch.setenv("GEMINI_API_KEY", "")
 
 
 def test_the_command_needs_a_database_url(_env, capsys):
     assert cli.main([]) == 2
-    assert "DATABASE_URL" in capsys.readouterr().err
+    assert "D1_API_URL" in capsys.readouterr().err
 
 
 def test_apply_needs_a_real_api_key(_env, monkeypatch, capsys):
-    monkeypatch.setenv("DATABASE_URL", "postgresql://unused.invalid/db")
+    monkeypatch.setenv("D1_API_URL", "https://unused.invalid")
     monkeypatch.setenv("GEMINI_API_KEY", "your_api_key_here")
     assert cli.main(["--apply"]) == 2
     assert "GEMINI_API_KEY" in capsys.readouterr().err
@@ -378,7 +373,7 @@ def test_apply_needs_a_real_api_key(_env, monkeypatch, capsys):
 
 def test_apply_on_vertex_ai_does_not_need_an_api_key(_env, monkeypatch, capsys):
     # キーの検査を通り、そのあとの DB 接続で失敗する（1）。キーが無いための終了（2）にはならない
-    monkeypatch.setenv("DATABASE_URL", "postgresql://unused.invalid/db")
+    monkeypatch.setenv("D1_API_URL", "https://unused.invalid")
     monkeypatch.setenv("GEMINI_API_KEY", "")
     monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
     assert cli.main(["--apply"]) == 1
@@ -395,68 +390,63 @@ def test_default_caps_match_the_agreed_limits():
     assert embedding.MODEL == "gemini-embedding-2" and embedding.DIMENSIONS == 768
 
 
-# ---- PostgresEmbeddingStore（接続は偽物。SQL そのものは Supabase で確かめる） ----
+# ---- D1EmbeddingStore（偽の Worker = 本物の SQLite） ----
 
 
-class _FakeCursor:
-    def __init__(self, rows=None, rowcount=1):
-        self._rows, self.rowcount = rows or [], rowcount
-
-    def fetchall(self):
-        return self._rows
-
-
-class _FakeConn:
-    def __init__(self, rows=None):
-        self.rows, self.executed = rows or [], []
-
-    def execute(self, sql, params=()):
-        self.executed.append((sql, params))
-        return _FakeCursor(self.rows)
-
-    def transaction(self):
-        from contextlib import nullcontext
-
-        return nullcontext()
-
-
-def _row(chunk: PendingChunk, *, has_vector=True, model="gemini-embedding-2", dims=768, stored=None):
-    return (
-        chunk.id,
-        chunk.content_hash,
-        chunk.heading,
-        chunk.content,
-        has_vector,
-        model,
-        dims,
-        stored or chunk.input_hash,
+def _seed(worker, chunk: PendingChunk, **columns):
+    worker.run("INSERT OR IGNORE INTO documents (id, source, content_hash, status) VALUES (1, 'a.pdf', 'h', 'ready')")
+    base = {
+        "embedding_model": "gemini-embedding-2",
+        "embedding_dimensions": 768,
+        "embedding_input_hash": chunk.input_hash,
+    }
+    base.update(columns)
+    worker.run(
+        "INSERT INTO chunks (id, document_id, chunk_index, page, heading, content, content_hash, embedding_model, "
+        "embedding_dimensions, embedding_input_hash) VALUES (?, 1, ?, 1, ?, ?, ?, ?, ?, ?)",
+        (
+            chunk.id,
+            chunk.id,
+            chunk.heading,
+            chunk.content,
+            chunk.content_hash,
+            base["embedding_model"],
+            base["embedding_dimensions"],
+            base["embedding_input_hash"],
+        ),
     )
 
 
-def test_the_store_selects_rows_that_are_missing_or_made_from_another_input():
+def _d1_store(worker):
+    from app.d1 import SyncD1
+
+    return D1EmbeddingStore(SyncD1("https://worker.test", transport=worker.transport()))
+
+
+def test_the_store_selects_rows_that_are_missing_or_made_from_another_input(d1_worker):
     ok = PendingChunk(1, "h1", "見出し", "本文1")
     no_vector = PendingChunk(2, "h2", None, "本文2")
     other_model = PendingChunk(3, "h3", None, "本文3")
     other_dims = PendingChunk(4, "h4", None, "本文4")
     heading_changed = PendingChunk(5, "h5", "新しい見出し", "本文5")
-    rows = [
-        _row(ok),
-        _row(no_vector, has_vector=False, model=None, dims=None, stored=""),
-        _row(other_model, model="gemini-embedding-001"),
-        _row(other_dims, dims=3072),
-        _row(heading_changed, stored=input_hash("古い見出し", "本文5")),
-    ]
-    store = PostgresEmbeddingStore(_FakeConn(rows))
+    _seed(d1_worker, ok)
+    _seed(d1_worker, no_vector, embedding_model=None, embedding_dimensions=None, embedding_input_hash=None)
+    _seed(d1_worker, other_model, embedding_model="gemini-embedding-001")
+    _seed(d1_worker, other_dims, embedding_dimensions=3072)
+    _seed(d1_worker, heading_changed, embedding_input_hash=input_hash("古い見出し", "本文5"))
+    store = _d1_store(d1_worker)
     assert [c.id for c in store.pending_embeddings(100)] == [2, 3, 4, 5]
     assert store.count_pending() == 4
     assert [c.id for c in store.pending_embeddings(2)] == [2, 3]
 
 
-def test_the_store_updates_only_rows_whose_input_is_unchanged():
-    conn = _FakeConn()
+def test_the_store_updates_only_rows_whose_input_is_unchanged(d1_worker):
     chunk = PendingChunk(7, "h7", "見出し", "本文7")
-    assert PostgresEmbeddingStore(conn).save_embeddings([(chunk, _vec())]) == 1
-    sql, params = conn.executed[0]
-    assert "content_hash = %s" in sql and "heading IS NOT DISTINCT FROM %s" in sql and "embedding_input_hash" in sql
-    assert params[-3:] == (7, "h7", "見出し")
-    assert chunk.input_hash in params
+    _seed(d1_worker, chunk, embedding_model=None, embedding_dimensions=None, embedding_input_hash=None)
+    changed = PendingChunk(7, "h7", "別の見出し", "本文7")  # 埋め込みを作る間に見出しが変わった
+    store = _d1_store(d1_worker)
+    assert store.save_embeddings([(changed, _vec())]) == 0
+    assert d1_worker.rows("SELECT embedding_model FROM chunks")[0]["embedding_model"] is None and not d1_worker.vectors
+    assert store.save_embeddings([(chunk, _vec())]) == 1
+    assert d1_worker.rows("SELECT embedding_input_hash AS h FROM chunks")[0]["h"] == chunk.input_hash
+    assert "7" in d1_worker.vectors

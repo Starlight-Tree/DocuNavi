@@ -19,17 +19,17 @@ logger = logging.getLogger(__name__)
 # 検索ツールへ範囲を渡す `config["configurable"]` のキー（LLM が渡す引数ではない）
 ACCESS_SCOPE_KEY = "access_scope"
 
-# SQL の WHERE に足す条件。`%(allowed)s` は text[]（None なら全グループ）。グループの無い資料（collection が NULL）は、
+# SQL（D1 = SQLite）の WHERE に足す条件。`%(allowed)s` は JSON 配列の文字列（`app/d1.py` が list を変換する。None なら全グループ）。グループの無い資料（collection が NULL）は、
 # 範囲を絞ったときには含めない（`NULL = ANY(...)` は真にならない）
-ALLOWED_FILTER_SQL = "(%(allowed)s::text[] IS NULL OR d.collection = ANY(%(allowed)s::text[]))"
+ALLOWED_FILTER_SQL = "(%(allowed)s IS NULL OR d.collection IN (SELECT value FROM json_each(%(allowed)s)))"
 
 # 対象（`documents.target`）の絞り込み。`ALLOWED_FILTER_SQL` と AND で重ねる（対象を選んでも、権限の範囲は広がらない）。
-# `%(target)s` は text（None なら絞らない）。対象の無い資料（target が NULL）は、対象を指定したときには含まない
-TARGET_FILTER_SQL = "(%(target)s::text IS NULL OR d.target = %(target)s::text)"
+# `%(target)s` は文字列（None なら絞らない）。対象の無い資料（target が NULL）は、対象を指定したときには含まない
+TARGET_FILTER_SQL = "(%(target)s IS NULL OR d.target = %(target)s)"
 
 # 資料単位の絞り込み（画面でチェックを付けた資料）。`ALLOWED_FILTER_SQL` と AND で重ねる（資料を選んでも、権限の範囲は広がらない）。
-# `%(doc_ids)s` は bigint[]（None なら絞らない）。該当する資料が無ければ何も返さない
-DOCUMENTS_FILTER_SQL = "(%(doc_ids)s::bigint[] IS NULL OR d.id = ANY(%(doc_ids)s::bigint[]))"
+# `%(doc_ids)s` は JSON 配列の文字列（None なら絞らない）。該当する資料が無ければ何も返さない
+DOCUMENTS_FILTER_SQL = "(%(doc_ids)s IS NULL OR d.id IN (SELECT value FROM json_each(%(doc_ids)s)))"
 
 
 @dataclass(frozen=True)

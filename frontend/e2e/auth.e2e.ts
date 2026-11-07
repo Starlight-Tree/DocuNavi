@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test';
 import type { Page, Route } from '@playwright/test';
-import { E2E_EMAIL, installSupabaseMock } from './support/supabase-mock';
+import { E2E_EMAIL, installAuthMock } from './support/auth-mock';
 
-// 認証のシナリオ。実ブラウザー + 本物の supabase-js（PKCE・セッションの保存）+ 偽の Supabase（page.route）。
-// バックエンドは AUTH_MODE=off の偽のアプリ（トークンは検証しない）。実 Supabase・実 Google は呼ばない。
+// 認証のシナリオ。実ブラウザー + 本物の Better Auth クライアント + 偽の認証サーバー（page.route）。
+// バックエンドは AUTH_MODE=off の偽のアプリ（トークンは検証しない）。実 Worker・実 Google は呼ばない。
 // 画面（:3101）と API（:8100）は別オリジン。page.route で返す偽の応答には、CORS のヘッダーを付ける必要がある。
-// 本物の Supabase との相性（リフレッシュの応答の形・期限）は、ここでは確かめられない。
+// 本物の Better Auth との相性（応答の形・Cookie・JWT の期限）は、ここでは確かめられない。
 const DOCUMENTS = [
   { id: 1, source: 'cafe_menu.pdf', title: 'カフェのメニュー', collection: 'cafe' },
   { id: 2, source: 'zahard_1.pdf', title: 'ザーハード設定資料 1', collection: 'zahard' },
@@ -68,12 +68,11 @@ async function ask(page: Page, text: string) {
   await page.getByRole('button', { name: '送信' }).click();
 }
 
-const SESSION_KEY = /^sb-.+-auth-token$/;
 const ANSWER = '資料から該当箇所が見つかりました。';
 const EXPIRED_NOTICE = 'ログインの有効期限が切れました。もう一度ログインしてください。';
 
 test('ログインして戻ると、ログイン前の画面の状態（資料一覧の絞り込み）が URL に戻る', async ({ page, context }) => {
-  const supabase = await installSupabaseMock(context);
+  const auth = await installAuthMock(context);
   await mockListApis(page);
 
   // 共有された URL を、未ログインで開く
@@ -88,22 +87,18 @@ test('ログインして戻ると、ログイン前の画面の状態（資料�
   await expect(page.getByRole('main', { name: 'ナレッジ' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'カフェのメニュー を開く' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ザーハード設定資料 1 を開く' })).toHaveCount(0);
-  // ログインの code は URL に残らず、ログイン前の状態に戻っている（最終的な安定状態で判定する）
+  // ログイン前の状態に戻っている（最終的な安定状態で判定する）
   await expect.poll(() => new URL(page.url()).search).toBe('?tab=documents&collection=cafe');
 
-  // セッションは SDK が localStorage に保存している（キー名だけ見る。値は見ない）
-  const keys = await page.evaluate(() => Object.keys(window.localStorage));
-  expect(keys.some((key) => /^sb-.+-auth-token$/.test(key))).toBe(true);
-
-  // 偽の Supabase に届いた通信は、ログインの開始と認可コードの交換だけ。127.0.0.1 以外への実通信は無い
-  expect(supabase.calls.map((c) => c.method + ' ' + c.path.split('?')[0])).toEqual(
-    expect.arrayContaining(['GET /auth/v1/authorize', 'POST /auth/v1/token']),
+  // 偽の認証サーバーに届いた通信は、セッションの確認とログインの開始など。127.0.0.1 以外への実通信は無い
+  expect(auth.calls.map((c) => c.method + ' ' + c.path)).toEqual(
+    expect.arrayContaining(['GET /api/auth/get-session', 'POST /api/auth/sign-in/social']),
   );
-  expect(supabase.leaks).toEqual([]);
+  expect(auth.leaks).toEqual([]);
 });
 
-test('チャットが 401 を返したら、トークンを 1 回だけ更新して送り直し、ログインしたまま回答が出る', async ({ page, context }) => {
-  const supabase = await installSupabaseMock(context);
+test('チャットが 401 を返したら、トークンを 1 回だけ取り直して送り直し、ログインしたまま回答が出る', async ({ page, context }) => {
+  const auth = await installAuthMock(context);
   await mockListApis(page);
   // 1 回目だけ 401（期限切れのトークンを受けたサーバーの代わり）。2 回目からは本物の偽アプリに通す
   const sent: (string | undefined)[] = [];
@@ -125,15 +120,15 @@ test('チャットが 401 を返したら、トークンを 1 回だけ更新し
   await expect(page.locator('.ws-account-name')).toHaveText(E2E_EMAIL);
   await expect(page.getByText(EXPIRED_NOTICE)).toHaveCount(0);
 
-  // 更新は 1 回だけ。送り直しには、更新で発行された新しいトークンが付いている
-  expect(supabase.calls.filter((c) => c.grantType === 'refresh_token')).toHaveLength(1);
-  expect(supabase.accessTokens).toHaveLength(2);
-  expect(sent).toEqual([`Bearer ${supabase.accessTokens[0]}`, `Bearer ${supabase.accessTokens[1]}`]);
-  expect(supabase.leaks).toEqual([]);
+  // 取り直しは 1 回だけ。送り直しには、取り直して発行された新しいトークンが付いている
+  expect(auth.calls.filter((c) => c.path === '/api/auth/token')).toHaveLength(2);
+  expect(auth.accessTokens).toHaveLength(2);
+  expect(sent).toEqual([`Bearer ${auth.accessTokens[0]}`, `Bearer ${auth.accessTokens[1]}`]);
+  expect(auth.leaks).toEqual([]);
 });
 
-test('トークンを更新できないと、ログイン画面に戻り、送り直しや更新を繰り返さない', async ({ page, context }) => {
-  const supabase = await installSupabaseMock(context);
+test('トークンを取り直せないと、ログイン画面に戻り、送り直しや更新を繰り返さない', async ({ page, context }) => {
+  const auth = await installAuthMock(context);
   await mockListApis(page);
   // サーバーは何度送っても 401（トークンが無効になった状態）
   let chatRequests = 0;
@@ -147,7 +142,8 @@ test('トークンを更新できないと、ログイン画面に戻り、送�
   );
 
   await signIn(page);
-  supabase.refresh = 'rejected'; // ログインのあと、リフレッシュトークンが無効になった
+  const tokenCallsAfterSignIn = auth.calls.filter((c) => c.path === '/api/auth/token').length;
+  auth.token = 'rejected'; // ログインのあと、セッションが無効になった
   await ask(page, 'ザーハードの大気について教えて');
 
   // ログイン画面に戻る
@@ -156,18 +152,17 @@ test('トークンを更新できないと、ログイン画面に戻り、送�
   await expect(page.getByText(ANSWER)).toHaveCount(0);
   await expect(page.getByText(EXPIRED_NOTICE)).toBeVisible();
 
-  // 繰り返さない: 送ったのは 1 回、更新も 1 回のまま。少し待っても増えない
+  // 繰り返さない: 送ったのは 1 回、トークンの取り直しも 1 回のまま。少し待っても増えない
   await page.waitForTimeout(2000);
   expect(chatRequests).toBe(1);
-  expect(supabase.calls.filter((c) => c.grantType === 'refresh_token')).toHaveLength(1);
-  // 無効なセッションは端末に残らない（キー名だけ見る）
-  const keys = await page.evaluate(() => Object.keys(window.localStorage));
-  expect(keys.some((key) => SESSION_KEY.test(key))).toBe(false);
-  expect(supabase.leaks).toEqual([]);
+  expect(auth.calls.filter((c) => c.path === '/api/auth/token')).toHaveLength(tokenCallsAfterSignIn + 1);
+  // 無効なセッションは破棄される（ログアウトが呼ばれる）
+  expect(auth.calls.map((c) => c.method + ' ' + c.path)).toContain('POST /api/auth/sign-out');
+  expect(auth.leaks).toEqual([]);
 });
 
 test('ログインすると、会話の履歴がサイドバーに出る。0 件と取得の失敗は、別の表示になり、再読み込みで取り直せる', async ({ page, context }) => {
-  await installSupabaseMock(context);
+  await installAuthMock(context);
   await mockListApis(page);
   const stamp = '2026-10-19T05:30:00+00:00';
   THREADS = [

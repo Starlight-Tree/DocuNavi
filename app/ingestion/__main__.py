@@ -30,9 +30,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from app.d1 import D1Error, SyncD1
 from app.history import database_url
 from app.ingestion.pdf_parser import REASONS
-from app.ingestion.repository import MemoryRepository, PostgresRepository
+from app.ingestion.repository import D1Repository, MemoryRepository
 from app.ingestion.service import COLLECTION_PATTERN, DocumentReport, find_pdfs, ingest
 from app.pdf_originals import MAX_ORIGINAL_BYTES
 
@@ -126,23 +127,19 @@ def _run(args: argparse.Namespace, input_path: Path) -> int:
     load_dotenv()
     url = database_url()
     if args.apply and not url:
-        print("--apply には DATABASE_URL が要ります（未設定です）。", file=sys.stderr)
+        print("--apply には D1_API_URL と D1_API_TOKEN が要ります（未設定です）。", file=sys.stderr)
         return 2
 
     if not url:
         reports = ingest(paths, input_path, MemoryRepository(), apply=False, collection=args.collection)
     else:
-        # アプリと同じ理由で、psycopg は DATABASE_URL があるときだけ import する
-        import psycopg
-
         try:
-            # prepare_threshold=None: transaction mode のプーラーでも動かす（app/history.py と同じ）
-            with psycopg.connect(url, prepare_threshold=None, connect_timeout=10) as conn:
-                repo = PostgresRepository(conn, create_tables=args.apply)
+            with SyncD1(url) as client:
+                repo = D1Repository(client)
                 reports = ingest(paths, input_path, repo, apply=args.apply, collection=args.collection)
-        except psycopg.Error as exc:
-            # 例外の文字列には接続先が入りうる。クラス名だけを出す
-            print(f"DB の操作に失敗しました（{type(exc).__name__}）。", file=sys.stderr)
+        except D1Error as exc:
+            # 例外の文字列に URL・トークンは入れていない（型と HTTP ステータスだけ）
+            print(f"DB の操作に失敗しました（{exc}）。", file=sys.stderr)
             return 1
 
     for report in reports:
