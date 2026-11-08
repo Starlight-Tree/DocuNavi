@@ -380,9 +380,9 @@ DATABASE_URL=…   # Secret `database-url`（Secret Manager。版を固定して
 | `unrelated_source_mentioned` | 回答が検索結果の無関係さに触れた（「関係ありません」などの語で判定する規則ベースの近似） |
 
 - golden set（`evals/golden/`）は、同じ `ChatMetrics` で測る（本番と同じ数え方）。
-- 監視は Cloud Logging のログベース指標とアラートで行う。**未確認:** 本番の Cloud Run で、この行が `jsonPayload` として入ること、ログベース指標・アラートの作成。
-  次のデプロイ後に実ログを 1 行確かめてから作る（作成は gcloud の書き込みなので、ユーザーが実行する）。しきい値は、本番の実測の分布を見てから決める（先に決めた値は無い）。
-- 反映は次の Cloud Run のデプロイ時（このコミットだけでは本番に出ない）。
+- 監視は Cloud Logging のログベース指標とアラートで行う。本番の Cloud Run（`docunavi-00050-wuw`）で、この行が `jsonPayload`（`message="chat_metrics"`）として入ることを、2026-11-09 の実ログ 1 件（`/chat`）で確認した。
+  同じ 1 件で、`status` は文字列、`smalltalk` は真偽値、`total_ms` は整数だった。ログベース指標は `docs/roadmap.md` の「監視設定」の 4 つを 2026-11-09 に作成した（gcloud の書き込みなので、ユーザーが実行）。**未確認:** 指標の値が増えること、失敗時の `status` の型、アラート（未作成）。しきい値は、本番の実測の分布を見てから決める（先に決めた値は無い）。
+- 本番への反映は 2026-11-09（`docunavi-00050-wuw`）。
 - コールバックは同期・インライン（`run_inline = True`）で動かす。非同期にすると、グラフの実行に `await` が増えて切断との先後が変わり、
   `tests/test_chat_disconnect.py`（入力ガードの前の切断）が落ちる。
 - OpenTelemetry は、この構造化ログの次の段階の候補（未着手）。
