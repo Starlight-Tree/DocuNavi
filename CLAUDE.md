@@ -13,21 +13,21 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
-| Docker | 開発コンテナは Compose ベースで、開くと `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`api` はポート非公開（`dev` から直接は届かない）。ローカルの `api` は D1 につながず、モックモードで動く（実キーでも `D1_API_URL` が無いと unhealthy のまま止まる）。**未確認:** `api` から Gemini への到達、`stopCompose`、ホストのブラウザー（`localhost:3000`）での HMR。構成の詳細・確認の日付・手順は [docs/development.md](docs/development.md) |
+| Docker | 開発コンテナは Compose ベースで、開くと `api` `frontend` も起動する（`.devcontainer/docker-compose.yml`）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`api` はポート非公開（`dev` から直接は届かない）。ローカルの `api` は本番の DB につながず、モックモードで動く（実キーでも DB の設定〔`DB_BACKEND=pg` と `DATABASE_URL`〕が無いと unhealthy のまま止まる）。**未確認:** `api` から Gemini への到達、`stopCompose`、ホストのブラウザー（`localhost:3000`）での HMR。構成の詳細・確認の日付・手順は [docs/development.md](docs/development.md) |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
-目標構成（画面は Cloudflare の Worker `docunavi-web`、データは Worker `docunavi-api` + D1 で、2026-11-08 から本番）と、Go・Django などを採用する条件は [docs/target-architecture.md](docs/target-architecture.md)。
+現在の本番（2026-11-08 から。画面は Cloudflare の Worker `docunavi-web`、API は Cloud Run の FastAPI、DB は Prisma Postgres〔Free・東京。pgvector で検索〕、認証は Worker `docunavi-api` の Better Auth を Hyperdrive 経由で同じ Postgres に載せる。D1・Vectorize・Worker の `/v1` は撤去済み。バックアップは R2 への毎日の `pg_dump`〔`docs/pg-backup.md`〕）と、目標構成と、Go・Django などを採用する条件は [docs/target-architecture.md](docs/target-architecture.md)。
 新しいサービス・言語・フレームワーク・DB・インフラを足す前に、それを読んで、ユーザーに確認する。
 
 - `app/api/routes.py`: `/chat` `/chat/stream` `/health`。LLM の失敗は固定メッセージの 429/504/500/502 に変換する。画面は SSE の `/chat/stream`（組み立ては `ui_stream.py`）を使う
 - `app/agents/`: LangGraph（`graph.py`）、検索ツール（`tools.py`）、ガードレール（`guardrails.py`。完成した回答の検査と、ストリーミング中の `StreamingOutputGuard`）、
   ヘッジ付き再試行・フォールバック・有料キー切り替え（`resilience.py`）
-- `app/search/vector.py`: 資料の検索（Cloudflare Vectorize + D1）。`search_documents` の実体で、アプリの検索はこれだけ。
-  本物の LLM では `D1_API_URL`（データ用 Worker の URL）と `GEMINI_API_KEY` が必須。起動時に D1 の資料と埋め込みの状態を検査し、合わなければ起動を失敗させる。
+- `app/search/vector.py`: 資料の検索（Postgres + pgvector）。`search_documents` の実体で、アプリの検索はこれだけ。
+  本物の LLM では `DB_BACKEND=pg` + `DATABASE_URL` と `GEMINI_API_KEY` が必須（本番は pg）。起動時に DB の資料と埋め込みの状態を検査し、合わなければ起動を失敗させる。
   失敗しても別の経路には戻らず、API は 503 の固定文を返す。モックモード（キー未設定）は資料を検索しない固定の返答。設計は `docs/search-design.md`
-- `app/history.py`: 会話履歴。`D1_API_URL` があれば D1（データ用 Worker 経由）、空ならメモリ。開けなければ起動を失敗させ、メモリへは切り替えない。削除コマンドは `app/history_admin.py`（既定は件数の表示だけ、`--apply` で削除。アプリからは使わない）
-- `app/auth.py`: `AUTH_MODE=off`（既定）は匿名、`required` は `/chat` と `/chat/stream` に Better Auth（データ用 Worker。Google ログイン）が発行した JWT（JWKS の ES256/RS256 だけ。`exp` `iss` `aud` `sub` 必須）を要求し、
+- `app/history.py`: 会話履歴。`DB_BACKEND=pg` なら Postgres、`d1` で `D1_API_URL` があれば D1（データ用 Worker 経由。本番の D1 は撤去済みで、テストの偽 Worker 用に残したコード）、空ならメモリ。開けなければ起動を失敗させ、メモリへは切り替えない。削除コマンドは `app/history_admin.py`（既定は件数の表示だけ、`--apply` で削除。アプリからは使わない）
+- `app/auth.py`: `AUTH_MODE=off`（既定）は匿名、`required` は `/chat` と `/chat/stream` に Better Auth（Worker `docunavi-api`。Google ログイン）が発行した JWT（JWKS の ES256/RS256 だけ。`exp` `iss` `aud` `sub` 必須）を要求し、
   履歴のキーを `<sub>:<thread_id>` にする（`sub` 以外から利用者 ID を取らない）。公開鍵が無ければ共有秘密には切り替えず、起動を失敗させる。
   本番は 2026-11-08 から Better Auth。**未確認:** トークン期限切れ後の更新の記録に残る確認（`docs/configuration.md` の「ログイン（認証）」）
 - `app/access.py` / `app/scope.py`: ロール別の資料グループ制御（`ACCESS_MODE=off`（既定）/`shadow`/`enforce`）。検索は `scope` が必須（`Scope.ALL` は明示。MCP は運用者専用で全グループ）。本番は 2026-10-26 から `enforce`（`docs/configuration.md` の「資料グループのアクセス制御」）
@@ -160,7 +160,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
   （`scripts/check-sensitive-terms.sh origin/main..HEAD`。語は Git の管理外の `.git/sensitive-terms` に置く）。
 - **しないこと:** 強制プッシュと、公開済み履歴の書き換えはしない（必要なら相談する）。`git reset` と `git restore` は、承認を得てから行う。
 - **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、`frontend`（単体テスト・型検査・ビルド）、Go（中継と疑似の上流の `go vet`・`-race` テスト）、ワークフローの静的検査を行う。**CI 自体にデプロイは含まない。**
-  `.github/workflows/deploy.yml` は**手動の実行だけ**（`workflow_dispatch`。自動では起動しない）。ユーザーが `main` の CI の成功を確かめて GitHub の Actions で実行し、Environment「production」の承認（ユーザー）を待って、Cloudflare の Worker（`workers/api` = `docunavi-api`〔D1 の migration を含む〕、`frontend` = `docunavi-web`）を本番へデプロイする。
+  `.github/workflows/deploy.yml` は**手動の実行だけ**（`workflow_dispatch`。自動では起動しない）。ユーザーが `main` の CI の成功を確かめて GitHub の Actions で実行し、Environment「production」の承認（ユーザー）を待って、Cloudflare の Worker（`workers/api` = `docunavi-api`〔認証だけ。D1 は無い〕、`frontend` = `docunavi-web`）を本番へデプロイする。
   Cloudflare の資格情報は GitHub に置かず、OIDC で Infisical（`docunavi-deploy`）から取る（[.claude/rules/secrets.md](.claude/rules/secrets.md)）。
   プッシュの承認を求めるときは、`workers/` `frontend/` の変更が含まれるか（＝ユーザーが `deploy.yml` を実行したときに本番へ出る）を添える。プッシュだけでは Worker は本番に出ない。`deploy.yml` の実行と承認はユーザーが GitHub で行い、私は操作しない。
   Worker の秘密（`wrangler secret put`）はこの経路に含めない。Cloud Run（FastAPI・中継）は自動デプロイしない。

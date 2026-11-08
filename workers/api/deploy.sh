@@ -6,13 +6,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 npm ci --no-audit --no-fund
 if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then npx wrangler whoami >/dev/null 2>&1 || npx wrangler login; fi
-npx wrangler d1 migrations apply docunavi --remote
 npx wrangler deploy
 mkdir -p .secrets && chmod 700 .secrets
 for n in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
   if [ ! -s ".secrets/$n" ]; then read -rsp "$n (hidden): " v; echo; printf '%s' "$v" > ".secrets/$n"; chmod 600 ".secrets/$n"; fi
 done
-for n in DATA_API_TOKEN BETTER_AUTH_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+for n in BETTER_AUTH_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
   npx wrangler secret put "$n" < ".secrets/$n"
 done
 echo "deployed: docunavi-api"
