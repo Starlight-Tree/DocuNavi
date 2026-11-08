@@ -14,6 +14,7 @@
 # 画面は Cloudflare の Worker `docunavi-web`（frontend）が配信する。API のイメージには要らないので、ビルドコンテキストに入れない
 frontend
 .pytest_cache
+.langgraph_api
 .mypy_cache
 .ruff_cache
 

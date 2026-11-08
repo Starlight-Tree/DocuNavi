@@ -1,0 +1,8 @@
+# LangSmith Studio（langgraph dev）とデバッガー。ローカル開発だけ。本番イメージ（requirements.txt）と CI には入れない。
+# 入れ方: .venv/bin/pip install -r requirements-studio.in
+-r requirements.in
+langgraph-cli[inmem]>=0.4
+debugpy>=1.8
+# Agent を指定したトレース（LANGSMITH_AGENT_ID）が、既定のプロジェクトと衝突して 400 になるのを避ける下限（本番の requirements.txt は langsmith 0.14.8 / langchain-core 1.6.10 のまま）
+langsmith>=0.14.9
+langchain-core>=1.6.11
