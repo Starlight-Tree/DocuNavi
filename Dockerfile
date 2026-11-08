@@ -27,7 +27,8 @@ USER app
 ENV PORT=8000
 EXPOSE 8000
 
-# exec 形式のままでは $PORT が展開されないため sh -c を挟み、exec で hypercorn を PID 1 にして
-# SIGTERM（Cloud Run のスケールダウン）を直接受けられるようにする。
+# `python -m app.serve` が hypercorn を同じプロセスで動かす（PID 1。$PORT を自分で読む。既定 8000）。
+# SIGTERM（Cloud Run のスケールダウン）で、新しい接続を止め、進行中の応答に猶予を与えたあと打ち切る（app/serve.py、app/drain.py）。
+# `hypercorn app.main:app` を直接動かすと、生成中の接続があるかぎり SIGTERM で終わらない（ロードマップ ⑥）。
 # hypercorn は同じポートで HTTP/1.1 と h2c（HTTP/2 の平文）の両方を受ける。Cloud Run の --use-http2 を付けなければ、従来どおり HTTP/1.1 で届く
-CMD ["sh", "-c", "exec hypercorn app.main:app --bind 0.0.0.0:${PORT}"]
+CMD ["python", "-m", "app.serve"]
