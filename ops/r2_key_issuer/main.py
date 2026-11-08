@@ -66,7 +66,14 @@ PURPOSES = {
     "app-read": Purpose("app-read", "r2-app-read", "Workers R2 Storage Bucket Item Read", can_write=False),
     "ingest-rw": Purpose("ingest-rw", "r2-ingest-rw", "Workers R2 Storage Bucket Item Write", can_write=True),
 }
+# DB バックアップ用のキー。`issue-backup-rw` だけで発行する（バケットは Job の R2_BUCKET = docunavi-backups）。
+# PURPOSES には入れない: `check` が全用途を R2_BUCKET のバケットで確かめ、`revoke-stale` が「記録の無い管理トークン」を取り消すため、
+# 資料用のバケットの Job に混ぜると誤動作する。MANAGED_NAME にも入れないので、取り消し系の Job はこのキーに触れない。
+# ローテーションは未実装（取り消しは Cloudflare 側で行う。docs/pg-backup.md）。
+BACKUP_PURPOSE = Purpose("backup-rw", "r2-backup-rw", "Workers R2 Storage Bucket Item Write", can_write=True)
+ISSUABLE = {**PURPOSES, BACKUP_PURPOSE.key: BACKUP_PURPOSE}
 MODES = (
+    "issue-backup-rw",
     "issue-app-read",
     "issue-ingest-rw",
     "rotate-app-read",
@@ -648,7 +655,7 @@ def main(argv: list[str]) -> int:
             return rotate_if_due(purpose, cfg=cfg, api=api, secrets=secrets, probe=probe)
         if mode.startswith(("issue-", "rotate-")):
             action, key = mode.split("-", 1)
-            return issue(PURPOSES[key], force=action == "rotate", cfg=cfg, api=api, secrets=secrets, probe=probe)
+            return issue(ISSUABLE[key], force=action == "rotate", cfg=cfg, api=api, secrets=secrets, probe=probe)
         if mode == "check":
             return check(cfg=cfg, api=api, secrets=secrets, probe=probe)
         return revoke(stale_only=mode == "revoke-stale", api=api, secrets=secrets)
