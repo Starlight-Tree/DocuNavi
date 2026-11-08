@@ -39,6 +39,7 @@
 | `D1_API_TOKEN` | （空） | **旧経路（`DB_BACKEND=d1`）のみ。** データ用 Worker に送るトークン。Secret `d1-api-token` と Worker の `DATA_API_TOKEN` は撤去済み。**秘密情報**なのでコミットせず、ログにも出さない |
 | `DB_BACKEND` | `d1` | DB の置き場。`pg`（Postgres。`app/pg.py`、検索は pgvector。**本番は 2026-11-08 から `pg`**）か `d1`（旧経路。コードの既定のまま残してあるが、本番の D1 は撤去済み）。`pg` のときは `DATABASE_URL` を使う。スキーマは `db/migrations/` |
 | `DATABASE_URL` | （空） | `DB_BACKEND=pg` のときの Postgres の接続文字列（アプリはプール側 `pooled.db.prisma.io`、取り込みの CLI は直接 `db.prisma.io`）。**秘密情報**なのでコミットせず、ログにも出さない |
+| `DATABASE_POOL_MAX_SIZE` | `3` | `DB_BACKEND=pg` のとき、1 プロセスの接続プールの上限（1 以上の整数。空は既定。不正な値は黙って既定にせず起動を失敗させる）。最小は 1 で固定。Cloud Run は、最大インスタンス数 × この値 + 同じ DB を使う Job・サービスの接続が、DB の上限（Prisma Free のプール側は 10）に収まるようにする。取り込みなどの CLI（`SyncPg`）は、この値に関係なく 1 接続（2026-11-09 に追加。それまでは固定の 3 で、環境変数は読まれていなかった） |
 | `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Better Auth が発行した JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
 | `AUTH_BASE_URL` | （空） | `AUTH_MODE=required` のとき必須。Better Auth の公開オリジン（画面の Worker `docunavi-web` の URL。`https://<ホスト>` の形で、パスは付けない。`http` はローカルだけ）。JWT の公開鍵（`{AUTH_BASE_URL}/api/auth/jwks`）の取得先と、発行元（`iss`）の確認に使う |
 | `AUTH_AUDIENCE` | `docunavi` | JWT の対象（`aud`）として受け付ける値 |

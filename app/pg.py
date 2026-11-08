@@ -2,6 +2,7 @@
 
 `DB_BACKEND=pg` のときだけ使う（既定は `d1`。`app/history.py` の `new_pool()` と、ここの `sync_client()` が切り替える）。
 環境変数: `DATABASE_URL`（Postgres の接続文字列。アプリはプール側 `pooled.db.prisma.io`、取り込みの CLI は直接 `db.prisma.io`）。値はログに出さない。
+`DATABASE_POOL_MAX_SIZE`（1 プロセスの接続プールの上限。既定 3。1 以上の整数。取り込みなどの CLI は `SyncPg` で 1 接続）。
 
 アプリの SQL は SQLite の書き方のまま渡される。`translate()` が、使っている構文だけを Postgres に直す（D1 を外すときに、SQL 自体を直してここを消す）:
 `?` → `%s`、`x IN (SELECT value FROM json_each(p))` → `x::text IN (SELECT jsonb_array_elements_text(p::jsonb))`、
@@ -56,6 +57,23 @@ def backend() -> str:
 
 def database_url() -> str:
     return os.environ.get("DATABASE_URL", "").strip()
+
+
+DEFAULT_POOL_MAX_SIZE = 3
+
+
+def pool_max_size() -> int:
+    """`DATABASE_POOL_MAX_SIZE`（1 プロセスの接続プールの上限。既定 3）。1 以上の整数だけ。それ以外は、黙って既定にせず ValueError。"""
+    raw = os.environ.get("DATABASE_POOL_MAX_SIZE", "").strip()
+    if not raw:
+        return DEFAULT_POOL_MAX_SIZE
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ValueError("DATABASE_POOL_MAX_SIZE は 1 以上の整数です") from None
+    if value < 1:
+        raise ValueError("DATABASE_POOL_MAX_SIZE は 1 以上の整数です")
+    return value
 
 
 def _replace_outside_quotes(sql: str, old: str, new: str) -> str:
@@ -307,7 +325,7 @@ class SyncPg:
 
 
 def new_pool(url: str) -> PgPool:
-    return PgPool(url)
+    return PgPool(url, max_size=pool_max_size())
 
 
 def sync_client(d1_class: Any, url: str | None = None) -> Any:
