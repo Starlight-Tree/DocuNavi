@@ -453,3 +453,28 @@ def test_the_store_updates_only_rows_whose_input_is_unchanged(d1_worker):
     assert store.save_embeddings([(chunk, _vec())]) == 1
     assert d1_worker.rows("SELECT embedding_input_hash AS h FROM chunks")[0]["h"] == chunk.input_hash
     assert "7" in d1_worker.vectors
+
+
+def test_the_update_sql_has_no_is_placeholder_that_postgres_rejects():
+    # `col IS ?` は SQLite だけで通る。translate() で `IS %s` になると Postgres が構文エラーにする（2026-11-08）
+    from app.pg import translate
+
+    class Recorder:
+        def __init__(self):
+            self.statements = []
+
+        def batch(self, statements):
+            self.statements.extend(sql for sql, _ in statements)
+
+        def execute(self, sql, params=None):
+            self.statements.append(sql)
+            return []
+
+        def vectors_upsert(self, vectors):
+            return len(vectors)
+
+    recorder = Recorder()
+    D1EmbeddingStore(recorder).save_embeddings([(PendingChunk(1, "h", "見出し", "本文"), _vec())])
+    assert recorder.statements
+    for sql in recorder.statements:
+        assert " IS %s" not in translate(sql, True)
