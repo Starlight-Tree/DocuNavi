@@ -55,8 +55,19 @@ def prior_context(messages: Sequence[BaseMessage], skip_texts: frozenset[str] = 
 
 
 def rule_query(question: str, prior_questions: Sequence[str]) -> str:
-    """LLM を使えないときの検索語。直前の質問を前に足す（話題の手がかりが検索に残る）。"""
-    return f"{prior_questions[-1]} {question}".strip() if prior_questions else question
+    """LLM を使えないときの検索語。直前の質問を前に足す（話題の手がかりが検索に残る）。
+
+    直前の質問も指示語に頼っていて話題を持たないとき（「それはどうやって止められますか」→「もっと詳しく」）は、
+    話題を持つ質問まで遡って足す（最大 MAX_PRIOR_QUESTIONS 件）。
+    """
+    if not prior_questions:
+        return question
+    start = len(prior_questions) - 1
+    while (
+        start > 0 and _DEPENDENT.search(prior_questions[start]) and len(prior_questions) - start < MAX_PRIOR_QUESTIONS
+    ):
+        start -= 1
+    return " ".join([*prior_questions[start:], question]).strip()
 
 
 def rewrite_messages(question: str, prior_questions: Sequence[str], last_answer: str) -> list[BaseMessage]:

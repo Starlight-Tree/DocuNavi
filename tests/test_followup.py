@@ -64,6 +64,22 @@ def test_rule_query_prepends_the_previous_question() -> None:
     assert followup.rule_query("それはいつ？", []) == "それはいつ？"
 
 
+def test_rule_query_goes_back_past_a_previous_question_that_has_no_topic_of_its_own() -> None:
+    prior = ["遺跡の防衛システムについて教えて", "それはどうやって止められますか"]
+    assert (
+        followup.rule_query("もっと詳しく", prior)
+        == "遺跡の防衛システムについて教えて それはどうやって止められますか もっと詳しく"
+    )
+    # 話題を持つ質問で止まる（さらに前までは遡らない）
+    assert (
+        followup.rule_query("それはいつ？", ["大気について", "文明について", "それは？"])
+        == "文明について それは？ それはいつ？"
+    )
+    # 指示語だけの質問が続いても、足すのは MAX_PRIOR_QUESTIONS 件まで
+    many = ["遺跡について", "それは？", "それは？", "それは？", "それは？"]
+    assert followup.rule_query("もっと", many).count("それは？") <= followup.MAX_PRIOR_QUESTIONS
+
+
 def test_rewrite_messages_carry_recent_questions_the_answer_head_and_the_question() -> None:
     system, human = followup.rewrite_messages("それは？", ["q1", "q2", "q3", "q4"], "a" * 1000)
     assert system.content == followup.REWRITE_INSTRUCTION
