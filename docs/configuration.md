@@ -162,7 +162,7 @@
 
 **MCP（`docunavi-mcp`）:** 運用者専用で、利用者のロールを持たない。`Scope.ALL` を明示して**全グループ**を検索する。利用者には公開しない（IAM の `roles/run.invoker` を持つ運用者だけが呼べる）。
 
-**ロールの割り当て:** 運用者が、Postgres の `user_roles` を SQL で更新します（Django の管理画面は 2026-11-08 に廃止しました。経緯は [access-admin.md](access-admin.md)）。
+**ロールの割り当て:** 運用者が、`python -m app.access_admin show|assign|revoke`（既定は確認だけ。`--apply` で書き、`access_audit` に 1 行残す。2026-11-09 に追加）か、Postgres の `user_roles` への SQL で更新します（Django の管理画面は 2026-11-08 に廃止しました。経緯は [access-admin.md](access-admin.md)）。
 ロールの作成と、ロールが持つグループの編集も SQL です。API は DB を読むだけで、書き込みは運用者の権限（`DATABASE_URL` の接続）で行います。変更は `access_audit` に残す想定です。例:
 
 ```sql
