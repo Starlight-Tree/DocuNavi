@@ -12,7 +12,7 @@ from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from app import d1
+from app import d1, pg
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +23,13 @@ _pool: Any | None = None
 
 
 def database_url() -> str:
-    """D1_API_URL（データ用 Worker の URL。空なら DB を使わず、履歴はメモリ）。"""
-    return d1.api_url()
+    """DB の場所。`DB_BACKEND=d1`（既定）は D1_API_URL（データ用 Worker の URL）、`pg` は DATABASE_URL（Postgres）。空なら DB を使わず、履歴はメモリ。"""
+    return pg.database_url() if pg.backend() == "pg" else d1.api_url()
+
+
+def new_pool(url: str) -> Any:
+    """`DB_BACKEND` に合わせた接続（`D1Pool` か `PgPool`）。open / close は呼び出し側。"""
+    return pg.new_pool(url) if pg.backend() == "pg" else d1.D1Pool(url)
 
 
 def get_checkpointer() -> BaseCheckpointSaver | None:
@@ -39,7 +44,7 @@ def get_pool() -> Any | None:
 
 def history_backend() -> str:
     """いま履歴をどこに置いているか。memory = プロセス内 / d1 = データ用 Worker 経由の D1。"""
-    return "memory" if _checkpointer is None else "d1"
+    return "memory" if _checkpointer is None else pg.backend()
 
 
 @asynccontextmanager
@@ -53,17 +58,22 @@ async def history_store() -> AsyncIterator[BaseCheckpointSaver | None]:
         yield None
         return
 
-    from app.d1_saver import D1Saver
-
-    pool = d1.D1Pool(url)
+    pool = new_pool(url)
     try:
         await pool.open()
     except BaseException:
         await pool.close()
         raise
-    _checkpointer = D1Saver(pool)
+    if pg.backend() == "pg":
+        from app.pg_saver import PgSaver
+
+        _checkpointer = PgSaver(pool)
+    else:
+        from app.d1_saver import D1Saver
+
+        _checkpointer = D1Saver(pool)
     _pool = pool
-    logger.info("会話履歴の保存先: D1（データ用 Worker 経由）")
+    logger.info("会話履歴の保存先: %s", "Postgres" if pg.backend() == "pg" else "D1（データ用 Worker 経由）")
     try:
         yield _checkpointer
     finally:

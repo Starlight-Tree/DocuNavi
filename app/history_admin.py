@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 
 from app.d1 import D1Error, SyncD1
 from app.history import database_url
+from app.pg import sync_client
 
 _STALE_THREADS_SQL = """
 SELECT thread_id
@@ -69,7 +70,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     try:
-        with SyncD1(url) as db:
+        with sync_client(SyncD1, url) as db:
             threads = _find_threads(db, args)
             if not args.apply:
                 print(f"対象の会話: {len(threads)} 件（削除はしていません。--apply で削除します）")

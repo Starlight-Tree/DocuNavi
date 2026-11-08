@@ -21,6 +21,19 @@ jobs:
     name: Backend tests (Python 3.12)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # tests/test_history_pg_backend.py（Postgres 版の窓口）が使う、使い捨ての Postgres（pgvector 入り）。本物の DB には触れない
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -41,6 +54,8 @@ jobs:
       # tests/conftest.py が GEMINI_API_KEY を空にしてモックモードに固定する。実 API は呼ばない。
       # tests/test_http_smoke.py は、実際の uvicorn を空きポートで起動して HTTP で確かめる。
       - name: Run pytest
+        env:
+          PG_TEST_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: pytest -q
 
   worker:

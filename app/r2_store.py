@@ -276,17 +276,19 @@ def verify_originals(documents: Sequence[Mapping[str, Any]], find: Any) -> tuple
 def _ready_documents() -> list[dict[str, Any]]:
     """DB の `status = 'ready'` の資料（id・source・content_hash）。接続は D1_API_URL / D1_API_TOKEN（アプリと同じ）。"""
     from app.d1 import SyncD1
+    from app.pg import sync_client
 
-    with SyncD1() as db:
+    with sync_client(SyncD1) as db:
         return db.execute("SELECT id, source, content_hash FROM documents WHERE status = 'ready' ORDER BY id")
 
 
 def run_verify() -> int:
     """終了コード: 0 すべて一致 / 1 一致しないものがある・資料が 0 件・DB か R2 を読めない / 2 設定の不足。"""
     from app import pdf_originals
+    from app.history import database_url
 
-    if not os.environ.get("D1_API_URL", "").strip():
-        print("D1_API_URL が設定されていません。", file=sys.stderr)
+    if not database_url():
+        print("D1_API_URL（DB_BACKEND=pg のときは DATABASE_URL）が設定されていません。", file=sys.stderr)
         return 2
     try:
         default_store()

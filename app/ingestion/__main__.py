@@ -36,6 +36,7 @@ from app.ingestion.pdf_parser import REASONS
 from app.ingestion.repository import D1Repository, MemoryRepository
 from app.ingestion.service import COLLECTION_PATTERN, DocumentReport, find_pdfs, ingest
 from app.pdf_originals import MAX_ORIGINAL_BYTES
+from app.pg import sync_client
 
 R2_SCHEME = "r2://"
 
@@ -134,7 +135,7 @@ def _run(args: argparse.Namespace, input_path: Path) -> int:
         reports = ingest(paths, input_path, MemoryRepository(), apply=False, collection=args.collection)
     else:
         try:
-            with SyncD1(url) as client:
+            with sync_client(SyncD1, url) as client:
                 repo = D1Repository(client)
                 reports = ingest(paths, input_path, repo, apply=args.apply, collection=args.collection)
         except D1Error as exc:

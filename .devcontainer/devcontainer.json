@@ -102,6 +102,7 @@
 				"ms-python.vscode-pylance",
 				"mhutchie.git-graph",
 				"ms-ossdata.vscode-pgsql",
+				"dbcode.dbcode",
 				"ms-azuretools.vscode-containers",
 				"golang.go"
 			]

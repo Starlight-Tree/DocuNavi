@@ -36,6 +36,8 @@
 | `GEMINI_FALLBACK_THINKING_LEVEL` | （空） | フォールバックのモデルの `thinking_level`。主モデルとは別の変数（対応する値が違いうる） |
 | `D1_API_URL` | （空） | データ用 Worker（`docunavi-api`）の URL。**本物の LLM では必須**（資料の検索が D1 + Vectorize を読む。空だと起動を失敗させる）。会話履歴の保存先も兼ねる（モックモードで空ならプロセス内メモリ）。下記「資料の検索」「会話履歴の保存先」 |
 | `D1_API_TOKEN` | （空） | データ用 Worker に送るトークン（Secret `d1-api-token`）。**秘密情報**なのでコミットせず、ログにも出さない。`D1_API_URL` を設定したときに必要 |
+| `DB_BACKEND` | `d1` | DB の置き場。`d1`（既定。データ用 Worker 経由の D1 + Vectorize）か `pg`（Postgres。`app/pg.py`、検索は pgvector）。`pg` のときは `D1_API_URL` の代わりに `DATABASE_URL` を使う。**未切り替え**（2026-11-08 時点で本番は `d1`。データの複製と手順は `db/`） |
+| `DATABASE_URL` | （空） | `DB_BACKEND=pg` のときの Postgres の接続文字列（アプリはプール側 `pooled.db.prisma.io`、取り込みの CLI は直接 `db.prisma.io`）。**秘密情報**なのでコミットせず、ログにも出さない |
 | `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Better Auth が発行した JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
 | `AUTH_BASE_URL` | （空） | `AUTH_MODE=required` のとき必須。Better Auth の公開オリジン（画面の Worker `docunavi-web` の URL。`https://<ホスト>` の形で、パスは付けない。`http` はローカルだけ）。JWT の公開鍵（`{AUTH_BASE_URL}/api/auth/jwks`）の取得先と、発行元（`iss`）の確認に使う |
 | `AUTH_AUDIENCE` | `docunavi` | JWT の対象（`aud`）として受け付ける値 |

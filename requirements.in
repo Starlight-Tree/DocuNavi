@@ -13,3 +13,6 @@ pypdf>=6.19
 PyJWT[crypto]>=2.8
 # 元 PDF の置き場（Cloudflare R2。S3 互換。PDF_STORE=r2 のときだけ使う）。docs/r2-key-issuer.md
 boto3>=1.35
+# PostgreSQL（Prisma Postgres）への接続。DB_BACKEND=pg のときだけ使う（既定は D1）。app/pg.py
+psycopg[binary]>=3.2
+psycopg_pool>=3.2
