@@ -10,6 +10,13 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 - Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は、`devcontainer.json` の `extensions` に足さない。GCP の操作は原則 gcloud CLI（ガードは CLAUDE.md の「gcloud」の節）
 - 画像生成の Cloud Run Job は星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理する。`job/` をこのリポジトリに置かない
 
+## 実 API の経路（2026-11-09）
+
+- エージェントが実 API を呼ぶ確認・測定は、基本的に Vertex AI で行う（`GOOGLE_GENAI_USE_VERTEXAI=true`、`GOOGLE_CLOUD_PROJECT=docunavi-app`、ADC 認証）。理由: Developer API が 504 を返した直後に、Vertex では同じ呼び出しが通った。GCP の無料クレジットがある。
+- 実 API の呼び出し前に、質問文・回数・費用を示して承認を得る既存のルールは変わらない。
+- 本番の Cloud Run の LLM（Developer API キー）は、この方針に含まない。切り替えは別の決定で、事前に確認する（Vertex の LLM は 2026-11-09 の単発 5 回で Developer API の 2〜3 倍遅かった）。
+- ADC が使えるかは、gcloud のガードで確かめられない。呼んで失敗したらユーザーに伝える。
+
 ## 再ビルドの可能性
 
 - 開発コンテナの定義は、このリポジトリのファイルだけで完結させる。例外は星庭ジョブの bind mount（ホストの `/Users/wataru/Projects/hoshiniwa-job` が前提。作業ツリーは 2026-11-01 から書き込み可能で、`.git/hooks` と `.git/config` だけ `:ro`）で、残す。
