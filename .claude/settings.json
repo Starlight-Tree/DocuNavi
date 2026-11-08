@@ -57,7 +57,8 @@
       "Bash(docker compose config *)",
       "Bash(docker compose up *)",
       "Bash(docker compose down *)",
-      "Bash(docker compose restart *)"
+      "Bash(docker compose restart *)",
+      "Bash(git commit *--no-verify*)"
     ],
     "ask": [
       "Bash(git push)",
@@ -83,6 +84,20 @@
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-cloud-cli.py"
             ],
             "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-git-write.py"
+            ],
+            "timeout": 30,
             "onFailure": "block"
           }
         ]
