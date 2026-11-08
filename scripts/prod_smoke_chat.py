@@ -27,6 +27,7 @@ import urllib.request
 DEFAULT_WEB = "https://docunavi-web.wataru-apps.workers.dev"
 DEFAULT_API = "https://docunavi-xe42miq4da-an.a.run.app"
 TIMEOUT = 60
+USER_AGENT = "docunavi-prod-smoke/1.0 (+https://github.com/Starlight-Grove/docunavi)"
 
 
 def _env(name: str) -> str:
@@ -38,7 +39,9 @@ def _env(name: str) -> str:
 
 def _request(opener, url: str, *, body: dict | None = None, headers: dict | None = None):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data, headers or {}, method="POST" if body is not None else "GET")
+    # Python 既定の User-Agent は、Cloudflare の前段に弾かれる（error code 1010）。用途が分かる名前を付ける
+    merged = {"user-agent": USER_AGENT, **(headers or {})}
+    req = urllib.request.Request(url, data, merged, method="POST" if body is not None else "GET")
     try:
         with opener.open(req, timeout=TIMEOUT) as resp:
             return resp.status, resp.read()

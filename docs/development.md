@@ -262,17 +262,19 @@ LangGraph の会話・グラフ・state・ツール呼び出し・レイテン�
 - **JWT:** `GET /api/auth/token`（ES256、15 分、`aud=docunavi`）。Cloud Run の `/chat` に `Authorization: Bearer` で送る。
 - **スクリプト:** [scripts/prod_smoke_chat.py](../scripts/prod_smoke_chat.py)。既定はログインして JWT を取るだけ。`--send` で `/chat` を 1 回だけ叩く（本番の LLM・埋め込みを使う。課金される）。`--create` は初回だけ。
 
-手順（運用者。本番への書き込みなので、私は実行しない）:
+**運用の決定（2026-11-09）:** テストユーザーは DB に**残す**。`TEST_LOGIN_TOKEN` は**使うときだけ**入れ、終わったら**削除**する（平時は無効）。
+テスト用の認証情報の原本は Infisical（プロジェクト `f451ae41…`・環境 `dev`）の `TEST_LOGIN_EMAIL` `TEST_LOGIN_PASSWORD` `TEST_LOGIN_TOKEN`。JWT は保存せず、毎回サインインして取る。
 
-1. `workers/` の変更を `main` に入れ、`deploy.yml` で Worker を配備する（この時点では無効のまま）。
-2. 秘密を作る。`TEST_LOGIN_TOKEN` は 32 文字以上のランダムな値、パスワードは 24 文字以上。値は表示しない。
-   Worker には `wrangler secret put TEST_LOGIN_TOKEN` と `wrangler secret put TEST_LOGIN_EMAIL`（`workers/api` で）。
-   スクリプト用の `TEST_LOGIN_EMAIL` `TEST_LOGIN_PASSWORD` `TEST_LOGIN_TOKEN` は Infisical に置く（`.env` には置かない）。
-3. 初回: `infisical sm run … -- .venv/bin/python scripts/prod_smoke_chat.py --create`（ユーザーが本番 DB に 1 行できる。`/chat` は呼ばない）。
-4. 確認: `… scripts/prod_smoke_chat.py --send`。
-5. **テストが終わったら無効に戻す:** `wrangler secret delete TEST_LOGIN_TOKEN`。テストユーザーも消すなら、本番 DB の `user` `account` `session` の該当行を SQL で削除する（運用者。復元できない）。
+手順（運用者。Worker の Secret は本番への書き込みなので、私は実行しない。ホストのターミナルで）:
+
+1. 有効にする: `bash workers/api/test-login.sh on`（Infisical の値を `wrangler secret put` に標準入力で渡す。要 `wrangler login --device`）。
+2. テストする: `infisical sm run --silent --projectId f451ae41-c06d-42c0-aa22-4a0f7564b37e --env=dev -- python scripts/prod_smoke_chat.py --send`（`--send` は本番の LLM・埋め込みを使う。課金される）。
+   ユーザーが無いとき（作り直したとき）だけ `--create` を付ける。
+3. **終わったら無効にする:** `bash workers/api/test-login.sh off`（`TEST_LOGIN_TOKEN` を削除。入口は 400 に戻る）。`status` で Secret の名前を確かめられる。
+4. 初回の配備とユーザーの作成は 2026-11-09 に済んだ。次からは手順 1〜3 だけ。
+5. テストユーザーを消すとき（運用者。復元できない）: 本番 DB の `user` `account` `session` の該当行を SQL で削除する。
 
 **限界:** Workers のレート制限はメモリ上で、インスタンス間では効かない。パスワードの総当たりへの備えは、長いパスワードと、テストの間だけ有効にすることに頼る。
-**検証の状況（2026-11-08）:** ローカルだけで確認した（`wrangler dev` の Worker + 使い捨ての pgvector DB）。無効時は 400、有効時はトークン無し・違うトークン・別のメールが 403、
-正しい組み合わせで登録・ログイン・JWT 取得（ES256、15 分）、そのJWT をアプリ（`AUTH_MODE=required`、モック）が受理して `/chat` が 200。トークン無しは 401。
-**本番では未確認**（配備前）。
+**検証の状況:** ローカル（2026-11-08。`wrangler dev` の Worker + 使い捨ての pgvector DB）で、無効時は 400、有効時はトークン無し・違うトークン・別のメールが 403、正しい組み合わせで登録・ログイン・JWT 取得、
+その JWT をアプリ（`AUTH_MODE=required`、モック）が受理して 200（トークン無しは 401）を確認した。**本番でも確認した（2026-11-09）:** 登録 200、ログイン 200、JWT 発行、`/chat` 200（`hit_count=2`）。
+Cloud Run のログで、Vertex AI の埋め込みによる検索が成功し、403 は無かった。注意: Python 既定の User-Agent は Cloudflare に弾かれる（error code 1010。403 に見える）ので、スクリプトは名前つきの User-Agent を送る。
