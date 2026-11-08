@@ -1,0 +1,43 @@
+# ローカル開発用の Postgres（pgvector 入り）に api をつなぐ上書き。通常起動（docker-compose.yml だけ）には効かない。
+# 本番は Cloud Run + Prisma Postgres で、Compose は使わない（ローカル開発と CI だけ）。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.pg.yml up -d db api
+#   元に戻す: docker compose -f docker-compose.yml up -d --force-recreate api
+#
+# db のパスワードは、ローカル専用の使い捨ての値で秘密ではない（CI の使い捨て Postgres と同じ扱い。ポートは公開しない）。
+# 表は db/migrate.py ではなく、初回だけ手で作る:
+#   docker compose -f docker-compose.yml -f docker-compose.pg.yml exec -T db psql -U docunavi -d docunavi < db/migrations/0001_schema.sql
+# （db/migrate.py は接続先を Prisma の直接ホストに固定しているので、ローカルでは使わない）
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: docunavi-db
+    environment:
+      POSTGRES_USER: docunavi
+      POSTGRES_PASSWORD: docunavi-local-throwaway
+      POSTGRES_DB: docunavi
+    volumes:
+      - docunavi_pgdata:/var/lib/postgresql/data
+    networks:
+      - frontend-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "docunavi", "-d", "docunavi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_BACKEND: pg
+      DATABASE_URL: postgresql://docunavi:docunavi-local-throwaway@db:5432/docunavi
+      AUTH_MODE: "off"
+      ACCESS_MODE: "off"
+      # .env に D1_API_URL があっても使わない（旧経路。本番の D1 は撤去済み）
+      D1_API_URL: ""
+
+volumes:
+  docunavi_pgdata:
