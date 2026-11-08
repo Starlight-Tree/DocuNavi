@@ -201,8 +201,8 @@ flowchart LR
 1. **認証をどこで検証するか。** 今は API が全リクエストで JWT を検証する（5）。API（Cloud Run）は**公開**で、中継を通らない経路もある。入口で検証を足しても、API の検証は外せない（外すと、`*.run.app` へ直接来る経路が無防備になる）。
    外すには「API を非公開にして、入口からだけ呼べるようにする」（Cloud Run の IAM、または共有ヘッダー）が前提で、これは [target-architecture.md](target-architecture.md) の Worker の「秘密ヘッダー」の話と重なる。**重複して二重に検証するだけなら、利点は小さい**（Django の測定で、検証は 1 回約 70 µs。差は実質ない）。
 2. **入口にどの経路を載せるか。** `/chat/stream` 以外（`/threads` `/documents`）を載せると、画面の API の向き先が 1 つになる反面、中継が止まると全部が止まる（今は SSE だけ）。
-3. **Cloudflare の Worker との関係。** [target-architecture.md](target-architecture.md) では、独自ドメインの後に Worker を前段に置く決定（未実装）。Go の入口と Worker の役割が重なる。ドメインが決まる前に入口を広げるのは、二度手間になりうる。
-4. **タイムアウトの鎖。** LLM 60 秒（`LLM_TIMEOUT_SECONDS`）< API の Cloud Run 90 秒 < 中継の Cloud Run 120 秒（今の設定）< Cloudflare の 125 秒（Worker を入れたとき）。中継の期限は上流より長く、その外側より短い、という順になっているか、値を決めるときに確かめる。
+3. **Cloudflare の Worker との関係。** [target-architecture.md](target-architecture.md) にあった、独自ドメインの後に Worker を前段に置く計画は、2026-11-09 に廃止した（[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)）。入口の役割が Worker と重なる心配はなくなった。
+4. **タイムアウトの鎖。** LLM 60 秒（`LLM_TIMEOUT_SECONDS`）< API の Cloud Run 90 秒 < 中継の Cloud Run 120 秒（今の設定）。（前段に Cloudflare の Worker を入れる計画は 2026-11-09 に廃止したので、その外側の 125 秒の項は無い。）中継の期限は上流より長く、その外側より短い、という順になっているか、値を決めるときに確かめる。
 
 ## 6. 移行の順序
 

@@ -35,14 +35,15 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 
 資料の取り込みは Cloud Run の Job（毎時）。LLM の遅延・失敗への対処（ヘッジ、フォールバック、有料キー）はアプリの中にある（[configuration.md](configuration.md)）。
 
-## 目標構成（決定。未実装）
+## 目標構成（2026-11-09 に改訂）
 
 ```
-ブラウザー → Next.js（Cloudflare Worker `docunavi-web`。app.、DNS のみ）
-          → api.（Cloudflare のプロキシ）→ Worker → Cloud Run（FastAPI）→ Supabase / R2
+ブラウザー → Cloudflare Worker `docunavi-web`（Next.js の画面）
+          → Cloud Run（FastAPI。`*.run.app`。`/chat/stream` は Go の中継 `docunavi-sse-relay` 経由）→ Prisma Postgres / R2
+          → Worker `docunavi-api`（認証。Better Auth）
 ```
 
-利用者が決めた形（2026-10）。roadmap の段階 7 の「Vite のまま静的配信か」は、この決定に合わせて直した（2026-10-24）。
+2026-10 に決めた「独自ドメインの `api.` を Cloudflare のプロキシにし、Worker を前段に置く」形は、2026-11-09 に廃止した（[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)）。上の図は、廃止後の、いま動いている入口の形。roadmap の段階 7 の「Vite のまま静的配信か」は、この決定に合わせて直した（2026-10-24）。
 
 ## 開発環境: ローカル Supabase（設計。2026-10-25。中止）
 
@@ -90,7 +91,7 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 | Cloudflare R2（原本） | 実装済み | 本番で稼働 | - |
 | ローカル Supabase（開発環境） | 中止（2026-10-25、利用者の指示。段階 0 の記録は残す） | 利用者の指示（2026-10-25）。段階 0 の実測（A）: ES256 の JWKS、`vector`、`pgroonga` | Compose の `db` との関係は未決。段階 0 の検証環境は 2026-10-25 に削除済み（今は動いていない）。上の「開発環境: ローカル Supabase」 |
 | Next.js（Worker `docunavi-web`） | 実装済み（2026-11-08 に Vercel から移行。Vercel のプロジェクトは削除済み） | 本番 URL `https://docunavi-web.wataru-apps.workers.dev`。移行前は `https://docunavi-eosin.vercel.app`（2026-10-24 にデプロイ）。Cloud Run は 2026-10-25 に API のみのリビジョンを promote 済み | 確認の結果と未確認の点は roadmap の①。決めたこと: 下の「段階 7 の前に決めること」 |
-| Cloudflare Worker + プロキシ | 決定（未実装） | 利用者の決定。SSE の通過は測定済み（A、プローブ。下記） | 自分のドメインが要る（roadmap 段階 3） |
+| Cloudflare Worker + プロキシ（`api.` の前段） | **廃止**（2026-11-09、利用者の決定。[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)） | 廃止前の測定: SSE の通過は測定済み（A、プローブ。下記） | 独自ドメインを使わないので置かない。画面の Worker `docunavi-web` と、認証の Worker `docunavi-api` は別物で、残る |
 | Cloud Run の `--use-http2` + h2c 対応サーバー（hypercorn） | **本番に適用済み**（2026-10-25） | 切断の伝わりをプローブで測定（A）。本番（`docunavi-00016-ces`）で、ブラウザーの停止ボタンによる取り消しを確認済み（A。roadmap ②の追記） | 適用済み。旧リビジョン（HTTP/1.1）へ戻すと取り消しは効かなくなる |
 | Hono | 候補 | 不明 | Worker のルートが増えたとき。今のプローブは素の Worker |
 | Go の SSE 中継 | **本番に配備済み**（2026-10-25） | 開発コンテナ内の疑似 SSE 測定（A）を経て、Cloud Run（`docunavi-sse-relay`、h2c）へ配備。`/chat/stream` を中継 | 画面の `NEXT_PUBLIC_STREAM_BASE_URL` 経由で稼働中 |
@@ -247,7 +248,7 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 
 **決定（2026-10-24、利用者）:**
 
-- API のつなぎ方: 移行の期間は、Vercel から Cloud Run を直接呼ぶ。Worker はドメインの取得後。切り替え時に `CORS_ORIGINS` を Vercel の URL に絞る（**済み**。2026-10-25 に読んだ本番の値は `https://docunavi-eosin.vercel.app` だけ。コードの既定は `*` のまま）。
+- API のつなぎ方: 移行の期間は、Vercel から Cloud Run を直接呼ぶ。Worker はドメインの取得後（この前段の Worker は 2026-11-09 に廃止）。切り替え時に `CORS_ORIGINS` を Vercel の URL に絞る（**済み**。2026-10-25 に読んだ本番の値は `https://docunavi-eosin.vercel.app` だけ。コードの既定は `*` のまま）。
 - Vercel のデプロイ（**2026-10-24 に変更。利用者の指示: 自動化を後回しにしない**）: 最初の 1 回だけ CLI で手動デプロイして URL を確定し（Supabase の Redirect URLs と Cloud Run の `CORS_ORIGINS` に入れるため）、**そのあと続けて Git 連携に移す**。`main` = 本番。Root Directory は `frontend`。以前の決定は「Git 連携は止め、手動のデプロイだけ。安定してから見直す」だった。
 - プレビューの API と DB: 本番の DB に接続させない。静的な確認か、ローカル・別の DB だけにする。実装は、Vercel の **Preview の環境変数に `NEXT_PUBLIC_API_BASE_URL` を入れない**こと（API を呼べない）と、Cloud Run の `CORS_ORIGINS` にプレビューの URL を入れないこと（入れても弾かれる）。Supabase の別プロジェクトは、Preview でログインまで確かめたくなってから。
 - FastAPI の静的配信: **2026-10-24 に外した**（旧 Vite 版の `frontend/`（現在の `frontend/` とは別物）ごと削除。利用者が Vercel 上の `frontend` でログインと質問を確認した後、決定）。退路は git の履歴と、Vite 版のイメージを持つ Cloud Run の以前のリビジョンだけ。API のみのイメージ（`docunavi-00016-ces`）を 2026-10-25 に promote 済みで、本番の Cloud Run の `/` は 404（画面は配信しない）。
@@ -256,9 +257,9 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 
 - プレビュー環境の API と DB の分離（Vercel の環境変数だけでは DB を分けられない）。
 - Git 連携の後の運用: `main` へのプッシュで Vercel の本番が更新される。CLAUDE.md の「CI の結果の扱い」「プッシュ」の運用を見直す（`ci.yml` に `frontend` のジョブ〔単体テスト・型検査・ビルド〕を足した。2026-10-24）。連携は Vercel の GitHub アプリをこのリポジトリに入れる外向きの設定で、利用者が行う。
-- Worker が付ける秘密ヘッダーを FastAPI が検査し、`*.run.app` への直接のアクセスを防ぐ（`/health` は除く）。
+- （2026-11-09 に前段の Worker を廃止したので、この案は実現しない）Worker が付ける秘密ヘッダーを FastAPI が検査し、`*.run.app` への直接のアクセスを防ぐ（`/health` は除く）。
 - クライアント IP は `CF-Connecting-IP` で受ける。CORS は `CORS_ORIGINS` / `allow_origin_regex`。
-- タイムアウトの鎖: LLM 60 秒 < Cloud Run 90 秒 < Cloudflare 125 秒。
+- タイムアウトの鎖: LLM 60 秒 < Cloud Run 90 秒 < Cloudflare 125 秒（前段の Worker は 2026-11-09 に廃止。最後の項は当時の想定）。
 - h2c への切り替え（切断の取り消しのため）: 本番に適用済み（`docunavi-00016-ces`。2026-10-25）。
 - 未確認: Worker の Free プランの制限（90 秒より先）、Vercel Hobby の規約（公式の Hobby と Fair Use のページは 2026-10-24 に読み、個人・非商用ならよい。利用規約の本文は未読）、`@supabase/ssr` のクッキーの読み取り、125 秒の壁の挙動。
 
