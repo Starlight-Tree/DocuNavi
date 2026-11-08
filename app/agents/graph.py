@@ -118,9 +118,9 @@ DEFAULT_FALLBACK_HOLD_SECONDS = 60.0
 # 最初のチャンクを待つ総時間の上限（ヘッジ・再試行・フォールバックを含む、LLM の 1 回の呼び出しあたり）。0 で上限なし。
 # 20 秒は実測した値ではなく、通常の 1〜5 秒と、主モデルが落ちている間の 14〜60 秒（2026-11-04 の本番ログ）の間に置いた暫定値
 DEFAULT_LLM_FIRST_CHUNK_DEADLINE_SECONDS = 20.0
-DEFAULT_QUERY_REWRITE_TIMEOUT_SECONDS = (
-    6.0  # 追質問の検索語の補完（LLM の短い 1 回）を待つ上限。超えたら前の質問を足した検索語にする
-)
+# 追質問の検索語の補完（LLM の短い 1 回）を待つ上限。超えたら前の質問を足した検索語にする。
+# 3 秒は、2026-11-09 の実測（Vertex AI、補完 11 回）の最大 1.37 秒に、約 2 倍の余裕を見た値
+DEFAULT_QUERY_REWRITE_TIMEOUT_SECONDS = 3.0
 
 # 1 回の質問で検索できる最大回数（`direct` の最初の検索を含む）。LangGraph の再帰の上限は既定で 10007 なので、
 # モデルがツールを呼び続けると、1 回の質問が LLM_TIMEOUT_SECONDS（60 秒）まで検索と LLM の呼び出しを繰り返してしまう
@@ -324,7 +324,7 @@ def retrieval_mode() -> str:
 
 
 def query_rewrite_timeout_seconds() -> float:
-    """LLM_QUERY_REWRITE_TIMEOUT_SECONDS（既定 6）。追質問の検索語の補完を待つ上限。不正値・0 以下は既定値に戻す。"""
+    """LLM_QUERY_REWRITE_TIMEOUT_SECONDS（既定 3）。追質問の検索語の補完を待つ上限。不正値・0 以下は既定値に戻す。"""
     try:
         value = float(os.environ.get("LLM_QUERY_REWRITE_TIMEOUT_SECONDS", ""))
     except ValueError:
@@ -836,7 +836,8 @@ def build_graph(
         prior, last_answer = followup.prior_context(
             history, frozenset({REDACTED_USER_TEXT, MASKED_ANSWER_TEXT, MASKED_TOOL_TEXT, INPUT_REFUSAL_REPLY})
         )
-        if not prior or not followup.needs_completion(question):
+        # 挨拶・お礼だけの発言は、短くても前の話題に頼らない。補完の LLM を呼ばない（検索を飛ばすかは CHAT_SMALLTALK_SKIP の別の判断）
+        if not prior or is_smalltalk(question) or not followup.needs_completion(question):
             return question
         emit_status(config, PHASE_ANALYZING)
         try:
