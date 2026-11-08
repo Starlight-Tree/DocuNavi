@@ -274,7 +274,7 @@ class D1EmbeddingStore:
                 [
                     (
                         "UPDATE chunks SET embedding_model = ?, embedding_dimensions = ?, embedding_input_hash = ? "
-                        "WHERE id = ? AND content_hash = ? AND heading IS ?",
+                        "WHERE id = ? AND content_hash = ? AND heading IS NOT DISTINCT FROM ?",
                         (MODEL, DIMENSIONS, chunk.input_hash, chunk.id, chunk.content_hash, chunk.heading),
                     )
                     for chunk, _ in part
