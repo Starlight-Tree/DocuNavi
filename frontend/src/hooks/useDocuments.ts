@@ -84,14 +84,18 @@ export function useOpenSource(): (
   excerpt: string,
   knownPage?: number,
   opener?: Element | null,
+  options?: { documentId?: number; span?: string | null },
 ) => Promise<OpenSourceResult> {
   const fetcher = useAuthedJsonFetch();
   const { navigate } = useUrlState();
   return useCallback(
-    async (source: string, excerpt: string, knownPage?: number, opener?: Element | null) => {
+    async (source: string, excerpt: string, knownPage?: number, opener?: Element | null, options?: { documentId?: number; span?: string | null }) => {
       try {
         const list = await fetchDocuments(fetcher);
-        const document = list.documents.find((d) => d.source === source);
+        // サーバーが資料の ID を送ってきたら、ID で探す（同じ名前の資料があっても取り違えない）。無ければ、名前で探す
+        const document =
+          (options?.documentId === undefined ? undefined : list.documents.find((d) => d.id === options.documentId)) ??
+          list.documents.find((d) => d.source === source);
         if (!document) return 'notfound';
         let chunk: number | null = null;
         try {
@@ -99,7 +103,7 @@ export function useOpenSource(): (
         } catch {
           // 根拠の箇所が分からなくても、資料は開く
         }
-        signalPanelOpen(opener ?? null, true, chunk === null ? document.id : null);
+        signalPanelOpen(opener ?? null, true, chunk === null ? document.id : null, chunk === null ? null : (options?.span ?? null));
         navigate({ doc: document.id, view: 'text', page: knownPage ?? null, chunk, item: null });
         return 'opened';
       } catch {

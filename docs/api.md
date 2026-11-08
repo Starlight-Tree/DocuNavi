@@ -49,7 +49,7 @@
 {
   "reply": "…",
   "thread_id": "…",
-  "context": "[ザーハード1.pdf]\n…",
+  "context": "[1] ザーハード1.pdf\n…",
   "mode": "mock",
   "collection": null,
   "hit_count": 2
@@ -127,7 +127,7 @@ data: {"type":"data-status","data":{"phase":"generating"},"transient":true}
 data: {"type":"text-start","id":"text-0"}
 data: {"type":"text-delta","id":"text-0","delta":"ザーハードの大気は…"}
 data: {"type":"text-end","id":"text-0"}
-data: {"type":"message-metadata","messageMetadata":{"context":"[ザーハード1.pdf]\n…","sources":[{"name":"ザーハード1.pdf","page":1,"page_end":null,"weak":false,"collection":"zahard","target":"zahard"}],"collection":null,"target":null,"hit_count":1}}
+data: {"type":"message-metadata","messageMetadata":{"context":"[1] ザーハード1.pdf\n…","sources":[{"name":"ザーハード1.pdf","page":1,"page_end":null,"weak":false,"collection":"zahard","target":"zahard","document_id":1}],"collection":null,"target":null,"hit_count":1}}
 data: {"type":"finish"}
 data: [DONE]
 ```
@@ -142,12 +142,16 @@ data: [DONE]
 - **`message-metadata` の `context`**: `/chat` の `context` と同じ（今回のターンで検索された設定資料。完了の直前に届く）。
 - **`message-metadata` の `collection` と `hit_count`**: `/chat` と同じ意味（この会話の検索対象と、今回のターンの検索で拾ったチャンクの数。検索していなければ `hit_count` は `null`）。
 - **`message-metadata` の `target`**: この会話の質問の対象（`null` は絞らない）。`sources` の各 `target` は、回答を作った時点のその資料の対象（未分類は `null`。あとで分類が変わっても変わらない）。
-- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, weak, collection, target}`。`collection` はその資料のグループ（未設定なら `null`）。`page` は D1 の `chunks.page`（PDF の 1 始まりのページ）、
+- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, weak, collection, target, document_id}`。`document_id` は資料の ID（`documents.id`。不明なら `null`）で、画面が出典から資料を直接開くのに使う。`collection` はその資料のグループ（未設定なら `null`）。`page` は D1 の `chunks.page`（PDF の 1 始まりのページ）、
   `page_end` はページをまたぐ表の最終ページ（またがなければ `null`）。値が不正なとき（1 未満・整数でない・`page_end` が `page` 以下）は `null`。
   各要素の `weak` は、同じ検索の 1 位との類似度の差が 0.05（`app/agents/tools.py` の `WEAK_GAP`）を超える 2 件目以降で `true`。画面は出典カードに出さない
   （LLM が受け取った抜粋は変えず、折りたたみの一覧には残る）。類似度が無いときと 1 件目は `false`。
   LLM に渡す文面（`context`）にはページを載せない（ツールの `artifact` で画面にだけ渡す）。検索しなかったターン・入力ガードが拒否したターンは空の配列。
   `/chat` の応答にはない。
+- **回答の文末の引用（2026-11-09 実装。本番は未配備）**: `context` の見出しは `[番号] ファイル名`（番号は 1 から。旧形式 `[ファイル名]` の保存済みの会話も読める）。LLM は、根拠にした文の末尾に `[1]` か
+  `[1「根拠の語句」]` を付ける（番号は `sources` の n 番目。語句は、その資料の本文からそのまま写したもの）。サーバーは本文を書き換えず、別の対応表も返さない（本文の記法がそのまま対応）。
+  画面は、存在する番号（参照資料に出る出典）だけを押せる番号にし、語句の付いた引用は、語句が出典の本文にそのまま（空白を除いて）含まれるときだけ残し、含まれなければ番号ごと消す（チャンク全体の強調に戻さない。本文の記述そのものは直せない）。
+  **検証できるのは、番号が実在することと、語句が本文にあることまで。その文を出典が支持するかは、自動では確かめない。** 検索を複数回したターンは、最後の検索結果の番号だけが有効（`context` と `sources` は最後の検索のもの）。
 - **出力ガードの保持:** 本文は、末尾の正規化後 31 文字ぶんを手元に残して送ります（システムプロンプトの連続一致が
   24 文字に達する前に止めるため）。短い回答は、終わりにまとめて届きます。ガードが漏洩を検知したら、受信をやめて定型文を送ります。
   検知の前に届く本文は、漏洩とみなされる長さに達しません。

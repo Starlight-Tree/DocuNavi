@@ -17,7 +17,7 @@ from app.api import routes
 from tests.fakes import FakeSearch
 
 # ツール出力は "[ファイル名.pdf]\n本文" の繰り返し
-_SOURCE_HEAD = re.compile(r"(?m)^\[([^\]\n]+\.pdf)\]$")
+_SOURCE_HEAD = re.compile(r"(?m)^\[\d+\] ([^\n]+\.pdf)$")
 _NOT_FOUND_QUESTION = "xyzqwerty"
 
 
@@ -99,7 +99,7 @@ def test_rag_returns_sources_from_chunks(client, searching_llm, question, expect
 
     body = _chat(client, question, str(uuid.uuid4())).json()
 
-    assert body["context"].startswith("[ザーハード")
+    assert body["context"].startswith("[1] ザーハード")
     names = _sources(body["context"])
     assert expected_chunk in names
     assert all(name in FakeSearch.FILE_NAMES for name in names)
@@ -159,7 +159,7 @@ def test_context_is_replaced_every_turn(client, searching_llm):
     thread_id = str(uuid.uuid4())
 
     first = _chat(client, "ザーハリアン文明とは何ですか", thread_id).json()
-    assert first["context"].startswith("[ザーハード")
+    assert first["context"].startswith("[1] ザーハード")
 
     # 該当なしの 2 ターン目: 前ターンの検索結果が残らない
     second = _chat(client, _NOT_FOUND_QUESTION, thread_id).json()

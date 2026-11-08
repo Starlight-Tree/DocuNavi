@@ -13,8 +13,8 @@ from app.agents.graph import MockChatModel
 from app.scope import Scope
 from app.search.types import Hit
 
-# search_documents の出力 "[ファイル名.pdf]\n本文" の、ファイル名の行
-SOURCE_HEADER = re.compile(r"(?m)^\[([^\]\n]+\.(?:txt|pdf))\]\n")
+# search_documents の出力 "[番号] ファイル名.pdf\n本文"（旧形式の "[ファイル名.pdf]\n本文" も読む）の、ファイル名の行
+SOURCE_HEADER = re.compile(r"(?m)^(?:\[\d+\] |\[)([^\]\n]+\.(?:txt|pdf))\]?\n")
 TOOL_NAME = "search_documents"
 NOT_FOUND_MARK = "該当する設定資料は見つかりませんでした"
 

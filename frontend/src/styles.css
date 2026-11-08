@@ -501,6 +501,48 @@ textarea {
   white-space: nowrap;
 }
 
+/* 回答の文末の引用番号（本文の上付き）。参照資料のカードの番号 .ref-num と同じ数字。色・余白は既存のトークンのまま */
+.cite-group {
+  margin-left: 0.15em;
+  white-space: nowrap;
+}
+
+.cite {
+  margin: 0 0.05em;
+  padding: 0 0.2em;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.8em;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cite:hover:not(:disabled),
+.cite:focus-visible {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.cite:disabled {
+  cursor: progress;
+}
+
+.cite sup {
+  font-size: 1em;
+  line-height: 0;
+}
+
+.ref-num {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 抜粋のヒント。位置は .refs が基準（押した項目の下の行に、本文の幅で出す）。Esc で閉じる */
 .ref-tip {
   position: absolute;

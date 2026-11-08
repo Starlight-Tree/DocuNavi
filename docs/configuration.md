@@ -53,7 +53,7 @@
 
 - **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元。質問ごとに API を 1 回呼ぶ）、pgvector で
   コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。本文とメタデータも同じ Postgres から取ります。対象は DB の `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループの文書のチャンクだけ。下の「検索の範囲」）で、PDF は読みません。
-  返す形は `[ファイル名]\n見出し\n本文` です。
+  返す形は `[番号] ファイル名\n見出し\n本文` です（番号は 1 から。回答の文末の引用 `[n]` が指す。`docs/api.md` の「回答の文末の引用」）。
 - **必要なもの。** 本物の LLM では `DB_BACKEND=pg` と `DATABASE_URL`（履歴と同じ接続を借りる）と `GEMINI_API_KEY`（質問の埋め込み用。
   Vertex AI で LLM を使う場合も、埋め込みは API キーで呼ぶ。`EMBEDDING_USE_VERTEXAI=true` のときだけ、埋め込みは Vertex AI で、キーは要らない）。Postgres に、取り込み・埋め込み済みであること。本番は、R2 の PDF を取り込みジョブ（`docunavi-ingest-sync` が毎時、`docunavi-ingest-queue` が R2 の通知で）が `python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で入れます。
   R2 の最上位のプレフィックスが `documents.collection`（資料のグループ）になります（`hero/` は画像の置き場で、資料群ではありません）。

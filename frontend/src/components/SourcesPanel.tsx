@@ -1,13 +1,14 @@
 import { useId, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { useOpenReference } from '../hooks/useOpenReference';
-import { formatPages, parseSources, referenceItems, REFERENCE_LIST_LIMIT, withPages } from '../lib/sources';
-import type { SourceRef } from '../lib/sources';
+import type { useOpenReference } from '../hooks/useOpenReference';
+import { formatPages, referenceItems, REFERENCE_LIST_LIMIT } from '../lib/sources';
+import type { SourceDoc } from '../lib/sources';
 
 interface SourcesPanelProps {
-  context: string;
-  /** サーバーが検索で返した、出典ごとのページ。無ければ（古い応答）、開くときに抜粋から探す。 */
-  sources?: SourceRef[];
+  /** 出典の全件（`withPages` でページ・資料の ID を付けたもの。並びは、回答の文末の引用番号と同じ）。 */
+  sources: SourceDoc[];
+  /** 資料のパネルを開く操作と、その状態（回答の本文の引用番号と共有する）。 */
+  reference: ReturnType<typeof useOpenReference>;
 }
 
 /** 抜粋のヒントに出す最大の文字数（読み上げにも使うので、短くする）。全文は右のパネルで読む。 */
@@ -20,13 +21,13 @@ function excerptHint(text: string): string {
 
 /**
  * 回答の根拠にした資料を、回答の下に小さくまとめる「参照資料」。1 件 = 資料名 + ページ。押すと、右のパネルで該当箇所を開く。
- * 出典は回答全体に対するもので、どの文の根拠かは分からないので、文の近くには置かない（対応を推測しない）。
+ * 回答の文末の引用番号（本文の上付きの番号。`AssistantAnswer`）は、ここのカードの番号と同じ（出典の並びの n 番目）。
+ * 文との対応は、LLM が付けた番号を信用せず、存在する番号だけを使う（`lib/citations.ts`）。カードは回答全体の根拠の一覧で、番号の有無にかかわらず出す。
  * 抜粋のヒントは、マウスを載せたときと、キーボードでフォーカスしたときに出る（Esc で閉じる）。
  * 出典の見出しが無い context（未検索・該当なしの定型文）では何も出さない。
  */
-export function SourcesPanel({ context, sources: refs }: SourcesPanelProps) {
-  const sources = withPages(parseSources(context), refs);
-  const { opening, failureMessage, open } = useOpenReference(sources);
+export function SourcesPanel({ sources, reference }: SourcesPanelProps) {
+  const { opening, failureMessage, open } = reference;
   const [expanded, setExpanded] = useState(false);
   // Esc で閉じたヒント（出典の添字）。フォーカスやマウスが外れたら、また出せるようにする
   const [dismissed, setDismissed] = useState<number | null>(null);
@@ -68,6 +69,9 @@ export function SourcesPanel({ context, sources: refs }: SourcesPanelProps) {
                 onBlur={() => setDismissed((current) => (current === index ? null : current))}
                 onMouseLeave={() => setDismissed((current) => (current === index ? null : current))}
               >
+                <span className="ref-num" aria-hidden="true">
+                  {index + 1}
+                </span>
                 <svg className="ref-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
                   <path d="M14 3v5h5" />

@@ -284,7 +284,7 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     vi.stubGlobal('fetch', fetchMock);
   }
 
-  it('「参照資料」の見出しと件数の下に、資料名とページのチップを並べる。大きなカード・サムネイル・番号・更新日は出さない', async () => {
+  it('「参照資料」の見出しと件数の下に、資料名とページのチップを並べる。大きなカード・サムネイル・更新日は出さない', async () => {
     installRefs(CONTEXT4, SOURCES4);
     const { container } = render(<App />);
     await ask(userEvent.setup());
@@ -352,16 +352,85 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     expect(within(region).getByRole('heading', { name: /参照資料/ })).toHaveTextContent('3 件');
   });
 
-  it('文と出典の対応は作らない: 回答の本文にボタンは入れず、本文中の「[1]」もそのままの文字', async () => {
-    installRefs(CONTEXT4, SOURCES4, '申込みは 2 月 28 日までです[1]。');
-    render(<App />);
-    await ask(userEvent.setup());
+  describe('回答の文末の引用', () => {
+    // 出典 1・2 は、資料 7 のチャンク 0・1 と同じ本文（抜粋からチャンクを特定できる）
+    const CITED_CONTEXT = [
+      '[1] tsubasa_dorm_rules.pdf\n第1章 総則\n第2条 寮は3棟で構成する。',
+      '[2] tsubasa_dorm_rules.pdf\n第5条 入寮の申込みは、2 月 28 日までに行う。',
+    ].join('\n\n');
+    const CITED_SOURCES = [
+      { name: 'tsubasa_dorm_rules.pdf', page: 1, page_end: null, weak: false, document_id: 7 },
+      { name: 'tsubasa_dorm_rules.pdf', page: 3, page_end: null, weak: false, document_id: 7 },
+    ];
 
-    const text = await screen.findByText(/申込みは 2 月 28 日までです\[1\]。/);
-    expect(text).toBeVisible();
-    expect(within(text).queryAllByRole('button')).toHaveLength(0);
-    // 出典は、回答の末尾の「参照資料」にまとまっている
-    expect(screen.getByRole('region', { name: '参照資料' })).toBeInTheDocument();
+    it('文末の [n] は、押せる上付きの番号になる。本文に引用の記法は残らない。押すと、その出典を右のパネルに開く', async () => {
+      installRefs(CITED_CONTEXT, CITED_SOURCES, '申込みは 2 月 28 日までです[2]。');
+      const user = userEvent.setup();
+      render(<App />);
+      await ask(user);
+
+      const button = await screen.findByRole('button', { name: /参照資料 2: tsubasa_dorm_rules\.pdf p\.3を右のパネルで開く/ });
+      expect(button).toHaveTextContent('2');
+      expect(screen.queryByText(/\[2\]/)).not.toBeInTheDocument();
+      await user.click(button);
+      await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=3&chunk=1'));
+    });
+
+    it('根拠の語句が出典の本文にそのまま含まれるときだけ、右のパネルでその語句を強調する', async () => {
+      installRefs(CITED_CONTEXT, CITED_SOURCES, '申込みは 2 月 28 日までです[2「2 月 28 日まで」]。');
+      const user = userEvent.setup();
+      render(<App />);
+      await ask(user);
+
+      await user.click(await screen.findByRole('button', { name: /参照資料 2: .*根拠の語句を強調/ }));
+      const mark = await screen.findByTestId('span-mark');
+      expect(mark).toHaveTextContent('2 月 28 日まで');
+    });
+
+    it('語句が出典の本文に無い（言い換え・作り話）引用は、番号ごと消す（チャンク全体の強調にも戻さない）', async () => {
+      installRefs(CITED_CONTEXT, CITED_SOURCES, '申込みは 2 月末です[2「二月末まで」]。');
+      const user = userEvent.setup();
+      render(<App />);
+      await ask(user);
+
+      expect(await screen.findByText(/申込みは 2 月末です。/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /参照資料 2: / })).not.toBeInTheDocument();
+      expect(screen.queryByText('[2「二月末まで」]')).not.toBeInTheDocument();
+    });
+
+    it('存在しない番号・参照資料に出ない出典（weak）の番号は、本文からも消す', async () => {
+      installRefs(
+        CITED_CONTEXT,
+        CITED_SOURCES.map((source, i) => ({ ...source, weak: i === 1 })),
+        '一つ目です[1]。二つ目です[2]。三つ目です[9]。',
+      );
+      render(<App />);
+      await ask(userEvent.setup());
+
+      await screen.findByRole('button', { name: /参照資料 1: / });
+      expect(screen.getAllByRole('button', { name: /^参照資料 \d+: / })).toHaveLength(1);
+      expect(screen.getByText(/二つ目です。三つ目です。/)).toBeInTheDocument();
+    });
+
+    it('出典が無い回答では、引用の記法を本文から消す（ボタンも出さない）', async () => {
+      installRefs('', [], '資料にはありません[1「根拠」]。');
+      render(<App />);
+      await ask(userEvent.setup());
+
+      expect(await screen.findByText('資料にはありません。')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /参照資料 \d+: / })).not.toBeInTheDocument();
+    });
+
+    it('参照資料のカードには、本文の番号と同じ番号が付く', async () => {
+      installRefs(CITED_CONTEXT, CITED_SOURCES, '申込みは 2 月 28 日までです[2]。');
+      render(<App />);
+      await ask(userEvent.setup());
+
+      const region = await screen.findByRole('region', { name: '参照資料' });
+      const chips = within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+      expect(chips[0]).toHaveTextContent(/^1/);
+      expect(chips[1]).toHaveTextContent(/^2/);
+    });
   });
 
   it('押すと、資料を右のパネルに開く。出典のページは持たせる（チャットのまま）', async () => {

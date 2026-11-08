@@ -275,7 +275,17 @@ class _Cand:
 
 def _to_hit(cand: _Cand, origin: str) -> Hit:
     chunk = cand.chunk
-    return Hit(chunk.source, chunk.text, chunk.page, chunk.page_end, cand.sim, chunk.collection, origin, chunk.target)
+    return Hit(
+        chunk.source,
+        chunk.text,
+        chunk.page,
+        chunk.page_end,
+        cand.sim,
+        chunk.collection,
+        origin,
+        chunk.target,
+        chunk.document_id,
+    )
 
 
 def _fmt(value: float | None, digits: int = 3) -> str:
@@ -354,7 +364,7 @@ async def search(
 
     cands: dict[tuple[str, str], _Cand] = {}
     for rank, hit in enumerate(vector_hits, start=1):
-        chunk = Chunk(hit.source, hit.text, hit.page, hit.page_end, hit.collection, hit.target)
+        chunk = Chunk(hit.source, hit.text, hit.page, hit.page_end, hit.collection, hit.target, hit.document_id)
         cands[chunk.key] = _Cand(chunk, corpus.position.get(chunk.key), sim=hit.similarity, vec_rank=rank)
     vector_count = len(cands)
 

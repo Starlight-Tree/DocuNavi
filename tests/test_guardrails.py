@@ -253,7 +253,7 @@ def test_normal_question_works_after_blocked_turn(graph, llm, thread_id):
     result = chat(graph, "ザーハードの大気について教えて", thread_id)
 
     assert result["messages"][-1].text != INPUT_REFUSAL_REPLY
-    assert "[ザーハード" in result["context"]  # 通常どおり RAG 検索が走った
+    assert "[1] ザーハード" in result["context"]  # 通常どおり RAG 検索が走った
     assert len(llm.calls) == 2  # ツール呼び出し + 回答生成
     # 拒否した発言の原文は、後続ターンの LLM 入力に一切含まれない
     sent = "\n".join(str(m.content) for call in llm.calls for m in call)
