@@ -7,23 +7,6 @@
     },
     "containers.containers.groupBy": "Label",
     "containers.containers.groupByLabel": "local.ui.group",
-    "dbcode.connection.role.production": {
-        "select": "allow",
-        "insert": "deny",
-        "update": "deny",
-        "delete": "deny",
-        "truncate": "deny",
-        "execute": "ask",
-        "create": "deny",
-        "alter": "deny",
-        "drop": "deny",
-        "transaction": "allow",
-        "maintenance": "ask",
-        "set/use": "allow",
-        "grant/revoke": "deny",
-        "other": "ask",
-        "missingWhere": "deny"
-    },
     "remote.portsAttributes": {
         "8000": {
             "label": "docunavi-api",
