@@ -18,7 +18,7 @@
 ## 現在のフェーズの必須残作業
 
 - **監視設定（ログベース指標とアラート）:** 何も作っていない。構造化ログ（`fd44269`）の本番配備を待たず、設定差分（フィルタ案と通知先を含む）を提示し、承認を得てから適用する。フィルタ案は 2 つ: `event="chat_metrics"` と `smalltalk=true` で数える案と、スキップ時だけ出す専用のログを足す案。**未確認:** 構造化ログの配備後に、Cloud Run のログが `jsonPayload` になるか。
-- **接続数の見積もり:** Prisma Free の接続上限（プール 10・直接 10）に対して、`--max-instances` × `DATABASE_POOL_MAX_SIZE` が収まるかは未確認。
+- **接続数:** プールの上限は環境変数 `DATABASE_POOL_MAX_SIZE`（既定 3。コードは 2026-11-09 にローカルで対応、未配備）で決める。本番値は docunavi=2・docunavi-mcp=1（利用者の決定、2026-11-09）。Job 4 本が同時に動く最悪で 9 本（プール上限 10）。**未適用:** 新しいコードの配備と、環境変数の設定（差分の承認待ち）。**未確認:** Job の実行時刻の重なり、プールを絞ったときの待ち時間。Hyperdrive の接続先（直接ホスト、上限 5 で余裕 0）は変更しない。
 
 ## 条件待ち・将来対応・受動確認・別の運用確認（現在のフェーズの必須ではない）
 
@@ -47,11 +47,11 @@
 | ① | Next.js 化 | 完了（2026-10-25、利用者の判断） |
 | ② | 本番での切断 → LLM 取り消し | 確認済み（2026-10-25、証拠等級 A）。h2c の本番で、停止ボタンを押すとログに取り消しが出る。HTTP/1.1 のリビジョンに戻すと効かない |
 | ③ | Cloudflare Worker（`api.` → Worker → Cloud Run） | 条件待ち（独自ドメイン） |
-| ④ | Go の SSE 中継 | 本番に配備済み（2026-10-25。`docunavi-sse-relay`、画面の `/chat/stream` だけが通る）。100 同時接続の試験は済み。**本番の中継に上限は適用しない**（利用者の決定。[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)）。未確認: 中継自身の `: ping`、負荷・本文サイズの上限、レート制限。[ops/sse-relay/README.md](../ops/sse-relay/README.md) |
+| ④ | Go の SSE 中継 | 本番に配備済み（2026-10-25。`docunavi-sse-relay`、画面の `/chat/stream` だけが通る）。100 同時接続の試験は済み。**本番の中継に上限は適用しない**（利用者の決定。[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)）。**ローカルで確認（2026-11-09、実バイナリ・疑似の上流、証拠等級 A）:** 中継自身の `: ping`、同時接続の上限（100 本保持、101 本目を拒否）。**コードとテストは追加済み・未配備（2026-11-09、疑似の上流と `go test -race`、証拠等級 A）:** 本文サイズの上限（既定 1 MiB → 413）、新しい接続のレート制限（既定 60/分・バースト 10 → 429。キーはクライアント IP だけ。既定は接続元、`SSE_RATE_LIMIT_TRUST_XFF=true` で `X-Forwarded-For` の最後の値）、詰まった下流の切断（書き込み 1 回ごとに 30 秒。上流も取り消す）。上限は `/chat/stream` だけ（`/chat` は中継を通らない）。レート制限は台ごとの数え方。**未確認:** 実環境での測定、100 本を超える負荷。**配備前に要る:** `decisions/0005`（本番に上限を入れない）の見直し（承認待ち）。配備時は、Cloud Run が直接受けると確認できるまで `RemoteAddr` のままだと全員が 1 つの枠になるので、確認してから `SSE_RATE_LIMIT_TRUST_XFF=true` にする。④ 全体は完了とは扱わない。[ops/sse-relay/README.md](../ops/sse-relay/README.md) |
 | ⑤ | Django（SaaS 管理） | 学習用の試作 `ops/django-saas/`（本番には入れない）。本番の SaaS 管理としては条件待ち（利用者向けの要件が固まったとき）。運用者向けの `docunavi-admin` は 2026-11-08 に廃止。[decisions/0003](decisions/0003-django-only-for-operator-admin.md) |
-| ⑥ | `--use-http2` + hypercorn（h2c） | 本番に適用済み。既知の問題: 切断の後、hypercorn が SIGTERM に応じないことがある（Cloud Run は約 10 秒で SIGKILL。調べていない） |
+| ⑥ | `--use-http2` + hypercorn（h2c） | 本番に適用済み。既知の問題（2026-11-09 に調べた。**「切断の後に SIGTERM に応じない」は再現しなかった**）: 生成中の接続がつながったまま SIGTERM を受けると、hypercorn は終わらない（h2c 固有ではなく HTTP/1.1 でも。原因は、`Server.wait_closed()` が全接続の終了を待ち、`--graceful-timeout` が効かないこと。Cloud Run は約 10 秒で SIGKILL）。ローカルの修正: `python -m app.serve`（Dockerfile の CMD。SIGTERM の 6 秒後に進行中の応答を打ち切り、約 6.3 秒で終了。h1・h2c・`/chat`・`/chat/stream` で確認）。**未配備**（本番の確認は、配備後） |
 | ⑦ | Claude Code 用の Vercel プラグイン | Vercel の廃止（2026-11-08）で不要。入れない（[dev-environment.md](../.claude/rules/dev-environment.md)） |
-| ⑧ | ロール別 PDF グループ制御 | フェーズ 1〜3 は完了。本番は `ACCESS_MODE=enforce`（2026-10-26）。ロールの割り当ては SQL（専用の CLI は未作成）。計画は [access-control-plan.md](access-control-plan.md)、仕様は [configuration.md](configuration.md)。**未確認:** `cafe` 以外を返さないこと（実際の埋め込みが要る） |
+| ⑧ | ロール別 PDF グループ制御 | フェーズ 1〜3 は完了。本番は `ACCESS_MODE=enforce`（2026-10-26）。ロールの割り当ては CLI `python -m app.access_admin`（2026-11-09 に追加。既定は確認だけ、`--apply` で書く。ロールの作成と、ロールが持つグループの編集は SQL）。計画は [access-control-plan.md](access-control-plan.md)、仕様は [configuration.md](configuration.md)。CLI の SQL は、使い捨てのローカル Postgres（PG 18 + pgvector）で実行して確認済み（2026-11-09）。**未確認:** 本番での割り当てと、`cafe` 以外を返さないこと（実際の埋め込みが要る。承認待ち） |
 
 ほかに本番にあるもの: MCP `docunavi-mcp`（読み取り専用の `search_documents`。[mcp-tool-design.md](mcp-tool-design.md)）、別モデルへのフォールバック（`gemini-3.5-flash-lite`、2026-10-21。実際に切り替わった回は未見）、有料キーへの切り替え（配備済み。本物の 429 は未見）、予算ガード（下）。
 
