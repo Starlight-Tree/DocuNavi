@@ -947,11 +947,11 @@ func TestMaxBodyAndRateFromEnv(t *testing.T) {
 		}
 	}
 	cfg, err := rateFromEnv(env(nil))
-	if err != nil || cfg != (rateConfig{PerMin: 60, Burst: 10}) {
+	if err != nil || cfg != (rateConfig{PerMin: 60, Burst: 10, TrustedHops: 1}) {
 		t.Fatalf("既定 = %+v, %v", cfg, err)
 	}
 	cfg, err = rateFromEnv(env(map[string]string{rateLimitPerMinEnv: "120", rateBurstEnv: "20"}))
-	if err != nil || cfg != (rateConfig{PerMin: 120, Burst: 20}) {
+	if err != nil || cfg != (rateConfig{PerMin: 120, Burst: 20, TrustedHops: 1}) {
 		t.Fatalf("上書き = %+v, %v", cfg, err)
 	}
 	if cfg, err := rateFromEnv(env(map[string]string{rateTrustXFFEnv: "true"})); err != nil || !cfg.TrustXFF {
@@ -960,7 +960,10 @@ func TestMaxBodyAndRateFromEnv(t *testing.T) {
 	if cfg, err := rateFromEnv(env(map[string]string{rateLimitPerMinEnv: "0"})); err != nil || cfg.PerMin != 0 {
 		t.Fatalf("0 は無効 = %+v, %v", cfg, err)
 	}
-	for _, m := range []map[string]string{{rateLimitPerMinEnv: "-1"}, {rateLimitPerMinEnv: "x"}, {rateBurstEnv: "0"}, {rateBurstEnv: "x"}, {rateTrustXFFEnv: "maybe"}} {
+	if cfg, err := rateFromEnv(env(map[string]string{rateTrustedHopsEnv: "2"})); err != nil || cfg.TrustedHops != 2 {
+		t.Fatalf("TRUSTED_PROXIES=2 = %+v, %v", cfg, err)
+	}
+	for _, m := range []map[string]string{{rateLimitPerMinEnv: "-1"}, {rateLimitPerMinEnv: "x"}, {rateBurstEnv: "0"}, {rateBurstEnv: "x"}, {rateTrustXFFEnv: "maybe"}, {rateTrustedHopsEnv: "0"}, {rateTrustedHopsEnv: "x"}} {
 		if _, err := rateFromEnv(env(m)); err == nil {
 			t.Fatalf("%v はエラーのはず", m)
 		}
@@ -997,7 +1000,7 @@ func relayWithRate(t *testing.T, upstream http.Handler, cfg rateConfig, clock *f
 func TestRelayRateLimitsNewConnectionsPerClientIPWith429(t *testing.T) {
 	up := &hitCounter{}
 	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
-	relay := relayWithRate(t, up.handler(), rateConfig{PerMin: 60, Burst: 3, TrustXFF: true}, clock, nil)
+	relay := relayWithRate(t, up.handler(), rateConfig{PerMin: 60, Burst: 3, TrustXFF: true, TrustedHops: 1}, clock, nil)
 	ip := map[string]string{"X-Forwarded-For": "10.0.0.1"}
 	for i := 0; i < 3; i++ { // バースト 3
 		resp := post(t, relay.URL, strings.NewReader("{}"), ip)
@@ -1037,7 +1040,7 @@ func TestRelayRateLimitsNewConnectionsPerClientIPWith429(t *testing.T) {
 func TestRelayRateLimitIgnoresClientWrittenForwardedFor(t *testing.T) {
 	up := &hitCounter{}
 	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
-	relay := relayWithRate(t, up.handler(), rateConfig{PerMin: 60, Burst: 1, TrustXFF: true}, clock, nil)
+	relay := relayWithRate(t, up.handler(), rateConfig{PerMin: 60, Burst: 1, TrustXFF: true, TrustedHops: 1}, clock, nil)
 	first := post(t, relay.URL, strings.NewReader("{}"), map[string]string{"X-Forwarded-For": "1.1.1.1, 9.9.9.9"})
 	io.Copy(io.Discard, first.Body)
 	second := post(t, relay.URL, strings.NewReader("{}"), map[string]string{"X-Forwarded-For": "2.2.2.2, 9.9.9.9"})
@@ -1278,4 +1281,35 @@ func TestRelayDropsAStalledDownstreamWithoutGrowingMemory(t *testing.T) {
 		t.Fatalf("ヒープが %d バイト増えた", grown)
 	}
 	t.Logf("上流が送れた量 = %d バイト、ヒープの増加 = %d バイト", sent.Load(), int64(after.HeapAlloc)-int64(before.HeapAlloc))
+}
+
+// 信頼できるプロキシの段数（右端から数える）。段数より左は無視し、足りなければ接続元。
+func TestClientIPReadsForwardedForFromTheRightByTrustedHops(t *testing.T) {
+	mk := func(xff string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/chat/stream", nil)
+		r.RemoteAddr = "192.0.2.1:1234"
+		if xff != "" {
+			r.Header.Set("X-Forwarded-For", xff)
+		}
+		return r
+	}
+	cases := []struct {
+		xff   string
+		trust bool
+		hops  int
+		want  string
+	}{
+		{"1.1.1.1, 9.9.9.9", false, 1, "192.0.2.1"},       // 既定は接続元
+		{"1.1.1.1, 9.9.9.9", true, 1, "9.9.9.9"},          // Cloud Run 直受け: 右端
+		{"1.1.1.1, 9.9.9.9", true, 2, "1.1.1.1"},          // LB を 1 段挟む: 右端から 2 段目
+		{"6.6.6.6, 1.1.1.1, 9.9.9.9", true, 2, "1.1.1.1"}, // それより左（偽装できる値）は読まない
+		{"9.9.9.9", true, 2, "192.0.2.1"},                 // 段数に満たなければ接続元
+		{"", true, 1, "192.0.2.1"},                        // ヘッダーが無ければ接続元
+		{"1.1.1.1, ", true, 1, "192.0.2.1"},               // 空の値は使わない
+	}
+	for _, c := range cases {
+		if got := clientIP(mk(c.xff), c.trust, c.hops); got != c.want {
+			t.Errorf("xff=%q trust=%v hops=%d: %q, want %q", c.xff, c.trust, c.hops, got, c.want)
+		}
+	}
 }
