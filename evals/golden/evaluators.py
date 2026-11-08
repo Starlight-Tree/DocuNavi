@@ -15,6 +15,8 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.metrics import IRRELEVANT_PHRASES  # 本番のログ（unrelated_source_mentioned）と同じ語の一覧
+
 EVALUATORS = (
     "accuracy",
     "grounding",
@@ -25,9 +27,6 @@ EVALUATORS = (
     "cost",
     "no_irrelevant_mention",
 )
-
-# 無関係な検索結果に触れる言い方（回答が検索結果の無関係さを言い出すのは、利用者に不要な情報）
-IRRELEVANT_PHRASES = ("関係ありません", "無関係", "とは関係", "関連はありません", "ご了承ください")
 
 _NUMBER = re.compile(r"\d+(?:[./]\d+)?")
 
@@ -44,7 +43,8 @@ class Turn:
     steps: list[str] = field(default_factory=list)  # llm / search_documents の順序
     sources: list[str] = field(default_factory=list)  # 検索結果のファイル名
     context: str = ""  # 検索結果の本文
-    latency_s: float = 0.0
+    latency_s: float = 0.0  # 総時間（/chat/stream と同じ経路で、最後まで流し終えるまで）
+    ttft_s: float | None = None  # 最初の本文（text-delta）を送るまで。ストリーミングで測ったときだけ
     llm_calls: int = 0
     tokens_in: int = 0
     tokens_out: int = 0
@@ -120,7 +120,13 @@ def evaluate_trajectory(case: dict[str, Any], turn: Turn) -> tuple[bool, str]:
 
 def evaluate_latency(case: dict[str, Any], turn: Turn) -> tuple[bool, str]:
     limit = float(case["max_latency_s"])
-    return turn.latency_s <= limit, f"{turn.latency_s:.1f} 秒（上限 {limit:g}）"
+    ttft_limit = float(case["max_ttft_s"])
+    detail = f"総時間 {turn.latency_s:.1f} 秒（上限 {limit:g}）"
+    ok = turn.latency_s <= limit
+    if turn.ttft_s is not None:
+        ok = ok and turn.ttft_s <= ttft_limit
+        detail += f" / TTFT {turn.ttft_s:.1f} 秒（上限 {ttft_limit:g}）"
+    return ok, detail
 
 
 def price_from_env() -> tuple[float | None, float | None]:
@@ -183,15 +189,23 @@ def percentile(values: list[float], q: float) -> float:
 
 
 def summarize(turns: list[Turn]) -> dict[str, Any]:
-    """速度・コスト・検索の集計（ガードが拒否して LLM を呼ばなかったターンは、レイテンシから除く）。"""
+    """速度・コスト・検索の集計（ガードが拒否して LLM を呼ばなかったターンは、レイテンシから除く）。
+
+    latency_* は総時間、ttft_* は最初の本文までの時間（ストリーミングで測ったターンだけ）。
+    """
     timed = [t.latency_s for t in turns if t.llm_calls > 0]
+    ttfts = [t.ttft_s for t in turns if t.llm_calls > 0 and t.ttft_s is not None]
     price_in, price_out = price_from_env()
     costs = [cost_usd(t, price_in, price_out) for t in turns]
     return {
         "turns": len(turns),
         "latency_p50_s": round(statistics.median(timed), 3) if timed else 0.0,
         "latency_p95_s": round(percentile(timed, 0.95), 3),
+        "latency_p99_s": round(percentile(timed, 0.99), 3),
         "latency_max_s": round(max(timed), 3) if timed else 0.0,
+        "ttft_p50_s": round(statistics.median(ttfts), 3) if ttfts else None,
+        "ttft_p95_s": round(percentile(ttfts, 0.95), 3) if ttfts else None,
+        "ttft_p99_s": round(percentile(ttfts, 0.99), 3) if ttfts else None,
         "llm_calls": sum(t.llm_calls for t in turns),
         "tokens_in": sum(t.tokens_in for t in turns),
         "tokens_out": sum(t.tokens_out for t in turns),

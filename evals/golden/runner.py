@@ -18,15 +18,16 @@ import os
 import re
 import sys
 import time
+from contextlib import aclosing
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import yaml
-from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import AIMessage
 
+from app.metrics import ChatMetrics
 from evals.golden.evaluators import EVALUATORS, Turn, evaluate_all, merged, summarize
 
 GOLDEN_PATH = Path(__file__).with_name("chat_golden.yaml")
@@ -66,39 +67,28 @@ def check_environment(env: dict[str, str] | None = None) -> list[str]:
     return problems
 
 
-class Meter(AsyncCallbackHandler):
-    """LLM 呼び出し・検索・トークンを数える。全ターンの合計が上限を超える前に止める。"""
+class Budget:
+    """全ターンの LLM 呼び出しの上限（承認された回数）。"""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self.used = 0
+
+
+class CappedMetrics(ChatMetrics):
+    """本番と同じ指標（app/metrics.py）に、上限を超える前に止める処理を足したもの。"""
 
     raise_error = True
 
-    def __init__(self, max_llm_calls: int) -> None:
-        self.max_llm_calls = max_llm_calls
-        self.total_llm_calls = 0
-        self.reset()
+    def __init__(self, budget: Budget) -> None:
+        super().__init__("golden")
+        self.budget = budget
 
-    def reset(self) -> None:
-        self.steps: list[str] = []
-        self.llm_calls = 0
-        self.tokens_in = 0
-        self.tokens_out = 0
-
-    async def on_chat_model_start(self, serialized: Any, messages: Any, **kwargs: Any) -> None:
-        self.total_llm_calls += 1
-        if self.total_llm_calls > self.max_llm_calls:
-            raise LLMCallLimitError(f"LLM 呼び出しが上限（{self.max_llm_calls} 回）を超えるため止めます")
-        self.llm_calls += 1
-        self.steps.append("llm")
-
-    async def on_tool_start(self, serialized: Any, input_str: str, **kwargs: Any) -> None:
-        name = kwargs.get("name") or (serialized or {}).get("name") or "tool"
-        self.steps.append(str(name))
-
-    async def on_llm_end(self, response: Any, **kwargs: Any) -> None:
-        for generations in response.generations:
-            for generation in generations:
-                usage = getattr(getattr(generation, "message", None), "usage_metadata", None) or {}
-                self.tokens_in += int(usage.get("input_tokens", 0))
-                self.tokens_out += int(usage.get("output_tokens", 0))
+    def on_chat_model_start(self, serialized: Any, messages: Any, **kwargs: Any) -> None:
+        self.budget.used += 1
+        if self.budget.used > self.budget.limit:
+            raise LLMCallLimitError(f"LLM 呼び出しが上限（{self.budget.limit} 回）を超えるため止めます")
+        super().on_chat_model_start(serialized, messages, **kwargs)
 
 
 async def run_golden(
@@ -110,16 +100,21 @@ async def run_golden(
     max_llm_calls: int = DEFAULT_MAX_LLM_CALLS,
     on_turn: Any = None,
 ) -> list[Turn]:
-    """cases を順に流す（同じ thread のターンは同じ会話）。repeat 回繰り返す（会話は毎回新しい）。"""
+    """cases を順に流す（同じ thread のターンは同じ会話）。repeat 回繰り返す（会話は毎回新しい）。
+
+    経路は /chat/stream と同じ（`graph.astream` + `UIMessageStream`）。最初の本文（text-delta）を送った時刻が TTFT、
+    終わりまでが総時間（`latency_s`）。
+    """
     import langsmith
 
-    from app.agents.graph import build_graph
+    from app.agents.graph import STREAM_TOKENS_KEY, build_graph
     from app.api.routes import _turn_inputs
+    from app.api.ui_stream import UIMessageStream
     from app.history import history_store
     from app.scope import ACCESS_SCOPE_KEY, Scope
     from app.search import vector as search_vector
 
-    meter = Meter(max_llm_calls)
+    budget = Budget(max_llm_calls)
     turns: list[Turn] = []
     run_id = f"{label}-{int(time.time())}"
     async with history_store():
@@ -129,27 +124,42 @@ async def run_golden(
             with langsmith.tracing_context(enabled=trace):
                 for rep in range(1, repeat + 1):
                     for case in cases:
-                        meter.reset()
+                        metrics = CappedMetrics(budget)
+                        thread_id = f"golden-{run_id}-{rep}-{case['thread']}"
                         config = {
                             "configurable": {
-                                "thread_id": f"golden-{run_id}-{rep}-{case['thread']}",
+                                "thread_id": thread_id,
                                 ACCESS_SCOPE_KEY: Scope.ALL,
+                                STREAM_TOKENS_KEY: True,
                             },
-                            "callbacks": [meter],
+                            "callbacks": [metrics],
                             "run_name": f"golden:{case['id']}",
                             "tags": ["golden", label, case["category"]],
                             "metadata": {"golden_id": case["id"], "rep": rep, "label": label},
                         }
-                        started = time.monotonic()
+                        ui = UIMessageStream(f"golden-{case['id']}", thread_id, "gemini")
                         error = None
                         out: dict[str, Any] = {}
                         try:
-                            out = await graph.ainvoke(_turn_inputs(case["question"], None), config)
+                            async with aclosing(
+                                graph.astream(
+                                    _turn_inputs(case["question"], None), config, stream_mode=["custom", "values"]
+                                )
+                            ) as stream:
+                                async for item in stream:
+                                    if item[0] == "values" and isinstance(item[1], dict):
+                                        out = item[1]
+                                    for chunk in ui.feed(item):
+                                        if chunk.get("type") == "text-delta":
+                                            metrics.mark_first_text()
+                            for chunk in ui.finish():
+                                if chunk.get("type") == "text-delta":
+                                    metrics.mark_first_text()
                         except LLMCallLimitError:
                             raise
                         except Exception as exc:  # noqa: BLE001 - 失敗は結果に残し、残りのターンは続ける
                             error = type(exc).__name__
-                        latency = time.monotonic() - started
+                        latency = metrics.total_s
                         messages = out.get("messages", [])
                         last_human = max((i for i, m in enumerate(messages) if m.type == "human"), default=0)
                         queries = [
@@ -158,19 +168,21 @@ async def run_golden(
                             if isinstance(m, AIMessage)
                             for tc in m.tool_calls
                         ]
+                        ttft = metrics.ttft_s
                         turn = Turn(
                             id=case["id"],
                             rep=rep,
                             question=case["question"],
                             answer=messages[-1].text if messages and not error else "",
                             queries=queries,
-                            steps=list(meter.steps),
+                            steps=list(metrics.steps),
                             sources=sorted({str(s.get("name")) for s in out.get("sources", []) if isinstance(s, dict)}),
                             context=str(out.get("context") or ""),
                             latency_s=round(latency, 3),
-                            llm_calls=meter.llm_calls,
-                            tokens_in=meter.tokens_in,
-                            tokens_out=meter.tokens_out,
+                            ttft_s=None if ttft is None else round(ttft, 3),
+                            llm_calls=metrics.llm_calls,
+                            tokens_in=metrics.tokens_in,
+                            tokens_out=metrics.tokens_out,
                             guard_reason=out.get("guard_reason"),
                             error=error,
                         )
@@ -208,7 +220,7 @@ def _print_turn(case: dict[str, Any], turn: Turn) -> None:
     flags = evaluate_all(case, turn)
     failed = [n for n, r in flags.items() if not r["passed"]]
     print(
-        f"[{turn.id}#{turn.rep}] {turn.latency_s:.1f}s llm={turn.llm_calls} tok={turn.tokens} "
+        f"[{turn.id}#{turn.rep}] {turn.latency_s:.1f}s ttft={'-' if turn.ttft_s is None else f'{turn.ttft_s:.1f}s'} llm={turn.llm_calls} tok={turn.tokens} "
         f"steps={'>'.join(turn.steps) or '-'} {'FAIL ' + ','.join(failed) if failed else 'ok'}",
         flush=True,
     )

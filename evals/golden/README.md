@@ -6,9 +6,9 @@
 |---|---|
 | `chat_golden.yaml` | golden set（質問・期待する `search_documents` の有無・必要な事実・禁止事実・期待する出典・軌跡・上限）。ID は `gc01`-`gc15` |
 | `evaluators.py` | 評価器 8 つ（API なし）。`accuracy` `grounding` `conciseness` `search_need` `trajectory` `latency` `cost` `no_irrelevant_mention` |
-| `runner.py` | グラフを流して結果の JSON を書く（**実 API・課金**）。Vertex AI + ローカルの Postgres だけを受け付ける |
+| `runner.py` | グラフを `/chat/stream` と同じ経路（ストリーミング）で流して結果の JSON を書く（**実 API・課金**）。Vertex AI + ローカルの Postgres だけを受け付ける。指標は本番と同じ `app/metrics.py` の `ChatMetrics` |
 | `compare.py` | 変更前後の 2 つの結果を比べ、回帰があれば終了コード 1（API なし） |
-| `trace_check.py` | 結果と LangSmith のトレースを突き合わせる（LangSmith を読むだけ） |
+| `trace_check.py` | 結果と LangSmith のトレースを突き合わせる（LangSmith を読むだけ）。`POST /api/v2/runs/query` で一括取得（cursor で全件、429 は Retry-After と指数バックオフ + ジッターで再試行） |
 | `results/` | 結果の JSON。既存のファイルは上書きしない |
 
 ## LangSmith の評価の型との対応
@@ -20,6 +20,11 @@ LLM を呼ばない規則ベースの版にしてある（判定の LLM を足�
 | hallucination | `grounding` + `accuracy` の禁止事実 | 回答の数字が検索結果にあるか、期待した出典が当たったか、資料に無い具体を作っていないか |
 | tool-selection | `search_need` | `search_documents` を呼んだか（挨拶は呼ばない期待）、回数が上限内か |
 | trajectory | `trajectory` | LLM と検索のステップの並び（追質問は「補完 → 検索 → 回答」） |
+
+## 測る指標（本番のログ `chat_metrics` と同じ数え方）
+
+総時間（`latency_s`）の p50・p95・p99、TTFT（最初の本文まで）の p50・p95・p99、LLM 呼び出し回数、入力・出力トークン、費用（単価を渡したとき）、`search_documents` の回数、無関係な結果への言及。
+TTFT は、出力ガードが末尾 31 文字を保持するので、短い回答では総時間に近くなる。**2026-11-09 の最初の baseline は非ストリーム（TTFT なし）。ストリームで測った結果とは別物として比べる**（`compare.py` は、片方に TTFT が無ければその比較を省く）。
 
 ## 実行
 
