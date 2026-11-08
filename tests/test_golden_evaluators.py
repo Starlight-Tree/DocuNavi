@@ -278,3 +278,53 @@ def test_the_safety_check_refuses_anything_else(change: dict[str, str]) -> None:
     problems = check_environment({**GOOD_ENV, **change})
     assert problems
     assert all("pw" not in p and "prisma" not in p for p in problems)  # 値は出さない
+
+
+# ---- 速度の指標（総時間・TTFT・p99）と費用 ----
+
+
+def test_latency_checks_ttft_only_when_it_was_measured() -> None:
+    c = case(max_latency_s=5.0, max_ttft_s=2.0)
+    assert evaluate(c, turn(latency_s=4.0, ttft_s=1.5), "latency")[0]
+    ok, detail = evaluate(c, turn(latency_s=4.0, ttft_s=2.5), "latency")
+    assert not ok and "TTFT 2.5" in detail
+    assert evaluate(c, turn(latency_s=4.0, ttft_s=None), "latency")[0]  # 非ストリームの結果は TTFT を見ない
+    assert not evaluate(c, turn(latency_s=5.1, ttft_s=1.0), "latency")[0]
+
+
+def test_summary_has_p99_ttft_and_cost_when_prices_are_given(monkeypatch: pytest.MonkeyPatch) -> None:
+    turns = [turn(latency_s=float(i), ttft_s=i / 2) for i in range(1, 101)]
+    s = summarize(turns)
+    assert s["latency_p50_s"] == 50.5 and s["latency_p95_s"] == 95 and s["latency_p99_s"] == 99
+    assert s["ttft_p95_s"] == 47.5 and s["ttft_p99_s"] == 49.5 and s["cost_usd"] is None
+    # ストリームで測っていない結果には TTFT の集計を出さない
+    assert summarize([turn()])["ttft_p50_s"] is None
+    monkeypatch.setenv("GOLDEN_PRICE_IN_PER_MTOK", "1")
+    monkeypatch.setenv("GOLDEN_PRICE_OUT_PER_MTOK", "2")
+    assert summarize([turn(tokens_in=1_000_000, tokens_out=500_000)])["cost_usd"] == 2.0
+
+
+def test_compare_flags_p99_and_ttft_regressions_and_skips_missing_baselines() -> None:
+    base = report({"accuracy": True})
+    base["summary"].update(latency_p99_s=4.0, ttft_p95_s=2.0)
+    cur = report({"accuracy": True})
+    cur["summary"].update(latency_p99_s=7.0, ttft_p95_s=4.0)
+    regressions = golden_compare.compare(base, cur)["regressions"]
+    assert "p99 レイテンシ: 4.00s → 7.00s" in regressions and "p95 TTFT: 2.00s → 4.00s" in regressions
+    old_baseline = report({"accuracy": True})  # p99・TTFT を持たない古い結果（非ストリームの baseline）
+    assert golden_compare.compare(old_baseline, cur)["regressions"] == []
+
+
+def test_the_runner_counts_with_the_production_collector_and_stops_at_the_cap() -> None:
+    import uuid
+
+    from evals.golden.runner import Budget, CappedMetrics, LLMCallLimitError
+
+    budget = Budget(2)
+    first = CappedMetrics(budget)
+    first.on_chat_model_start({}, [], run_id=uuid.uuid4())
+    second = CappedMetrics(budget)  # 上限は全ターンの合計
+    second.on_chat_model_start({}, [], run_id=uuid.uuid4())
+    assert (first.llm_calls, second.llm_calls, budget.used) == (1, 1, 2)
+    with pytest.raises(LLMCallLimitError):
+        CappedMetrics(budget).on_chat_model_start({}, [], run_id=uuid.uuid4())

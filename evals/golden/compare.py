@@ -4,7 +4,7 @@
 
 回帰として終了コード 1 にするもの:
 - baseline で全回とも通っていた（ターン, 評価器）が、current で 1 回でも落ちた（known_issue の評価器は除く）
-- p95 レイテンシが baseline より `LATENCY_RATIO` 倍超、かつ `LATENCY_MIN_DELTA_S` 秒超 増えた
+- p95・p99 レイテンシ、p95 TTFT が baseline より `LATENCY_RATIO` 倍超、かつ `LATENCY_MIN_DELTA_S` 秒超 増えた
 - 1 ターンあたりのトークンが `TOKEN_RATIO` 倍超 増えた
 - 1 ターンあたりの LLM 呼び出しが `LLM_CALL_RATIO` 倍超 増えた
 2 つとも、今の golden set・評価器で採点し直してから比べる（golden set を変えても、同じ物差しで比べられる）。
@@ -59,6 +59,10 @@ def compare(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]
         and c["latency_p95_s"] - b["latency_p95_s"] > LATENCY_MIN_DELTA_S
     ):
         regressions.append(f"p95 レイテンシ: {b['latency_p95_s']:.2f}s → {c['latency_p95_s']:.2f}s")
+    for key, label in (("latency_p99_s", "p99 レイテンシ"), ("ttft_p95_s", "p95 TTFT")):
+        bv, cv = b.get(key), c.get(key)
+        if bv is not None and cv is not None and cv > bv * LATENCY_RATIO and cv - bv > LATENCY_MIN_DELTA_S:
+            regressions.append(f"{label}: {bv:.2f}s → {cv:.2f}s")
     tok_b = _per_turn(b, "tokens_in") + _per_turn(b, "tokens_out")
     tok_c = _per_turn(c, "tokens_in") + _per_turn(c, "tokens_out")
     if tok_b and tok_c > tok_b * TOKEN_RATIO:
@@ -75,6 +79,9 @@ def render(result: dict[str, Any]) -> str:
         ("ターン数", "turns"),
         ("p50 レイテンシ(s)", "latency_p50_s"),
         ("p95 レイテンシ(s)", "latency_p95_s"),
+        ("p99 レイテンシ(s)", "latency_p99_s"),
+        ("p50 TTFT(s)", "ttft_p50_s"),
+        ("p95 TTFT(s)", "ttft_p95_s"),
         ("LLM 呼び出し", "llm_calls"),
         ("入力トークン", "tokens_in"),
         ("出力トークン", "tokens_out"),
