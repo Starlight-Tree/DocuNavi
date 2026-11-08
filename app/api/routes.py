@@ -26,10 +26,12 @@ from app.access import (
     target_is_visible,
 )
 from app.agents.graph import STREAM_TOKENS_KEY, build_graph, is_mock_mode
+from app.agents.smalltalk import is_smalltalk
 from app.agents.tools import DOCUMENT_IDS_KEY
 from app.api.ui_stream import DONE, KEEPALIVE, UI_STREAM_HEADERS, UIMessageStream, encode
 from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, history_backend
+from app.metrics import ChatMetrics, detect_lang, new_request_id, trace_id_from, user_hash
 from app.scope import ACCESS_SCOPE_KEY
 from app.search.types import VectorSearchError
 
@@ -405,6 +407,22 @@ async def _cancel_and_wait(*tasks: "asyncio.Future[object] | None") -> None:
         raise asyncio.CancelledError
 
 
+def _new_metrics(
+    endpoint: str, request: Request, req: "ChatRequest", user_id: str | None, thread_id: str, *, stream: bool
+) -> ChatMetrics:
+    """応答 1 回ぶんの指標（app/metrics.py）。質問の本文は、区分（挨拶か・言語）に直してから渡し、ログには残さない。"""
+    return ChatMetrics(
+        endpoint,
+        stream=stream,
+        request_id=new_request_id(),
+        trace_id=trace_id_from(request.headers.get("x-cloud-trace-context")),
+        session_id=thread_id,
+        user_id_hash=user_hash(user_id),
+        smalltalk=is_smalltalk(req.message),
+        lang=detect_lang(req.message),
+    )
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     req: ChatRequest,
@@ -418,11 +436,18 @@ async def chat(
     access.check_collection(req.collection, "チャット")
     # 履歴のキーは、ログイン中なら利用者 ID つき。クライアントに返す thread_id は接頭辞なしのまま。
     # 検索できる範囲（ACCESS_SCOPE_KEY）は、会話の状態ではなく config で渡す（チェックポイントに残さない）
-    config = {"configurable": {"thread_id": conversation_key(user_id, thread_id), ACCESS_SCOPE_KEY: access.scope}}
+    metrics = _new_metrics("chat", request, req, user_id, thread_id, stream=False)
+    config = {
+        "configurable": {"thread_id": conversation_key(user_id, thread_id), ACCESS_SCOPE_KEY: access.scope},
+        "callbacks": [metrics],
+    }
     _add_document_ids(config, req.document_ids)
     started = time.monotonic()
     work: asyncio.Future | None = None
     gone: asyncio.Future | None = None
+    result: dict | None = None
+    status = "ok"
+    error: BaseException | None = None
     try:
         graph = get_graph(mode == "mock")
         await _check_scope(graph, config, req.collection, access, req.target)
@@ -440,18 +465,24 @@ async def chat(
                 thread_id,
                 time.monotonic() - started,
             )
+            status = "gone"
             return Response(status_code=499)  # 届く相手はいない（uvicorn は書き込まず、アクセスログにも出さない）
         else:
             raise TimeoutError
-    except HTTPException:
+    except HTTPException as exc:
+        status = str(exc.status_code)
+        error = exc
         raise  # 検索対象の不一致（409）など、すでに固定文になっているもの
     except Exception as exc:  # Gemini 側のエラー・タイムアウト等
         failure = classify_llm_error(exc)
+        status = str(failure.status_code)
+        error = exc
         # 詳細（例外本体・スタックトレース）はログにだけ残す。thread_id はパターン検証済み
         logger.exception("LLM 呼び出しに失敗しました (status=%s, thread_id=%s)", failure.status_code, thread_id)
         raise failure from exc
     finally:
         await _cancel_and_wait(work, gone)
+        metrics.log(status, result if isinstance(result, dict) else None, error)
 
     return ChatResponse(
         reply=str(result["messages"][-1].text),
@@ -523,8 +554,13 @@ def _log_stream_failure(exc: BaseException, failure: HTTPException, thread_id: s
     )
 
 
-async def _stream_body(run: _GraphRun, ui: UIMessageStream, thread_id: str, started: float) -> AsyncIterator[bytes]:
+async def _stream_body(
+    run: _GraphRun, ui: UIMessageStream, thread_id: str, started: float, metrics: ChatMetrics | None = None
+) -> AsyncIterator[bytes]:
     """レスポンスの本体（SSE）。始めてすぐ start を送り、グラフの進み具合（status）と本文を、届いた順に流す。"""
+    status = "cancelled"  # 途中で取り消されたとき（下の CancelledError）。ほかは、各分岐で決める
+    state: dict | None = None  # グラフの最終状態（最後の values）。指標のログに使う
+    error: BaseException | None = None
     try:
         for chunk in ui.start():
             yield encode(chunk)
@@ -532,16 +568,24 @@ async def _stream_body(run: _GraphRun, ui: UIMessageStream, thread_id: str, star
             kind, payload = await run.next(idle=STREAM_KEEPALIVE_SECONDS)
 
             if kind == "event":
+                if payload[0] == "values" and isinstance(payload[1], dict):
+                    state = payload[1]
                 for chunk in ui.feed(payload):
+                    if metrics is not None and chunk.get("type") == "text-delta":
+                        metrics.mark_first_text()  # TTFT = 最初の本文を送った時刻
                     yield encode(chunk)
             elif kind == "done":
+                status = "ok"
                 for chunk in ui.finish():
+                    if metrics is not None and chunk.get("type") == "text-delta":
+                        metrics.mark_first_text()
                     yield encode(chunk)
                 yield DONE
                 return
             elif kind == "idle":
                 yield KEEPALIVE
             elif kind == "gone":
+                status = "gone"
                 logger.info(
                     "クライアントが切断したため LLM 呼び出しを取り消しました (thread_id=%s, elapsed=%.1fs)",
                     thread_id,
@@ -550,6 +594,8 @@ async def _stream_body(run: _GraphRun, ui: UIMessageStream, thread_id: str, star
                 return
             else:  # error: レスポンスを始めた後の失敗。固定メッセージだけをクライアントへ送る
                 failure = classify_llm_error(payload)
+                status = str(failure.status_code)
+                error = payload
                 _log_stream_failure(payload, failure, thread_id)
                 retry_after = (failure.headers or {}).get("Retry-After", "")
                 for chunk in ui.error(
@@ -570,6 +616,8 @@ async def _stream_body(run: _GraphRun, ui: UIMessageStream, thread_id: str, star
         raise
     finally:
         await run.close()
+        if metrics is not None:
+            metrics.log(status, state, error)
 
 
 @router.post(
@@ -593,12 +641,14 @@ async def chat_stream(
     thread_id = req.thread_id or str(uuid.uuid4())
     access.require_any()
     access.check_collection(req.collection, "チャット")
+    metrics = _new_metrics("chat_stream", request, req, user_id, thread_id, stream=True)
     config = {
         "configurable": {
             "thread_id": conversation_key(user_id, thread_id),
             STREAM_TOKENS_KEY: True,
             ACCESS_SCOPE_KEY: access.scope,
-        }
+        },
+        "callbacks": [metrics],
     }
     _add_document_ids(config, req.document_ids)
     inputs = _turn_inputs(req.message, req.collection, req.target)
@@ -616,7 +666,7 @@ async def chat_stream(
     run = _GraphRun(graph, inputs, config, request, llm_timeout_seconds())
 
     return StreamingResponse(
-        _stream_body(run, UIMessageStream(str(uuid.uuid4()), thread_id, mode), thread_id, started),
+        _stream_body(run, UIMessageStream(str(uuid.uuid4()), thread_id, mode), thread_id, started, metrics),
         media_type="text/event-stream",
         headers=UI_STREAM_HEADERS,
         # 本体の生成が始まる前に切断されても、実行を取り残さない（_stream_body の finally は、始まらないと動かない）

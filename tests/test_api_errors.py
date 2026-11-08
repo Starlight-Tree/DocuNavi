@@ -216,7 +216,10 @@ def test_success_passes_stripped_message_and_keeps_response_shape(client, use_gr
     }
     assert graph.calls[0]["state"]["messages"][0].content == "ザーハードとは？"
     # 検索できる範囲は config で渡る（ACCESS_MODE=off は全グループ）
-    assert graph.calls[0]["config"] == {"configurable": {"thread_id": "abc-1", ACCESS_SCOPE_KEY: Scope.ALL}}
+    config = graph.calls[0]["config"]
+    assert config["configurable"] == {"thread_id": "abc-1", ACCESS_SCOPE_KEY: Scope.ALL}
+    # 速度・コストの指標（app/metrics.py）のコールバックが 1 つ付く
+    assert [type(c).__name__ for c in config["callbacks"]] == ["ChatMetrics"]
 
 
 # ---- 入力検証 ----
