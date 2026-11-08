@@ -1,0 +1,13 @@
+# ローカルの Postgres（docker-compose.pg.yml の db）を、ホストの 127.0.0.1:5433 だけに公開する上書き。
+# 開発コンテナ（dev-net だけ）から host.docker.internal:5433 で届かせ、langgraph dev や取り込みを本物の検索で試すためのもの。
+# ローカル開発専用。本番・CI・Cloud Run には使わない。db のパスワードは使い捨ての値（docker-compose.pg.yml）。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.pg.yml -f docker-compose.pg-port.yml up -d db
+#   元に戻す: docker compose -f docker-compose.yml -f docker-compose.pg.yml up -d --force-recreate db
+#
+# 127.0.0.1 に限る（LAN には出さない）。開発コンテナ側の接続先は
+#   postgresql://docunavi:docunavi-local-throwaway@host.docker.internal:5433/docunavi
+services:
+  db:
+    ports:
+      - "127.0.0.1:5433:5432"
