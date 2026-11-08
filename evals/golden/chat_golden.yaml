@@ -1,0 +1,192 @@
+# グラフ全体（検索 → 回答）の golden set。読み方と実行は evals/golden/README.md。
+#
+# 2026-11-09 の手動確認（15 ターン）を、そのまま golden set にした。質問は、評価セット（evals/questions.yaml、
+# corpora/*/questions.yaml）と、資料（storage/pdf/）を読んで決めた。**結果を見て期待値を緩めない**（直すときは、理由をコミットに書く）。
+#
+# 既定（defaults）と、ターンごとの項目:
+#   id / category / thread / question   thread が同じターンは、同じ会話（順番どおりに流す）
+#   expect_search      期待する search_documents の有無（tool-selection の期待）。既定は true
+#   trajectory         期待するステップ列（trajectory の期待）。既定は [search_documents, llm]。追質問は検索語の補完で先頭に llm が入る
+#   expect_sources     検索結果に入っていてほしいファイル名（どれか 1 つ。空なら制約なし）
+#   must_include       回答に必要な事実。各要素は「どれか 1 つを含めば足りる」言い換えの一覧で、全要素を満たすこと
+#   must_not_include   回答に出てはいけない語（作り話・無関係な資料の話）
+#   max_chars / max_latency_s / max_tokens   簡潔さ・速度・費用の上限（既定は defaults）
+#   known_issue        今は満たせないと分かっている評価器と理由（pytest では xfail。直ったら外す）
+
+# 「資料に無い」と答える言い方の一覧（意味が同じ言い換え。「記載がありません」だけだと、正しい回答の言い換えを誤って落とす。
+# 2026-11-09 の最初の実測（45 ターン）で、正しい回答 6 件が「見当たりませんでした」「具体的な記述はありません」などの言い換えで落ちたため広げた。
+# 期待する事実と、禁止事実は変えていない）
+not_found: &not_found
+  - "記載がありません"
+  - "記載はありません"
+  - "記載されていません"
+  - "記載されておりません"
+  - "記述はありません"
+  - "資料にはありません"
+  - "資料には記載がありません"
+  - "見当たりません"
+  - "解明されていません"
+  - "明らかになっていません"
+  - "判明していません"
+
+defaults:
+  max_chars: 400
+  max_latency_s: 8.0
+  max_tokens: 3000
+  max_search_calls: 1
+  expect_search: true
+  trajectory: [search_documents, llm]
+
+cases:
+  # ---- 通常 5 ----
+  - id: gc01
+    category: 通常
+    thread: n1
+    question: "ザーハードの大気の酸素濃度はどれくらい？"
+    expect_sources: ["ザーハード1.pdf"]
+    must_include: [["1/10", "十分の一", "10分の1"]]
+    must_not_include: ["洗濯", "資料には記載がありません"]
+
+  - id: gc02
+    category: 通常
+    thread: n2
+    question: "遺跡の防衛システムについて教えて"
+    expect_sources: ["ザーハード2.pdf"]
+    must_include: [["防衛システム", "防衛機構"], ["侵入者", "攻撃"]]
+    must_not_include: ["洗濯"]
+    max_chars: 600
+
+  - id: gc03
+    category: 通常
+    thread: n3
+    question: "ザーハリアン文明が崩壊した原因は？"
+    expect_sources: ["ザーハード2.pdf"]
+    # 資料に「何らかの原因で」としか無い。具体的な原因を作らない
+    must_include: [["明記", "明らか", "判明", "特定", "解明", "記載", "不明", "何らかの原因"]]
+    must_not_include: ["隕石", "疫病", "戦争が原因", "気候変動"]
+    max_chars: 500
+
+  - id: gc04
+    category: 通常
+    thread: n4
+    question: "遺跡の防衛システムとエネルギー源の守護機構は、どちらも侵入者を攻撃しますか"
+    expect_sources: ["ザーハード2.pdf", "ザーハード3.pdf"]
+    must_include: [["はい", "どちらも"], ["攻撃"]]
+    must_not_include: ["洗濯"]
+    max_chars: 500
+
+  - id: gc05
+    category: 通常
+    thread: n5
+    question: "寮の門限は何時ですか"
+    expect_sources: ["tsubasa_dorm_rules.pdf"]
+    must_include: [["午後11時", "23時", "11時"]]
+    must_not_include: ["洗濯"]
+
+  # ---- 検索不要 2（CHAT_SMALLTALK_SKIP は既定 off なので、今は検索してしまう。skip を on にするかは別の決定）----
+  - id: gc06
+    category: 検索不要
+    thread: s1
+    question: "こんにちは"
+    expect_search: false
+    trajectory: [llm]
+    must_include: [["こんにちは"]]
+    # 無関係な資料（洗濯機のマニュアル）が当たり、「製品の操作方法や仕様」と言い出した（2026-11-09 に 2 回とも）
+    must_not_include: ["製品", "洗濯", "仕様"]
+    max_chars: 150
+    known_issue:
+      evaluators: [search_need, trajectory, accuracy, no_irrelevant_mention]
+      reason: "CHAT_SMALLTALK_SKIP が既定 off のため、挨拶でも検索して無関係な資料が当たる"
+
+  - id: gc07
+    category: 検索不要
+    thread: s2
+    question: "ありがとうございます"
+    expect_search: false
+    trajectory: [llm]
+    must_include: [["どういたしまして", "お役に立て", "いつでも"]]
+    must_not_include: ["製品", "洗濯", "仕様"]
+    max_chars: 150
+    known_issue:
+      evaluators: [search_need, trajectory]
+      reason: "CHAT_SMALLTALK_SKIP が既定 off のため、お礼でも検索する（今回は当たりが 0 件）"
+
+  # ---- あいまい 1 ----
+  - id: gc08
+    category: あいまい
+    thread: a1
+    question: "それについて教えて"
+    # 検索しても当たらない。何についてかを聞き返す
+    must_include: [["何について", "具体的", "教えて", "判断でき", "キーワード"]]
+    must_not_include: ["洗濯", "ザーハリアン", "寮"]
+    max_chars: 300
+
+  # ---- 見つからない 2 ----
+  - id: gc09
+    category: 見つからない
+    thread: m1
+    question: "ザーハードの首都はどこにありますか"
+    expect_sources: []
+    must_include: [*not_found]
+    must_not_include: ["首都は", "東京"]
+    max_chars: 200
+
+  - id: gc10
+    category: 見つからない
+    thread: m2
+    question: "今日の東京の天気を教えてください"
+    must_include: [*not_found]
+    must_not_include: ["晴れ", "雨", "曇り"]
+    max_chars: 200
+
+  # ---- マルチターン A（防衛システム → 止め方 → もっと詳しく）----
+  - id: gc11
+    category: マルチターン
+    thread: A
+    question: "遺跡の防衛システムについて教えて"
+    expect_sources: ["ザーハード2.pdf"]
+    must_include: [["防衛システム", "防衛機構"], ["侵入者", "攻撃"]]
+    must_not_include: ["洗濯"]
+    max_chars: 600
+
+  - id: gc12
+    category: マルチターン
+    thread: A
+    question: "それはどうやって止められますか"
+    trajectory: [llm, search_documents, llm]
+    # 資料に止め方は無い。話題（防衛システム）を保った検索で、無いと答える
+    expect_sources: ["ザーハード2.pdf", "ザーハード3.pdf"]
+    must_include: [*not_found]
+    must_not_include: ["洗濯"]
+    max_chars: 300
+
+  - id: gc13
+    category: マルチターン
+    thread: A
+    question: "もっと詳しく"
+    trajectory: [llm, search_documents, llm]
+    expect_sources: ["ザーハード2.pdf", "ザーハード3.pdf"]
+    must_include: [*not_found]
+    # 2026-11-09 の修正前は、補完のタイムアウトで話題が消え、洗濯機のマニュアルに言及した
+    must_not_include: ["洗濯", "関係ありません"]
+    max_chars: 300
+
+  # ---- マルチターン B（崩壊原因 → いつ頃）----
+  - id: gc14
+    category: マルチターン
+    thread: B
+    question: "ザーハリアン文明が崩壊した原因は？"
+    expect_sources: ["ザーハード2.pdf"]
+    must_include: [["明記", "明らか", "判明", "特定", "解明", "記載", "不明", "何らかの原因"]]
+    must_not_include: ["隕石", "疫病", "戦争が原因", "気候変動"]
+    max_chars: 500
+
+  - id: gc15
+    category: マルチターン
+    thread: B
+    question: "それはいつ頃のことですか"
+    trajectory: [llm, search_documents, llm]
+    expect_sources: ["ザーハード2.pdf"]
+    must_include: [*not_found]
+    must_not_include: ["洗濯"]
+    max_chars: 300
