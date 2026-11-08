@@ -69,6 +69,9 @@ const (
 	rateLimitedBody    = `{"detail":"リクエストが多すぎます。しばらく待ってから、もう一度お試しください。"}`
 	// true にすると、判定キーに X-Forwarded-For の最後の値を使う（Cloud Run が直接受けると確認できた環境だけ）。既定は接続元（RemoteAddr）
 	rateTrustXFFEnv = "SSE_RATE_LIMIT_TRUST_XFF"
+	// TRUST_XFF=true のとき、右端から何段目を読むか（信頼できるプロキシの段数。既定 1 = Cloud Run 直受け。前に LB を挟むなら 2）
+	rateTrustedHopsEnv     = "SSE_RATE_LIMIT_TRUSTED_PROXIES"
+	defaultRateTrustedHops = 1
 	// 数える相手の数の上限（超えたら、共通の 1 つの枠にまとめる。メモリを無限に増やさない）
 	maxRateKeys = 10000
 
@@ -209,11 +212,13 @@ type rateConfig struct {
 	Burst  int
 	// TrustXFF が true のときだけ、X-Forwarded-For の最後の値をキーにする。false は接続元（RemoteAddr）
 	TrustXFF bool
+	// TrustedHops は、TrustXFF のとき X-Forwarded-For の右端から何段目を使うか（1 以上）。段数に満たなければ接続元
+	TrustedHops int
 }
 
-// rateFromEnv は、環境変数 SSE_RATE_LIMIT_PER_MIN（0 で無効）、SSE_RATE_LIMIT_BURST（1 以上）、SSE_RATE_LIMIT_TRUST_XFF（既定 false）の値を返す。未設定なら既定。
+// rateFromEnv は、環境変数 SSE_RATE_LIMIT_PER_MIN（0 で無効）、SSE_RATE_LIMIT_BURST（1 以上）、SSE_RATE_LIMIT_TRUST_XFF（既定 false）、SSE_RATE_LIMIT_TRUSTED_PROXIES（既定 1）の値を返す。未設定なら既定。
 func rateFromEnv(get func(string) string) (rateConfig, error) {
-	cfg := rateConfig{PerMin: defaultRatePerMin, Burst: defaultRateBurst}
+	cfg := rateConfig{PerMin: defaultRatePerMin, Burst: defaultRateBurst, TrustedHops: defaultRateTrustedHops}
 	if raw := strings.TrimSpace(get(rateLimitPerMinEnv)); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 0 {
@@ -234,6 +239,13 @@ func rateFromEnv(get func(string) string) (rateConfig, error) {
 			return cfg, fmt.Errorf("%s は true か false にしてください", rateTrustXFFEnv)
 		}
 		cfg.TrustXFF = v
+	}
+	if raw := strings.TrimSpace(get(rateTrustedHopsEnv)); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 {
+			return cfg, fmt.Errorf("%s は 1 以上の整数にしてください", rateTrustedHopsEnv)
+		}
+		cfg.TrustedHops = n
 	}
 	return cfg, nil
 }
@@ -308,19 +320,22 @@ func (l *rateLimiter) sweepLocked(now time.Time) {
 // admit は、新しい接続を受けてよいかを返す。断るときは、取れるまでの目安も返す。キーはクライアント IP だけ
 // （Authorization は見ない。認証済みかどうかも、ここでは判定しない）。
 func (l *rateLimiter) admit(r *http.Request) (ok bool, retry time.Duration) {
-	return l.take("ip:" + clientIP(r, l.cfg.TrustXFF))
+	return l.take("ip:" + clientIP(r, l.cfg.TrustXFF, l.cfg.TrustedHops))
 }
 
 // clientIP は、判定キーにするクライアントの IP。既定は接続元（RemoteAddr）。
-// trustXFF が true（Cloud Run が直接受けると確認できた環境）のときだけ、X-Forwarded-For の最後の値（Google のフロントが足した、
-// 直接つないだ相手）を使う。最後より前の値は、クライアントが書けるので使わない。前段にプロキシ（Cloudflare など）があれば、その IP になる。
+// trustXFF が true（前段のプロキシが X-Forwarded-For を足すと確認できた環境）のときだけ、X-Forwarded-For を右端から hops 段目で読む。
+// hops = 1 は、Cloud Run が直接受ける構成の最後の値（Google のフロントが足した、直接つないだ相手）。前に LB などを 1 段挟むなら 2。
+// 右端から信頼できる段数より左の値は、クライアントが書けるので使わない。値が段数に満たない・空のときは接続元。
 // 接続元は、Cloud Run では Google の内側のアドレスで、全員が同じキーになりうる（その間は全員で 1 つの枠）。
-func clientIP(r *http.Request, trustXFF bool) string {
-	if trustXFF {
+func clientIP(r *http.Request, trustXFF bool, hops int) string {
+	if trustXFF && hops >= 1 {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			parts := strings.Split(xff, ",")
-			if last := strings.TrimSpace(parts[len(parts)-1]); last != "" {
-				return last
+			if len(parts) >= hops {
+				if ip := strings.TrimSpace(parts[len(parts)-hops]); ip != "" {
+					return ip
+				}
 			}
 		}
 	}
@@ -642,6 +657,6 @@ func main() {
 	server.Protocols = new(http.Protocols)
 	server.Protocols.SetHTTP1(true)
 	server.Protocols.SetUnencryptedHTTP2(true)
-	log.Printf("中継を開始します: %s -> %s (上流 h2c=%v, heartbeat=%v, max_streams=%d, cors_origins=%d件, max_body=%d, rate=%d/分 burst=%d trust_xff=%v)", *listen, upstream, *h2c, *heartbeat, *maxStreams, len(origins), maxBody, rateCfg.PerMin, rateCfg.Burst, rateCfg.TrustXFF)
+	log.Printf("中継を開始します: %s -> %s (上流 h2c=%v, heartbeat=%v, max_streams=%d, cors_origins=%d件, max_body=%d, rate=%d/分 burst=%d trust_xff=%v hops=%d)", *listen, upstream, *h2c, *heartbeat, *maxStreams, len(origins), maxBody, rateCfg.PerMin, rateCfg.Burst, rateCfg.TrustXFF, rateCfg.TrustedHops)
 	log.Fatal(server.ListenAndServe())
 }
