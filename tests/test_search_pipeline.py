@@ -443,3 +443,82 @@ def test_on_the_exact_match_corpus_the_keyword_stage_finds_the_evidence_for_most
     assert total == 40
     # 実測（2026-11-01、top 2）。型番・コード・数値を質問に含む 40 問で、キーワード側だけでこの割合の根拠が上位 2 件に入る
     assert hits / total >= 0.7, f"{hits}/{total}"
+
+
+# ---- ベクトル検索と資料の写しの読み込みは同時に進む（失敗・取り消しは元の例外のまま） ----
+
+
+def _gated(
+    monkeypatch: pytest.MonkeyPatch, *, vector_error: Exception | None = None, corpus_error: Exception | None = None
+):
+    """偽のベクトル検索と偽の写しの読み込みを、互いの開始を待ち合わせるものに差し替える。"""
+    install(monkeypatch, [A], [hit(A, 0.9)], SEARCH_HYBRID="on")
+    log: dict[str, Any] = {"vector_started": asyncio.Event(), "corpus_started": asyncio.Event(), "cancelled": []}
+
+    async def vector(query: str, top_k: int, collection: str | None = None, *, scope: Scope) -> list[Hit]:
+        log["vector_started"].set()
+        try:
+            await asyncio.wait_for(log["corpus_started"].wait(), 1)  # 写し側が始まらなければ、直列のまま
+            if vector_error:
+                raise vector_error
+            await asyncio.sleep(0.5 if corpus_error else 0.05)  # 相手が失敗するときは、取り消されるまで終わらない
+            return [hit(A, 0.9)]
+        except asyncio.CancelledError:
+            log["cancelled"].append("vector")
+            raise
+
+    async def fetch(scope: Scope, collection: str | None) -> list[Chunk]:
+        log["corpus_started"].set()
+        try:
+            await asyncio.wait_for(log["vector_started"].wait(), 1)
+            if corpus_error:
+                raise corpus_error
+            await asyncio.sleep(0.5 if vector_error else 0.05)
+            return [A]
+        except asyncio.CancelledError:
+            log["cancelled"].append("corpus")
+            raise
+
+    monkeypatch.setattr(search_vector, "search", vector)
+    monkeypatch.setattr(search_pipeline, "_fetch_chunks", fetch)
+    return log
+
+
+def test_the_vector_search_and_the_corpus_load_run_at_the_same_time(monkeypatch):
+    log = _gated(monkeypatch)
+    assert run("AP-340S")  # どちらも、相手が始まるまで待つ。直列なら 1 秒で TimeoutError になる
+    assert log["cancelled"] == []
+
+
+def test_a_vector_failure_cancels_the_corpus_load_and_raises_the_same_error(monkeypatch):
+    log = _gated(monkeypatch, vector_error=VectorSearchError("埋め込みに失敗しました"))
+    with pytest.raises(VectorSearchError, match="埋め込み"):
+        run("AP-340S")
+    assert log["cancelled"] == ["corpus"]
+
+
+def test_a_corpus_failure_cancels_the_vector_search_and_raises_the_same_error(monkeypatch):
+    log = _gated(monkeypatch, corpus_error=VectorSearchError("DB の接続プールが開いていません"))
+    with pytest.raises(VectorSearchError, match="DB"):
+        run("AP-340S")
+    assert log["cancelled"] == ["vector"]
+
+
+def test_when_both_fail_the_vector_error_comes_first(monkeypatch):
+    _gated(monkeypatch, vector_error=VectorSearchError("埋め込みに失敗しました"), corpus_error=VectorSearchError("DB"))
+    with pytest.raises(VectorSearchError, match="埋め込み"):
+        run("AP-340S")
+
+
+def test_an_outside_cancellation_cancels_both_and_stays_a_cancellation(monkeypatch):
+    log = _gated(monkeypatch)
+
+    async def main() -> None:
+        task = asyncio.ensure_future(search_pipeline.search("AP-340S", 2, scope=Scope.ALL))
+        await asyncio.sleep(0.01)  # 両方が待っている間に、外から取り消す（切断の経路）
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(main())
+    assert sorted(log["cancelled"]) == ["corpus", "vector"]
