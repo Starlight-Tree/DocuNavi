@@ -512,6 +512,7 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
   2. API キー経路と Vertex AI のベクトルが同じ空間か（コサイン類似度）。同じなら、保存済みのベクトルはそのまま使える。違うなら、全チャンクを作り直す。
   3. ADC の用意、請求先とプロジェクトへのひも付け、Vertex AI API の有効化、実行する ID の `roles/aiplatform.user`（Cloud Run のサービスアカウント）。
   4. 質問の遅延（`EMBED_TIMEOUT_SECONDS` = 10 秒に収まるか）と、`global` のエンドポイントの割り当て。
+- **実測（2026-11-09、証拠等級 A、開発コンテナから各 1 回。`docunavi-app`・`global`・利用者本人の ADC）:** 取り込みの形（1 回 1 本ずつ 3 本）は返却 3 本・768 次元で合計 1.85 秒。質問 1 本は 0.35〜0.39 秒（上限 10 秒に収まる）。API キー経路とのコサイン類似度は 3 文とも 1.0000 で、保存済みのベクトルは作り直さずに使える。上の未確認の 1・2・4 はこの範囲で確認した。分布ではなく 1〜2 回の値。Cloud Run からの遅延と、3（`docunavi-run` の `roles/aiplatform.user`）は未確認。
 - **確かめ方:** `python -m scripts.check_vertex_embedding --project <プロジェクト>`（Vertex AI だけ。API キー不要・実 API を 3 回呼ぶ。運用者が実行。上の 1 と 4 の目安が分かる）。上の 2（既存ベクトルとの互換性）は `--compare-api`（`GEMINI_API_KEY` が要り、API キー経路を 1 回余分に呼ぶ）を付けたときだけ測る。
 - **戻し方:** `EMBEDDING_USE_VERTEXAI` を外す（Cloud Run なら環境変数の更新）。ベクトルを作り直していなければ、データの戻しは要らない。
 
