@@ -278,3 +278,34 @@ def test_retrieval_mode_from_the_environment(monkeypatch: pytest.MonkeyPatch, va
     else:
         monkeypatch.setenv("CHAT_RETRIEVAL_MODE", value)
     assert retrieval_mode() == expected
+
+
+@pytest.mark.parametrize("text", ["ありがとうございます", "こんにちは", "ありがとう！"])
+def test_a_thanks_or_greeting_mid_conversation_is_not_completed(
+    llm: RecordingLLM, queries: list[str], text: str
+) -> None:
+    graph = build_graph(llm, retrieval="direct")
+    ask(graph, "ザーハードの大気について教えてください", thread="g")
+    queries.clear()
+    llm.calls.clear()
+
+    ask(graph, text, thread="g")
+
+    assert llm.rewrite_calls == []  # 補完の LLM を呼ばない
+    assert queries == [text]  # 検索語は質問そのまま（検索を飛ばすのは CHAT_SMALLTALK_SKIP の別の判断）
+    assert len(llm.answer_calls) == 1
+
+
+def test_a_short_question_that_is_not_smalltalk_is_still_completed(llm: RecordingLLM, queries: list[str]) -> None:
+    graph = build_graph(llm, retrieval="direct")
+    ask(graph, "ザーハードの大気について教えてください", thread="h")
+    llm.calls.clear()
+
+    ask(graph, "もっと詳しく", thread="h")
+
+    assert len(llm.rewrite_calls) == 1
+
+
+def test_the_default_completion_timeout_is_three_seconds(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LLM_QUERY_REWRITE_TIMEOUT_SECONDS", raising=False)
+    assert graph_module.query_rewrite_timeout_seconds() == 3.0

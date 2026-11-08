@@ -27,7 +27,7 @@
 | `LLM_FIRST_CHUNK_DEADLINE_SECONDS` | `20` | LLM の 1 回の呼び出しで、最初のチャンクを待つ総時間の上限（ヘッジ・再試行・フォールバックを含む）。超えたら試行を全て取り消して 504 になる。`0` で上限なし。**20 秒は実測した値ではなく暫定値**。不正値・負数は既定値に戻る |
 | `LLM_MAX_SEARCHES` | `2` | 1 回の質問で検索できる最大回数（`direct` の最初の検索を含む。再検索は 1 回まで）。超えて検索を求められたら、ツール呼び出しを外し、本文があればそれを、無ければ固定の回答にする。LangGraph の再帰の上限は既定 10007 なので、これが無いと、ツールを呼び続けるモデルは `LLM_TIMEOUT_SECONDS` まで検索と LLM の呼び出しを繰り返す（2026-11-05 にローカルの偽 LLM で確認。従来の `agent` の形も同じ）。不正値・1 未満は既定値に戻る |
 | `LLM_EARLY_FALLBACK` | 有効 | `GEMINI_FALLBACK_MODEL` があるとき、主モデルの試行が一時的な失敗（5xx・接続）で終わったら、主モデルを投げ直さず、すぐフォールバックを投げる。`0`・`off`・`false` で、従来の「主モデルを `LLM_MAX_ATTEMPTS` 本まで再試行してから」に戻る。429 には効かない |
-| `LLM_QUERY_REWRITE_TIMEOUT_SECONDS` | `6` | 追質問の検索語の補完（LLM の短い 1 回）を待つ上限。超えたら前の質問を足した検索語にする。不正値・0 以下は既定値に戻る |
+| `LLM_QUERY_REWRITE_TIMEOUT_SECONDS` | `3`（2026-11-09 に 6 から変更。実測の補完 11 回の最大は 1.37 秒） | 追質問の検索語の補完（LLM の短い 1 回）を待つ上限。超えたら前の質問を足した検索語にする。不正値・0 以下は既定値に戻る |
 | `CHAT_ANSWER_BACKEND` | `gemini` | 回答の生成だけを切り替える試験用の設定。`workers_ai` で Cloudflare Workers AI の Qwen3 30B A3B FP8 に切り替える（下記「回答だけ Workers AI に切り替える（試験）」）。不正な値は、既定に戻さず起動を失敗させる。**本番では設定しない** |
 | `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | （空） | `CHAT_ANSWER_BACKEND=workers_ai` のとき必須（Workers AI の権限だけのトークン）。無ければ起動を失敗させる。値はログ・応答に出さない |
 | `WORKERS_AI_DAILY_NEURON_BUDGET` | `8000` | Workers AI の 1 日の予算（Neurons。UTC の日ごと・このプロセスの分だけ）。Free の無料枠 10,000 を超える値は 10,000 にする。達したら Cloudflare へ送らず止める |
@@ -295,6 +295,7 @@ DATABASE_URL=…   # Secret `database-url`（Secret Manager。版を固定して
   現在の質問の中の署名の無い呼び出しに、公式の回避値（`skip_thought_signature_validator`）を入れる（変換までをオフラインで確認。**実 API では未確認**）。
 - **追質問だけ**、前の話題に頼るとき（短い質問〔12 文字未満〕や指示語「それ・その・もっと…」）に、LLM の短い 1 回で検索語を補う
   （`LLM_QUERY_REWRITE_TIMEOUT_SECONDS` まで。失敗・遅延のときは、直前の質問を足した検索語）。材料は、いま見えないグループの部分を伏せた履歴だけ。
+  挨拶・お礼だけの発言（`is_smalltalk`）は、会話の途中でも補完しない（質問をそのまま検索語にする。検索を飛ばすかは `CHAT_SMALLTALK_SKIP`）。
   この間、画面の状態は `analyzing`（通常の質問では `searching` → `generating` だけ）。
 - 結果で答えられないときは、LLM が `search_documents` を呼び直せる（ツールは付けたまま。プロンプトは `DIRECT_SYSTEM_PROMPT`）。
 - 再試行の重なり（2026-11-05 に確認）: SDK の再試行は、ヘッジが有効なら `max_retries=1`（google-genai の `attempts=1`＝再試行なし）で、LangChain とグラフには独自の再試行が無い。
