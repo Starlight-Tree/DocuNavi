@@ -2,7 +2,7 @@
 # Playwright MCP が使う Chromium を取得し、起動を確かめる（コンテナの作成時に postCreateCommand から呼ぶ）。
 #
 # Chromium に要るシステムのライブラリーとフォントは、イメージに入れてある（.devcontainer/Dockerfile。apt は使わない）。
-# 版は @playwright/mcp@0.0.83（.mcp.json）が依存する playwright の alpha 版に合わせて固定する。
+# 版は @playwright/mcp@0.0.83（user スコープの登録。~/.claude/.claude.json）が依存する playwright の alpha 版に合わせて固定する。
 # MCP と同じ版でないと、Chromium のリビジョンが合わない（この版では chromium-1247）。
 # 版を上げるときは、Dockerfile のライブラリーの一覧も作り直す（Dockerfile のコメントを参照）。
 # ブラウザーは ~/.cache/ms-playwright（名前付きボリューム。イメージには置けない）に入るので、再ビルドしても取得し直さない

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Infisical 公式 MCP（@infisical/mcp）の起動用。Claude Code のローカル登録（register-infisical-mcp.sh）が、このスクリプトを呼ぶ。
+# Infisical 公式 MCP（@infisical/mcp）の起動用。Claude Code の user スコープの登録（register-infisical-mcp.sh）が、このスクリプトを呼ぶ。
 # 資格情報（Universal Auth の Client ID / Secret）は ~/.infisical/identity（ボリューム内・権限 600）から読み、
 # 登録（~/.claude/.claude.json）には入れない。Client Secret を発行し直しても、登録はそのまま使える。
 # ・秘密の値は MCP の応答でマスクする（INFISICAL_MASK_SECRET_VALUES=true）。
