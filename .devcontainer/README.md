@@ -228,7 +228,7 @@ console と network のエラーを、スクリーンショット付きで確か
 
 | 項目 | 内容 |
 |---|---|
-| 登録 | リポジトリ直下の `.mcp.json`（プロジェクトのスコープ）。`@playwright/mcp@0.0.83 --headless --browser chromium`。初回は、Claude Code がプロジェクトの MCP を信頼するかを尋ねます |
+| 登録 | user スコープ（`~/.claude/.claude.json`。ボリュームに残る。2026-11-09 に `.mcp.json` から移した）。`@playwright/mcp@0.0.83 --headless --browser chromium --isolated`。`.mcp.json` は空で、プロジェクトの MCP の信頼確認は出ません |
 | Chromium | `.devcontainer/install-playwright.sh` が `~/.cache/ms-playwright` に取得します（約 260 MB）。ここは名前付きボリュームなので、再ビルドしても取得し直しません |
 | ライブラリー | `.devcontainer/Dockerfile` が、イメージのビルド時に apt で入れます（Chromium の実行に要るライブラリーと、日本語を含むフォント。`playwright install-deps` の結果を一覧にしたもの）。作成のたびには入れ直しません（イメージのキャッシュが効く）。Playwright の版を上げるときは、`install-deps` で要るライブラリーが変わっていないかを見て、Dockerfile の一覧を作り直します |
 | 成功の判定 | 最後に Chromium を実際に起動して（`chrome --version`）確かめます。ライブラリーの取りこぼしも、ここで分かります。だめなら理由を stderr に出して終了コード 1 で終わり、作成のログに「Playwright の導入に失敗しました」と出ます（あとの確認と導入は続きます）。直したら `bash .devcontainer/install-playwright.sh` を再実行します |
@@ -246,8 +246,8 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
   Chromium 内蔵の PDF ビューアーが読む `chrome://` と `chrome-extension://` まで止まるためです（console は `ERR_BLOCKED_BY_CLIENT`）。
   そもそも `--allowed-origins` はセキュリティの境界ではない（MCP の説明にあります。リダイレクトには効きません）ので、外しています。
   画面や PDF の内容は、エージェントにとって信頼できない入力です。厳しくしたいときは、PDF を内蔵ビューアーで開かず、画像にして確かめる方法を検討します。
-- **`claude mcp add --scope local` で同じ名前（`playwright`）を登録済みのときは、そちらが優先されます。** 古い登録が
-  残らないよう、`claude mcp remove playwright --scope local` で消してください。
+- **`claude mcp add --scope local` で同じ名前（`playwright`）を登録したときは、user スコープより local が優先されます。** ログイン状態つきの確認が済んだら、
+  古い登録が残らないよう、`claude mcp remove playwright --scope local` で消してください（`docs/development.md` の手順は、確認のあとも残す決定のため、消すかは利用者が決めます）。
 - 再ビルドで確かめたのは、Chromium のキャッシュ（ボリューム）が残ること、MCP の登録が有効なことです。ライブラリーの導入は、以前は `postCreateCommand` の apt で、再ビルド直後にロックの競合で失敗したことがありました。
   今はライブラリーをイメージに入れたので、`postCreateCommand` に apt は残りません（ロックの競合も、試し直しの処理もありません）。移したあとの再ビルドで、Chromium の起動（`--version` と、ヘッドレスでの DOM の出力）と Playwright MCP での画面の操作を確かめました。
 
@@ -266,7 +266,7 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
   1. `infisical --version`（0.44.11）と `dpkg -V infisical`（出力なし）。
   2. `stat -c '%a %U' ~/.infisical`（700 vscode）。`ls -A ~/.infisical`（初回は空）。
   3. `ls ~/.vscode-server/extensions | grep -ci infisical`（0。拡張は入れない）。
-- **公式 MCP（`infisical`。2026-11-07）:** `.devcontainer/infisical-mcp.sh`（`@infisical/mcp@0.0.25`）を、`register-infisical-mcp.sh` がローカル登録する（起動のたびに `postStartCommand` が呼ぶ。登録は `~/.claude` のボリュームに残る）。資格情報は登録に入れず、`~/.infisical/identity` から起動時に読む（Client Secret を発行し直しても、登録はそのまま）。使えるツールは `list-projects` `list-secrets` `create-secret` だけで、値は `<masked>` になる。マシン ID は viewer なので、`create-secret` は権限で断られる。**秘密の値は MCP で入れない**（値がエージェントの会話を通る）。値の登録は、利用者が端末で CLI を使う（`read -rs` で受け、一時ファイルを `infisical secrets set --file` に渡す）。`identity` の形式は `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=…` と `…_CLIENT_SECRET=…` の 2 行の 1 ファイル（上の `client-id` `client-secret` の 2 ファイルという記述は古い）。
+- **公式 MCP（`infisical`。2026-11-07）:** `.devcontainer/infisical-mcp.sh`（`@infisical/mcp@0.0.25`）を、`register-infisical-mcp.sh` が user スコープに登録する（起動のたびに `postStartCommand` が呼ぶ。登録は `~/.claude` のボリュームに残る。2026-11-09 に local から変えた）。資格情報は登録に入れず、`~/.infisical/identity` から起動時に読む（Client Secret を発行し直しても、登録はそのまま）。使えるツールは `list-projects` `list-secrets` `create-secret` だけで、値は `<masked>` になる。マシン ID は viewer なので、`create-secret` は権限で断られる。**秘密の値は MCP で入れない**（値がエージェントの会話を通る）。値の登録は、利用者が端末で CLI を使う（`read -rs` で受け、一時ファイルを `infisical secrets set --file` に渡す）。`identity` の形式は `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=…` と `…_CLIENT_SECRET=…` の 2 行の 1 ファイル（上の `client-id` `client-secret` の 2 ファイルという記述は古い）。
 - **消し方:** `docker volume rm infisical-config-<id>`（ホスト）、または `rm -rf ~/.infisical/*`（コンテナ）。資格情報の失効は、Infisical の画面（Machine Identities）で行う（手順は未確認）。
 - **注意:** Free プランにはシークレットの版管理も監査ログも無い。CLI での更新・削除は戻せないので、原本は別の場所にも残す。
 

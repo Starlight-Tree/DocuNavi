@@ -62,7 +62,7 @@
 	// INFISICAL_DISABLE_*: Infisical CLI のテレメトリーと更新確認を止める（同じ値を ./docker-compose.yml の environment にも置く）。
 	// gcloud・gh・Go・Infisical CLI・docker-cli・Playwright のライブラリーは、イメージ（.devcontainer/Dockerfile）に入れてある。ここでは入れない。
 	// cli-tools: 次を順番に実行する（ログインや接続情報は含まない）。失敗してもコンテナの作成は止まらない（最後のコマンドの終了コードが 0 のため）。
-	//   1. install-playwright.sh: Playwright MCP（.mcp.json）用の Chromium（~/.cache/ms-playwright のボリュームに入る。所有者の修正もこのスクリプトが行う）の取得と、
+	//   1. install-playwright.sh: Playwright MCP（user スコープの登録）用の Chromium（~/.cache/ms-playwright のボリュームに入る。所有者の修正もこのスクリプトが行う）の取得と、
 	//      起動確認（--version。ライブラリーの取りこぼしもここで分かる）。README の「開発環境のブラウザー確認」
 	//   2. ツールの存在確認: イメージに入れたツールが PATH にあるかを見て、無ければ「missing: 名前」を標準エラーに出す（導入はしない）。
 	// Vercel CLI は入れない（2026-10-31 に削除。必要なときは npx --yes vercel@63.1.2 を使う。README の「開発環境の Vercel（廃止）」）。
