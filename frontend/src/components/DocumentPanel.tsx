@@ -6,7 +6,8 @@ import { GRAPH_SOURCE } from '../api/graph';
 import { useCollectionCatalog } from '../hooks/useCollections';
 import { useDocumentChunks, useDocumentPdf } from '../hooks/useDocuments';
 import { collectionLabel } from '../lib/collections';
-import { takePendingFocus, usePanelCiteSeq, usePanelCitationMiss, usePanelOpenSeq } from '../lib/panelSignal';
+import { takePendingFocus, usePanelCiteSeq, usePanelCitationMiss, usePanelOpenSeq, usePanelSpan } from '../lib/panelSignal';
+import { locateSpan } from '../lib/sources';
 import type { DetailView } from '../lib/urlState';
 import { DocumentName, UpdatedAt, displayName, pageLabel } from './documentDisplay';
 import { RelationGraphView } from './RelationGraphView';
@@ -61,6 +62,7 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
   const ref = useRef<HTMLElement>(null);
   const openSeq = usePanelOpenSeq();
   const cite = usePanelCiteSeq();
+  const span = usePanelSpan();
   const citationMiss = usePanelCitationMiss() === document.id && chunk === null;
   const { state: catalog } = useCollectionCatalog();
   const groupName = document.collection
@@ -87,7 +89,9 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
   const textReady = state.status === 'ready' && seen.has('text');
   useEffect(() => {
     if (chunk === null || mode !== 'text' || !textReady) return;
-    ref.current?.querySelector<HTMLElement>('[data-focus="true"]')?.scrollIntoView?.({ block: 'center' });
+    // 根拠の語句があれば、その位置へ。無ければ、根拠のチャンクへ
+    const target = ref.current?.querySelector<HTMLElement>('mark.span-mark') ?? ref.current?.querySelector<HTMLElement>('[data-focus="true"]');
+    target?.scrollIntoView?.({ block: 'center' });
   }, [chunk, cite, mode, textReady]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -196,7 +200,7 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
                           </span>
                         )}
                       </div>
-                      <pre className="chunk-text">{focused ? <mark>{item.content}</mark> : item.content}</pre>
+                      <pre className="chunk-text">{focused ? <FocusedText content={item.content} span={span} /> : item.content}</pre>
                     </li>
                   );
                 })}
@@ -206,5 +210,24 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
         </>
       )}
     </aside>
+  );
+}
+
+/**
+ * 根拠のチャンクの本文。根拠の語句（引用先の本文にそのまま含まれると確かめたもの）が、このチャンクの本文にあれば、その範囲だけを強調する。
+ * 見つからなければ、チャンク全体を強調する（語句を推測で当てない）。
+ */
+function FocusedText({ content, span }: { content: string; span: string | null }) {
+  const range = span === null ? null : locateSpan(content, span);
+  if (range === null) return <mark>{content}</mark>;
+  const [start, end] = range;
+  return (
+    <mark>
+      {content.slice(0, start)}
+      <mark className="span-mark" data-testid="span-mark">
+        {content.slice(start, end)}
+      </mark>
+      {content.slice(end)}
+    </mark>
   );
 }

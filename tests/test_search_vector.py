@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from langchain_core.utils.function_calling import convert_to_openai_tool
 
 from app.agents import tools
-from app.agents.tools import TOP_K, search_documents
+from app.agents.tools import TOP_K, renumber_content, search_documents
 from app.api import routes
 from app.ingestion import embedding
 from app.main import app
@@ -133,7 +133,11 @@ def test_the_tool_has_no_synchronous_path():
 def call_tool(query: str):
     """ToolCall の形で呼ぶ（グラフの ToolNode と同じ）。ToolMessage の content が LLM に見える文面、artifact が画面に渡す出典。"""
     call = {"name": "search_documents", "args": {"query": query}, "id": "call-1", "type": "tool_call"}
-    return asyncio.run(search_documents.ainvoke(call, ALL_CONFIG))
+    message = asyncio.run(search_documents.ainvoke(call, ALL_CONFIG))
+    # `_text`（グラフが番号を数え直すための本文）は、画面に渡す出典ではない。`test_numbering_*` は取り除く前を確かめる
+    if isinstance(message.artifact, list):
+        message.artifact = [{k: v for k, v in item.items() if k != "_text"} for item in message.artifact]
+    return message
 
 
 def test_the_page_goes_to_the_artifact_and_never_into_the_text_the_model_sees(vector_env):
@@ -142,9 +146,17 @@ def test_the_page_goes_to_the_artifact_and_never_into_the_text_the_model_sees(ve
 
     message = call_tool("糸くずフィルターの掃除")
 
-    assert message.content == "[aoba_aw820_manual.pdf]\nお手入れ\n糸くずフィルターは、洗濯のたびに掃除する。"
+    assert message.content == "[1] aoba_aw820_manual.pdf\nお手入れ\n糸くずフィルターは、洗濯のたびに掃除する。"
     assert message.artifact == [
-        {"name": "aoba_aw820_manual.pdf", "page": 3, "page_end": 4, "weak": False, "collection": None, "target": None}
+        {
+            "name": "aoba_aw820_manual.pdf",
+            "page": 3,
+            "page_end": 4,
+            "weak": False,
+            "collection": None,
+            "target": None,
+            "document_id": None,
+        }
     ]
     # ページの値は、どの形でも文面に混ざらない
     assert "3" not in message.content and "p." not in message.content
@@ -180,6 +192,7 @@ def test_invalid_pages_become_none_so_the_screen_shows_nothing(vector_env, page,
             "weak": False,
             "collection": None,
             "target": None,
+            "document_id": None,
         }
     ]
 
@@ -197,7 +210,7 @@ def test_a_second_hit_far_below_the_first_is_marked_weak_but_still_goes_to_the_m
     # 1 位 0.80 との差が 0.06（> WEAK_GAP）の 2 件目は弱く、差が 0.05 ちょうどの 3 件目は弱くない。LLM に渡す文面は 3 件とも変わらない
     # 点の高い順に top_k（2）件。0.80 と 0.75（差 0.05 ちょうど）はどちらも弱くない
     assert [s["weak"] for s in message.artifact] == [False, False]
-    assert message.content.count("[aoba_aw820_manual.pdf]") == 2
+    assert message.content.count("] aoba_aw820_manual.pdf\n") == 2
 
 
 def test_the_gap_is_measured_from_the_first_hit_and_a_close_second_is_not_weak():
@@ -251,7 +264,7 @@ def test_ainvoke_returns_the_chunk_in_the_tool_format_and_reads_only_ready_docum
     pool, embedder = vector_env
     assert (
         ainvoke("糸くずフィルターの掃除")
-        == "[aoba_aw820_manual.pdf]\nお手入れ\n糸くずフィルターは、洗濯のたびに掃除する。"
+        == "[1] aoba_aw820_manual.pdf\nお手入れ\n糸くずフィルターは、洗濯のたびに掃除する。"
     )
     assert embedder.queries == ["糸くずフィルターの掃除"]
     ((sql, params),) = pool.calls
@@ -266,7 +279,7 @@ def test_ainvoke_returns_the_chunk_in_the_tool_format_and_reads_only_ready_docum
 def test_chunk_without_heading_is_returned_as_its_content(vector_env):
     pool, _ = vector_env
     pool.rows = [{"source": "cafe_store_guide.pdf", "heading": None, "content": "毎週水曜日は定休日です。", "sim": 0.9}]
-    assert ainvoke("定休日") == "[cafe_store_guide.pdf]\n毎週水曜日は定休日です。"
+    assert ainvoke("定休日") == "[1] cafe_store_guide.pdf\n毎週水曜日は定休日です。"
 
 
 def test_the_similarity_floor_is_a_coarse_one_and_ties_are_kept():
@@ -279,7 +292,7 @@ def test_results_below_the_floor_are_not_returned(vector_env):
     pool.rows = [aoba_row(search_vector.MIN_SIMILARITY - 1e-6)]
     assert ainvoke("糸くずフィルターの掃除") == tools._NOT_FOUND_TEXT
     pool.rows = [aoba_row(search_vector.MIN_SIMILARITY)]
-    assert "[aoba_aw820_manual.pdf]" in ainvoke("糸くずフィルターの掃除")  # 下限ちょうどは返す
+    assert "[1] aoba_aw820_manual.pdf" in ainvoke("糸くずフィルターの掃除")  # 下限ちょうどは返す
 
 
 def test_a_blank_query_or_a_zero_top_k_does_not_call_the_embedding_or_the_database(vector_env):
@@ -346,7 +359,7 @@ def test_chat_graph_uses_the_search_results_as_context(vector_env, searching_llm
     pool.rows = [aoba_row(0.86, "糸くずフィルターは、毎回の洗濯のあとで掃除します。")]
     body = client.post("/chat", json={"message": "糸くずフィルターの掃除", "thread_id": str(uuid.uuid4())}).json()
     assert embedder.queries == ["糸くずフィルターの掃除"]  # 偽の LLM が、発言をそのままクエリにして検索した
-    assert "[aoba_aw820_manual.pdf]\nお手入れ\n糸くずフィルターは、毎回の洗濯のあとで掃除します。" in body["context"]
+    assert "[1] aoba_aw820_manual.pdf\nお手入れ\n糸くずフィルターは、毎回の洗濯のあとで掃除します。" in body["context"]
     assert "aoba_aw820_manual.pdf" in body["reply"]  # 出典
 
 
@@ -509,3 +522,41 @@ def test_startup_with_a_real_llm_fails_without_the_database(monkeypatch):
     with pytest.raises(search_vector.VectorSearchError, match="D1_API_URL"):
         with TestClient(app):
             pass
+
+
+# ---- 引用の番号と資料の ID ----
+
+
+def test_the_document_id_goes_to_the_artifact_only(vector_env):
+    pool, _ = vector_env
+    pool.rows = [{**aoba_row(0.81), "document_id": 42}]
+    message = call_tool("糸くずフィルターの掃除")
+    assert message.artifact[0]["document_id"] == 42
+    assert "42" not in message.content  # LLM には見せない
+
+
+def test_the_tool_text_numbers_hits_from_one_and_the_artifact_keeps_the_text_for_renumbering(vector_env):
+    pool, _ = vector_env
+    pool.rows = [aoba_row(0.80), {**aoba_row(0.79), "content": "別の箇所"}]
+    call = {
+        "name": "search_documents",
+        "args": {"query": "糸くずフィルターの掃除"},
+        "id": "call-1",
+        "type": "tool_call",
+    }
+    message = asyncio.run(search_documents.ainvoke(call, ALL_CONFIG))
+    assert (
+        message.content.startswith("[1] aoba_aw820_manual.pdf\n")
+        and "\n\n[2] aoba_aw820_manual.pdf\n" in message.content
+    )
+    assert [item["_text"] for item in message.artifact] == [
+        "お手入れ\n糸くずフィルターは、洗濯のたびに掃除する。",
+        "お手入れ\n別の箇所",
+    ]
+
+
+def test_renumber_content_continues_the_numbers_and_refuses_when_the_text_is_missing():
+    artifact = [{"name": "a.pdf", "_text": "本文A"}, {"name": "b.pdf", "_text": "本文B"}]
+    assert renumber_content(artifact, 3) == "[3] a.pdf\n本文A\n\n[4] b.pdf\n本文B"
+    assert renumber_content([], 1) is None  # 見つからなかったときの定型文は、そのまま残す
+    assert renumber_content([{"name": "a.pdf"}], 1) is None

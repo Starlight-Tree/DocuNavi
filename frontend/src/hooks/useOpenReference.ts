@@ -15,14 +15,14 @@ export function useOpenReference(sources: SourceDoc[]) {
   const [opening, setOpening] = useState<number | null>(null);
   const [failure, setFailure] = useState<Exclude<OpenSourceResult, 'opened'> | null>(null);
 
-  const open = async (index: number) => {
+  const open = async (index: number, span: string | null = null, from?: Element | null) => {
     const source = sources[index];
     if (!source || opening !== null) return;
     // 押した要素を覚える（待っている間にボタンが無効になっても、閉じたときに戻す先を失わない）
-    const opener = document.activeElement;
+    const opener = from ?? document.activeElement;
     setOpening(index);
     setFailure(null);
-    const result = await openSource(source.name, source.text, source.page, opener);
+    const result = await openSource(source.name, source.text, source.page, opener, { documentId: source.documentId, span });
     setOpening(null);
     if (result !== 'opened') setFailure(result);
   };

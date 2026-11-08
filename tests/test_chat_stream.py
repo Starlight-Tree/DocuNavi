@@ -237,7 +237,15 @@ def test_stream_final_text_and_context_match_chat(client, searching_llm):
     names = SOURCE_HEADER.findall(reference["context"])
     assert names
     assert metadata["sources"] == [
-        {"name": name, "page": pages[name], "page_end": None, "weak": False, "collection": None, "target": None}
+        {
+            "name": name,
+            "page": pages[name],
+            "page_end": None,
+            "weak": False,
+            "collection": None,
+            "target": None,
+            "document_id": None,
+        }
         for name in names
     ]
 
@@ -321,7 +329,15 @@ def test_tool_turn_then_answer_streams_only_the_answer_as_the_last_part(client, 
     assert llm.started == 2
     assert "ザーハード" in chunks[-2]["messageMetadata"]["context"]  # ツールの検索結果
     assert chunks[-2]["messageMetadata"]["sources"] == [
-        {"name": "ザーハード1.pdf", "page": 1, "page_end": None, "weak": False, "collection": None, "target": None}
+        {
+            "name": "ザーハード1.pdf",
+            "page": 1,
+            "page_end": None,
+            "weak": False,
+            "collection": None,
+            "target": None,
+            "document_id": None,
+        }
     ]
 
 

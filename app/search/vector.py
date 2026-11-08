@@ -226,6 +226,7 @@ async def search(
             row.get("collection"),
             None,
             row.get("target"),
+            row.get("document_id"),
         )
         for row in rows
         if float(row["sim"]) >= MIN_SIMILARITY

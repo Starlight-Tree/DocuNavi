@@ -7,9 +7,9 @@ import { classificationItems, useClassificationCatalog } from '../hooks/useClass
 import { classificationLabel } from '../lib/classifications';
 import { collectionLabel } from '../lib/collections';
 import { followUpQuestions } from '../lib/followUps';
-import { renderMarkdown } from '../lib/markdown';
+import { stripCitations } from '../lib/citations';
 import { parseSources } from '../lib/sources';
-import { SourcesPanel } from './SourcesPanel';
+import { AssistantAnswer } from './AssistantAnswer';
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -112,7 +112,7 @@ export function MessageList({
 
   const copyText = async (message: ChatMessage) => {
     try {
-      await navigator.clipboard.writeText(message.text);
+      await navigator.clipboard.writeText(message.role === 'assistant' ? stripCitations(message.text) : message.text);
       setCopy({ id: message.id, ok: true });
     } catch {
       // クリップボードが使えない環境（非 HTTPS など）。失敗したことだけを知らせる
@@ -192,12 +192,9 @@ export function MessageList({
             </span>
             {/* 本文は必ずテキストとして描画する（HTML として解釈しない）。回答だけ Markdown を整形し、利用者の発言はそのまま見せる */}
             {message.role === 'assistant' ? (
-              <div className="message-text markdown">{renderMarkdown(message.text)}</div>
+              <AssistantAnswer text={message.text} context={message.context} sources={message.sources} generating={generating} />
             ) : (
               <p className="message-text message-question">{message.text}</p>
-            )}
-            {message.role === 'assistant' && message.context && !generating && (
-              <SourcesPanel context={message.context} sources={message.sources} />
             )}
             {/* 質問対象（対象か旧グループ）の指定があって、検索で 0 件だった最新の回答だけ。検索していない（hit_count が無い・null）ときは出さない */}
             {message.role === 'assistant' &&

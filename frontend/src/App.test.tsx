@@ -371,7 +371,7 @@ describe('チャット UI: 参照した設定資料', () => {
 
     const region = await screen.findByRole('region', { name: '参照資料' });
     const chips = within(region).getAllByRole('button');
-    expect(chips.map((chip) => chip.textContent)).toEqual(['ザーハード1.txt↗', 'ザーハード2.txt↗']);
+    expect(chips.map((chip) => chip.textContent)).toEqual(['1ザーハード1.txt↗', '2ザーハード2.txt↗']);
     expect(chips[0]).toHaveAccessibleDescription('大気の主成分は二酸化炭素。');
     expect(chips[1]).toHaveAccessibleDescription('探査団は三名。');
     // 折りたたみの抜粋一覧は出さない（詳細は右のパネルで読む）

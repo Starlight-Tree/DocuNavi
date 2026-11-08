@@ -72,11 +72,24 @@ async def search_chunks_async(
         raise search_vector.VectorSearchError(_SEARCH_FAILED_TEXT) from None
 
 
-def _format_hits(hits: Sequence[Hit]) -> str:
-    """LLM に見せる文面。ページは載せない（載せると回答が変わりうる。ページは `_sources` で画面にだけ渡す）。"""
+def _format_hits(hits: Sequence[Hit], start: int = 1) -> str:
+    """LLM に見せる文面。見出しは `[番号] ファイル名`（番号は引用に使う。`start` から数える）。ページは載せない（載せると回答が変わりうる。ページは `_sources` で画面にだけ渡す）。"""
     if not hits:
         return _NOT_FOUND_TEXT
-    return "\n\n".join(f"[{hit.source}]\n{hit.text}" for hit in hits)
+    return "\n\n".join(f"[{number}] {hit.source}\n{hit.text}" for number, hit in enumerate(hits, start=start))
+
+
+def renumber_content(artifact: Sequence[dict[str, Any]], start: int) -> str | None:
+    """`_asearch_documents` の本文を、番号を `start` から数え直して作り直す。`_text` を持たない出典があれば None（作り直さない）。
+
+    1 ターンに検索が複数回あっても（追加の検索・同時の呼び出し）、番号が重ならないようにするためのもの（番号は、回答の文末の `[n]` と
+    画面の出典の並びを結ぶ）。ToolNode の後で呼ぶ。
+    """
+    if not artifact or any(not isinstance(item.get("_text"), str) for item in artifact):
+        return None
+    return "\n\n".join(
+        f"[{number}] {item['name']}\n{item['_text']}" for number, item in enumerate(artifact, start=start)
+    )
 
 
 def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
@@ -104,9 +117,15 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
                 "weak": weak,
                 "collection": hit.collection,
                 "target": hit.target,
+                "document_id": hit.document_id,
             }
         )
     return sources
+
+
+def _artifact(hits: Sequence[Hit]) -> list[dict[str, Any]]:
+    """ツールの artifact。`_sources` に、番号の数え直し用の本文（`_text`）を足したもの。`_text` はグラフが取り除いてから画面へ渡す。"""
+    return [{**source, "_text": hit.text} for source, hit in zip(_sources(hits), hits, strict=True)]
 
 
 async def _asearch_documents(query: str, config: RunnableConfig) -> tuple[str, list[dict[str, Any]]]:
@@ -131,7 +150,7 @@ async def _asearch_documents(query: str, config: RunnableConfig) -> tuple[str, l
             if target is None
             else search_chunks_async(query, collection=collection, scope=scope, target=target)
         )
-    return _format_hits(hits), _sources(hits)
+    return _format_hits(hits), _artifact(hits)
 
 
 # 非同期だけ（グラフは .ainvoke で呼ぶ）。同期の .invoke は用意しない（DB とネットワークを同期で呼ばないため）

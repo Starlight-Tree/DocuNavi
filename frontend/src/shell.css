@@ -1322,6 +1322,13 @@
   color: inherit;
 }
 
+.chunk-focus mark.span-mark {
+  background: var(--ws-mark);
+  box-shadow: 0 0 0 2px var(--accent);
+  border-radius: 0.2rem;
+  font-weight: 600;
+}
+
 .chunk-cite {
   padding: 0.05rem 0.4rem;
   border-radius: 0.35rem;
