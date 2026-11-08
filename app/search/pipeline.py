@@ -22,11 +22,12 @@
   資料・ページ・経路（`vector` / `keyword` / `vector+keyword` / `graph`）・ベクトルの類似度・BM25・RRF・語の一致の点・最終点を残す。
 """
 
+import asyncio
 import hashlib
 import logging
 import os
 import time
-from collections.abc import Sequence
+from collections.abc import Coroutine, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -294,6 +295,23 @@ def _order_key(cand: _Cand) -> tuple[float, float, float]:
     return (-cand.score, float(cand.vec_rank if cand.vec_rank is not None else 1e9), float(cand.kw_rank or 1e9))
 
 
+async def _concurrently(first: Coroutine[Any, Any, Any], second: Coroutine[Any, Any, Any]) -> tuple[Any, Any]:
+    """独立した 2 つの待ちを同時に進める。片方が失敗したら、もう片方を取り消し、元の例外をそのまま出す（ExceptionGroup にしない）。
+
+    両方が失敗したら first の例外を優先する。外からの取り消し（切断）は CancelledError のまま通る。
+    """
+    try:
+        async with asyncio.TaskGroup() as group:
+            a = group.create_task(first)
+            b = group.create_task(second)
+    except ExceptionGroup:
+        for task in (a, b):
+            if task.done() and not task.cancelled() and task.exception() is not None:
+                raise task.exception() from None
+        raise
+    return a.result(), b.result()
+
+
 async def search(
     query: str,
     top_k: int,
@@ -328,8 +346,11 @@ async def search(
     started = time.perf_counter()
     pool_size = max(top_k, flags.candidates)
 
-    vector_hits = await search_vector.search(query, pool_size, collection, scope=scope, **extra)
-    corpus = await _corpus(scope, collection, flags.corpus_ttl, target, ids)
+    # ベクトル検索（埋め込み + pgvector）と資料の写しの読み込みは互いの結果を使わない。同時に進める
+    vector_hits, corpus = await _concurrently(
+        search_vector.search(query, pool_size, collection, scope=scope, **extra),
+        _corpus(scope, collection, flags.corpus_ttl, target, ids),
+    )
 
     cands: dict[tuple[str, str], _Cand] = {}
     for rank, hit in enumerate(vector_hits, start=1):
