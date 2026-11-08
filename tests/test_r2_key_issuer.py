@@ -443,6 +443,7 @@ def test_main_rejects_unknown_modes_and_missing_settings(monkeypatch: pytest.Mon
 
 def test_modes_match_the_purposes() -> None:
     assert set(issuer.MODES) == {f"{a}-{p}" for a in ("issue", "rotate", "rotate-if-due") for p in issuer.PURPOSES} | {
+        "issue-backup-rw",
         "revoke-stale",
         "revoke-all",
         "check",
@@ -700,3 +701,49 @@ def test_check_does_not_warn_overdue_for_a_record_without_a_date(cfg, cf, sm, ca
     with caplog.at_level(logging.INFO):
         issuer.check(cfg=cfg, api=cf, secrets=sm, probe=FakeProbe())
     assert "KEY_ROTATION_OVERDUE" not in caplog.text
+
+
+# --- DB バックアップ用のキー（issue-backup-rw） ---
+
+
+def test_backup_purpose_is_issue_only_and_outside_the_managed_family() -> None:
+    assert "backup-rw" not in issuer.PURPOSES  # check / revoke-stale が巻き込まれない
+    assert issuer.ISSUABLE["backup-rw"] is issuer.BACKUP_PURPOSE
+    assert issuer.BACKUP_PURPOSE.secret == "r2-backup-rw" and issuer.BACKUP_PURPOSE.can_write
+    assert not issuer.MANAGED_NAME.match("docunavi-r2-backup-rw-exec-1")  # 取り消し系の Job は触れない
+    for mode in ("rotate-backup-rw", "rotate-if-due-backup-rw"):
+        assert mode not in issuer.MODES
+
+
+def test_issue_backup_rw_is_scoped_to_the_backup_bucket_and_stored_in_its_own_secret(cf, sm) -> None:
+    cfg = issuer.Config(ACCOUNT, "docunavi-backups", "exec-b")
+    assert (
+        issuer.issue(
+            issuer.BACKUP_PURPOSE,
+            force=False,
+            cfg=cfg,
+            api=cf,
+            secrets=sm,
+            probe=FakeProbe(),
+            sleep=lambda s: None,
+            now=lambda: NOW,
+        )
+        == 0
+    )
+    [created] = cf.created
+    assert created["name"] == "docunavi-r2-backup-rw-exec-b"
+    [policy] = created["policies"]
+    assert list(policy["resources"]) == [f"com.cloudflare.edge.r2.bucket.{ACCOUNT}_default_docunavi-backups"]
+    assert policy["permission_groups"] == [{"id": "g-write"}]
+    assert set(sm.store) == {"r2-backup-rw"}
+
+
+def test_main_issue_backup_rw_runs_with_the_backup_bucket(monkeypatch: pytest.MonkeyPatch, cf, sm) -> None:
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", ACCOUNT)
+    monkeypatch.setenv("R2_BUCKET", "docunavi-backups")
+    monkeypatch.setenv("GCP_PROJECT_ID", "p")
+    monkeypatch.setattr(issuer, "SecretManager", lambda project: sm)
+    monkeypatch.setattr(issuer, "HttpCloudflare", lambda account, token: cf)
+    monkeypatch.setattr(issuer, "s3_probe", lambda cfg: FakeProbe())
+    assert issuer.main(["x", "issue-backup-rw"]) == 0
+    assert [c["name"].startswith("docunavi-r2-backup-rw-") for c in cf.created] == [True]

@@ -20,6 +20,7 @@ updates:
       - /.devcontainer
       - /ops/mcp_probe
       - /ops/mcp_search
+      - /ops/pg_backup
       - /ops/r2_key_issuer
       - /ops/r2_wire
       - /ops/sse-relay
