@@ -1,9 +1,13 @@
 import { Hono } from 'hono';
 import { betterAuth } from 'better-auth';
 import { jwt } from 'better-auth/plugins';
+import { Pool } from 'pg';
 
 export interface Env {
   DB: D1Database;
+  // Better Auth の保存先を Postgres（Hyperdrive 経由）にする。AUTH_DB=pg のときだけ使う（既定は d1）。docs/architecture.md
+  HYPERDRIVE?: Hyperdrive;
+  AUTH_DB?: string;
   VECTORS: VectorizeIndex;
   DATA_API_TOKEN: string;
   BETTER_AUTH_SECRET: string;
@@ -24,9 +28,9 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-function auth(env: Env) {
+function auth(env: Env, pool?: Pool) {
   return betterAuth({
-    database: env.DB,
+    database: pool ?? env.DB,
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
     socialProviders: { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } },
@@ -42,7 +46,19 @@ function auth(env: Env) {
 app.get('/health', (c) => c.json({ ok: true }));
 
 // Browser-facing: Better Auth (Google sign-in, session, JWT/JWKS). The frontend proxies /api/auth/* here.
-app.on(['GET', 'POST'], '/api/auth/*', (c) => auth(c.env).handler(c.req.raw));
+app.on(['GET', 'POST'], '/api/auth/*', async (c) => {
+  if (c.env.AUTH_DB === 'pg') {
+    if (!c.env.HYPERDRIVE) return c.json({ error: 'hyperdrive binding missing' }, 500);
+    // リクエストごとに接続を作り、応答のあとで閉じる（Hyperdrive が裏でプールする）
+    const pool = new Pool({ connectionString: c.env.HYPERDRIVE.connectionString, max: 1 });
+    try {
+      return await auth(c.env, pool).handler(c.req.raw);
+    } finally {
+      c.executionCtx.waitUntil(pool.end());
+    }
+  }
+  return auth(c.env).handler(c.req.raw);
+});
 
 // Service-facing (Cloud Run -> Worker): bearer token.
 const v1 = new Hono<{ Bindings: Env }>();

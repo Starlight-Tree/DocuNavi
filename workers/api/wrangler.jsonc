@@ -7,8 +7,12 @@
   "observability": { "enabled": true },
   "vars": {
     "BETTER_AUTH_URL": "https://docunavi-web.wataru-apps.workers.dev",
-    "JWT_AUDIENCE": "docunavi"
+    "JWT_AUDIENCE": "docunavi",
+    "AUTH_DB": "pg"
   },
+  // Postgres（Prisma Postgres）への Hyperdrive。AUTH_DB=pg のときだけ Better Auth が使う（既定は d1）。
+  // ローカルの wrangler dev には CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE（ローカル Postgres の接続文字列）が要る
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "1743853a1b0649469264dbed3e9fde5e" }],
   "d1_databases": [
     {
       "binding": "DB",
