@@ -40,3 +40,14 @@
 - 会話履歴は移さない（捨てる方針）。ユーザーは Better Auth で作り直す（初回ログインで作られる）。`user_roles` は 0 件だった。
 - ロールの割り当ては、いまは SQL（`workers/api` の D1）で行う。Django の管理画面（`ops/access_admin/`）は 2026-11-08 に廃止した。専用の CLI は未作成。
 - 評価用のスクリプト（`scripts/eval_answers.py` `eval_vector.py`）は Postgres 前提のまま。
+
+## D1・Vectorize の撤去（2026-11-08）
+
+本番のデータは Prisma Postgres に移り（API・取り込み・MCP・履歴削除・`r2-verify` のすべてが `DB_BACKEND=pg`）、D1 と Vectorize は使われなくなった。
+
+- Worker `docunavi-api`: `/v1/*`（SQL・ベクトルの中継）、D1・Vectorize のバインディング、`DATA_API_TOKEN`、`AUTH_DB` の分岐を削除。残るのは `/health` と Better Auth（Hyperdrive 経由の Postgres）だけ。
+  `workers/api/migrations/`（D1 のスキーマ）と、`deploy.yml`・`ci.yml`・`deploy.sh` の D1 migration の手順も削除した（履歴は Git に残る）。
+- 移行時の件数（D1 = Postgres）: documents 80、chunks 2313。会話履歴（checkpoints 30、writes 85）は引き継いでいない（利用者が了承）。
+- 撤去の順序: ① この変更を `deploy.yml` で配備（バインディングが外れる）→ ② D1 `docunavi` と Vectorize `docunavi-chunks` を削除 → ③ Worker の Secret `DATA_API_TOKEN` と、Secret Manager の `d1-api-token` を削除。
+- Python 側の `app/d1.py`（Worker 経由のクライアント）と `DB_BACKEND=d1` の分岐は、まだ残している。アプリの SQL は SQLite の書き方で、`app/pg.py` が Postgres に翻訳する。
+  テストの偽の Worker（`tests/d1_fakes.py`）が SQL の検証の土台になっているため、外すには SQL とテストの作り直しが要る。

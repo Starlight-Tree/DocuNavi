@@ -34,9 +34,9 @@
 | `WORKERS_AI_THINKING` | `default` | `off` で `chat_template_kwargs.enable_thinking=false` を送る（このモデルが受け付けるかは、実 API で確かめるまで未確認）。それ以外は何も送らない |
 | `GEMINI_THINKING_LEVEL` | （空） | 主モデルの `thinking_level`（`minimal`・`low`・`medium`・`high`）。空ならモデルの既定のまま（送らない）。どのモデルがどの値に対応するかは、実 API で確かめるまで未確認。不正値は無視する |
 | `GEMINI_FALLBACK_THINKING_LEVEL` | （空） | フォールバックのモデルの `thinking_level`。主モデルとは別の変数（対応する値が違いうる） |
-| `D1_API_URL` | （空） | データ用 Worker（`docunavi-api`）の URL。**本物の LLM では必須**（資料の検索が D1 + Vectorize を読む。空だと起動を失敗させる）。会話履歴の保存先も兼ねる（モックモードで空ならプロセス内メモリ）。下記「資料の検索」「会話履歴の保存先」 |
-| `D1_API_TOKEN` | （空） | データ用 Worker に送るトークン（Secret `d1-api-token`）。**秘密情報**なのでコミットせず、ログにも出さない。`D1_API_URL` を設定したときに必要 |
-| `DB_BACKEND` | `d1` | DB の置き場。`d1`（既定。データ用 Worker 経由の D1 + Vectorize）か `pg`（Postgres。`app/pg.py`、検索は pgvector）。`pg` のときは `D1_API_URL` の代わりに `DATABASE_URL` を使う。**未切り替え**（2026-11-08 時点で本番は `d1`。データの複製と手順は `db/`） |
+| `D1_API_URL` | （空） | **旧経路（`DB_BACKEND=d1`）のみ。** データ用 Worker の URL。本番の D1・Vectorize・Worker の `/v1` は 2026-11-08 に撤去したので、本番では使わない。コードはテストの偽 Worker（`tests/d1_fakes.py`）のために残してある。`DB_BACKEND=d1` のとき、本物の LLM では必須（空だと起動を失敗させる） |
+| `D1_API_TOKEN` | （空） | **旧経路（`DB_BACKEND=d1`）のみ。** データ用 Worker に送るトークン。Secret `d1-api-token` と Worker の `DATA_API_TOKEN` は撤去済み。**秘密情報**なのでコミットせず、ログにも出さない |
+| `DB_BACKEND` | `d1` | DB の置き場。`pg`（Postgres。`app/pg.py`、検索は pgvector。**本番は 2026-11-08 から `pg`**）か `d1`（旧経路。コードの既定のまま残してあるが、本番の D1 は撤去済み）。`pg` のときは `DATABASE_URL` を使う。スキーマは `db/migrations/` |
 | `DATABASE_URL` | （空） | `DB_BACKEND=pg` のときの Postgres の接続文字列（アプリはプール側 `pooled.db.prisma.io`、取り込みの CLI は直接 `db.prisma.io`）。**秘密情報**なのでコミットせず、ログにも出さない |
 | `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Better Auth が発行した JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
 | `AUTH_BASE_URL` | （空） | `AUTH_MODE=required` のとき必須。Better Auth の公開オリジン（画面の Worker `docunavi-web` の URL。`https://<ホスト>` の形で、パスは付けない。`http` はローカルだけ）。JWT の公開鍵（`{AUTH_BASE_URL}/api/auth/jwks`）の取得先と、発行元（`iss`）の確認に使う |
@@ -49,18 +49,18 @@
 チャットの検索（`search_documents`）は、**DB の `chunks` へのベクトル検索だけ**です（`app/search/vector.py`）。決めた理由と、見直す条件は
 [search-design.md](search-design.md)、測定は [evals/README.md](../evals/README.md) にあります。
 
-- **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元。質問ごとに API を 1 回呼ぶ）、Vectorize のベクトルとの
-  コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。本文とメタデータは D1 から取ります。対象は D1 の `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループの文書のチャンクだけ。下の「検索の範囲」）で、PDF は読みません。
+- **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元。質問ごとに API を 1 回呼ぶ）、pgvector で
+  コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。本文とメタデータも同じ Postgres から取ります。対象は DB の `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループの文書のチャンクだけ。下の「検索の範囲」）で、PDF は読みません。
   返す形は `[ファイル名]\n見出し\n本文` です。
-- **必要なもの。** 本物の LLM では `D1_API_URL` と `D1_API_TOKEN`（履歴と同じデータ用 Worker への接続を借りる）と `GEMINI_API_KEY`（質問の埋め込み用。
-  Vertex AI で LLM を使う場合も、埋め込みは API キーで呼ぶ。`EMBEDDING_USE_VERTEXAI=true` のときだけ、埋め込みは Vertex AI で、キーは要らない）。D1 と Vectorize に、取り込み・埋め込み済みであること。本番は、R2 の PDF を取り込みジョブ（`docunavi-ingest-sync` が毎時、`docunavi-ingest-queue` が R2 の通知で）が `python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で入れます。
+- **必要なもの。** 本物の LLM では `DB_BACKEND=pg` と `DATABASE_URL`（履歴と同じ接続を借りる）と `GEMINI_API_KEY`（質問の埋め込み用。
+  Vertex AI で LLM を使う場合も、埋め込みは API キーで呼ぶ。`EMBEDDING_USE_VERTEXAI=true` のときだけ、埋め込みは Vertex AI で、キーは要らない）。Postgres に、取り込み・埋め込み済みであること。本番は、R2 の PDF を取り込みジョブ（`docunavi-ingest-sync` が毎時、`docunavi-ingest-queue` が R2 の通知で）が `python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で入れます。
   R2 の最上位のプレフィックスが `documents.collection`（資料のグループ）になります（`hero/` は画像の置き場で、資料群ではありません）。
 - **検索の範囲。** `/chat` と `/chat/stream` は、任意の `collection`（グループの識別名）を受け付けます。会話ごとに検索の範囲は固定され（最初の発言で決まる）、
   同じ会話に違う範囲を送ると 409 になります。`collection` を省略した場合は、従来どおり DB の全資料が対象です。仕様は [api.md](api.md) の「検索対象（`collection`）」。
 - **モックモード。** `GEMINI_API_KEY` が未設定なら、資料の検索も回答もしない固定の返答を返します（DB も API も要らない。画面と API の動作確認用）。
-- **起動の検査。** 本物の LLM のとき、`D1_API_URL` が無い、`GEMINI_API_KEY` が無い、DB に検索できる資料（`ready`）が無い、
+- **起動の検査。** 本物の LLM のとき、`DATABASE_URL` が無い、`GEMINI_API_KEY` が無い、DB に検索できる資料（`ready`）が無い、
   `ready` の文書に埋め込みが無い・古い（モデル・次元・入力のハッシュが違う）チャンクがある、のどれかなら、起動を失敗させます。
-  PDF を R2 に足す・差し替えたら、取り込みと埋め込みをやり直します（再起動は要りません。検索は D1 と Vectorize を読むため）。
+  PDF を R2 に足す・差し替えたら、取り込みと埋め込みをやり直します（再起動は要りません。検索は Postgres を読むため）。
 - **しきい値。** 類似度が 0.65（`app/search/vector.py` の `MIN_SIMILARITY`）未満のチャンクは返しません。粗い下限で、「資料にない」の判断は LLM に任せます
   （理由と評価は [search-design.md](search-design.md)）。変えるときは、評価をやり直します。
 - **失敗したとき。** クエリの埋め込みや DB の問い合わせが失敗したら、別の経路には戻らず、`/chat`・`/chat/stream` が 503（「資料の検索に失敗しました。…」の固定文）を返し、
@@ -160,8 +160,8 @@
 
 **MCP（`docunavi-mcp`）:** 運用者専用で、利用者のロールを持たない。`Scope.ALL` を明示して**全グループ**を検索する。利用者には公開しない（IAM の `roles/run.invoker` を持つ運用者だけが呼べる）。
 
-**ロールの割り当て:** 運用者が、D1 の `user_roles` を SQL で更新します（Django の管理画面は 2026-11-08 に廃止しました。経緯は [access-admin.md](access-admin.md)）。
-ロールの作成と、ロールが持つグループの編集も SQL です。API は D1 を読むだけで、書き込みは運用者の権限（Cloudflare の資格情報）で行います。変更は `access_audit` に残す想定です。例:
+**ロールの割り当て:** 運用者が、Postgres の `user_roles` を SQL で更新します（Django の管理画面は 2026-11-08 に廃止しました。経緯は [access-admin.md](access-admin.md)）。
+ロールの作成と、ロールが持つグループの編集も SQL です。API は DB を読むだけで、書き込みは運用者の権限（`DATABASE_URL` の接続）で行います。変更は `access_audit` に残す想定です。例:
 
 ```sql
 -- ロールを作る → ロールが見るグループを決める → 利用者（JWT の sub = "user".id）に割り当てる
@@ -170,10 +170,10 @@ insert into role_collection_access (role, collection) values ('cafe-staff', 'caf
 insert into user_roles (user_id, role) values ('<"user".id>', 'cafe-staff');
 ```
 
-利用者の ID は D1 の `"user"` 表で確認する（メールとの対応は `"user".email`）。2026-11-08 時点で、本番の `user_roles` は空です。
+利用者の ID は Postgres の `"user"` 表で確認する（メールとの対応は `"user".email`）。D1 の時点（2026-11-08）で `user_roles` は空でした（Postgres への移行後の中身は未確認）。
 
 **確かめた範囲:** `tests/test_access.py`（偽の DB。10 経路の漏れ、`default` ロールが `off` と同じ結果になること、`ACCESS_MODE` の 3 値、`scope` を渡し忘れても全件を検索しないこと、
-会話の伏せ方）。**未確認:** 本番の D1 での `shadow` のログを実際の利用で観察した結果、`access_audit` に書き込む手順。
+会話の伏せ方）。**未確認:** 本番の Postgres での `shadow` のログを実際の利用で観察した結果、`access_audit` に書き込む手順。
 
 
 ## 対象と資料種別（`target` / `doc_type`）
@@ -252,24 +252,24 @@ Django 管理画面（`ops/access_admin/`。2026-11-08 に廃止）への影響�
 
 ## 会話履歴の保存先
 
-`D1_API_URL` が空なら、履歴はプロセス内メモリ（`MemorySaver`）に置きます。再起動で消え、複数のインスタンスの間では共有されません。
-設定すると、同じ `thread_id` の履歴を D1 に保存します（データ用 Worker 経由。LangGraph の checkpointer は `app/d1_saver.py`、接続は `app/history.py`）。再起動しても、別のインスタンスでも続きから話せます。
+DB の設定（`DB_BACKEND=pg` と `DATABASE_URL`）が無ければ、履歴はプロセス内メモリ（`MemorySaver`）に置きます。再起動で消え、複数のインスタンスの間では共有されません。
+設定すると、同じ `thread_id` の履歴を Postgres に保存します（LangGraph の checkpointer は `app/d1_saver.py`、接続は `app/history.py`。旧経路の `DB_BACKEND=d1` では D1 にデータ用 Worker 経由で保存します）。再起動しても、別のインスタンスでも続きから話せます。
 
 ```text
-D1_API_URL=https://<データ用 Worker のホスト>
-D1_API_TOKEN=…   # Secret `d1-api-token`。値は出さない
+DB_BACKEND=pg
+DATABASE_URL=…   # Secret `database-url`（Secret Manager。版を固定して渡す）。値は出さない
 ```
 
-`/health` の `history` が `d1` なら、D1 に保存しています（`memory` なら、設定が届いていません）。表（`checkpoints` `checkpoint_writes`）は `workers/api/migrations/` が作ります（アプリは作りません）。
+`/health` の `history` が `pg` なら、Postgres に保存しています（`memory` なら、設定が届いていません）。表（`checkpoints` `checkpoint_writes`）は `db/migrations/` が作ります（アプリは作りません）。
 
-- **起動時:** Worker へ接続を開き、開けなければ**起動を失敗させます**（メモリに切り替えると、履歴が黙って失われるため）。
-- **実行中:** D1 が使えないときの `/chat` は 503（固定メッセージ）です。LLM の失敗（502 など）とは区別します。`/health` は D1 に触れません
-  （D1 の障害で、すべてのインスタンスが「異常」になって再起動されないようにするため）。
-- **データの扱い:** 発言と回答の本文が D1 に残ります。**保存期間の方針は 90 日（最後の動きから）です**（2026-10-14）。
-  期間を過ぎた会話・特定の会話は、運用者が次のコマンドで消せます（アプリと同じ `D1_API_URL` / `D1_API_TOKEN` を使い、`.env` も読みます。
+- **起動時:** DB へ接続を開き、開けなければ**起動を失敗させます**（メモリに切り替えると、履歴が黙って失われるため）。
+- **実行中:** DB が使えないときの `/chat` は 503（固定メッセージ）です。LLM の失敗（502 など）とは区別します。`/health` は DB に触れません
+  （DB の障害で、すべてのインスタンスが「異常」になって再起動されないようにするため）。
+- **データの扱い:** 発言と回答の本文が Postgres に残ります。**保存期間の方針は 90 日（最後の動きから）です**（2026-10-14）。
+  期間を過ぎた会話・特定の会話は、運用者が次のコマンドで消せます（アプリと同じ `DB_BACKEND` / `DATABASE_URL` を使い、`.env` も読みます。
   既定は件数の表示だけで、`--apply` を付けたときだけ削除します）。アプリ自体は実行しません。
   定期実行は、Cloud Run Job `docunavi-history-cleanup` を Cloud Scheduler から呼ぶ形です（[deploy.md](deploy.md) の D）。
-  **2026-11-08 から、この Job は D1 に向けて、`--apply` なし（件数の表示だけ）で動いています。** 削除を戻す時期は未決です（それまで履歴は消えません）。
+  **2026-11-08 から、この Job は Postgres に向けて、`--apply` なし（件数の表示だけ）で動いています。** 削除を戻す時期は未決です（それまで履歴は消えません）。
 
   ```bash
   python -m app.history_admin --older-than-days 90            # 90 日以上動きのない会話の数を表示（削除しない）
@@ -278,7 +278,7 @@ D1_API_TOKEN=…   # Secret `d1-api-token`。値は出さない
   ```
 
   「動きのない」は、会話の最新のチェックポイントの時刻で決めます（続けて使われる会話は消えません）。表示するのは件数だけです（`thread_id` は出しません）。
-  D1 に向けた件数の表示は、2026-11-08 に Cloud Run Job で確かめました（対象 0 件）。`--apply` での削除は、D1 では未実行です。
+  D1 に向けた件数の表示は、2026-11-08 に Cloud Run Job で確かめました（対象 0 件）。Postgres に向けた Job の実行結果と、`--apply` での削除は未確認です（本番の履歴は Postgres への移行時に引き継いでいません）。
   `AUTH_MODE=off` のあいだは、`thread_id` を知っていれば誰でも続きを書けます。`required` なら、履歴のキーに利用者 ID が付き、
   他の利用者の会話には届きません（上の「ログイン（認証）」）。本人からの削除要求には、API（`DELETE /threads/{thread_id}`）で応えられます。
 
@@ -486,7 +486,7 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 `CHAT_ANSWER_BACKEND=workers_ai` で、**回答の生成だけ**を Cloudflare Workers AI の `@cf/qwen/qwen3-30b-a3b-fp8`（追加学習なし）に切り替えられる（`app/agents/workers_ai.py`）。
 既定は Gemini のままで、本番（Cloud Run・Cloudflare Workers）は切り替えない。
 
-- **変わらないもの:** 検索（質問の埋め込みは Gemini のまま。`D1_API_URL` と `GEMINI_API_KEY` が要る）、履歴、入力・出力のガード、追質問の検索語の補完（Gemini）。
+- **変わらないもの:** 検索（質問の埋め込みは Gemini のまま。`DATABASE_URL` と `GEMINI_API_KEY` が要る）、履歴、入力・出力のガード、追質問の検索語の補完（Gemini）。
   `CHAT_RETRIEVAL_MODE` の既定（`direct`）で、LLM は 1 回。履歴の「検索の呼び出しと結果」は、OpenAI 互換のチャットの形で送る。
 - **使わないもの:** ヘッジ・再試行・有料キー・`GEMINI_FALLBACK_MODEL`。失敗しても Gemini へ自動では切り替えず、固定メッセージの 429/500/504/502 になる。
   `<think>…</think>`（推論の過程）は取り除き、画面にも履歴にも出さない。モデル名は固定（環境変数で替えられない）。

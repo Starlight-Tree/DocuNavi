@@ -1,4 +1,4 @@
-"""データ用 Worker（workers/api/）の偽物。本物の SQLite（D1 と同じ方言）に `migrations/0001_schema.sql` を適用して使う。
+"""データ用 Worker（workers/api/）の偽物。本物の SQLite（D1 と同じ方言）に `tests/fixtures/d1_schema.sql`（D1 の撤去前のスキーマの写し）を適用して使う。
 
 `/health` `/v1/sql`（複数の文は 1 トランザクション）`/v1/vectors/{upsert,delete,query}`（総当たりのコサイン類似度）を話す。
 `httpx.MockTransport` として `D1Pool` / `SyncD1` の `transport=` に渡す。Cloudflare には何も送らない。
@@ -12,7 +12,7 @@ from typing import Any
 
 import httpx
 
-MIGRATION = Path(__file__).resolve().parent.parent / "workers" / "api" / "migrations" / "0001_schema.sql"
+MIGRATION = Path(__file__).resolve().parent / "fixtures" / "d1_schema.sql"
 TOKEN = "test-token"
 
 

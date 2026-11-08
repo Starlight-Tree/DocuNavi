@@ -7,21 +7,11 @@
   "observability": { "enabled": true },
   "vars": {
     "BETTER_AUTH_URL": "https://docunavi-web.wataru-apps.workers.dev",
-    "JWT_AUDIENCE": "docunavi",
-    "AUTH_DB": "pg"
+    "JWT_AUDIENCE": "docunavi"
   },
-  // Postgres（Prisma Postgres）への Hyperdrive。AUTH_DB=pg のときだけ Better Auth が使う（既定は d1）。
+  // Postgres（Prisma Postgres）への Hyperdrive。Better Auth の保存先。
   // ローカルの wrangler dev には CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE（ローカル Postgres の接続文字列）が要る
-  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "1743853a1b0649469264dbed3e9fde5e" }],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "docunavi",
-      "database_id": "37e4b5f0-ee41-48f2-a513-5043929e8bc9",
-      "migrations_dir": "migrations"
-    }
-  ],
-  "vectorize": [{ "binding": "VECTORS", "index_name": "docunavi-chunks" }]
-  // Secrets (deploy.sh puts them from .secrets/<NAME>): DATA_API_TOKEN, BETTER_AUTH_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "1743853a1b0649469264dbed3e9fde5e" }]
+  // Secrets (deploy.sh puts them from .secrets/<NAME>): BETTER_AUTH_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
   // BETTER_AUTH_URL = public origin of the frontend Worker (it proxies /api/auth/* to this Worker, so cookies stay same-origin)
 }

@@ -47,12 +47,11 @@ jobs:
           identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
           project-slug: docunavi-deploy
           env-slug: prod
-      # 先にデータ用 Worker（D1 の migration を含む）。画面用 Worker はそのあと。
-      - name: Deploy the data Worker (D1 migrations, then deploy)
+      # 先に認証用 Worker（Better Auth。Postgres は Hyperdrive 経由）。画面用 Worker はそのあと。
+      - name: Deploy the auth Worker
         working-directory: workers/api
         run: |
           npm ci --no-audit --no-fund
-          npx wrangler d1 migrations apply docunavi --remote
           npx wrangler deploy
       - name: Deploy the web Worker (OpenNext)
         working-directory: frontend
