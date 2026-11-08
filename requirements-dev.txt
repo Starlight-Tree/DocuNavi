@@ -209,6 +209,18 @@ priority==2.0.0
     # via
     #   -c requirements.txt
     #   hypercorn
+psycopg==3.3.8
+    # via
+    #   -c requirements.txt
+    #   -r requirements.in
+psycopg-binary==3.3.8 ; implementation_name != 'pypy'
+    # via
+    #   -c requirements.txt
+    #   psycopg
+psycopg-pool==3.3.3
+    # via
+    #   -c requirements.txt
+    #   -r requirements.in
 pyasn1==0.6.4
     # via
     #   -c requirements.txt
@@ -312,6 +324,8 @@ typing-extensions==4.16.0
     #   langchain-protocol
     #   langsmith
     #   opentelemetry-api
+    #   psycopg
+    #   psycopg-pool
     #   pydantic
     #   pydantic-core
     #   starlette
@@ -321,6 +335,10 @@ typing-inspection==0.4.4
     #   -c requirements.txt
     #   fastapi
     #   pydantic
+tzdata==2026.6 ; sys_platform == 'win32'
+    # via
+    #   -c requirements.txt
+    #   psycopg
 urllib3==2.8.0
     # via
     #   -c requirements.txt

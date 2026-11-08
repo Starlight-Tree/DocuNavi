@@ -197,7 +197,7 @@ class D1Repository:
                 updated_at = unixepoch() * 1000
             RETURNING id
             """,
-            (source, document_hash, status, reason, pages, new_title, collection, pages, int(keep)),
+            (source, document_hash, status, reason, pages, new_title, collection, pages, keep),
         )
         return rows[0]["id"]
 

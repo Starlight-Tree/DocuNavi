@@ -35,6 +35,7 @@ from app.ingestion.embedding import (
     embed_pending,
     use_vertex,
 )
+from app.pg import sync_client
 
 _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
 
@@ -85,7 +86,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     budget = ApiBudget(args.max_calls)
     try:
-        with SyncD1(url) as client:
+        with sync_client(SyncD1, url) as client:
             store = D1EmbeddingStore(client)
             embedder = GeminiEmbedder(api_key, budget) if args.apply else None
             report = embed_pending(store, embedder, budget, max_chunks=args.max_chunks, apply=args.apply)  # type: ignore[arg-type]

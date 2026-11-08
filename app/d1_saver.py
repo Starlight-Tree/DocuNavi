@@ -34,6 +34,19 @@ def _unb64(text: str | None) -> bytes:
 
 
 class D1Saver(BaseCheckpointSaver[str]):
+    # バイナリ列と metadata の入出力。`app/pg_saver.py` の PgSaver が（bytea / jsonb 用に）置き換える
+    def _enc(self, data: bytes) -> Any:
+        return _b64(data)
+
+    def _dec(self, value: Any) -> bytes:
+        return _unb64(value)
+
+    def _meta_dump(self, meta: Any) -> Any:
+        return json.dumps(meta, ensure_ascii=False)
+
+    def _meta_load(self, value: Any) -> CheckpointMetadata:
+        return cast(CheckpointMetadata, json.loads(value) if value else {})
+
     def __init__(self, pool: D1Pool, *, serde: SerializerProtocol | None = None) -> None:
         super().__init__(serde=serde)
         self.pool = pool
@@ -53,15 +66,15 @@ class D1Saver(BaseCheckpointSaver[str]):
                 ]
             )
         )[0]
-        return [(r["task_id"], r["channel"], self.serde.loads_typed((r["type"], _unb64(r["value"])))) for r in rows]
+        return [(r["task_id"], r["channel"], self.serde.loads_typed((r["type"], self._dec(r["value"])))) for r in rows]
 
     async def _tuple(self, row: dict[str, Any], config: RunnableConfig | None = None) -> CheckpointTuple:
         thread_id, ns, checkpoint_id = row["thread_id"], row["checkpoint_ns"], row["checkpoint_id"]
         parent = row["parent_checkpoint_id"]
         return CheckpointTuple(
             config or self._cfg(thread_id, ns, checkpoint_id),
-            self.serde.loads_typed((row["type"], _unb64(row["checkpoint"]))),
-            cast(CheckpointMetadata, json.loads(row["metadata"]) if row["metadata"] else {}),
+            self.serde.loads_typed((row["type"], self._dec(row["checkpoint"]))),
+            self._meta_load(row["metadata"]),
             self._cfg(thread_id, ns, parent) if parent else None,
             await self._writes(thread_id, ns, checkpoint_id),
         )
@@ -128,7 +141,7 @@ class D1Saver(BaseCheckpointSaver[str]):
         thread_id = str(config["configurable"]["thread_id"])
         ns = config["configurable"]["checkpoint_ns"]
         type_, blob = self.serde.dumps_typed(checkpoint)
-        meta = json.dumps(get_checkpoint_metadata(config, metadata), ensure_ascii=False)
+        meta = self._meta_dump(get_checkpoint_metadata(config, metadata))
         await self.pool.batch(
             [
                 (
@@ -140,7 +153,7 @@ class D1Saver(BaseCheckpointSaver[str]):
                         checkpoint["id"],
                         config["configurable"].get("checkpoint_id"),
                         type_,
-                        _b64(blob),
+                        self._enc(blob),
                         meta,
                     ),
                 )
@@ -172,7 +185,7 @@ class D1Saver(BaseCheckpointSaver[str]):
                         WRITES_IDX_MAP.get(channel, idx),
                         channel,
                         type_,
-                        _b64(blob),
+                        self._enc(blob),
                     ),
                 )
             )

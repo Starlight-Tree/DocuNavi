@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from app.d1 import D1Error, SyncD1
 from app.hero_images import HeroImageError, format_rows, import_images, list_images, load_plan, set_status
 from app.history import database_url
+from app.pg import sync_client
 from app.r2_store import R2ConfigError, default_store
 
 
@@ -43,7 +44,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     try:
         plan = load_plan(args.plan) if args.command == "import" else None
-        with SyncD1(url) as db:
+        with sync_client(SyncD1, url) as db:
             if args.command == "list":
                 print(format_rows(list_images(db)))
             elif args.command == "import":
