@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // `langgraph dev --debug-port 5678` を起動してから、この設定でつなぐ（ブレークポイントは app/ のコードに置く）
+            "name": "LangGraph: attach (debugpy 5678)",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": { "host": "127.0.0.1", "port": 5678 },
+            "pathMappings": [{ "localRoot": "${workspaceFolder}", "remoteRoot": "${workspaceFolder}" }],
+            "justMyCode": true
+        }
+    ]
+}

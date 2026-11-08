@@ -34,6 +34,7 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 - `app/api/threads.py`（会話の一覧・発言・削除。`required` では本人の分だけ、`off` は一覧が 404）、`app/api/documents.py`（資料一覧。読み取り専用）、
   `app/api/graph.py`（入寮規程の関係図。`app/relations/` が規則ベースで PDF から都度計算する実験。DB に保存しない）。仕様は `docs/api.md`
 - 画面: `frontend/`（Next.js。2026-10-26 に `frontend-next/` から改名）。Workers `docunavi-web` が配信し、FastAPI は画面を配信しない（`/` は 404）。API は別オリジンなので `CORS_ORIGINS` が要る。規約は `frontend/CLAUDE.md`、README は `frontend/README.md`
+- `app/agents/studio.py` と `langgraph.json`: LangSmith Studio（`langgraph dev`）用の入口で、ローカル開発専用。本番（Postgres の Cloud Run）は import せず、`LANGSMITH_*` も渡さない。手順は `docs/development.md`
 - `storage/pdf/<名前>/`: PDF の資料（`cafe` `guides` `zahard`）。検索は DB を読むので、PDF を足しても `python -m app.ingestion` と
   `python -m app.ingestion.embed` をするまで検索には出ない。`cafe` `guides` は `evals/corpora/<同じ名前>/` の写し（作り直したら両方を更新）、`zahard` は .txt から作った PDF（`docs/configuration.md` の「評価用の PDF の写し」）。
   2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は実物で確かめるまでアプリには置かない

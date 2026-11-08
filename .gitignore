@@ -39,3 +39,6 @@ evals/results/graph_rules_ext_compare.json
 
 # DB のダンプ（個人情報を含む。暗号化した場所へ移す。コミットしない）
 /backups/
+
+# langgraph dev のローカル状態
+.langgraph_api/

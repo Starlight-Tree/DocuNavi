@@ -10,6 +10,8 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 os.environ["DATABASE_URL"] = ""
 os.environ["D1_API_URL"] = ""
 os.environ["D1_API_TOKEN"] = ""
+# .env に LANGSMITH_TRACING=true（Studio 用）があっても、テストの実行を LangSmith へ送らない
+os.environ["LANGSMITH_TRACING"] = "false"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

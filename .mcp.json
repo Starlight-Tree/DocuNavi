@@ -9,6 +9,10 @@
         "--browser",
         "chromium"
       ]
+    },
+    "langsmith": {
+      "type": "http",
+      "url": "https://apac.api.smith.langchain.com/mcp"
     }
   }
 }

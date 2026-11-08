@@ -12,6 +12,10 @@
             "label": "docunavi-api",
             "onAutoForward": "silent"
         },
+        "2024": {
+            "label": "langgraph-studio (langgraph dev)",
+            "onAutoForward": "silent"
+        },
         "3000": {
             "label": "docunavi-ui (next dev)",
             "onAutoForward": "silent"
