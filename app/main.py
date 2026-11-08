@@ -26,6 +26,15 @@ from app.search import vector as search_vector  # noqa: E402
 _APP_LOG_HANDLER = "app-log"
 
 
+class _AppFormatter(logging.Formatter):
+    """チャットの指標（app.chat_metrics）は、行全体を JSON のまま出す（Cloud Run の jsonPayload になる）。ほかは従来の形。"""
+
+    def format(self, record: logging.LogRecord) -> str:
+        if record.name == "app.chat_metrics":
+            return record.getMessage()
+        return super().format(record)
+
+
 def _configure_app_logging() -> None:
     """app.* のログを INFO から標準エラーへ出す。ルートロガーには触れない。
 
@@ -40,7 +49,7 @@ def _configure_app_logging() -> None:
         return
     handler = logging.StreamHandler()
     handler.set_name(_APP_LOG_HANDLER)
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    handler.setFormatter(_AppFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logger.addHandler(handler)
 
 

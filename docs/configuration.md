@@ -338,6 +338,53 @@ DATABASE_URL=…   # Secret `database-url`（Secret Manager。版を固定して
 **容量の注意:** Gemini が全体に遅いときは、1 呼び出しあたり最大 `LLM_MAX_ATTEMPTS` 本が同時に飛びます。SDK の HTTP 接続プール（既定 100 接続）を超えると、追加の試行が待たされて効果が薄れます。
 同時に処理する `/chat` の数 × `LLM_MAX_ATTEMPTS` が 100 を大きく超える環境（Cloud Run の同時実行数を上げるときなど）では、確認してください。
 
+## チャットの指標（構造化ログ）
+
+`/chat` と `/chat/stream` は、応答 1 回ごとに **1 行の JSON**（ロガー `app.chat_metrics`。`app/metrics.py`）を INFO で出す（2026-11-09）。
+`app/main.py` の整形で、この行だけは時刻・レベルの前置きなしの JSON そのままになる。Cloud Run では `jsonPayload` になり、
+ログベース指標（`EXTRACT(jsonPayload.total_ms)` など）にできる。外部（LangSmith など）への送信は増えない（本番での LangSmith は無効のまま）。
+
+**入れないもの:** 質問・回答・検索クエリ・検索結果の本文、埋め込み、API キー・トークン、ユーザー ID の生値。区分・数値・真偽だけを出す
+（質問は `smalltalk` `lang` に、利用者は `user_id_hash` に直してから渡す）。`tests/test_chat_metrics.py` が、本文・生の ID が出ないことを確かめる。
+
+```
+{"severity":"INFO","message":"chat_metrics","trace_id":"…","request_id":"…","session_id":"…","user_id_hash":"…","endpoint":"chat_stream","provider":"vertex","model":"gemini-3.1-flash-lite","status":"ok","error_type":null,"guardrail_blocked":false,"timeout":false,"stream":true,"smalltalk":false,"multi_turn":false,"lang":"ja","ttft_ms":1530,"total_ms":1840,"llm_ms":1200,"retrieval_ms":420,"tool_ms":420,"llm_calls":1,"tool_calls":1,"search_calls":1,"retries":0,"input_tokens":480,"output_tokens":36,"total_tokens":516,"retrieved_chunks":2,"top_k":2,"answer_chars":58,"citation_count":1,"unrelated_source_mentioned":false}
+```
+
+| 項目 | 意味 |
+|---|---|
+| `trace_id` | Cloud Run の `X-Cloud-Trace-Context` の TRACE_ID（無い・不正なら新しい ID）。Cloud Trace・リクエストログとの突き合わせ用 |
+| `request_id` | 応答ごとの ID（サーバーが作る） |
+| `session_id` | クライアントの `thread_id`（利用者 ID は含まない。`<sub>:<thread_id>` の `sub` 側は入れない） |
+| `user_id_hash` | ユーザー ID の SHA-256 の先頭 16 桁。匿名（`AUTH_MODE=off`）は `anon` |
+| `endpoint` / `stream` | `chat` / `chat_stream`、ストリームか |
+| `provider` / `model` | `vertex` / `gemini_api` / `workers_ai` / `mock`、設定上のモデル名（実際のフォールバックは反映しない） |
+| `status` | `ok`、失敗した HTTP ステータス（`429` `504` など）、`gone`（切断）、`cancelled`（ストリームの取り消し） |
+| `error_type` | 失敗の例外のクラス名だけ（メッセージは入れない）。失敗でなければ `null` |
+| `guardrail_blocked` | 入力ガードが拒否した、または出力ガードが回答を定型文に置き換えた |
+| `timeout` | `status` が `504`、または例外が `TimeoutError` |
+| `smalltalk` | 質問が挨拶・お礼だけ（`app/agents/smalltalk.py` の判定。`CHAT_SMALLTALK_SKIP` が off でも判定する） |
+| `multi_turn` | 同じ会話の 2 ターン目以降 |
+| `lang` | 質問の主な言語の目安（`ja` / `en` / `other`） |
+| `ttft_ms` | 最初の本文（text-delta）を送るまで。`/chat` は `null`。**出力ガードが末尾 31 文字を保持するので、短い回答では総時間に近くなる** |
+| `total_ms` | 受け付けてから終わるまで |
+| `llm_ms` / `tool_ms` / `retrieval_ms` | LLM 呼び出し・ツール全体・`search_documents` の所要時間の合計（ヘッジで並行した試行は重ねて数えるので、`total_ms` を超えることがある） |
+| `llm_calls` / `tool_calls` / `search_calls` | 回数（追質問の検索語の補完、ヘッジ・再試行・フォールバックの試行も 1 回ずつ） |
+| `retries` | 失敗に終わった LLM の試行の数（取り消したヘッジの試行は除く） |
+| `input_tokens` / `output_tokens` / `total_tokens` | LLM が返した使用量の合計（取り消した試行の分は取れない。返さなければ 0） |
+| `retrieved_chunks` / `top_k` | 検索で当たった件数 / 上限（`app/agents/tools.py` の `TOP_K`） |
+| `answer_chars` | 回答の文字数 |
+| `citation_count` | 出典のファイル数（重複を除く） |
+| `unrelated_source_mentioned` | 回答が検索結果の無関係さに触れた（「関係ありません」などの語で判定する規則ベースの近似） |
+
+- golden set（`evals/golden/`）は、同じ `ChatMetrics` で測る（本番と同じ数え方）。
+- 監視は Cloud Logging のログベース指標とアラートで行う。**未確認:** 本番の Cloud Run で、この行が `jsonPayload` として入ること、ログベース指標・アラートの作成。
+  次のデプロイ後に実ログを 1 行確かめてから作る（作成は gcloud の書き込みなので、ユーザーが実行する）。しきい値は、本番の実測の分布を見てから決める（先に決めた値は無い）。
+- 反映は次の Cloud Run のデプロイ時（このコミットだけでは本番に出ない）。
+- コールバックは同期・インライン（`run_inline = True`）で動かす。非同期にすると、グラフの実行に `await` が増えて切断との先後が変わり、
+  `tests/test_chat_disconnect.py`（入力ガードの前の切断）が落ちる。
+- OpenTelemetry は、この構造化ログの次の段階の候補（未着手）。
+
 ## temperature
 
 アプリは `temperature` を指定しない（2026-10-15 に `temperature=0` の指定を外した）。
