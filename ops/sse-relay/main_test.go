@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -832,4 +834,448 @@ func TestCORSOriginsFromEnv(t *testing.T) {
 			t.Errorf("%q: got %q, want %q", c.raw, got, c.want)
 		}
 	}
+}
+
+// ---- 本文の上限・レート制限・下流の詰まり（2026-11-09） ----
+
+// relayWithOptions は、options を整えてから中継を起こす（上流は h1）。
+func relayWithOptions(t *testing.T, upstream http.Handler, tune func(*relayOptions)) *httptest.Server {
+	t.Helper()
+	up := httptest.NewServer(upstream)
+	t.Cleanup(up.Close)
+	u, _ := url.Parse(up.URL)
+	o := relayOptions{limiter: newStreamLimiter(0, t.Logf), writeStall: defaultWriteStall}
+	if tune != nil {
+		tune(&o)
+	}
+	relay := httptest.NewServer(newRelayWith(u, o))
+	t.Cleanup(relay.Close)
+	return relay
+}
+
+type hitCounter struct {
+	hits atomic.Int64
+	body atomic.Value // 最後に届いた本文（string）
+}
+
+func (c *hitCounter) handler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.hits.Add(1)
+		b, _ := io.ReadAll(r.Body)
+		c.body.Store(string(b))
+		sseHeaders(w)
+		w.Write([]byte("data: ok\n\n"))
+	})
+}
+
+func post(t *testing.T, url string, body io.Reader, hdr map[string]string) *http.Response {
+	t.Helper()
+	req, _ := http.NewRequest("POST", url+"/chat/stream", body)
+	for k, v := range hdr {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func TestRelayRejectsBodyOverLimitByContentLengthWithoutForwarding(t *testing.T) {
+	up := &hitCounter{}
+	relay := relayWithOptions(t, up.handler(), func(o *relayOptions) { o.maxBody = 1024 })
+	resp := post(t, relay.URL, strings.NewReader(strings.Repeat("a", 2048)), nil)
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", resp.StatusCode)
+	}
+	if !strings.Contains(string(body), `"detail"`) || !strings.Contains(string(body), "大きさ") {
+		t.Fatalf("本文 = %q", body)
+	}
+	if up.hits.Load() != 0 {
+		t.Fatal("上限を超えた本文が上流へ転送された")
+	}
+}
+
+// Content-Length の無い（chunked の）本文は、読み進めて超えたら 413。上流へは何も送らない。上限ちょうどは通る。
+func TestRelayRejectsChunkedBodyOverLimitAndPassesBodyWithinLimit(t *testing.T) {
+	up := &hitCounter{}
+	relay := relayWithOptions(t, up.handler(), func(o *relayOptions) { o.maxBody = 1024 })
+	chunked := func(s string) io.Reader { return io.MultiReader(strings.NewReader(s)) } // 長さが分からない（ContentLength = -1）
+
+	resp := post(t, relay.URL, chunked(strings.Repeat("a", 1025)), nil)
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", resp.StatusCode)
+	}
+	if up.hits.Load() != 0 {
+		t.Fatal("上限を超えた chunked の本文が上流へ転送された")
+	}
+
+	exact := strings.Repeat("b", 1024)
+	resp = post(t, relay.URL, chunked(exact), nil)
+	io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != http.StatusOK || up.hits.Load() != 1 {
+		t.Fatalf("上限ちょうどの本文: status = %d, hits = %d", resp.StatusCode, up.hits.Load())
+	}
+	if got, _ := up.body.Load().(string); got != exact {
+		t.Fatalf("上流に届いた本文が違う（%d バイト）", len(got))
+	}
+}
+
+func TestRelayBodyLimitZeroIsUnlimited(t *testing.T) {
+	up := &hitCounter{}
+	relay := relayWithOptions(t, up.handler(), func(o *relayOptions) { o.maxBody = 0 })
+	resp := post(t, relay.URL, strings.NewReader(strings.Repeat("a", 3<<20)), nil)
+	io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+}
+
+func TestMaxBodyAndRateFromEnv(t *testing.T) {
+	env := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
+	if n, err := maxBodyFromEnv(env(nil)); err != nil || n != 1<<20 {
+		t.Fatalf("既定 = %d, %v", n, err)
+	}
+	if n, err := maxBodyFromEnv(env(map[string]string{maxBodyEnv: "2048"})); err != nil || n != 2048 {
+		t.Fatalf("上書き = %d, %v", n, err)
+	}
+	for _, bad := range []string{"-1", "abc", "1.5"} {
+		if _, err := maxBodyFromEnv(env(map[string]string{maxBodyEnv: bad})); err == nil {
+			t.Fatalf("%q はエラーのはず", bad)
+		}
+	}
+	cfg, err := rateFromEnv(env(nil))
+	if err != nil || cfg != (rateConfig{PerMin: 60, Burst: 10}) {
+		t.Fatalf("既定 = %+v, %v", cfg, err)
+	}
+	cfg, err = rateFromEnv(env(map[string]string{rateLimitPerMinEnv: "120", rateBurstEnv: "20"}))
+	if err != nil || cfg != (rateConfig{PerMin: 120, Burst: 20}) {
+		t.Fatalf("上書き = %+v, %v", cfg, err)
+	}
+	if cfg, err := rateFromEnv(env(map[string]string{rateTrustXFFEnv: "true"})); err != nil || !cfg.TrustXFF {
+		t.Fatalf("TRUST_XFF=true = %+v, %v", cfg, err)
+	}
+	if cfg, err := rateFromEnv(env(map[string]string{rateLimitPerMinEnv: "0"})); err != nil || cfg.PerMin != 0 {
+		t.Fatalf("0 は無効 = %+v, %v", cfg, err)
+	}
+	for _, m := range []map[string]string{{rateLimitPerMinEnv: "-1"}, {rateLimitPerMinEnv: "x"}, {rateBurstEnv: "0"}, {rateBurstEnv: "x"}, {rateTrustXFFEnv: "maybe"}} {
+		if _, err := rateFromEnv(env(m)); err == nil {
+			t.Fatalf("%v はエラーのはず", m)
+		}
+	}
+}
+
+// 時計を手で進められるレート制限つきの中継。
+type fakeClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (c *fakeClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *fakeClock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.t = c.t.Add(d)
+}
+
+func relayWithRate(t *testing.T, upstream http.Handler, cfg rateConfig, clock *fakeClock, tune func(*relayOptions)) *httptest.Server {
+	return relayWithOptions(t, upstream, func(o *relayOptions) {
+		o.rate = newRateLimiter(cfg, clock.now)
+		if tune != nil {
+			tune(o)
+		}
+	})
+}
+
+func TestRelayRateLimitsNewConnectionsPerClientIPWith429(t *testing.T) {
+	up := &hitCounter{}
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	relay := relayWithRate(t, up.handler(), rateConfig{PerMin: 60, Burst: 3, TrustXFF: true}, clock, nil)
+	ip := map[string]string{"X-Forwarded-For": "10.0.0.1"}
+	for i := 0; i < 3; i++ { // バースト 3
+		resp := post(t, relay.URL, strings.NewReader("{}"), ip)
+		io.Copy(io.Discard, resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%d 回目: status = %d", i+1, resp.StatusCode)
+		}
+	}
+	resp := post(t, relay.URL, strings.NewReader("{}"), ip)
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("4 回目: status = %d, want 429", resp.StatusCode)
+	}
+	if ra, _ := strconv.Atoi(resp.Header.Get("Retry-After")); ra < 1 {
+		t.Fatalf("Retry-After = %q", resp.Header.Get("Retry-After"))
+	}
+	if !strings.Contains(string(body), "多すぎ") {
+		t.Fatalf("本文 = %q", body)
+	}
+	if up.hits.Load() != 3 {
+		t.Fatalf("上流に届いた数 = %d, want 3（断った要求は届かない）", up.hits.Load())
+	}
+	// 別の IP は影響を受けない
+	if resp := post(t, relay.URL, strings.NewReader("{}"), map[string]string{"X-Forwarded-For": "10.0.0.2"}); resp.StatusCode != http.StatusOK {
+		t.Fatalf("別の IP: status = %d", resp.StatusCode)
+	}
+	// 60 回/分 = 1 秒に 1 つ戻る
+	clock.advance(1100 * time.Millisecond)
+	resp = post(t, relay.URL, strings.NewReader("{}"), ip)
+	io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("1 秒後: status = %d", resp.StatusCode)
+	}
+}
+
+// TrustXFF が true のとき、X-Forwarded-For は最後の値だけを使う（それより前は、クライアントが書ける）。
+func TestRelayRateLimitIgnoresClientWrittenForwardedFor(t *testing.T) {
+	up := &hitCounter{}
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	relay := relayWithRate(t, up.handler(), rateConfig{PerMin: 60, Burst: 1, TrustXFF: true}, clock, nil)
+	first := post(t, relay.URL, strings.NewReader("{}"), map[string]string{"X-Forwarded-For": "1.1.1.1, 9.9.9.9"})
+	io.Copy(io.Discard, first.Body)
+	second := post(t, relay.URL, strings.NewReader("{}"), map[string]string{"X-Forwarded-For": "2.2.2.2, 9.9.9.9"})
+	if first.StatusCode != http.StatusOK || second.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, %d（同じ最後の値は同じ相手）", first.StatusCode, second.StatusCode)
+	}
+}
+
+// 既定（TrustXFF なし）は接続元だけで数える。X-Forwarded-For を書き換えても枠は増えない。
+func TestRelayRateLimitDefaultsToRemoteAddrAndIgnoresForwardedFor(t *testing.T) {
+	up := &hitCounter{}
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	relay := relayWithRate(t, up.handler(), rateConfig{PerMin: 60, Burst: 2}, clock, nil)
+	status := func(h map[string]string) int {
+		resp := post(t, relay.URL, strings.NewReader("{}"), h)
+		io.Copy(io.Discard, resp.Body)
+		return resp.StatusCode
+	}
+	if status(map[string]string{"X-Forwarded-For": "1.1.1.1"}) != 200 || status(map[string]string{"X-Forwarded-For": "2.2.2.2"}) != 200 {
+		t.Fatal("バースト 2 までは通るはず")
+	}
+	if got := status(map[string]string{"X-Forwarded-For": "3.3.3.3"}); got != http.StatusTooManyRequests {
+		t.Fatalf("X-Forwarded-For を変えても同じ接続元の枠のはず: status = %d", got)
+	}
+}
+
+// Authorization は見ない。認証済みかどうかも、ヘッダーの値の違いも、枠に影響しない（そのまま上流へ渡すだけ）。
+func TestRelayRateLimitDoesNotLookAtAuthorization(t *testing.T) {
+	var seen []string
+	var mu sync.Mutex
+	up := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen = append(seen, r.Header.Get("Authorization"))
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	})
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	relay := relayWithRate(t, up, rateConfig{PerMin: 60, Burst: 2}, clock, nil)
+	status := func(auth string) int {
+		resp := post(t, relay.URL, strings.NewReader("{}"), map[string]string{"Authorization": auth})
+		io.Copy(io.Discard, resp.Body)
+		return resp.StatusCode
+	}
+	if status("Bearer a.b.c") != 200 || status("Bearer x.y.z") != 200 || status("") != 429 {
+		t.Fatal("Authorization が違っても、同じ接続元は同じ枠のはず")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(seen) != 2 || seen[0] != "Bearer a.b.c" || seen[1] != "Bearer x.y.z" {
+		t.Fatalf("上流に渡った Authorization = %q", seen)
+	}
+}
+
+func TestRelayRateLimitDisabledWhenNil(t *testing.T) {
+	up := &hitCounter{}
+	relay := relayWithOptions(t, up.handler(), nil)
+	for i := 0; i < 50; i++ {
+		resp := post(t, relay.URL, strings.NewReader("{}"), nil)
+		io.Copy(io.Discard, resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%d 回目: status = %d", i+1, resp.StatusCode)
+		}
+	}
+}
+
+// 開いている接続の ping と本文は、レート制限で止まらない。制限は接続の「開始」だけに効く。
+func TestRelayHeartbeatIsNotRateLimited(t *testing.T) {
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	release := make(chan struct{})
+	relay := relayWithRate(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sseHeaders(w)
+		w.Write([]byte("data: first\n\n"))
+		w.(http.Flusher).Flush()
+		<-release
+		w.Write([]byte("data: last\n\n"))
+	}), rateConfig{PerMin: 1, Burst: 1}, clock, func(o *relayOptions) { o.heartbeat = 30 * time.Millisecond })
+	ip := map[string]string{"X-Forwarded-For": "10.0.0.1"}
+
+	resp := post(t, relay.URL, strings.NewReader("{}"), ip) // 枠を使い切る
+	r := bufio.NewReader(resp.Body)
+	read := func() string {
+		l, err := r.ReadString('\n')
+		if err != nil {
+			t.Fatalf("読み取り: %v", err)
+		}
+		return l
+	}
+	if l := read(); l != "data: first\n" {
+		t.Fatalf("1 行目 = %q", l)
+	}
+	read()
+	if second := post(t, relay.URL, strings.NewReader("{}"), ip); second.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("2 本目: status = %d, want 429", second.StatusCode)
+	}
+	// 制限に当たった後も、1 本目の ping は届き続け、本文も最後まで届く
+	for pings := 0; pings < 3; {
+		if l := read(); l == ": ping\n" {
+			pings++
+			read()
+		}
+	}
+	close(release)
+	for {
+		l := read()
+		if l == "data: last\n" {
+			break
+		}
+		if l != ": ping\n" && l != "\n" {
+			t.Fatalf("想定外の行 = %q", l)
+		}
+	}
+}
+
+func TestRateLimiterBoundsTheNumberOfKeysAndSweepsIdleOnes(t *testing.T) {
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	l := newRateLimiter(rateConfig{PerMin: 60, Burst: 2}, clock.now)
+	for i := 0; i < maxRateKeys+500; i++ {
+		l.take(fmt.Sprintf("ip:%d", i))
+	}
+	l.mu.Lock()
+	n := len(l.buckets)
+	l.mu.Unlock()
+	if n > maxRateKeys+1 { // +1 は、溢れた分をまとめる共通の枠
+		t.Fatalf("キーの数 = %d（上限 %d）", n, maxRateKeys)
+	}
+	clock.advance(5 * time.Minute) // 全部満杯に戻る
+	l.take("ip:fresh")
+	l.mu.Lock()
+	n = len(l.buckets)
+	l.mu.Unlock()
+	if n > 2 {
+		t.Fatalf("掃除の後のキーの数 = %d", n)
+	}
+}
+
+// 上流のイベントは、溜めず、受け取ってすぐ下流へ届く（上流がまだ生成中でも）。
+func TestRelayForwardsEachEventImmediatelyWhileUpstreamIsStillRunning(t *testing.T) {
+	release := make(chan struct{})
+	relay := relayWithOptions(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sseHeaders(w)
+		for i := 0; i < 3; i++ {
+			fmt.Fprintf(w, "data: %d\n\n", i)
+			w.(http.Flusher).Flush()
+			time.Sleep(50 * time.Millisecond)
+		}
+		<-release // 以後は、止めたまま（まとめて流す実装なら、ここまでの 3 件が届かない）
+	}), func(o *relayOptions) { o.maxBody = defaultMaxBodyBytes })
+	t.Cleanup(func() { close(release) }) // relay.Close は処理中の要求を待つので、それより先に解く（後入れ先出し）
+	resp := post(t, relay.URL, strings.NewReader("{}"), nil)
+	r := bufio.NewReader(resp.Body)
+	start := time.Now()
+	for i := 0; i < 3; i++ {
+		line, err := r.ReadString('\n')
+		if err != nil || line != fmt.Sprintf("data: %d\n", i) {
+			t.Fatalf("%d 件目 = %q, %v", i, line, err)
+		}
+		r.ReadString('\n')
+		if got := time.Since(start); got > time.Duration(i+1)*50*time.Millisecond+400*time.Millisecond {
+			t.Fatalf("%d 件目が %v 後に届いた（遅い）", i, got)
+		}
+	}
+}
+
+// 下流が切れたら、本文の上限・レート制限を入れた状態でも、上流のリクエストはすぐ取り消される。
+func TestRelayCancelsUpstreamWhenDownstreamDisconnectsWithLimitsOn(t *testing.T) {
+	cancelled := make(chan struct{})
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	relay := relayWithRate(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sseHeaders(w)
+		w.Write([]byte("data: first\n\n"))
+		w.(http.Flusher).Flush()
+		select {
+		case <-r.Context().Done():
+			close(cancelled)
+		case <-time.After(5 * time.Second):
+		}
+	}), rateConfig{PerMin: 60, Burst: 10}, clock, func(o *relayOptions) { o.maxBody = defaultMaxBodyBytes })
+	ctx, cancel := context.WithCancel(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, "POST", relay.URL+"/chat/stream", strings.NewReader("{}"))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	bufio.NewReader(resp.Body).ReadString('\n')
+	cancel()
+	select {
+	case <-cancelled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("下流の切断が上流に伝わらなかった")
+	}
+}
+
+// 読まない下流: 中継のメモリは増え続けない（上流の読み取りが止まる）。書き込みの期限を超えたら接続を切り、上流も取り消す。
+func TestRelayDropsAStalledDownstreamWithoutGrowingMemory(t *testing.T) {
+	var sent atomic.Int64
+	upstreamDone := make(chan struct{})
+	relay := relayWithOptions(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(upstreamDone)
+		sseHeaders(w)
+		chunk := []byte("data: " + strings.Repeat("x", 1000) + "\n\n")
+		for r.Context().Err() == nil {
+			n, err := w.Write(chunk)
+			sent.Add(int64(n))
+			if err != nil {
+				return
+			}
+			w.(http.Flusher).Flush()
+		}
+	}), func(o *relayOptions) { o.writeStall = 300 * time.Millisecond })
+
+	conn, err := net.Dial("tcp", strings.TrimPrefix(relay.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.(*net.TCPConn).SetReadBuffer(1024) // 受け取りを小さくして、読まない
+	fmt.Fprintf(conn, "POST /chat/stream HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}")
+
+	runtime.GC()
+	var before runtime.MemStats
+	runtime.ReadMemStats(&before)
+
+	select { // 期限（300ms）の後、中継が接続を切り、上流の書き込みが止まる
+	case <-upstreamDone:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("詰まった下流が切られず、上流が取り消されなかった（上流が送った量 %d バイト）", sent.Load())
+	}
+	runtime.GC()
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+
+	const bound = 64 << 20
+	if sent.Load() > bound {
+		t.Fatalf("上流が %d バイト送れた（背圧が効いていない。上限 %d）", sent.Load(), bound)
+	}
+	if grown := int64(after.HeapAlloc) - int64(before.HeapAlloc); grown > bound {
+		t.Fatalf("ヒープが %d バイト増えた", grown)
+	}
+	t.Logf("上流が送れた量 = %d バイト、ヒープの増加 = %d バイト", sent.Load(), int64(after.HeapAlloc)-int64(before.HeapAlloc))
 }
