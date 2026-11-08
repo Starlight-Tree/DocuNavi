@@ -19,4 +19,5 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "real_search: アプリの検索（app/search/vector.py）を本物のまま使う（conftest の偽の検索への差し替えを外す。DB と埋め込みは、テスト自身が偽物にする）",
+    "golden_real: golden set（evals/golden/）を実 API（Vertex AI）で流す。GOLDEN_REAL=1 のときだけ動く（課金。承認を得てから）",
 ]
