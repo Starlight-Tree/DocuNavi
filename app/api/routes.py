@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 from starlette.background import BackgroundTask
+from starlette.responses import JSONResponse
 
 from app.access import (
     DETAIL_FORBIDDEN_TARGET,
@@ -382,6 +383,16 @@ def _retrieve_exception(task: "asyncio.Future[object]") -> None:
         task.exception()
 
 
+DRAIN_MESSAGE = "サーバーを入れ替えています。少し待ってから、もう一度お試しください。"
+DRAIN_RETRY_AFTER_SECONDS = 5
+
+
+def _drain_wait(request: Request) -> "asyncio.Future[None] | None":
+    """停止の合図（app/drain.py）を待つタスク。合図の置き場（app.state.drain）が無ければ None（何も変わらない）。"""
+    drain = getattr(request.app.state, "drain", None)
+    return asyncio.ensure_future(drain.wait()) if drain is not None else None
+
+
 async def _cancel_and_wait(*tasks: "asyncio.Future[object] | None") -> None:
     """残っているタスクを取り消し、終わるのを待つ（タスクを取り残さない）。
 
@@ -445,6 +456,7 @@ async def chat(
     started = time.monotonic()
     work: asyncio.Future | None = None
     gone: asyncio.Future | None = None
+    drain: asyncio.Future | None = None
     result: dict | None = None
     status = "ok"
     error: BaseException | None = None
@@ -455,7 +467,9 @@ async def chat(
         # 本文は読み終えているので、ここから切断を監視できる。切断が先に来たら、待っても受け取る相手が
         # いない LLM 呼び出し（ヘッジの追加試行を含む）を取り消す
         gone = asyncio.ensure_future(_until_disconnect(request))
-        done, _ = await asyncio.wait({work, gone}, timeout=llm_timeout_seconds(), return_when=asyncio.FIRST_COMPLETED)
+        drain = _drain_wait(request)
+        waiting = {work, gone} if drain is None else {work, gone, drain}
+        done, _ = await asyncio.wait(waiting, timeout=llm_timeout_seconds(), return_when=asyncio.FIRST_COMPLETED)
         if work in done:  # 同時に終わったときは結果を優先する
             result = work.result()
         elif gone in done:
@@ -467,6 +481,12 @@ async def chat(
             )
             status = "gone"
             return Response(status_code=499)  # 届く相手はいない（uvicorn は書き込まず、アクセスログにも出さない）
+        elif drain is not None and drain in done:
+            # サーバーの停止（SIGTERM）。待たずに打ち切り、画面から再試行できるようにする
+            status = "shutdown"
+            return JSONResponse(
+                {"detail": DRAIN_MESSAGE}, status_code=503, headers={"Retry-After": str(DRAIN_RETRY_AFTER_SECONDS)}
+            )
         else:
             raise TimeoutError
     except HTTPException as exc:
@@ -481,7 +501,7 @@ async def chat(
         logger.exception("LLM 呼び出しに失敗しました (status=%s, thread_id=%s)", failure.status_code, thread_id)
         raise failure from exc
     finally:
-        await _cancel_and_wait(work, gone)
+        await _cancel_and_wait(work, gone, drain)
         metrics.log(status, result if isinstance(result, dict) else None, error)
 
     return ChatResponse(
@@ -503,7 +523,7 @@ class _GraphRun:
     実行時間に課す（超えると TimeoutError が error イベントになり、504 として扱われる）。
 
     next() の戻り値: ("event", (stream_mode, chunk)) / ("done", None) / ("error", 例外) /
-    ("gone", None)（クライアントの切断）/ ("idle", None)（idle 秒の間、何も無かった）。
+    ("gone", None)（クライアントの切断）/ ("drain", None)（サーバーの停止。app/drain.py）/ ("idle", None)（idle 秒の間、何も無かった）。
     """
 
     def __init__(self, graph: Any, inputs: dict, config: dict, request: Request, timeout: float) -> None:
@@ -511,6 +531,7 @@ class _GraphRun:
         self.producer: asyncio.Future = asyncio.ensure_future(self._produce(graph, inputs, config, timeout))
         # 本文は読み終えているので、ここから切断を監視できる（/chat と同じ）
         self.gone: asyncio.Future = asyncio.ensure_future(_until_disconnect(request))
+        self.drain: asyncio.Future | None = _drain_wait(request)  # サーバーの停止の合図（無ければ None）
 
     async def _produce(self, graph: Any, inputs: dict, config: dict, timeout: float) -> None:
         try:
@@ -526,8 +547,9 @@ class _GraphRun:
         if self.gone.done():  # 切断した相手には届かないので、溜まったイベントより切断を優先する
             return ("gone", None)
         getter: asyncio.Future = asyncio.ensure_future(self._queue.get())
+        waiting = {getter, self.gone} if self.drain is None else {getter, self.gone, self.drain}
         try:
-            done, _ = await asyncio.wait({getter, self.gone}, timeout=idle, return_when=asyncio.FIRST_COMPLETED)
+            done, _ = await asyncio.wait(waiting, timeout=idle, return_when=asyncio.FIRST_COMPLETED)
         except BaseException:
             await _cancel_and_wait(getter)
             raise
@@ -536,12 +558,15 @@ class _GraphRun:
             return ("gone", None)
         if getter in done:
             return getter.result()
+        if self.drain is not None and self.drain in done:
+            await _cancel_and_wait(getter)
+            return ("drain", None)
         await _cancel_and_wait(getter)
         return ("idle", None)
 
     async def close(self) -> None:
         """実行と切断の監視を取り消して、終わるのを待つ（何度呼んでもよい）。"""
-        await _cancel_and_wait(self.producer, self.gone)
+        await _cancel_and_wait(self.producer, self.gone, self.drain)
 
 
 def _log_stream_failure(exc: BaseException, failure: HTTPException, thread_id: str) -> None:
@@ -591,6 +616,17 @@ async def _stream_body(
                     thread_id,
                     time.monotonic() - started,
                 )
+                return
+            elif kind == "drain":
+                status = "shutdown"
+                logger.info(
+                    "サーバーの停止のため、進行中の応答を打ち切りました (thread_id=%s, elapsed=%.1fs)",
+                    thread_id,
+                    time.monotonic() - started,
+                )
+                for chunk in ui.error(DRAIN_MESSAGE, status=503, retry_after=DRAIN_RETRY_AFTER_SECONDS):
+                    yield encode(chunk)
+                yield DONE
                 return
             else:  # error: レスポンスを始めた後の失敗。固定メッセージだけをクライアントへ送る
                 failure = classify_llm_error(payload)
