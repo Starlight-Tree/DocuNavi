@@ -124,6 +124,23 @@ describe('chatFetch: エラー', () => {
     expect(error.message).not.toContain('{');
   });
 
+  it('413: 中継の固定の日本語メッセージをそのまま渡す', async () => {
+    stubFetch(() =>
+      errorResponse(413, '送れる大きさを超えています。短くして、もう一度お試しください。'),
+    );
+    const error = await failure(post());
+    expect(error.status).toBe(413);
+    expect(error.message).toBe('送れる大きさを超えています。短くして、もう一度お試しください。');
+  });
+
+  it('413: 英語の detail や JSON でない本文は見せず、一般的な文言にする', async () => {
+    stubFetch(() => errorResponse(413, 'Request Entity Too Large'));
+    expect((await failure(post())).message).toContain('HTTP 413');
+
+    stubFetch(() => new Response('<html>413</html>', { status: 413 }));
+    expect((await failure(post())).message).toContain('HTTP 413');
+  });
+
   it('429: サーバーの文言と Retry-After（秒）を渡す', async () => {
     stubFetch(() =>
       errorResponse(429, 'リクエストが集中しています。しばらく待ってから再試行してください。', {

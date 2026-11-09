@@ -25,7 +25,7 @@ Cloudflare の Worker `docunavi-web`（OpenNext）が配信する画面。本番
 ## 守ること
 
 - **`NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。** 入れてよいのは API・中継・認証（Better Auth）の URL と、ログインの有効/無効の値だけ。秘密鍵・`D1_API_TOKEN`・`GEMINI_API_KEY` を入れない。読むのは `api/chat.ts`（API・中継の URL）と `auth/betterAuth.ts`（`NEXT_PUBLIC_AUTH_ENABLED` `NEXT_PUBLIC_AUTH_BASE_URL`）だけ。
-- **サーバーのエラー本文を画面に出さない。** 固定のメッセージにする（`api/` の `ChatApiError`）。ただし、サーバーが固定の日本語の `detail` を返す 401 / 403 / 429 / 500 / 502 / 503 / 504 は、その文をそのまま見せる（`api/chat.ts` の `SERVER_DETAIL_STATUSES`。503 は `ops/sse-relay/` の上限の文面と対）。
+- **サーバーのエラー本文を画面に出さない。** 固定のメッセージにする（`api/` の `ChatApiError`）。ただし、サーバーが固定の日本語の `detail` を返す 401 / 403 / 413 / 429 / 500 / 502 / 503 / 504 は、その文をそのまま見せる（`api/chat.ts` の `SERVER_DETAIL_STATUSES`。413・429・503 は `ops/sse-relay/` の固定の文面と対）。
 - **返答は HTML として解釈しない。** `dangerouslySetInnerHTML` を使わない。
 - **履歴・資料グループの権限はサーバーが決める。** 画面で隠すだけにしない。権限の単位は資料グループ（`collection`）のまま。チャットの質問対象は「対象」（`target`。`GET /targets`）で、検索は「見える資料 ∩ 対象」。
   対象と資料種別（`GET /doc-types`）の表示名・件数はサーバーが持つ（固定で持たない）。旧グループ（`collection`）の会話は、保存された範囲のまま続け、新しくは選べず、対象に自動で変えない。
