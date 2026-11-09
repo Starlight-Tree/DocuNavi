@@ -818,7 +818,7 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 3. 0% のリビジョンで確かめる（次の 2）。`API_URL` に、タグ付きの URL（`https://citations-20261109---docunavi-xe42miq4da-an.a.run.app`）を渡す。
 4. 通れば `./scripts/preview.sh promote citations-20261109`。戻し先は、いまの本番 `docunavi-00050-wuw`（`./scripts/preview.sh rollback docunavi-00050-wuw`）。
 
-### 2. 引用が本番で正しく動くことの確認（配備後。実行は利用者の操作待ち）
+### 2. 引用が本番で正しく動くことの確認（2026-11-09 に実施。結果は下の「実施の記録」）
 
 `scripts/prod_smoke_chat.py --stream`（2026-11-09 に追加。テストは `tests/test_prod_smoke_chat.py`）が、`/chat/stream` に 1 回送り、出典の資料グループ・`hit_count`・回答の文末の引用を、画面と同じ規則（番号が実在し、語句が抜粋に空白を除いて含まれる）で判定する。ネットワークを使わない部分（SSE の解析と引用の判定）だけをテストした。**本番での実行は未確認。**
 
@@ -836,6 +836,12 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 4. 画面（利用者の目。<https://docunavi-web.wataru-apps.workers.dev>、`promote` の後）: 文末の番号が押せる。押すと資料ビューアで語句が強調される。原文に無い語句の引用は出ない。
 5. 指標: 1 回送るごとに、`chat_requests_total` が 1 増えること（Cloud Console の Metrics Explorer、プロジェクト `docunavi-app`。URL は未確認）。
 6. 終わったら `bash workers/api/test-login.sh off`。
+
+**実施の記録（2026-11-09、証拠等級 A。実行は利用者、判定は私）:** 画面は `ed2301b` で配備済み。API は `./scripts/preview.sh build` → `deploy`（イメージ `fc62c99`、リビジョン `docunavi-00052-nic`、タグ `citations-20261109`、0%）。`b004b5f` の後に `app/` の変更は無く、HEAD をビルドした（`build` は HEAD のイメージ名しか作れない）。
+- タグ付き URL で `prod_smoke_chat.py --stream` を 1 回（入寮・退寮の期限）: 200、11.95 秒、`hit_count` 2、出典は `synthetic-test` の 2 件（`default` の範囲内）。引用は 原文どおり 1 件・原文に無い 2 件（「2月28日」「4月10日」）・`番号が無い` 0 件。画面が消す引用は 2 件。**限界:** 本文の作り話の期限は直らない。
+- 利用者が `promote` を実行し、`docunavi-00052-nic` が 100%（本番の `/health` は ok）。戻し先は `docunavi-00050-wuw`。
+- 画面（利用者のスクリーンショット 2 枚、質問「入寮の申込みはいつまでにすればよいですか？」。`tsubasa-dorm-application-guide-02` p.2 と `-03` p.1）: 文末に番号 1・2 が出る。参照資料の 2 番にカーソルを置くと抜粋が出る。番号を押すと資料ビューアが開き（`?tab=chat&doc=2137&view=text&page=1&chunk=9`）、該当チャンクに「根拠の箇所」が付いて、引用の文が枠で囲まれる。
+- **未確認:** 原文に無い引用が画面から消えること（この質問では引用がすべて原文どおりで、消える場面が出なかった）。指標 `chat_requests_total` の増加。
 
 ### 3. ⑧ ロールを割り当てた利用者の `/chat`（2026-11-09 に実行済み。結果はロードマップの ⑧）
 
