@@ -801,6 +801,116 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
 ロール別の資料グループの割り当て画面（Django Admin）は、別の非公開の Cloud Run サービス（`docunavi-admin`）として配備していました（2026-10-26、ステージ R0〜R9 完了）。**2026-11-08 に、サービス `docunavi-admin` とジョブ `docunavi-admin-migrate` を削除し、`ops/access_admin/` もリポジトリから削除しました。** 当時の手順・環境変数・Secret・戻し方は、廃止の記録として [access-admin.md](access-admin.md) に残してあります。
 
+## 保留中の運用の準備（2026-11-09。実行は利用者の操作待ち）
+
+ロードマップの「将来対応」と未確認のうち、手順を整えたもの。書き込み（本番の設定・DB・配備）は、すべて利用者が実行する。`as_me` の意味は「誰の権限で実行するか」の節。
+
+### 1. 引用の配備（`b004b5f`。ロードマップ 段階 4c）
+
+**検証済み（2026-11-09、証拠等級 A）:** `1161423` の CI は成功（画面の単体テスト・型検査・ビルドを含む）。ローカルで `pytest` 3081 件通過（143 件スキップ）、画面の単体テスト 542 件通過、`tsc` のエラー 0。
+`PREVIEW_DRY_RUN=1 ./scripts/preview.sh deploy|promote …` で、`--no-traffic --tag` と `--to-tags …=100`、設定を触らないこと（`--set-env-vars` `--set-secrets` なし）を確かめた。
+**注意:** `e7ec2fb` の CI は、画面の単体テスト 1 件（`DocumentPanel.test.tsx`。`Blob` の型エラー）で一度失敗した。コードは同じで、次の `94ceb47` `1161423` は成功した。再現はせず、原因は未調査。
+
+**順序は 画面 → API。** 引用の記法 `[1「語句」]` は画面が解釈する（[api.md](api.md)）。API を先に出すと、古い画面では記法が文字のまま出る（コードからの推測。未確認）。画面を先に出せば、記法を付けない古い API でも害は無い。
+
+1. 画面（利用者）: GitHub の Actions で `deploy.yml` を `main` で実行し、Environment「production」を承認する。Worker は `docunavi-api`（認証）→ `docunavi-web` の順に出る。
+2. API（利用者。コミットは HEAD のままでよい）: `./scripts/preview.sh build` → `./scripts/preview.sh deploy "$(git rev-parse --short HEAD)" citations-20261109`（0%）。
+3. 0% のリビジョンで確かめる（次の 2）。`API_URL` に、タグ付きの URL（`https://citations-20261109---docunavi-xe42miq4da-an.a.run.app`）を渡す。
+4. 通れば `./scripts/preview.sh promote citations-20261109`。戻し先は、いまの本番 `docunavi-00050-wuw`（`./scripts/preview.sh rollback docunavi-00050-wuw`）。
+
+### 2. 引用が本番で正しく動くことの確認（配備後。実行は利用者の操作待ち）
+
+`scripts/prod_smoke_chat.py --stream`（2026-11-09 に追加。テストは `tests/test_prod_smoke_chat.py`）が、`/chat/stream` に 1 回送り、出典の資料グループ・`hit_count`・回答の文末の引用を、画面と同じ規則（番号が実在し、語句が抜粋に空白を除いて含まれる）で判定する。ネットワークを使わない部分（SSE の解析と引用の判定）だけをテストした。**本番での実行は未確認。**
+
+1. テスト用ログインを有効にする（ホスト。[development.md](development.md) の「本番の /chat の自動テスト」）: `bash workers/api/test-login.sh on`
+2. 質問を 1 回ずつ送る（LLM と埋め込みを使う。課金される。質問ごとに 1 回）:
+
+   ```bash
+   API_URL=https://citations-20261109---docunavi-xe42miq4da-an.a.run.app \
+   infisical sm run --silent --projectId <INFISICAL_PROJECT_ID> --env=dev -- \
+     python scripts/prod_smoke_chat.py --stream --question "入寮の申込みの期限と、退寮の届出の期限を教えてください"
+   ```
+
+   質問の候補（2026-11-09 の実 API の確認と同じ種類）: 入寮・退寮の期限（本文に無い期限が作られた質問）、「みなとコーヒーはいつ創業しましたか。」（`cafe`）、「ザーハードのエネルギーが暴走するとどうなりますか」（`zahard`）。
+3. 見るところ: `hit_count` が 1 以上、出典の `collection` が `default` ロールの範囲（`cafe` `guides` `synthetic-test` `zahard`）、引用の判定に `番号が無い` が無いこと。`原文に無い` が出たら、画面はその引用を番号ごと消す（想定の動作。件数を記録する）。
+4. 画面（利用者の目。<https://docunavi-web.wataru-apps.workers.dev>、`promote` の後）: 文末の番号が押せる。押すと資料ビューアで語句が強調される。原文に無い語句の引用は出ない。
+5. 指標: 1 回送るごとに、`chat_requests_total` が 1 増えること（Cloud Console の Metrics Explorer、プロジェクト `docunavi-app`。URL は未確認）。
+6. 終わったら `bash workers/api/test-login.sh off`。
+
+### 3. ⑧ ロールを割り当てた利用者の `/chat`（実行は利用者の操作待ち）
+
+**確認した事実（2026-11-09、読み取り、証拠等級 A）:** 本番の `roles` は `cafe-staff`（`cafe` だけ）と `default`（`cafe` `guides` `synthetic-test` `zahard`）。`user_roles` は 0 行、`"user"` は 2 行、`access_audit` は 0 行。ロールの判定にキャッシュは無い（`app/access.py`）ので、割り当てはすぐ効く。
+
+テスト専用ユーザー（Infisical の `TEST_LOGIN_EMAIL`。実在しないドメイン）にロールを割り当て、`/chat/stream` で範囲を確かめ、戻す。
+
+1. `bash workers/api/test-login.sh on`（ホスト）。
+2. 割り当て前の確認（書かない）: `python -m app.access_admin show --email "$TEST_LOGIN_EMAIL"`（`default` と見えるグループが出る）。書き込み用の `DATABASE_URL` が要る（運用者の手元）。
+3. 割り当て: `python -m app.access_admin assign --email "$TEST_LOGIN_EMAIL" --role cafe-staff --apply`。
+4. `cafe` の質問（範囲内）と `zahard` の質問（範囲外）を、それぞれ 1 回送る:
+
+   ```bash
+   infisical sm run --silent --projectId <INFISICAL_PROJECT_ID> --env=dev -- \
+     python scripts/prod_smoke_chat.py --stream --expect-collections cafe --question "みなとコーヒーはいつ創業しましたか。"
+   ```
+
+   期待: `cafe` の質問は `hit_count` 1 以上で出典が `cafe` だけ。`zahard` の質問は出典が無い（`hit_count` 0。資料に無い旨の回答）。どちらも「範囲外の出典: なし」で終了コード 0。
+5. 戻す: `python -m app.access_admin revoke --email "$TEST_LOGIN_EMAIL" --role cafe-staff --allow-widen --apply`（最後のロールを外すと見える範囲が広がるので `--allow-widen` が要る）。戻した後、`zahard` の質問に出典が付くこと（`default` に戻ったこと）を 1 回確かめる。
+6. `bash workers/api/test-login.sh off`。`access_audit` に 2 行（割り当てと解除）残る。
+
+**限界:** テスト用ログイン（メール + パスワード）で、Google ログインの利用者ではない。JWT の `sub` からロールを引く経路は同じ（コードの読み取り。未確認）。
+LLM と埋め込みを使う（課金される）。回数は、割り当て中が 2 回、戻した後が 1 回の計 3 回。
+
+### 4. 履歴削除ジョブ（`--apply` を戻す時期の案と、戻す前の確認）
+
+**現状（2026-11-09、読み取り、証拠等級 A）:** Job `docunavi-history-cleanup` は `--older-than-days 7`、`--apply` なし。Postgres の会話は 5 件で、最古は 2026-11-08 10:20 UTC。`history_admin` の件数の表示は、`--older-than-days 1` でも 0 件。
+最初に消えうるのは、2026-11-22 03:00 JST の定期実行（日曜）。2026-11-15 03:00 JST の実行は、最古の会話がまだ 7 日未満なので 0 件（最後の動きから 7 日たった会話だけが対象）。
+
+**案:** 2026-11-21 までに `--apply` を戻す（最初に消える可能性がある実行は 2026-11-22 03:00 JST。そのときは毎日のバックアップが約 14 日ぶんあり、別の pgvector への復元は確認済み。Prisma への復元は未確認）。急ぎではない（いま消える会話は無い）。
+
+**戻す前の確認:**
+1. 日数を決める。方針は 90 日（[configuration.md](configuration.md)）、Job は最初の決定（2026-10-20）の 7 日のまま。どちらにするかは利用者の決定。
+2. 直前の件数の確認（書かない）: `python -m app.history_admin --older-than-days <日数>`（または Job を手動で 1 回実行して、ログの「対象の会話: N 件」を見る）。
+3. 直近 24 時間以内のバックアップが R2 にあること（[pg-backup.md](pg-backup.md)）。
+4. Job が使う DB の接続（Secret `database-url`）の役割に、`checkpoints` と `checkpoint_writes` の DELETE 権限があること。**未確認**（読み取りの権限では見えない）。最初の `--apply` は、既知の 1 会話に `--thread-id` で試すのが安全。
+5. Scheduler `docunavi-history-cleanup-weekly` が有効で、日曜 03:00 JST のままであること（`gcloud scheduler jobs describe …`。閲覧用の権限では読めない）。
+6. 戻す: `as_me gcloud run jobs update docunavi-history-cleanup --project docunavi-app --region asia-northeast1 --args=-m,app.history_admin,--older-than-days,<日数>,--apply`。
+7. 戻した後: 次の実行のログで「削除した会話: N 件」と、削除後の `/chat` と会話一覧が動くこと。あわせて [deploy.md](deploy.md) の D と [configuration.md](configuration.md) の該当の記述を直す。
+
+### 5. `budget-guard` の `DRY_RUN` を `false` に戻す条件と、戻す前の確認
+
+**現状（2026-11-09、読み取り、証拠等級 A）:** リビジョン `budget-guard-00004-b7r`、`DRY_RUN=true`。ログの「would disable billing」は 2026-11-01 01:02〜01:10 UTC に集中し（費用 1004〜1051 に対して予算 1000.0）、それ以降はない。
+2026-11-01 00:30:59 UTC の再発は、同じ月の費用がすでに予算を超えた状態で課金を紐づけ直したためと読める（ログの費用が予算を超えていたことと、上の G の注意「同じ月に予算を超えたままだと、再び紐づけた直後に止まる」に合う。推測）。同じ 0.2 秒の間に「billing disabled」と、`resourcemanager.projects.deleteBillingAssignment` の 403 が両方出ている。403 の理由は**未確認**。
+
+**戻す条件（利用者の決定）:**
+1. いまの予算額（ログでは 1000.0。ロードマップは月 ¥3,000 としていた）と、通貨・対象の範囲を、Console で確かめて決める。
+2. 止まる影響を受け入れる。いまの本番は、課金が外れると Cloud Run の API・MCP と埋め込み（Vertex）が止まる（画面と認証の Worker、Prisma Postgres は GCP の外）。復旧は手動で、リソースが消えることがある（公式の警告）。
+3. 課金を外す権限が、本番のプロジェクトで通ること。2026-10-20 に別のプロジェクトで `roles/billing.admin` だけで外れたが、`docunavi-app` では 2026-11-01 に 403 が出ている。理由を特定する（未確認）。
+4. 止まったあとの戻し方（`budget-guard-disarm`、または課金の再紐づけ）が実際に通ること。`budget-guard-disarm` の動作確認は利用者の報告だけ。
+5. 月の費用が予算に十分届かない状態で切り替える（届いた状態で切り替えると、すぐ止まる）。
+
+**戻す前の確認:** `gcloud run services describe budget-guard`（`DRY_RUN` と PROJECT_ID）、予算の 50・90・100% の通知先 `budget-alerts` に届くこと、直近の月の費用（Console）。切り替えは、上の G の「本番に切り替える」と同じコマンド（`--update-env-vars "DRY_RUN=false"`）。**Pub/Sub への手動の publish はしない**（本物の停止になる）。
+
+### 6. 監視のアラート（通知先としきい値）
+
+ログベース指標 4 つは作成済み（2026-11-09）。アラートは次の 2 つを案にした。**通知先は決めていない（利用者の決定）。** 閲覧用の権限では通知先とアラートの一覧を読めないので、既存のものは未確認。
+
+| アラート | 条件 | 理由 |
+|---|---|---|
+| チャットの失敗 | `chat_failures_total` が 10 分に 3 件以上（[ops/monitoring/alert-chat-failures.yaml](../ops/monitoring/alert-chat-failures.yaml)） | 利用が少ない（`chat_metrics` は 30 日で 2 件）ので、率でなく件数で見る |
+| Cloud Run の 5xx | `docunavi` の 5xx が 5 分に 5 件以上（[ops/monitoring/alert-cloudrun-5xx.yaml](../ops/monitoring/alert-cloudrun-5xx.yaml)） | チャットの指標に載らない失敗（起動・DB の 503 など）を拾う |
+
+通知先を作り（メールの例。アドレスは利用者のもの）、アラートを作る（利用者が `as_me` で実行。YAML の項目は、実際の作成で確かめる。**未確認**）:
+
+```bash
+CH=$(as_me gcloud alpha monitoring channels create --project docunavi-app --display-name "docunavi ops" \
+  --type=email --channel-labels=email_address="$EMAIL" --format='value(name)')
+for f in ops/monitoring/alert-chat-failures.yaml ops/monitoring/alert-cloudrun-5xx.yaml; do
+  as_me gcloud alpha monitoring policies create --project docunavi-app --policy-from-file="$f" --notification-channels="$CH"
+done
+```
+
+指標の値が増えることの確認は、上の 2 の手順 5。失敗時の `status` が本番のログで文字列になることは、本番で失敗が起きるまで受動確認（コードとテストでは文字列。わざと起こすには、0% のリビジョンに誤ったモデル名を渡す方法があるが、本番の指標とアラートに数えられるので、やる前に確認する）。
+
 ## 続き
 
 次の段階（DB）は [roadmap.md](roadmap.md) を参照してください。

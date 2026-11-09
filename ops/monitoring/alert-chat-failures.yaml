@@ -1,0 +1,24 @@
+# チャットの失敗（ログベース指標 chat_failures_total）が、10 分に 3 件以上。通知先は作成のコマンドで渡す（docs/deploy.md の「保留中の運用の準備」）。
+# 値の根拠: 利用が少ない（2026-11-09 時点で本番の chat_metrics は 30 日で 2 件）ので、率ではなく件数で見る。
+displayName: docunavi chat failures (>=3 / 10 min)
+combiner: OR
+conditions:
+  - displayName: chat_failures_total >= 3 in 10 min
+    conditionThreshold:
+      filter: metric.type="logging.googleapis.com/user/chat_failures_total"
+      aggregations:
+        - alignmentPeriod: 600s
+          perSeriesAligner: ALIGN_SUM
+          crossSeriesReducer: REDUCE_SUM
+      comparison: COMPARISON_GT
+      thresholdValue: 2
+      duration: 0s
+      trigger:
+        count: 1
+alertStrategy:
+  autoClose: 1800s
+documentation:
+  mimeType: text/markdown
+  content: |
+    チャットの失敗が 10 分に 3 件以上。ログの `jsonPayload.message="chat_metrics"` と `jsonPayload.status`（429 / 500 / 502 / 504）を見る。
+    見るところは docs/configuration.md の「チャットの指標」と、docs/deploy.md の「確かめる」。

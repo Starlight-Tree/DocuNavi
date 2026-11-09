@@ -1,0 +1,27 @@
+# Cloud Run の docunavi が 5xx を返した件数が、5 分に 5 件以上。チャットの指標に載らない失敗（起動の失敗・DB の 503 など）を拾う。通知先は作成のコマンドで渡す。
+displayName: docunavi Cloud Run 5xx (>=5 / 5 min)
+combiner: OR
+conditions:
+  - displayName: docunavi 5xx >= 5 in 5 min
+    conditionThreshold:
+      filter: >-
+        metric.type="run.googleapis.com/request_count"
+        AND resource.type="cloud_run_revision"
+        AND resource.labels.service_name="docunavi"
+        AND metric.labels.response_code_class="5xx"
+      aggregations:
+        - alignmentPeriod: 300s
+          perSeriesAligner: ALIGN_SUM
+          crossSeriesReducer: REDUCE_SUM
+      comparison: COMPARISON_GT
+      thresholdValue: 4
+      duration: 0s
+      trigger:
+        count: 1
+alertStrategy:
+  autoClose: 1800s
+documentation:
+  mimeType: text/markdown
+  content: |
+    docunavi（API）の 5xx が 5 分に 5 件以上。`gcloud run services logs read docunavi` か、ログで severity>=ERROR を見る。
+    直前に配備していたら、docs/deploy.md の「公開する・戻す」で前のリビジョンへ戻す。
