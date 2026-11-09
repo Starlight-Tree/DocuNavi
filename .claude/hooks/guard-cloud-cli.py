@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """PreToolUse フック: クラウド CLI（gcloud など）と GitHub CLI（gh）の危険な呼び出しを、実行前に止める。
 
-この開発コンテナの gcloud には、ユーザー自身のアカウントでログインする（README の「開発環境の gcloud」）。
-gh には、このリポジトリだけの読み取り専用の細粒度トークンを置く（README の「開発環境の GitHub CLI（gh）」）。
+開発コンテナの gcloud には、ユーザー自身のアカウントでログインし、gh には、読み取り専用の細粒度トークンを置く想定。
 認証情報があるので、誤操作や、取り込んだ文書に埋め込まれた指示による破壊的な操作を、ここで防ぐ。
 
   終了コード 2  … 拒否（理由を標準エラーへ。Claude Code はこの呼び出しを実行せず、理由をモデルに返す）
@@ -32,8 +31,8 @@ sed の s/// と y/// の中の文章は、コマンドとして調べない。
 変数の値やブレース展開の候補が上限（MAX_VALUES / MAX_VARIANTS / BRACE_LIMIT）を超えたら、黙って落とさず、確認にする。
 
 これはセキュリティ境界ではない（コマンド文字列の検査なので、実行時に決まる変数・コマンドの出力に隠した操作、
-ファイルに書いたスクリプトの中身、パスの難読化までは追えない）。gcloud は日常の ID を閲覧専用にする設定と
-GCP 側の保護、gh はトークンの権限（読み取り専用）と組み合わせて使う。異常終了・タイムアウトは settings.json の
+ファイルに書いたスクリプトの中身、パスの難読化までは追えない）。gcloud は日常の ID を閲覧専用にするなどの設定と
+GCP 側の保護、gh はトークンの権限（読み取り専用）と組み合わせて使う。異常終了・タイムアウトは、フックの設定の
 onFailure: "block" で拒否にする。
 """
 
@@ -1297,7 +1296,7 @@ def classify_cli(cli: str, args: list[str]) -> Finding | None:
     for arg in args:
         name = arg.split("=", 1)[0]
         if name in IDENTITY_FLAGS:
-            return Finding("deny", f"ID を切り替えるフラグ（{name}）は使えません。日常の ID は閲覧専用に固定しています。")
+            return Finding("deny", f"ID を切り替えるフラグ（{name}）は使えません。ID の切り替えは、ユーザーが行います。")
     if wants_help(cli, args):
         return None  # ヘルプの表示は、何も実行しない
     if cli == "gh":
@@ -1359,7 +1358,7 @@ def classify_cli(cli: str, args: list[str]) -> Finding | None:
                 break
             flag = arg.split("=", 1)[0]
             if flag in KUBECTL_IDENTITY_FLAGS:
-                return Finding("deny", f"ID を切り替えるフラグ（{flag}）は使えません。日常の ID は閲覧専用に固定しています。")
+                return Finding("deny", f"ID を切り替えるフラグ（{flag}）は使えません。ID の切り替えは、ユーザーが行います。")
             if flag in KUBECTL_TARGET_FLAGS:
                 return Finding("ask", f"接続先や資格情報を変えるフラグ（{flag}）です。内容を確認してください。")
         if group in {"delete", "drain", "replace"}:
@@ -1414,7 +1413,7 @@ def produced_texts(unit: Unit) -> list[str]:
 
 IDENTITY_DROP = Finding(
     "deny",
-    "閲覧専用の ID を固定している環境変数を外す・引き継がない実行（env -u / env -i / unset / sudo / su -l など）は"
+    "日常の ID を固定している環境変数を外す・引き継がない実行（env -u / env -i / unset / sudo / su -l など）は"
     "許可していません。書き込みが必要なら、ユーザーが実行します。",
 )
 
@@ -2401,7 +2400,7 @@ def analyze_words(
         # 標準入力で受け取ったスクリプトも、sudo / su の下では ID を引き継がない（下の IDENTITY_DROP の判定に使う）
         inner_scripts += stdin_script_checks(unit, units, idx, text, reads_stdin_script, sub, findings)
 
-    # 日常の ID（環境変数で固定した閲覧専用のなりすまし）を外す・引き継がない実行
+    # 日常の ID（環境変数で固定したなりすまし）を外す・引き継がない実行
     unset_names, clears_env = env_changes(words[: index + 1])  # env - のように、プログラムの位置に来る "-" も含める
     if any(IDENTITY_ENV.match(name) for name in unset_names):
         findings.append(IDENTITY_DROP)
