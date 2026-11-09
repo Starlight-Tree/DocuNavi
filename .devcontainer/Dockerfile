@@ -126,3 +126,20 @@ RUN --mount=type=cache,target=/var/cache/infisical-cli-dl,sharing=locked \
     dpkg -i "${file}"; \
     HOME=/tmp/infisical-build INFISICAL_DISABLE_TELEMETRY=true INFISICAL_DISABLE_UPDATE_CHECK=true infisical --version; \
     rm -rf /tmp/infisical-build
+
+# Claude Code CLI（2026-11-09）。公式の配布物（downloads.claude.ai）を、公式 manifest の SHA-256 と照合して /usr/local/bin に置く。版は 2.1.319（2026-11-05 ビルド）。
+# 公式の curl | bash は版を固定できないので使わない。自動更新は無い。上げるときは、版とハッシュを書き換えて再ビルドする（arm64 のハッシュだけを固定している）。
+# VS Code 拡張（anthropic.claude-code）の同梱バイナリとは別物。ログイン情報はイメージに含めない。
+ARG CLAUDE_CODE_VERSION=2.1.319
+ARG CLAUDE_CODE_SHA256_ARM64=a7e687fd1cb054d651c7588223de3786c99d4c682365e3c3ae1e59ce7f3a591f
+RUN set -eu; \
+    case "$(uname -m)" in \
+      aarch64 | arm64) expected="${CLAUDE_CODE_SHA256_ARM64}"; platform=linux-arm64 ;; \
+      *) echo "未対応のアーキテクチャです: $(uname -m)（arm64 のハッシュだけを固定している）" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/claude "https://downloads.claude.ai/claude-code-releases/${CLAUDE_CODE_VERSION}/${platform}/claude"; \
+    echo "${expected}  /tmp/claude" | sha256sum -c -; \
+    install -m 755 /tmp/claude /usr/local/bin/claude; \
+    rm -f /tmp/claude; \
+    HOME=/tmp/claude-build claude --version; \
+    rm -rf /tmp/claude-build
