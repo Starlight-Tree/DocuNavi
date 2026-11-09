@@ -1,17 +1,20 @@
-"""会話履歴（D1）の保守コマンド: 保存期間を過ぎた会話の削除と、1 件の会話の削除。
+"""会話履歴（Postgres。`DB_BACKEND=d1` なら D1）の保守コマンド: 保存期間を過ぎた会話の削除と、1 件の会話の削除。
 
-アプリ本体（`app/main.py`）からは使わない。運用者が、アプリと同じ `D1_API_URL` / `D1_API_TOKEN`（`.env` も読む）で手元・ジョブから実行する。
+アプリ本体（`app/main.py`）からは使わない。運用者が、アプリと同じ接続設定（`DB_BACKEND=pg` は `DATABASE_URL`、`d1` は `D1_API_URL` / `D1_API_TOKEN`。`.env` も読む）で手元・ジョブから実行する。
+本番は Postgres で、Cloud Run の Job `docunavi-history-cleanup` が `--older-than-days 7`（`--apply` なし）で動かしている。
 既定は確認だけで、何も消さない。`--apply` を付けたときだけ削除する。
 
+    python -m app.history_admin                                  # 7 日（既定）以上動きのない会話の数を表示する
     python -m app.history_admin --older-than-days 30             # 30 日以上動きのない会話の数を表示する
     python -m app.history_admin --older-than-days 30 --apply     # それらを削除する
     python -m app.history_admin --thread-id <thread_id> --apply  # 1 件の会話を削除する
 
+日数を省くと 7 日（`DEFAULT_OLDER_THAN_DAYS`）。`--thread-id` と `--older-than-days` は同時に指定できない。
 「動きのない」は、会話の最新のチェックポイントの書き込み時刻（`checkpoints.created_at`）で決める。
 表示するのは件数だけで、`thread_id` は出さない（知っていれば会話を続けられる値のため）。
 一覧を取ってから消すまでの間に新しい発言が入った会話も消えうる。保存期間を日単位で決める用途なので許容している。
 
-終了コード: 0 = 完了、1 = DB に接続できない・テーブルが無いなどの失敗、2 = 使い方の誤り・D1_API_URL 未設定。
+終了コード: 0 = 完了、1 = DB に接続できない・テーブルが無いなどの失敗、2 = 使い方の誤り・接続先（`DATABASE_URL` か `D1_API_URL`）の未設定。
 """
 
 import argparse
@@ -23,6 +26,8 @@ from dotenv import load_dotenv
 from app.d1 import D1Error, SyncD1
 from app.history import database_url
 from app.pg import sync_client
+
+DEFAULT_OLDER_THAN_DAYS = 7
 
 _STALE_THREADS_SQL = """
 SELECT thread_id
@@ -38,9 +43,12 @@ def _parser() -> argparse.ArgumentParser:
         prog="python -m app.history_admin",
         description="会話履歴の削除（既定は確認だけ。--apply で削除する）",
     )
-    target = parser.add_mutually_exclusive_group(required=True)
+    target = parser.add_mutually_exclusive_group()
     target.add_argument(
-        "--older-than-days", type=int, metavar="N", help="N 日以上動きのない会話を対象にする（N は 1 以上）"
+        "--older-than-days",
+        type=int,
+        metavar="N",
+        help=f"N 日以上動きのない会話を対象にする（N は 1 以上。既定 {DEFAULT_OLDER_THAN_DAYS}）",
     )
     target.add_argument("--thread-id", metavar="ID", help="この 1 件の会話を対象にする")
     parser.add_argument("--apply", action="store_true", help="実際に削除する（無ければ件数を表示するだけ）")
@@ -56,6 +64,8 @@ def _find_threads(db, args: argparse.Namespace) -> list[str]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.thread_id is None and args.older_than_days is None:
+        args.older_than_days = DEFAULT_OLDER_THAN_DAYS
     if args.older_than_days is not None and args.older_than_days < 1:
         print("--older-than-days は 1 以上にしてください。", file=sys.stderr)
         return 2
