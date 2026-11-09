@@ -2,7 +2,8 @@ name: Deploy
 
 # Cloudflare の 2 つの Worker（データ用 docunavi-api と画面用 docunavi-web）を、手動の実行で本番へデプロイする。
 # ・自動では起動しない（workflow_dispatch だけ）。main の CI が成功したことは、実行する人が確かめる。
-# ・Environment「production」の必須レビュアーの承認を待つ（承認するまで、本番には何も書かない）。
+# ・Environment「production」の必須レビュアーは、無料プランの非公開リポジトリでは効かない（2026-11-09 に、起動の 3 秒後に承認なしで始まった）。
+#   承認は、起動する前に、利用者の明示の承認を得る（CLAUDE.md の「CI」）。OIDC の Subject は environment:production に固定してある。
 # ・Cloudflare の API トークンは GitHub に置かない。GitHub の OIDC トークンで Infisical にログインし、実行時に取る。
 #   Infisical のマシン ID は、Subject を environment:production に固定している（設定の値は .claude/rules/secrets.md）。
 # ・Worker の秘密（wrangler secret put）は扱わない。値を変えるときだけ、手元で workers/api/deploy.sh を使う。

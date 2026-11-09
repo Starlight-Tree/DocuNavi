@@ -33,5 +33,5 @@
 - Cloudflare の API トークン: アカウントに限定。権限は Workers Scripts: Edit と D1: Edit から始め、足りなければ足す。有効期限は 90 日。
   期限前に作り直し、Infisical の値を更新する。IP 制限は、GitHub のランナーの IP が不定なので使えない。
   現在のトークン `docunavi-github-actions-deploy` は 2026-11-08 に作成し、**期限は 2027-02-06**（作り直しは 2027-01 中）。
-- GitHub: Environment `production` に必須レビュアー（ユーザー）、Variable `INFISICAL_IDENTITY_ID`（公開してよい ID）。
+- GitHub: Environment `production`（必須レビュアーは、無料プランの非公開リポジトリでは効かない。2026-11-09 に承認なしで始まった。承認は起動前の会話で取る）、Variable `INFISICAL_IDENTITY_ID`（公開してよい ID）。
 - 無料プランで OIDC Auth が使えることは、ユーザーが判断した（公式の文書では確認できていない。2026-11-08）。使えなくなったら、この経路は止まる。

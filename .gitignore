@@ -42,3 +42,4 @@ evals/results/graph_rules_ext_compare.json
 
 # langgraph dev のローカル状態
 .langgraph_api/
+.github-app.env
