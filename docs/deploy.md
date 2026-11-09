@@ -892,14 +892,14 @@ LLM と埋め込みを使う（課金される）。回数は、割り当て中�
 
 ### 6. 監視のアラート（通知先としきい値）
 
-ログベース指標 4 つは作成済み（2026-11-09）。アラートは次の 2 つを案にした。**通知先は決めていない（利用者の決定）。** 閲覧用の権限では通知先とアラートの一覧を読めないので、既存のものは未確認。
+ログベース指標 4 つは作成済み（2026-11-09）。アラートは次の 2 つ。**作成した（2026-11-09、利用者が実行。通知先は利用者宛てのメール `docunavi ops` 1 件）。** 閲覧用の権限では通知先とアラートの一覧を読めないので、作成の確認は利用者が貼った一覧（アラート 2 本、有効、通知先 1 件ずつ。証拠等級は利用者の報告）による。重複して作られた 2 本は、利用者が削除した。通知先の確認メールを押したかと、実際に通知が届くかは未確認。
 
 | アラート | 条件 | 理由 |
 |---|---|---|
 | チャットの失敗 | `chat_failures_total` が 10 分に 3 件以上（[ops/monitoring/alert-chat-failures.yaml](../ops/monitoring/alert-chat-failures.yaml)） | 利用が少ない（`chat_metrics` は 30 日で 2 件）ので、率でなく件数で見る |
 | Cloud Run の 5xx | `docunavi` の 5xx が 5 分に 5 件以上（[ops/monitoring/alert-cloudrun-5xx.yaml](../ops/monitoring/alert-cloudrun-5xx.yaml)） | チャットの指標に載らない失敗（起動・DB の 503 など）を拾う |
 
-通知先を作り（メールの例。アドレスは利用者のもの）、アラートを作る（利用者が `as_me` で実行。YAML の項目は、実際の作成で確かめる。**未確認**）:
+作成に使ったコマンド（記録。同じ名前で 2 回作ると重複する。作り直すときは、先に一覧で確かめる。1 回目は `resource.type` が無く失敗した。直して `819c1af`）:
 
 ```bash
 CH=$(as_me gcloud alpha monitoring channels create --project docunavi-app --display-name "docunavi ops" \
