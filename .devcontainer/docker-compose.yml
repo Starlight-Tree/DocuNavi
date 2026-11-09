@@ -34,6 +34,8 @@ services:
       # 消し方と再設定は .devcontainer/README.md の「開発環境の Infisical」。
       - infisical-config:/home/vscode/.infisical
       - playwright-browsers:/home/vscode/.cache/ms-playwright
+      # Project Manager の projects.json（docunavi と hoshiniwa-job で共有。資格情報は入れない）。
+      - shared-project-manager:/home/vscode/.project-manager
       # 星庭ジョブ（別プロジェクト）のリポジトリ（2026-10-28 に追加。ユーザーの承認済み）。
       # 作業ツリーは書き込み可能（2026-11-01 に `:ro` を外した。ユーザーの承認済み。星庭ジョブのリポジトリ整備のため）。
       # 以前は読み取り専用だった。星庭ジョブの api は --reload なので、ファイルを書き換えると、ホストで動いている環境がすぐ変わる。
@@ -118,3 +120,8 @@ volumes:
     name: infisical-config-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
   playwright-browsers:
     name: playwright-browsers-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
+  # 新規。docunavi と hoshiniwa-job の両方が、同じ名前で参照する（Project Manager の projects.json だけ）。
+  # external: ホストで 1 回 `docker volume create devcontainer-shared-project-manager` を実行してから起動する（無いと起動に失敗する）。
+  shared-project-manager:
+    name: devcontainer-shared-project-manager
+    external: true
