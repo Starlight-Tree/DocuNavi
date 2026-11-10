@@ -21,6 +21,7 @@ from app.api.routes import router  # noqa: E402
 from app.api.threads import router as threads_router  # noqa: E402
 from app.auth import verify_auth_config  # noqa: E402
 from app.history import history_store  # noqa: E402
+from app.pg import StatementCountMiddleware  # noqa: E402
 from app.search import vector as search_vector  # noqa: E402
 
 _APP_LOG_HANDLER = "app-log"
@@ -85,6 +86,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(StatementCountMiddleware)  # リクエストごとの SQL の本数をログに残す（`[計測] DB …`）
 app.include_router(router)
 app.include_router(documents_router)
 app.include_router(collections_router)
