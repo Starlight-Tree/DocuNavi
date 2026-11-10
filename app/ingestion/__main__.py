@@ -131,6 +131,7 @@ def _run(args: argparse.Namespace, input_path: Path) -> int:
         print("--apply には D1_API_URL と D1_API_TOKEN が要ります（未設定です）。", file=sys.stderr)
         return 2
 
+    statements = None
     if not url:
         reports = ingest(paths, input_path, MemoryRepository(), apply=False, collection=args.collection)
     else:
@@ -138,6 +139,7 @@ def _run(args: argparse.Namespace, input_path: Path) -> int:
             with sync_client(SyncD1, url) as client:
                 repo = D1Repository(client)
                 reports = ingest(paths, input_path, repo, apply=args.apply, collection=args.collection)
+                statements = getattr(client, "statements", None)
         except D1Error as exc:
             # 例外の文字列に URL・トークンは入れていない（型と HTTP ステータスだけ）
             print(f"DB の操作に失敗しました（{exc}）。", file=sys.stderr)
@@ -148,6 +150,11 @@ def _run(args: argparse.Namespace, input_path: Path) -> int:
     failed = sum(1 for r in reports if r.status == "failed")
     suffix = "" if args.apply else "（確認だけ。何も保存していません。--apply で保存します）"
     print(f"文書 {len(reports)} 件、取り込めなかった文書 {failed} 件{suffix}")
+    if args.apply:
+        saved = sum(1 for r in reports if r.saved)
+        print(f"保存した文書 {saved} 件、変更がなく保存を省いた文書 {len(reports) - failed - saved} 件")
+    if statements is not None:
+        print(f"[計測] 取り込みが流した SQL: {statements} 本")
     return 3 if failed else 0
 
 

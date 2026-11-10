@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.ingestion.chunker import chunk_pages
 from app.ingestion.pdf_parser import IngestionError, extract_pages, extract_title
-from app.ingestion.repository import Repository, diff_counts
+from app.ingestion.repository import DocumentState, Repository, diff_counts
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,7 @@ class DocumentReport:
     collection: str | None = (
         None  # 保存する資料群の名前（入力のディレクトリ名、または --collection。決まらなければ None）
     )
+    saved: bool = False  # 保存の SQL を流したか（変更のない文書は、読むだけで流さない）
 
 
 # 資料群の名前の形。DB の制約（workers/api/migrations/0001_schema.sql）と同じ
@@ -50,6 +51,20 @@ def source_name(path: Path, root: Path) -> str:
     """保存先での文書の識別子。入力のディレクトリからの相対パス（ファイル 1 つなら、ファイル名）。"""
     base = root if root.is_dir() else root.parent
     return path.relative_to(base).as_posix()
+
+
+def _is_current(
+    state: DocumentState | None, file_hash: str, pages: int, title: str | None, collection: str | None
+) -> bool:
+    """保存済みの行が、今回保存する値と同じか（同じなら保存の SQL は要らない）。"""
+    return (
+        state is not None
+        and state.status == "ready"
+        and state.content_hash == file_hash
+        and state.pages == pages
+        and state.title == title
+        and (collection is None or state.collection == collection)
+    )
 
 
 def ingest_file(
@@ -78,11 +93,16 @@ def ingest_file(
     else:
         status = "updated" if apply else "would_update"
 
-    if apply:
-        # 内容が同じでも保存する。直前に failed と記録されていれば ready に戻る（チャンクの行は、ハッシュが同じなら触らない）
+    saved = False
+    if apply and not (
+        stored == new_hashes and _is_current(repo.document_state(source), file_hash, len(pages), title, collection)
+    ):
+        # 変更があるとき（チャンク・ファイル・ページ数・題名・資料群のどれか）と、直前に failed と記録されていたとき（ready に戻す）だけ保存する。
+        # 変更のない文書を毎回書き直すと、毎時の突き合わせが全チャンクの UPDATE を流す（2026-11-10 のログから推計で約 2,700 本 / 回。実測は --watch）
         # 題名は PDF の /Title をそのまま渡す。PDF に題名が無ければ None で、保存済みの題名も消える（PDF が正）
         # 資料群は、決まっているときだけ上書きする（None なら、保存済みの値を残す）
         repo.save(source, file_hash, len(pages), chunks, title=title, collection=collection)
+        saved = True
 
     return DocumentReport(
         source=source,
@@ -94,6 +114,7 @@ def ingest_file(
         removed_chunks=removed,
         title=title,
         collection=collection,
+        saved=saved,
     )
 
 
@@ -102,4 +123,6 @@ def ingest(
 ) -> list[DocumentReport]:
     """collection を渡さなければ、入力のディレクトリ名（`collection_name`）を資料群の名前にする。"""
     name = collection if collection is not None else collection_name(root)
-    return [ingest_file(p, source_name(p, root), repo, apply=apply, collection=name) for p in paths]
+    files = [(p, source_name(p, root)) for p in paths]
+    repo.prefetch([source for _, source in files])  # 文書ごとに読まず、まとめて 2 本で読む
+    return [ingest_file(p, source, repo, apply=apply, collection=name) for p, source in files]

@@ -271,6 +271,7 @@ class SyncPg:
         if not self._url:
             raise D1Error("DATABASE_URL が設定されていません")
         self._conn: psycopg.Connection | None = None
+        self.statements = 0  # 流した SQL の本数（Prisma Postgres の operations の見積り。取り込みの CLI が最後に出す）
 
     def __enter__(self) -> "SyncPg":
         try:
@@ -297,6 +298,7 @@ class SyncPg:
             with self._db().transaction():
                 for sql, params in statements:
                     bound = _encode_params(params)
+                    self.statements += 1
                     cur = self._db().execute(translate(sql, bound is not None), bound)
                     results.append(_shape(cur.fetchall()) if cur.description is not None else [])
         except psycopg.Error as exc:
@@ -311,6 +313,7 @@ class SyncPg:
         try:
             with self._db().transaction():
                 for v in vectors:
+                    self.statements += 1
                     self._db().execute(
                         "UPDATE chunks SET embedding = %s::vector WHERE id = %s",
                         [_vector_literal(v["values"]), int(v["id"])],
