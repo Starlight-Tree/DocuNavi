@@ -87,13 +87,10 @@
 
 	// コンテナの作成・再ビルド時に自動でインストールする拡張機能。
 	// Python 系は features/python も入れるが、設定ファイルの python.analysis.* を使うので明示しておく
-	// settings: Container Tools の一覧の見出しを、イメージ名（既定の FullTag。開発コンテナは vsc-docunavi-<ハッシュ>）ではなく
-	// コンテナ名にする。右側の説明は、見出しと重なるコンテナ名をやめて状態だけにする。キーは拡張 2.5.3 の package.json で確認。
+	// Container Tools の一覧の表示（グループ・見出し・説明）は、.vscode/settings.json に置く（ホストでフォルダーを開いたときにも効かせるため）。
 	"customizations": {
 		"vscode": {
 			"settings": {
-				"containers.containers.label": "ContainerName",
-				"containers.containers.description": ["Status"],
 				// VS Code の AI 機能（GitHub Copilot のチャットなど）を、この開発コンテナでは無効にする（ユーザーが決定、2026-11-02）。Claude Code の拡張は別物
 				"chat.disableAIFeatures": true
 			},
