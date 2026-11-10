@@ -43,13 +43,21 @@ _DETAIL_NOT_AVAILABLE = "会話の一覧は、ログイン（AUTH_MODE=required�
 _DETAIL_NOT_FOUND = "指定された会話が見つかりません。"
 _DETAIL_UNAVAILABLE = "会話履歴を操作できませんでした。しばらく待ってから再試行してください。"
 
-# 一覧の元になる、会話ごとの最初と最後のチェックポイントの時刻。prefix は `<利用者 ID>:`（UUID で検証済み）
-# checkpoint は base64 の文字列で持つので、時刻は checkpoints.created_at（UNIX ミリ秒。書き込み時刻）を使う。
-# prefix は `<利用者 ID>:`（UUID で検証済み）。LIKE のワイルドカードを含まないので、先頭一致に使える
+# 一覧の元になる、会話ごとの最初と最後のチェックポイントの時刻と、最新のチェックポイント本体（題名の元）を、1 回で取る。
+# checkpoint は bytea で持つので、時刻は checkpoints.created_at（timestamptz。`app/pg.py` が UNIX ミリ秒にして返す）を使う。
+# prefix は `<利用者 ID>:`（UUID で検証済み）。LIKE のワイルドカードを含まないので、先頭一致に使える。
+# 最新 = checkpoint_id の最大（`aget_tuple` の `ORDER BY checkpoint_id DESC LIMIT 1` と同じ列・同じ照合順序。主キーなので 1 行に決まる）。
+# 集計で最大の ID を取り、主キー（thread_id, checkpoint_ns, checkpoint_id）で本体を引く（LATERAL は使わない）。
+# 外側の ORDER BY は必須（CTE の並びは JOIN のあとに保証されない）。同時刻のときは thread_id の昇順（従来と同じ）。
 _LIST_SQL = (
-    "SELECT thread_id, min(created_at) AS created_at, max(created_at) AS updated_at "
-    "FROM checkpoints WHERE substr(thread_id, 1, length(%(prefix)s)) = %(prefix)s AND checkpoint_ns = '' "
-    "GROUP BY thread_id ORDER BY max(created_at) DESC, thread_id LIMIT %(limit)s"
+    "WITH recent AS ("
+    " SELECT thread_id, min(created_at) AS created_at, max(created_at) AS updated_at, max(checkpoint_id) AS latest_id"
+    " FROM checkpoints WHERE substr(thread_id, 1, length(%(prefix)s)) = %(prefix)s AND checkpoint_ns = ''"
+    " GROUP BY thread_id ORDER BY max(created_at) DESC, thread_id LIMIT %(limit)s) "
+    "SELECT r.thread_id, r.created_at, r.updated_at, c.type, c.checkpoint "
+    "FROM recent r JOIN checkpoints c "
+    "ON c.thread_id = r.thread_id AND c.checkpoint_ns = '' AND c.checkpoint_id = r.latest_id "
+    "ORDER BY r.updated_at DESC, r.thread_id"
 )
 
 
@@ -161,11 +169,26 @@ def _from_ms(value: Any) -> datetime | None:
     return None
 
 
-async def _recent_threads_postgres(prefix: str) -> list[tuple[str, datetime | None, datetime | None]]:
+async def _recent_threads_postgres(
+    prefix: str, saver: Any | None = None
+) -> list[tuple[str, datetime | None, datetime | None, list[Any]]]:
+    """新しい順の会話（最大 MAX_THREADS 件）と、各会話の最新のチェックポイントの発言。DB への問い合わせは、会話の数によらず 1 回。
+
+    saver（`load_checkpoint` を持つ PgSaver / D1Saver）を渡すと、最新のチェックポイントを復号して発言を返す（復号できなければ例外）。
+    渡さなければ復号せず、発言は空（時刻だけ読む呼び出し用）。
+    """
     async with get_pool().connection() as conn:
         cursor = await conn.execute(_LIST_SQL, {"prefix": prefix, "limit": MAX_THREADS})
         rows = await cursor.fetchall()
-    return [(row["thread_id"], _from_ms(row["created_at"]), _from_ms(row["updated_at"])) for row in rows]
+    return [
+        (
+            row["thread_id"],
+            _from_ms(row["created_at"]),
+            _from_ms(row["updated_at"]),
+            [] if saver is None else saver.load_checkpoint(row).get("channel_values", {}).get("messages", []),
+        )
+        for row in rows
+    ]
 
 
 async def _recent_threads_memory(saver: BaseCheckpointSaver, prefix: str) -> list[tuple[str, Any, Any]]:
@@ -200,15 +223,21 @@ async def list_threads(user_id: Annotated[str | None, Depends(current_user)]) ->
         )
 
     try:
-        rows = (
-            await _recent_threads_postgres(prefix)
-            if get_pool() is not None
-            else await _recent_threads_memory(saver, prefix)
-        )
-        threads = await asyncio.gather(*(summarize(*row) for row in rows))
+        if get_pool() is not None:
+            # Postgres: 題名の元は一覧と同じ 1 回の問い合わせで届く（会話ごとの aget_tuple は呼ばない）
+            found = await _recent_threads_postgres(prefix, saver)
+            threads = [
+                ThreadSummary(
+                    thread_id=key[len(prefix) :], title=make_title(messages), created_at=created, updated_at=updated
+                )
+                for key, created, updated, messages in found
+            ]
+        else:
+            rows = await _recent_threads_memory(saver, prefix)
+            threads = list(await asyncio.gather(*(summarize(*row) for row in rows)))
     except Exception as exc:  # noqa: BLE001 - 固定メッセージにする
         raise _unavailable(exc) from None
-    return ThreadList(threads=list(threads))
+    return ThreadList(threads=threads)
 
 
 @router.get("/{thread_id}/messages", response_model=MessageList)

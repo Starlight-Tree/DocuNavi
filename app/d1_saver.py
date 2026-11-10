@@ -68,12 +68,16 @@ class D1Saver(BaseCheckpointSaver[str]):
         )[0]
         return [(r["task_id"], r["channel"], self.serde.loads_typed((r["type"], self._dec(r["value"])))) for r in rows]
 
+    def load_checkpoint(self, row: dict[str, Any]) -> Checkpoint:
+        """`checkpoints` の 1 行（type と checkpoint の列）から、チェックポイント本体を復号する。壊れていれば例外。"""
+        return cast(Checkpoint, self.serde.loads_typed((row["type"], self._dec(row["checkpoint"]))))
+
     async def _tuple(self, row: dict[str, Any], config: RunnableConfig | None = None) -> CheckpointTuple:
         thread_id, ns, checkpoint_id = row["thread_id"], row["checkpoint_ns"], row["checkpoint_id"]
         parent = row["parent_checkpoint_id"]
         return CheckpointTuple(
             config or self._cfg(thread_id, ns, checkpoint_id),
-            self.serde.loads_typed((row["type"], self._dec(row["checkpoint"]))),
+            self.load_checkpoint(row),
             self._meta_load(row["metadata"]),
             self._cfg(thread_id, ns, parent) if parent else None,
             await self._writes(thread_id, ns, checkpoint_id),

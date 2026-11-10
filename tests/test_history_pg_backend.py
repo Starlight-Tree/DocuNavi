@@ -447,6 +447,81 @@ def test_pg_saver_keeps_a_conversation_and_deletes_it(pg_url):
 
 
 @needs_pg
+def test_thread_list_is_one_query_and_matches_aget_tuple_on_postgres(pg_url, monkeypatch):
+    """GET /threads の Postgres の経路。最新のチェックポイントは aget_tuple と同じ（checkpoint_id の最大）。問い合わせは 1 回。"""
+    from langchain_core.messages import AIMessage, HumanMessage
+    from langgraph.graph import END, START, MessagesState, StateGraph
+
+    from app.api import threads
+    from app.pg_saver import PgSaver
+
+    def reply(state: MessagesState):
+        return {"messages": [AIMessage(content=f"answer {len(state['messages'])}")]}
+
+    builder = StateGraph(MessagesState)
+    builder.add_node("reply", reply)
+    builder.add_edge(START, "reply")
+    builder.add_edge("reply", END)
+
+    def cfg(thread_id: str) -> dict:
+        return {"configurable": {"thread_id": thread_id}}
+
+    async def run():
+        pool = PgPool(pg_url)
+        await pool.open()
+        try:
+            saver = PgSaver(pool)
+            graph = builder.compile(checkpointer=saver)
+            # 作った順: t1（1 回目）→ t2 → t3 → t1（2 回目）。新しい順は t1, t3, t2
+            await graph.ainvoke({"messages": [HumanMessage("first of t1")]}, cfg("u1:t1"))
+            await graph.ainvoke({"messages": [HumanMessage("first of t2")]}, cfg("u1:t2"))
+            await graph.ainvoke({"messages": [HumanMessage("first of t3")]}, cfg("u1:t3"))
+            await graph.ainvoke({"messages": [HumanMessage("second of t1")]}, cfg("u1:t1"))
+            await graph.ainvoke({"messages": [HumanMessage("other user")]}, cfg("u2:t1"))
+            await graph.ainvoke(
+                {"messages": [HumanMessage("prefix lookalike")]}, cfg("u10:t9")
+            )  # "u1" で始まるが "u1:" ではない
+
+            calls: list[Any] = []
+            real_batch = pool.batch
+
+            async def counting_batch(statements):
+                calls.append(statements)
+                return await real_batch(statements)
+
+            monkeypatch.setattr(pool, "batch", counting_batch)
+            monkeypatch.setattr(threads, "get_pool", lambda: pool)
+            listed = await threads._recent_threads_postgres("u1:", saver)
+            queries = len(calls)
+            monkeypatch.setattr(threads, "MAX_THREADS", 2)
+            capped = await threads._recent_threads_postgres("u1:", saver)
+            monkeypatch.undo()
+
+            latest = {key: await saver.aget_tuple(cfg(key)) for key, *_ in listed}
+            return listed, queries, capped, latest
+        finally:
+            await pool.close()
+
+    listed, queries, capped, latest = asyncio.run(run())
+
+    assert queries == 1  # 会話が 3 件でも 1 回
+    assert [key for key, *_ in listed] == ["u1:t1", "u1:t3", "u1:t2"]  # 新しい順。他の利用者・接頭辞が似た会話は出ない
+    assert [key for key, *_ in capped] == ["u1:t1", "u1:t3"]  # MAX_THREADS
+    for key, created, updated, messages in listed:
+        expected = latest[key].checkpoint["channel_values"]["messages"]  # aget_tuple が返す最新のチェックポイント
+        assert [m.content for m in messages] == [m.content for m in expected]
+        assert created is not None and updated is not None and created <= updated
+    t1 = listed[0][3]
+    assert [m.content for m in t1] == [
+        "first of t1",
+        "answer 1",
+        "second of t1",
+        "answer 3",
+    ]  # 最新の状態（2 回目のあと）
+    assert threads.make_title(t1) == "first of t1"
+
+
+@needs_pg
 def test_the_checkpoint_metadata_filter_runs_on_postgres(pg_url):
     from langgraph.checkpoint.base import empty_checkpoint
 
