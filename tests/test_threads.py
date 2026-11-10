@@ -5,12 +5,14 @@
 
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app import auth
 from app.api import routes, threads
+from app.pg_saver import PgSaver
 from tests.test_auth import AUTH_BASE_URL, Clock, JwksServer, Signer
 
 
@@ -287,3 +289,121 @@ def test_store_failure_is_a_fixed_503(client, required, signer, user, monkeypatc
     assert res.status_code == 503
     assert res.json()["detail"] == "会話履歴を操作できませんでした。しばらく待ってから再試行してください。"
     assert "SECRET" not in res.text
+
+
+# --- Postgres の経路: 会話の数によらず 1 回の問い合わせ -------------------------------------
+# 本物の Postgres での SQL の実行と、aget_tuple との一致は tests/test_history_pg_backend.py（PG_TEST_URL が要る）。
+# ここは、偽の接続で「問い合わせの回数」と「応答の形」を確かめる（Postgres は要らない）。
+
+
+class _CountingPool:
+    """`get_pool()` の偽物。`connection().execute()` の呼び出しを記録し、決めた行を返す。"""
+
+    def __init__(self, rows: list[dict]) -> None:
+        self.rows = rows
+        self.statements: list[tuple[str, object]] = []
+
+    @asynccontextmanager
+    async def connection(self):
+        pool = self
+
+        class _Cursor:
+            async def fetchall(self) -> list[dict]:
+                return pool.rows
+
+        class _Connection:
+            async def execute(self, sql, params=None):
+                pool.statements.append((sql, params))
+                return _Cursor()
+
+        yield _Connection()
+
+
+def _checkpoint_row(key: str, created_ms: int, updated_ms: int, messages: list) -> dict:
+    """`threads._LIST_SQL` が返す 1 行（最新のチェックポイントは、実際の PgSaver と同じ直列化）。"""
+    type_, blob = PgSaver(None).serde.dumps_typed({"channel_values": {"messages": messages}})
+    return {"thread_id": key, "created_at": created_ms, "updated_at": updated_ms, "type": type_, "checkpoint": blob}
+
+
+@pytest.fixture
+def pg_path(monkeypatch):
+    """Postgres の経路（get_pool() が None でない）に入り、行を差し込める。"""
+
+    def install(rows: list[dict]) -> _CountingPool:
+        pool = _CountingPool(rows)
+        monkeypatch.setattr(threads, "get_pool", lambda: pool)
+        monkeypatch.setattr(threads, "_saver", lambda: PgSaver(pool))
+        return pool
+
+    return install
+
+
+@pytest.mark.parametrize("count", [0, 1, 3, 12])
+def test_postgres_list_is_one_query_whatever_the_number_of_threads(client, required, signer, user, pg_path, count):
+    rows = [
+        _checkpoint_row(
+            f"{user}:t{n}",
+            1_700_000_000_000 + n,
+            1_700_000_100_000 - n * 1000,  # n が小さいほど新しい（SQL が新しい順に並べて返す）
+            [HumanMessage(f"質問 {n}"), AIMessage(f"答え {n}")],
+        )
+        for n in range(count)
+    ]
+    pool = pg_path(rows)
+
+    res = client.get("/threads", headers=_bearer(signer, user))
+
+    assert res.status_code == 200
+    assert len(pool.statements) == 1  # 会話ごとの読み取り（aget_tuple）は走らない
+    sql, params = pool.statements[0]
+    assert sql == threads._LIST_SQL
+    assert params == {"prefix": f"{user}:", "limit": threads.MAX_THREADS}
+    items = res.json()["threads"]
+    assert [item["thread_id"] for item in items] == [
+        f"t{n}" for n in range(count)
+    ]  # 接頭辞は付かない。SQL の並びのまま
+    assert [item["title"] for item in items] == [f"質問 {n}" for n in range(count)]
+    assert all(item["created_at"] and item["updated_at"] for item in items)
+    assert set(items[0]) == {"thread_id", "title", "created_at", "updated_at"} if items else True
+
+
+def test_postgres_title_is_the_first_user_message_of_the_latest_checkpoint(client, required, signer, user, pg_path):
+    messages = [
+        HumanMessage("最初の質問です"),
+        AIMessage("答え 1"),
+        HumanMessage("二つ目の質問です"),
+        AIMessage("答え 2"),
+    ]
+    pg_path([_checkpoint_row(f"{user}:t1", 1_700_000_000_000, 1_700_000_050_000, messages)])
+
+    items = client.get("/threads", headers=_bearer(signer, user)).json()["threads"]
+
+    assert [item["title"] for item in items] == ["最初の質問です"]
+
+
+def test_postgres_list_timestamps_match_the_memory_path_shape(client, required, signer, user, pg_path):
+    pg_path([_checkpoint_row(f"{user}:t1", 1_700_000_000_000, 1_700_000_050_000, [HumanMessage("q")])])
+
+    item = client.get("/threads", headers=_bearer(signer, user)).json()["threads"][0]
+
+    assert item["created_at"] == "2023-11-14T22:13:20Z"
+    assert item["updated_at"] == "2023-11-14T22:14:10Z"
+
+
+def test_postgres_list_with_a_corrupt_checkpoint_is_a_fixed_503(client, required, signer, user, pg_path):
+    secret = "postgresql://user:SECRET@db.internal/postgres"
+    row = {
+        "thread_id": f"{user}:t1",
+        "created_at": 1_700_000_000_000,
+        "updated_at": 1_700_000_050_000,
+        "type": "msgpack",
+        "checkpoint": secret.encode(),  # 復号できない
+    }
+    pool = pg_path([row])
+
+    res = client.get("/threads", headers=_bearer(signer, user))
+
+    assert res.status_code == 503
+    assert res.json()["detail"] == "会話履歴を操作できませんでした。しばらく待ってから再試行してください。"
+    assert "SECRET" not in res.text
+    assert len(pool.statements) == 1
