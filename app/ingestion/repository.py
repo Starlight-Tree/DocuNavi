@@ -8,6 +8,7 @@
 import json
 from collections import Counter
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from app.d1 import MAX_BATCH
@@ -25,7 +26,24 @@ KEEP_TITLE = _KeepTitle()
 Title = str | None | _KeepTitle
 
 
+@dataclass(frozen=True)
+class DocumentState:
+    """保存済みの文書の行（チャンクを除く）。変更のない文書の保存を省く判断に使う。"""
+
+    content_hash: str
+    status: str
+    pages: int
+    title: str | None
+    collection: str | None
+
+
 class Repository(Protocol):
+    def prefetch(self, sources: Sequence[str]) -> None:
+        """これから読む文書の行とチャンクのハッシュを、まとめて読んでおく（文書ごとに読まない。読み取りの本数が文書数に比例しなくなる）。"""
+
+    def document_state(self, source: str) -> DocumentState | None:
+        """保存済みの文書の行。無ければ None。"""
+
     def stored_hashes(self, source: str) -> list[str] | None:
         """保存済みのチャンクのハッシュ（chunk_index の順）。文書が無ければ None。"""
 
@@ -52,6 +70,21 @@ class Repository(Protocol):
 class MemoryRepository:
     def __init__(self) -> None:
         self.documents: dict[str, dict[str, Any]] = {}
+
+    def prefetch(self, sources: Sequence[str]) -> None:
+        return None
+
+    def document_state(self, source: str) -> DocumentState | None:
+        doc = self.documents.get(source)
+        if doc is None:
+            return None
+        return DocumentState(
+            doc.get("content_hash", ""),
+            doc.get("status", ""),
+            doc.get("pages", 0),
+            doc.get("title"),
+            doc.get("collection"),
+        )
 
     def stored_hashes(self, source: str) -> list[str] | None:
         doc = self.documents.get(source)
@@ -93,8 +126,54 @@ class D1Repository:
 
     def __init__(self, client: Any) -> None:
         self._db = client
+        # prefetch した文書（無い文書も None で控える）。保存・失敗の記録をした文書は、控えから外して次の読みで DB を見る
+        self._states: dict[str, DocumentState | None] = {}
+        self._hashes: dict[str, list[str]] = {}
+
+    def prefetch(self, sources: Sequence[str]) -> None:
+        names = sorted(set(sources))
+        if not names:
+            return
+        docs = self._db.execute(
+            "SELECT id, source, content_hash, status, pages, title, collection FROM documents "
+            "WHERE source IN (SELECT value FROM json_each(?))",
+            (json.dumps(names),),
+        )
+        ids = [row["id"] for row in docs]
+        by_doc: dict[int, list[str]] = {i: [] for i in ids}
+        if ids:
+            for row in self._db.execute(
+                "SELECT document_id, content_hash FROM chunks "
+                "WHERE document_id IN (SELECT value FROM json_each(?)) ORDER BY document_id, chunk_index",
+                (json.dumps(ids),),
+            ):
+                by_doc[row["document_id"]].append(row["content_hash"])
+        self._states = {name: None for name in names}
+        self._hashes = {}
+        for row in docs:
+            self._states[row["source"]] = DocumentState(
+                row["content_hash"], row["status"], row["pages"], row["title"], row["collection"]
+            )
+            self._hashes[row["source"]] = by_doc[row["id"]]
+
+    def _forget(self, source: str) -> None:
+        self._states.pop(source, None)
+        self._hashes.pop(source, None)
+
+    def document_state(self, source: str) -> DocumentState | None:
+        if source in self._states:
+            return self._states[source]
+        rows = self._db.execute(
+            "SELECT content_hash, status, pages, title, collection FROM documents WHERE source = ?", (source,)
+        )
+        if not rows:
+            return None
+        row = rows[0]
+        return DocumentState(row["content_hash"], row["status"], row["pages"], row["title"], row["collection"])
 
     def stored_hashes(self, source: str) -> list[str] | None:
+        if source in self._states:
+            return self._hashes.get(source) if self._states[source] is not None else None
         docs = self._db.execute("SELECT id FROM documents WHERE source = ?", (source,))
         if not docs:
             return None
@@ -113,6 +192,7 @@ class D1Repository:
         title: Title = KEEP_TITLE,
         collection: str | None = None,
     ) -> None:
+        self._forget(source)
         doc_id = self._upsert_document(source, document_hash, "ready", None, pages, title, collection)
         existing = self._db.execute(
             "SELECT id, content_hash FROM chunks WHERE document_id = ? ORDER BY chunk_index", (doc_id,)
@@ -168,6 +248,7 @@ class D1Repository:
             self._db.vectors_delete([str(row_id) for row_id in leftover])
 
     def mark_failed(self, source: str, document_hash: str, reason: str) -> None:
+        self._forget(source)
         self._upsert_document(source, document_hash, "failed", reason, None, KEEP_TITLE)
 
     def _upsert_document(

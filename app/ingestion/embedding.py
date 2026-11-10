@@ -240,8 +240,13 @@ class D1EmbeddingStore:
 
     def __init__(self, client: Any) -> None:
         self._db = client
+        self._pending: list[PendingChunk] | None = (
+            None  # 1 回の実行で全チャンクを 2 回読まないための控え（保存で捨てる）
+        )
 
     def _all_pending(self) -> list[PendingChunk]:
+        if self._pending is not None:
+            return self._pending
         rows = self._db.execute(
             "SELECT id, content_hash, heading, content, embedding_model IS NOT NULL AS has_vector, embedding_model, "
             "embedding_dimensions, embedding_input_hash FROM chunks ORDER BY id"
@@ -257,6 +262,7 @@ class D1EmbeddingStore:
             )
             if not current:
                 pending.append(chunk)
+        self._pending = pending
         return pending
 
     def pending_embeddings(self, limit: int) -> list[PendingChunk]:
@@ -266,6 +272,7 @@ class D1EmbeddingStore:
         return len(self._all_pending())
 
     def save_embeddings(self, rows: Sequence[tuple[PendingChunk, list[float]]]) -> int:
+        self._pending = None
         # 本文のハッシュと見出しが、埋め込みを作ったときのままの行だけを更新する（取り込みで入れ替わった行に、古い入力のベクトルを付けない）
         saved = 0
         for i in range(0, len(rows), MAX_BATCH):

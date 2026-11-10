@@ -90,11 +90,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             store = D1EmbeddingStore(client)
             embedder = GeminiEmbedder(api_key, budget) if args.apply else None
             report = embed_pending(store, embedder, budget, max_chunks=args.max_chunks, apply=args.apply)  # type: ignore[arg-type]
+            statements = getattr(client, "statements", None)
     except D1Error as exc:
         print(f"DB の操作に失敗しました（{exc}）。", file=sys.stderr)
         return 1
 
     _print_report(report, args.max_chunks, args.max_calls)
+    if statements is not None:
+        print(f"[計測] 埋め込みが流した SQL: {statements} 本")
     if not args.apply:
         print("（確認だけ。API は呼ばず、何も保存していません。--apply で実行します）")
     return 1 if report.error else 0
