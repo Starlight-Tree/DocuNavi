@@ -1,13 +1,13 @@
-# 本番 Postgres のバックアップ（毎日 1 回、R2 へ）
+# 本番 Postgres のバックアップ（週 1 回、R2 へ）
 
-Prisma Postgres の Free プランには、ドキュメント化されたバックアップが無い。そのため、Cloud Run Job `docunavi-pg-backup` が毎日 1 回 `pg_dump` して R2 に置く。
+Prisma Postgres の Free プランには、ドキュメント化されたバックアップが無い。そのため、Cloud Run Job `docunavi-pg-backup` が週 1 回 `pg_dump` して R2 に置く（2026-11-10 に毎日から週 1 回へ。Free の operations〔200K/月〕を節約するため。`pg_dump` が何 operations と数えられるかは、実行の前後で `ops/prisma_usage_daily.py --watch` を流して測る）。**頻度を下げたぶん、最悪で直近 7 日の変更を失う**（Free には Prisma 側の自動バックアップが無い。Starter 以上は毎日・7 日保持）。
 
 | 項目 | 内容 |
 |---|---|
 | 保存先 | R2 バケット `docunavi-backups`（非公開、APAC）。キーは `pg/docunavi-YYYYMMDD-HHMMSS.dump`（UTC） |
 | 形式 | `pg_dump --format=custom --no-owner --no-privileges`。全表（`account` のトークンと `jwks` の秘密鍵を含む。バケットは非公開のまま） |
-| 保持 | 14 日。バケットのライフサイクル規則 `delete-after-14d`（作成から 14 日で期限切れ。削除は期限後おおむね 24 時間以内なので、14〜15 世代が残る）。Job は消さない |
-| 実行 | Cloud Scheduler `docunavi-pg-backup-daily`、毎日 03:30（Asia/Tokyo） |
+| 保持 | 14 日。バケットのライフサイクル規則 `delete-after-14d`（作成から 14 日で期限切れ。削除は期限後おおむね 24 時間以内。週 1 回なので 2〜3 世代が残る）。Job は消さない |
+| 実行 | Cloud Scheduler `docunavi-pg-backup-daily`（名前は毎日だった頃のまま。IAM を作り直さないため残す）、毎週日曜 00:00 JST（＝土曜 15:00 UTC。cron `0 0 * * 0`、タイムゾーン `Asia/Tokyo`。2026-11-10 に月曜 18:30 UTC から変更） |
 | 接続 | Secret Manager `database-url`（版 **1** に固定）。プール経由のホストなので、`pg_dump` が通らなければ直接ホスト用の Secret を足す（未確認） |
 | R2 のキー | Secret Manager `r2-backup-rw`（`ops/r2_key_issuer` の `issue-backup-rw` が発行。バケットは `docunavi-backups` だけ）。**ローテーション未実装**（取り消しは Cloudflare のダッシュボードで行う） |
 | 流れ | `pg_dump` → `pg_restore --list` で必要な表（`documents` `chunks` `user` `account`）が入っているか検査 → R2 に保存 → 保存したサイズを確認。どこかで失敗したら保存しない |
@@ -72,9 +72,18 @@ as_me gcloud run jobs execute docunavi-pg-backup --project $P --region $R --wait
 as_me gcloud run jobs add-iam-policy-binding docunavi-pg-backup --project $P --region $R \
   --member serviceAccount:docunavi-backup-scheduler@$P.iam.gserviceaccount.com --role roles/run.invoker
 as_me gcloud scheduler jobs create http docunavi-pg-backup-daily --project $P --location $R \
-  --schedule "30 3 * * *" --time-zone Asia/Tokyo \
+  --schedule "0 0 * * 0" --time-zone Asia/Tokyo \
   --uri "https://$R-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$P/jobs/docunavi-pg-backup:run" \
   --http-method POST --oauth-service-account-email docunavi-backup-scheduler@$P.iam.gserviceaccount.com
+```
+
+既に毎日のスケジュールがあるときは、作らずに更新する（頻度を週 1 回にする。書き込み系なので、ユーザーがホストで実行）:
+
+```bash
+as_me gcloud scheduler jobs update http docunavi-pg-backup-daily --project $P --location $R \
+  --schedule "0 0 * * 0" --time-zone Asia/Tokyo
+as_me gcloud scheduler jobs describe docunavi-pg-backup-daily --project $P --location $R \
+  --format="value(schedule,timeZone,state)"
 ```
 
 Cloud Scheduler の API が無効なら、先に `as_me gcloud services enable cloudscheduler.googleapis.com --project $P`。
@@ -82,9 +91,30 @@ Cloud Scheduler の API が無効なら、先に `as_me gcloud services enable c
 ## 確認・復元
 
 - 実行の結果: `gcloud run jobs executions list --job docunavi-pg-backup --region asia-northeast1` とログ（`backup ok: …` の行）。
-- 失敗の通知は無い（ログだけ）。数日おきに、最新のキーの日付を確かめる。
+- 失敗の通知は無い（ログだけ）。毎週日曜の実行の後（月曜に）、最新のキーの日付を確かめる。
 - 復元の試験（ローカルの Postgres に戻す）: R2 から取った `.dump` を、`pg_restore --no-owner --dbname <ローカルの接続先> <ファイル>` で戻す。`vector` 拡張が要る（pgvector 入りのイメージ）。
 - **ダンプには Prisma 固有の拡張 `prisma_postgres`（とそのコメント）の項目が 2 つ入っており、ローカルの Postgres には無いので、そのまま戻すと失敗する。** 一覧から外して戻す:
   `pg_restore -l <ファイル> | grep -v -i prisma_postgres > list` → `pg_restore --no-owner -L list --dbname <接続先> <ファイル>`。`--exit-on-error` は付けない（付けると、この拡張の項目で止まり、表が作られない）。
 - 復元の試験の結果（2026-11-08、証拠等級 A）: `pgvector/pgvector:pg17`（`vector` 0.8.7）に `pg_restore` が exit 0・エラー 0 行で戻った。18 表すべての件数が、バックアップ直前の本番と一致した（`documents` 80、`chunks` 2313、`embedding` が入った `chunks` 2313、`jwks` 1、`user` 1）。
   試験に使ったダンプ（`account` のトークンと `jwks` の秘密鍵を含む）は、試験のあと `shred` で消した。試験の失敗時の通知や、Prisma への戻し（本番 DB への復元）は試していない。
+
+## 復旧訓練（`scripts/pg_restore_drill.sh`）
+
+ダンプを、使い捨ての pgvector の Postgres（Docker）に戻し、表の件数を確かめる。本番 DB にも R2 にも触れない。**四半期に 1 回**と、保持や頻度を変えた後に行い、結果（日付・ダンプのキー・件数・OK/NG）を下の「訓練の記録」に足す。
+
+1. 最新のダンプを手元に取る（ユーザーがホストで。ダンプには `account` のトークンと `jwks` の秘密鍵が入る）。
+   Cloudflare のダッシュボードの R2 `docunavi-backups` の `pg/` から、または `wrangler r2 object get docunavi-backups/pg/<キー> --file <出力先> --remote`（**wrangler のこの使い方は未確認**）。
+2. 実行する。`--expect` は、バックアップ直前の本番の件数（`documents` と `chunks` など）。`--shred` は、終わったらダンプを消す（macOS は `rm -P`、Linux は `shred`）:
+   `./scripts/pg_restore_drill.sh <ダンプ> --expect documents=80,chunks=2313 --shred`
+3. 終了コード 0 なら成功。1 は検査の失敗（必要な表〔`documents` `chunks` `user` `account`〕が無い・空、`embedding` の入っていない `chunks`、`--expect` と不一致）、2 は使い方・前提の不足。
+
+スクリプトは、`prisma_postgres` の項目を一覧から外して `pg_restore` し（`--exit-on-error` は付けない）、`pg_restore` の終了コードと標準エラーの行数も出す。出力は表の名前と件数、成否だけ。
+Prisma への戻し（本番 DB への復元）は、このスクリプトの範囲外で、未検証。
+
+スクリプト自体の確認（2026-11-10、証拠等級 A）: 擬似のダンプ（4 表。`embedding` の欠けた行ありと無し）で、成功・`--shred`・件数の不一致・必要な表の欠落が、期待どおりの結果と終了コードになった。**本物のバックアップでの訓練は未実施。**
+
+### 訓練の記録
+
+| 日付 | ダンプのキー | 結果 | 備考 |
+|---|---|---|---|
+| 2026-11-08 | `pg/docunavi-20261108-1040*.dump` | OK（手作業。18 表すべての件数が一致） | スクリプト化の前 |

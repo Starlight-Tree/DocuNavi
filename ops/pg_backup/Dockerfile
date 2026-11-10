@@ -1,4 +1,4 @@
-# 本番 Postgres の日次バックアップ Job のイメージ（手順は docs/pg-backup.md）。pg_dump は 17 以上（サーバーは 17.2）。
+# 本番 Postgres の定期バックアップ Job のイメージ（手順は docs/pg-backup.md）。pg_dump は 17 以上（サーバーは 17.2）。
 FROM python:3.12-slim-trixie
 ENV PYTHONUNBUFFERED=1
 RUN apt-get update \

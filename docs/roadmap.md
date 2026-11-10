@@ -7,7 +7,7 @@
 
 - **構成:** 画面は Cloudflare の Worker `docunavi-web`（`frontend`）、認証は Worker `docunavi-api`（Better Auth、Google ログイン。Hyperdrive 経由で同じ Postgres）、API は Cloud Run の FastAPI。DB は Prisma Postgres `docunavi-prod`（Free・東京・pgvector）。PDF 原本は R2。D1・Vectorize・Vercel・Supabase は撤去済み（2026-11-08）。構成は [architecture.md](architecture.md)、移行の経緯は [cloudflare-migration.md](cloudflare-migration.md)。
 - **本番 DB の件数**（2026-11-09、読み取りの SELECT、証拠等級 A）: `documents` 80 行、`chunks` 2,313 行（すべて埋め込み済み）、`user` 2 行、`session` 2 行（行数であり、利用者の人数ではない）。
-- **バックアップ** `docunavi-pg-backup-daily`（毎日 03:30 JST、R2 `docunavi-backups`、手順は [pg-backup.md](pg-backup.md)）:
+- **バックアップ** `docunavi-pg-backup-daily`（毎週日曜 00:00 JST＝土曜 15:00 UTC。2026-11-10 に毎日から変更、R2 `docunavi-backups`、手順は [pg-backup.md](pg-backup.md)）:
   - **設定の確認は完了**（2026-11-09）: 定時実行、R2 への保存、削除規則 `delete-after-14d`（有効。Cloudflare の API で確認）。初回の定時実行は成功した（実行 `docunavi-pg-backup-4jndj`、53 秒、9,479,225 バイト、18 表、終了コード 0。Job の実行履歴とログで確認。Scheduler 自体の設定は閲覧用の権限では読めず、実行履歴で確認した）。
   - **未確認（上の設定確認とは別）:** Prisma への復元（検証は別の pgvector への復元まで）、規則で実際に期限削除されること（最初の期限は 2026-11-22 ごろ）、失敗の通知（ログのみ）。
 - **Prisma Free の使用量**（利用者の報告）: 39.1K / 200K 操作、ストレージ表示 0.0 / 2.0 GiB、請求 $0.00。プロジェクト別の表示との不一致の理由は未確認。上限の 200,000 操作/月に届くと、次の月まで読み書きが止まる（データは残る。利用者が受け入れた、2026-11-08）。
