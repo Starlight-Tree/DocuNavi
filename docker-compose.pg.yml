@@ -13,7 +13,7 @@ services:
     image: pgvector/pgvector:pg17
     container_name: docunavi-db
     labels:
-      local.ui.group: "app-docunavi"
+      local.ui.group: "App-DocuNavi"
     environment:
       POSTGRES_USER: docunavi
       POSTGRES_PASSWORD: docunavi-local-throwaway

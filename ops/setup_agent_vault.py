@@ -200,6 +200,8 @@ def start_proxy_container(proxy_token: str, domain: str | None) -> None:
         "-d",
         "--name",
         CONTAINER,
+        "--label",
+        "local.ui.group=Infisical-Proxy",  # VS Code Container Tools の表示グループ（動作には影響しない）
         "-p",
         PROXY_PORT,
         "-v",

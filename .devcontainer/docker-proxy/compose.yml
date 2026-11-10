@@ -24,7 +24,7 @@ services:
     container_name: docunavi-docker-proxy
     # 表示用ラベル（.vscode/settings.json の groupByLabel が読む）。動作には影響しない。
     labels:
-      local.ui.group: "docker-proxies"
+      local.ui.group: "Docker-Proxies"
     command:
       - "-listenip=0.0.0.0"
       - "-proxyport=2375"
