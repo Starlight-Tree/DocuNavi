@@ -31,6 +31,7 @@ from collections.abc import Coroutine, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from app import pg
 from app.scope import ALLOWED_FILTER_SQL, DOCUMENTS_FILTER_SQL, TARGET_FILTER_SQL, Scope, require_scope
 from app.search import vector as search_vector
 from app.search.graph import build_edges
@@ -62,8 +63,16 @@ _CORPUS_SQL = (
     + _CORPUS_WHERE
     + "ORDER BY d.source, c.chunk_index LIMIT %(limit)s OFFSET %(offset)s"
 )
-# Worker の CPU 時間（Free プランは 1 回 10 ms）に収めるため、写しは小分けで取る
+# Worker の CPU 時間（Free プランは 1 回 10 ms）に収めるため、D1 では写しを小分けで取る
 _CORPUS_PAGE = 250
+# Postgres は SQL の本数（Prisma Postgres の operations）で数えるので、1 回で取る（2,313 チャンクで 10 回 → 1 回）
+_CORPUS_PAGE_PG = 5000
+
+
+def _corpus_page() -> int:
+    return _CORPUS_PAGE_PG if pg.backend() == "pg" else _CORPUS_PAGE
+
+
 # 写しに入っている資料の ID（`_CORPUS_SQL` と同じ条件）。対象を指定した検索で、写しが古くなっていないかを毎回確かめる軽い SQL
 _MEMBERSHIP_SQL = "SELECT DISTINCT d.id AS document_id " + _CORPUS_WHERE + "ORDER BY d.id"
 
@@ -165,12 +174,13 @@ async def _fetch_chunks(
     pool = search_vector.get_pool()
     if pool is None:
         raise VectorSearchError("DB の接続が開いていません")
+    page_size = _corpus_page()
     params = {
         "collection": collection,
         "target": target,
         "doc_ids": None if document_ids is None else list(document_ids),
         "allowed": scope.sql_names(),
-        "limit": _CORPUS_PAGE,
+        "limit": page_size,
     }
     rows: list[dict[str, Any]] = []
     async with pool.connection() as conn:
@@ -178,7 +188,7 @@ async def _fetch_chunks(
             cursor = await conn.execute(_CORPUS_SQL, {**params, "offset": len(rows)})
             page = await cursor.fetchall()
             rows.extend(page)
-            if len(page) < _CORPUS_PAGE:
+            if len(page) < page_size:
                 break
     return [
         Chunk(

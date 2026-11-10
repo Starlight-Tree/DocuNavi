@@ -11,10 +11,12 @@
 """
 
 import json
+import logging
 import os
 import re
 from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -24,6 +26,8 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from app.d1 import D1Error
+
+logger = logging.getLogger(__name__)
 
 # INSERT OR REPLACE の衝突の対象（主キー）。ここに無い表の INSERT OR REPLACE は未対応（ValueError）
 _PRIMARY_KEYS = {
@@ -45,6 +49,44 @@ _JSON_EXTRACT = re.compile(r"json_extract\(\s*(\w+)\s*,\s*'\$\.(\w+)'\s*\)\s*(IS
 
 # `%(x)s IS NULL` だけの出現は、Postgres が型を決められない（"could not determine data type of parameter"）。text に固定する
 _PARAM_IS_NULL = re.compile(r"(%\(\w+\)s|\?)\s+IS\s+(NOT\s+)?NULL", re.IGNORECASE)
+
+
+class _Counter:
+    """1 リクエストが流した SQL の本数（Prisma Postgres の operations の見積り）。ContextVar に入れて共有する（子タスクにも届く）。"""
+
+    n = 0
+
+
+_request_counter: ContextVar[_Counter | None] = ContextVar("pg_request_counter", default=None)
+
+
+def _count(n: int) -> None:
+    counter = _request_counter.get()
+    if counter is not None:
+        counter.n += n
+
+
+class StatementCountMiddleware:
+    """リクエストごとに、流した SQL の本数を INFO で 1 行残す（`[計測] DB <メソッド> <ルート>: SQL N 本`）。
+    ルートはテンプレート（`/threads/{thread_id}`）で、利用者 ID・会話 ID は載せない。SQL を流さなかったリクエストは残さない。
+    ストリーミング（`/chat/stream`）も、応答が終わった時点で残す。"""
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        counter = _Counter()
+        token = _request_counter.set(counter)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            _request_counter.reset(token)
+            if counter.n:
+                route = getattr(scope.get("route"), "path", None) or "?"
+                logger.info("[計測] DB %s %s: SQL %d 本", scope.get("method", "?"), route, counter.n)
 
 
 def backend() -> str:
@@ -240,6 +282,7 @@ class PgPool:
         self, statements: Sequence[tuple[str, Mapping[str, Any] | Sequence[Any] | None]]
     ) -> list[list[dict[str, Any]]]:
         results: list[list[dict[str, Any]]] = []
+        _count(len(statements))
         try:
             async with self._pool.connection() as conn, conn.transaction():
                 for sql, params in statements:
@@ -255,6 +298,7 @@ class PgPool:
     ) -> list[tuple[str, float]]:
         where, fparams = _filter_sql(filter)
         lit = _vector_literal(vector)
+        _count(1)
         try:
             async with self._pool.connection() as conn:
                 cur = await conn.execute(_KNN_SQL.format(where=where), [lit, *fparams, lit, int(top_k)])
