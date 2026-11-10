@@ -111,19 +111,35 @@ def test_load_credentials_needs_both_fields() -> None:
         assert e.value.code == backup.EXIT_CONFIG
 
 
+class FakeClientError(Exception):
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.response = {"Error": {"Code": code}}
+
+
 class FakeS3:
-    def __init__(self, length: int | None = None, fail: bool = False) -> None:
+    def __init__(self, length: int | None = None, fail: bool = False, copy_fail: bool = False) -> None:
         self.uploaded: list[tuple[str, str]] = []
-        self.length, self.fail = length, fail
+        self.copied: list[tuple[str, str]] = []
+        self.objects: dict[str, int] = {}
+        self.length, self.fail, self.copy_fail = length, fail, copy_fail
 
     def upload_file(self, filename: str, bucket: str, key: str) -> None:
         if self.fail:
             raise RuntimeError("boom")
         self.uploaded.append((bucket, key))
-        self._size = Path(filename).stat().st_size
+        self.objects[key] = Path(filename).stat().st_size
 
     def head_object(self, Bucket: str, Key: str) -> dict:
-        return {"ContentLength": self._size if self.length is None else self.length}
+        if Key not in self.objects:
+            raise FakeClientError("404")
+        return {"ContentLength": self.objects[Key] if self.length is None else self.length}
+
+    def copy_object(self, Bucket: str, Key: str, CopySource: dict) -> None:
+        if self.copy_fail:
+            raise FakeClientError("AccessDenied")
+        self.copied.append((CopySource["Key"], Key))
+        self.objects[Key] = self.objects[CopySource["Key"]]
 
 
 def test_upload_checks_the_stored_size(tmp_path: Path) -> None:
@@ -205,3 +221,79 @@ def test_main_unexpected_error_logs_only_the_type(monkeypatch: pytest.MonkeyPatc
     with caplog.at_level(logging.INFO):
         assert backup.main(ENV) == 1
     assert PASSWORD not in caplog.text and "RuntimeError" in caplog.text
+
+
+NOW = datetime(2026, 11, 14, 15, 0, 5, tzinfo=UTC)  # 日曜 00:00 JST（土曜 15:00 UTC）
+
+
+def test_monthly_key_is_under_its_own_prefix_and_uses_the_utc_month() -> None:
+    assert backup.monthly_key(NOW) == "pg/monthly/docunavi-202611.dump"
+    # 通常のダンプのキーと重ならない（ライフサイクル規則を、プレフィックスで分けられる）
+    assert not backup.monthly_key(NOW).startswith("pg/docunavi-")
+    assert backup.backup_key(NOW).startswith("pg/docunavi-")
+
+
+def test_copy_monthly_copies_once_per_month() -> None:
+    s3 = FakeS3()
+    s3.objects["pg/docunavi-20261114-150005.dump"] = 10
+    assert (
+        backup.copy_monthly(s3, "b", "pg/docunavi-20261114-150005.dump", NOW, 10) == "pg/monthly/docunavi-202611.dump"
+    )
+    assert s3.copied == [("pg/docunavi-20261114-150005.dump", "pg/monthly/docunavi-202611.dump")]
+    # 同じ月の 2 回目（週次の 2 回目・リトライ）は、写さない
+    s3.objects["pg/docunavi-20261121-150005.dump"] = 11
+    assert backup.copy_monthly(s3, "b", "pg/docunavi-20261121-150005.dump", NOW, 11) is None
+    assert len(s3.copied) == 1
+    # 翌月は、また写す
+    december = datetime(2026, 12, 5, 15, 0, tzinfo=UTC)
+    assert (
+        backup.copy_monthly(s3, "b", "pg/docunavi-20261121-150005.dump", december, 11)
+        == "pg/monthly/docunavi-202612.dump"
+    )
+
+
+@pytest.mark.parametrize("kwargs", [{"copy_fail": True}, {"length": 3}])
+def test_copy_monthly_failure_is_its_own_exit_code(kwargs: dict) -> None:
+    s3 = FakeS3(**{k: v for k, v in kwargs.items() if k == "copy_fail"})
+    s3.objects["pg/src.dump"] = 10
+    if "length" in kwargs:  # コピー後のサイズが合わない
+        real_copy = s3.copy_object
+
+        def short_copy(Bucket, Key, CopySource):
+            real_copy(Bucket, Key, CopySource)
+            s3.objects[Key] = 3
+
+        s3.copy_object = short_copy  # type: ignore[method-assign]
+    with pytest.raises(backup.BackupError) as e:
+        backup.copy_monthly(s3, "b", "pg/src.dump", NOW, 10)
+    assert e.value.code == backup.EXIT_MONTHLY
+
+
+def test_copy_monthly_does_not_swallow_a_non_missing_head_error() -> None:
+    class Denied(FakeS3):
+        def head_object(self, Bucket: str, Key: str) -> dict:
+            raise FakeClientError("403")
+
+    with pytest.raises(backup.BackupError) as e:
+        backup.copy_monthly(Denied(), "b", "pg/src.dump", NOW, 10)
+    assert e.value.code == backup.EXIT_MONTHLY
+
+
+def test_main_copies_the_first_backup_of_the_month_and_logs_no_secrets(monkeypatch: pytest.MonkeyPatch, caplog) -> None:
+    s3 = FakeS3()
+    _wire(monkeypatch, s3)
+    with caplog.at_level(logging.INFO):
+        assert backup.main(ENV) == 0
+    [(_, key)] = s3.uploaded
+    [(src, dst)] = s3.copied
+    assert src == key and dst.startswith("pg/monthly/docunavi-") and dst.endswith(".dump")
+    assert "monthly copy: key=pg/monthly/" in caplog.text
+    for secret in (PASSWORD, SECRET_KEY, "dbuser", "db.example.test"):
+        assert secret not in caplog.text
+
+
+def test_main_returns_the_monthly_exit_code_when_only_the_copy_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    s3 = FakeS3(copy_fail=True)
+    _wire(monkeypatch, s3)
+    assert backup.main(ENV) == backup.EXIT_MONTHLY
+    assert len(s3.uploaded) == 1  # 通常のダンプは保存済み
