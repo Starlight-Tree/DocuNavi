@@ -6,13 +6,13 @@ Prisma Postgres の Free プランには、ドキュメント化されたバッ�
 |---|---|
 | 保存先 | R2 バケット `docunavi-backups`（非公開、APAC）。キーは `pg/docunavi-YYYYMMDD-HHMMSS.dump`（UTC） |
 | 形式 | `pg_dump --format=custom --no-owner --no-privileges`。全表（`account` のトークンと `jwks` の秘密鍵を含む。バケットは非公開のまま） |
-| 保持 | 14 日。バケットのライフサイクル規則 `delete-after-14d`（作成から 14 日で期限切れ。削除は期限後おおむね 24 時間以内。週 1 回なので 2〜3 世代が残る）。Job は消さない |
+| 保持 | 通常のダンプ（`pg/docunavi-*`）は **14 日**。バケットのライフサイクル規則 `delete-after-14d`（プレフィックス `pg/docunavi-`。削除は期限後おおむね 24 時間以内。週 1 回なので 2〜3 世代が残る）。**月次の長期保持**: その月の最初のバックアップを、Job が R2 の中で `pg/monthly/docunavi-YYYYMM.dump`（UTC の月）に写す（サーバー側のコピー。DB には触れない）。規則 `delete-monthly-after-400d`（プレフィックス `pg/monthly/`）が **400 日**で消す。Job は消さない |
 | 実行 | Cloud Scheduler `docunavi-pg-backup-daily`（名前は毎日だった頃のまま。IAM を作り直さないため残す）、毎週日曜 00:00 JST（＝土曜 15:00 UTC。cron `0 0 * * 0`、タイムゾーン `Asia/Tokyo`。2026-11-10 に月曜 18:30 UTC から変更） |
 | 接続 | Secret Manager `database-url`（版 **1** に固定）。プール経由のホストなので、`pg_dump` が通らなければ直接ホスト用の Secret を足す（未確認） |
 | R2 のキー | Secret Manager `r2-backup-rw`（`ops/r2_key_issuer` の `issue-backup-rw` が発行。バケットは `docunavi-backups` だけ）。**ローテーション未実装**（取り消しは Cloudflare のダッシュボードで行う） |
 | 流れ | `pg_dump` → `pg_restore --list` で必要な表（`documents` `chunks` `user` `account`）が入っているか検査 → R2 に保存 → 保存したサイズを確認。どこかで失敗したら保存しない |
 | ログ | バイト数・表の数・キーだけ。接続文字列・パスワード・R2 のキーは出さない（失敗時の `pg_dump` の出力は先頭 5 行、パスワードとユーザー名を伏せて出す） |
-| 終了コード | 0 成功 / 2 設定不足 / 3 `pg_dump` 失敗 / 4 検査失敗 / 5 保存失敗 / 1 想定外 |
+| 終了コード | 0 成功 / 2 設定不足 / 3 `pg_dump` 失敗 / 4 検査失敗 / 5 保存失敗 / 6 月次の写しの失敗（通常のダンプは保存済み）/ 1 想定外 |
 
 本番 DB には読み取りしかしない。D1・Vectorize・既存の Cloud Run サービスとリビジョンには触れない。
 
@@ -87,6 +87,30 @@ as_me gcloud scheduler jobs describe docunavi-pg-backup-daily --project $P --loc
 ```
 
 Cloud Scheduler の API が無効なら、先に `as_me gcloud services enable cloudscheduler.googleapis.com --project $P`。
+
+## 月次の長期保持の有効化（ユーザーがホストで。順番を守る）
+
+`pg/monthly/` のキーは `pg/docunavi-` で始まらないので、規則をプレフィックスで分けられる。**先に規則を直し、その後で新しいイメージを配備する**（古い規則が `pg/` 全体に掛かっていると、月次の写しが 14 日で消える）。
+`wrangler r2 bucket lifecycle` のサブコマンドと引数は、**この環境では未確認**（先に `list` で今の規則を見る。Cloudflare のダッシュボードの R2 → `docunavi-backups` → Settings → Object lifecycle rules でも同じ）。
+
+```bash
+npx wrangler r2 bucket lifecycle list docunavi-backups
+# 1. 通常のダンプの規則を、プレフィックス pg/docunavi- に絞る（今の delete-after-14d を消して作り直す）
+npx wrangler r2 bucket lifecycle remove docunavi-backups --name delete-after-14d
+npx wrangler r2 bucket lifecycle add docunavi-backups delete-after-14d pg/docunavi- --expire-days 14
+# 2. 月次の規則を足す
+npx wrangler r2 bucket lifecycle add docunavi-backups delete-monthly-after-400d pg/monthly/ --expire-days 400
+npx wrangler r2 bucket lifecycle list docunavi-backups   # 2 つの規則とプレフィックスを確かめる
+```
+
+規則の入れ替えの間（1 と 2 の間）は、通常のダンプに期限が掛からないだけで、消えるものは無い。その後、イメージを作り直して Job を更新する（`TAG=$(git rev-parse --short HEAD)`。手順 3・5 と同じ形）:
+
+```bash
+as_me gcloud builds submit ops/pg_backup --project $P --billing-project $P --tag $REPO/pg-backup:$TAG
+as_me gcloud run jobs update docunavi-pg-backup --project $P --region $R --image $REPO/pg-backup:$TAG
+```
+
+次の実行（日曜 00:00 JST）のログに `monthly copy: key=pg/monthly/docunavi-YYYYMM.dump`（その月の最初）か `already exists this month` が出る。
 
 ## 確認・復元
 

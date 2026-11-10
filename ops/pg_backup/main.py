@@ -4,7 +4,9 @@
 - 接続文字列は環境変数 DATABASE_URL（Secret Manager の database-url:1）。引数には載せず、PG* 環境変数で pg_dump に渡す。
 - R2 のキーは環境変数 R2_CREDENTIALS_JSON（Secret Manager の r2-backup-rw。access_key_id と secret_access_key の JSON）。
 - ログに出すのは、バイト数・表の数・オブジェクトのキー・固定の文言だけ。接続文字列・パスワード・キーは出さない。
-- 保持期間（14 日）は、バケットのライフサイクル規則（delete-after-14d）が持つ。この Job は消さない。
+- 保持期間は、バケットのライフサイクル規則が持つ。この Job は消さない。通常のダンプ（pg/docunavi-*）は 14 日、
+  月次の写し（pg/monthly/）は 400 日（規則の作り方は docs/pg-backup.md）。
+- その月の最初のバックアップは、R2 の中で pg/monthly/docunavi-YYYYMM.dump に写す（サーバー側のコピー。DB には触れない）。
 """
 
 from __future__ import annotations
@@ -28,7 +30,9 @@ KEY_PREFIX = "pg/"
 DUMP_TIMEOUT_SECONDS = 480
 # 復元に要る表が、ダンプに入っているかの確認（無ければ、空のダンプを保存してしまった可能性）
 REQUIRED_TABLES = ("documents", "chunks", "user", "account")
-EXIT_CONFIG, EXIT_DUMP, EXIT_VERIFY, EXIT_UPLOAD = 2, 3, 4, 5
+EXIT_CONFIG, EXIT_DUMP, EXIT_VERIFY, EXIT_UPLOAD, EXIT_MONTHLY = 2, 3, 4, 5, 6
+# 月次の長期保持の置き場。通常のダンプのキー（pg/docunavi-…）と重ならないので、ライフサイクル規則を別にできる
+MONTHLY_PREFIX = "pg/monthly/"
 
 
 class BackupError(Exception):
@@ -58,6 +62,35 @@ def libpq_env(database_url: str) -> dict[str, str]:
 
 def backup_key(now: datetime) -> str:
     return f"{KEY_PREFIX}docunavi-{now.astimezone(UTC):%Y%m%d-%H%M%S}.dump"
+
+
+def monthly_key(now: datetime) -> str:
+    return f"{MONTHLY_PREFIX}docunavi-{now.astimezone(UTC):%Y%m}.dump"
+
+
+def _is_missing(exc: Exception) -> bool:
+    code = (getattr(exc, "response", None) or {}).get("Error", {}).get("Code")
+    return str(code) in ("404", "NoSuchKey", "NotFound")
+
+
+def copy_monthly(s3: Any, bucket: str, source_key: str, now: datetime, size: int) -> str | None:
+    """その月（UTC）の月次の写しが無ければ、保存したダンプを pg/monthly/ に写す。写したキーを返す。もうあれば何もせず None。
+    再実行（リトライ）しても同じ月に 2 つは作らない。写したあと、サイズを確かめる。"""
+    key = monthly_key(now)
+    try:
+        try:
+            s3.head_object(Bucket=bucket, Key=key)
+            return None
+        except Exception as e:  # noqa: BLE001 - 無いときだけ先へ進む
+            if not _is_missing(e):
+                raise
+        s3.copy_object(Bucket=bucket, Key=key, CopySource={"Bucket": bucket, "Key": source_key})
+        head = s3.head_object(Bucket=bucket, Key=key)
+    except Exception as e:  # noqa: BLE001
+        raise BackupError(EXIT_MONTHLY, f"monthly copy failed ({type(e).__name__})") from e
+    if int(head.get("ContentLength", -1)) != size:
+        raise BackupError(EXIT_MONTHLY, "monthly copy size does not match the stored dump")
+    return key
 
 
 def redact(text: str, secrets: list[str]) -> str:
@@ -150,13 +183,17 @@ def main(environ: dict[str, str] | None = None) -> int:
             )
         pg_env = libpq_env(database_url)
         creds = load_credentials(env["R2_CREDENTIALS_JSON"])
-        key = backup_key(datetime.now(UTC))
+        now = datetime.now(UTC)
+        key = backup_key(now)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "backup.dump"
             run_dump(path, pg_env)
             tables = verify_dump(path)
-            size = upload(s3_client(account, creds), bucket, key, path)
+            s3 = s3_client(account, creds)
+            size = upload(s3, bucket, key, path)
         log.info("backup ok: bucket=%s key=%s bytes=%d tables_with_data=%d", bucket, key, size, tables)
+        copied = copy_monthly(s3, bucket, key, now, size)
+        log.info("monthly copy: %s", f"key={copied}" if copied else "already exists this month")
         return 0
     except BackupError as e:
         log.error("backup failed: %s", e)
