@@ -1,0 +1,19 @@
+# Cloud Scheduler（docunavi-pg-backup-daily。名前は毎日だった頃のまま）が、バックアップ Job を起動できなかった（権限・Job の削除など）。通知先は作成のコマンドで渡す。
+displayName: docunavi pg-backup scheduler failed
+combiner: OR
+conditions:
+  - displayName: scheduler logged ERROR for docunavi-pg-backup-daily
+    conditionMatchedLog:
+      filter: >-
+        resource.type="cloud_scheduler_job"
+        AND resource.labels.job_id="docunavi-pg-backup-daily"
+        AND severity>=ERROR
+alertStrategy:
+  notificationRateLimit:
+    period: 3600s
+  autoClose: 86400s
+documentation:
+  mimeType: text/markdown
+  content: |
+    Cloud Scheduler がバックアップ Job を起動できなかった。ログの `jobName` と `status` を見る（権限なら `docunavi-backup-scheduler` の `run.invoker`、Job が無いなら配備）。
+    手順は docs/pg-backup.md。

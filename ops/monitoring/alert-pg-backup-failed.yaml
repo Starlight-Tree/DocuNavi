@@ -1,0 +1,20 @@
+# バックアップ Job（docunavi-pg-backup）が ERROR を出した（pg_dump・検査・保存・月次の写しの失敗。`backup failed: …`）。通知先は作成のコマンドで渡す。
+# ログベースのアラートは、1 つの方針に条件を 1 つだけ持てる。Scheduler の失敗は alert-pg-backup-scheduler-failed.yaml に分ける。
+displayName: docunavi pg-backup failed
+combiner: OR
+conditions:
+  - displayName: pg-backup job logged ERROR
+    conditionMatchedLog:
+      filter: >-
+        resource.type="cloud_run_job"
+        AND resource.labels.job_name="docunavi-pg-backup"
+        AND severity>=ERROR
+alertStrategy:
+  notificationRateLimit:
+    period: 3600s
+  autoClose: 86400s
+documentation:
+  mimeType: text/markdown
+  content: |
+    バックアップ Job が失敗した。ログの `backup failed:` の行で、終了コードを見る（2 設定 / 3 pg_dump / 4 検査 / 5 保存 / 6 月次の写し / 1 想定外）。
+    手順は docs/pg-backup.md。次の定期実行は日曜 00:00 JST。急ぐなら `gcloud run jobs execute docunavi-pg-backup --region asia-northeast1`（`pg_dump` が operations を使う）。

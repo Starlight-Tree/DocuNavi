@@ -115,7 +115,8 @@ as_me gcloud run jobs update docunavi-pg-backup --project $P --region $R --image
 ## 確認・復元
 
 - 実行の結果: `gcloud run jobs executions list --job docunavi-pg-backup --region asia-northeast1` とログ（`backup ok: …` の行）。
-- 失敗の通知は無い（ログだけ）。毎週日曜の実行の後（月曜に）、最新のキーの日付を確かめる。
+- 失敗の通知: Cloud Monitoring のログベースのアラート 2 つ（[Job の ERROR](../ops/monitoring/alert-pg-backup-failed.yaml)、[Scheduler の ERROR](../ops/monitoring/alert-pg-backup-scheduler-failed.yaml)）。メールの通知先は、既存の `docunavi ops`（[deploy.md](deploy.md) の「アラート」）を使う。作成のコマンドは下の「失敗の通知の作成」。
+- **実行されなかったことは、通知できない。** 指標の不在を見るアラートの待ち時間の上限は約 24 時間で、週 1 回の実行には使えない（PromQL で 8 日の窓を見る方法は未確認）。毎週日曜の実行の後（月曜に）、最新のキーの日付を手で確かめる。
 - 復元の試験（ローカルの Postgres に戻す）: R2 から取った `.dump` を、`pg_restore --no-owner --dbname <ローカルの接続先> <ファイル>` で戻す。`vector` 拡張が要る（pgvector 入りのイメージ）。
 - **ダンプには Prisma 固有の拡張 `prisma_postgres`（とそのコメント）の項目が 2 つ入っており、ローカルの Postgres には無いので、そのまま戻すと失敗する。** 一覧から外して戻す:
   `pg_restore -l <ファイル> | grep -v -i prisma_postgres > list` → `pg_restore --no-owner -L list --dbname <接続先> <ファイル>`。`--exit-on-error` は付けない（付けると、この拡張の項目で止まり、表が作られない）。
@@ -142,3 +143,24 @@ Prisma への戻し（本番 DB への復元）は、このスクリプトの範
 | 日付 | ダンプのキー | 結果 | 備考 |
 |---|---|---|---|
 | 2026-11-08 | `pg/docunavi-20261108-1040*.dump` | OK（手作業。18 表すべての件数が一致） | スクリプト化の前 |
+
+## 失敗の通知の作成（ユーザーがホストで。書き込み系）
+
+```bash
+as_me() { env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT "$@"; }
+# 既存の通知先（docunavi ops）を使う。無ければ、deploy.md の「アラート」の手順で作る
+as_me gcloud alpha monitoring channels list --project docunavi-app --format='table(name,displayName,type)'
+CH=<上の一覧の docunavi ops の name>
+# 同じ名前で 2 回作ると重複する。先に一覧で確かめる
+as_me gcloud alpha monitoring policies list --project docunavi-app --format='table(name,displayName)'
+for f in ops/monitoring/alert-pg-backup-failed.yaml ops/monitoring/alert-pg-backup-scheduler-failed.yaml; do
+  as_me gcloud alpha monitoring policies create --project docunavi-app --policy-from-file="$f" --notification-channels="$CH"
+done
+```
+
+作成の確認: 一覧に 2 つの方針が出る。通知が届くことは、失敗が起きるまで受動確認（わざと起こすと、本物のバックアップが失敗扱いになる）。
+
+**作成済み（2026-11-11、ユーザーがホストで作成し、2 件とも `enabled=True`・通知先 1 件を確認〔証拠等級: ユーザーの報告〕）:**
+`projects/docunavi-app/alertPolicies/8035046611342240567` と `projects/docunavi-app/alertPolicies/6567028124981041704`
+（どちらが Job 用でどちらが Scheduler 用かは、報告に書かれていない。確かめるには `gcloud alpha monitoring policies describe <名前> --format='value(displayName)'`。閲覧専用の ID には Monitoring の権限が無いので、ユーザー自身の権限で）。
+通知が実際に届くことは、まだ確認していない（失敗が起きるまで受動確認）。
