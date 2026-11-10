@@ -12,7 +12,7 @@ services:
     container_name: docunavi-devcontainer
     # Container Tools の一覧を役割別に並べる表示用のラベル（.vscode/settings.json の groupByLabel が読む）。動作には影響しない。
     labels:
-      local.ui.group: "devcontainers"
+      local.ui.group: "Devcontainers"
     # プロセスの後始末（ゾンビの回収）を init に任せる。
     init: true
     # コンテナを起こしておくだけ。VS Code が中に入る（devcontainer.json の overrideCommand の既定と同じ）。

@@ -10,7 +10,7 @@ services:
     container_name: docunavi-api
     # 表示用ラベル（.vscode/settings.json の groupByLabel が読む）。動作には影響しない。
     labels:
-      local.ui.group: "app-docunavi"
+      local.ui.group: "App-DocuNavi"
     # ポートは公開しない。画面は frontend（:3000）のプロキシ経由で使う。8000 番を確かめたいときは docker-compose.api-port.yml を重ねる
     env_file:
       # .env が無くても起動できる（その場合は GEMINI_API_KEY 未設定 = モックモード）
@@ -69,7 +69,7 @@ services:
     container_name: docunavi-frontend
     # 表示用ラベル（.vscode/settings.json の groupByLabel が読む）。動作には影響しない。
     labels:
-      local.ui.group: "app-docunavi"
+      local.ui.group: "App-DocuNavi"
     working_dir: /app
     depends_on:
       api:
