@@ -1,4 +1,4 @@
-"""本番 Postgres の日次バックアップ Job（ops/pg_backup/main.py）。pg_dump・R2 には接続しない（すべて模擬）。"""
+"""本番 Postgres の定期バックアップ Job（ops/pg_backup/main.py）。pg_dump・R2 には接続しない（すべて模擬）。"""
 
 import json
 import logging

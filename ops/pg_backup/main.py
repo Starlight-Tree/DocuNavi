@@ -1,4 +1,4 @@
-"""本番 Postgres の日次バックアップ（Cloud Run Job）。pg_dump -Fc → pg_restore --list で中身を検査 → R2 に保存する。
+"""本番 Postgres の定期バックアップ（週 1 回）（Cloud Run Job）。pg_dump -Fc → pg_restore --list で中身を検査 → R2 に保存する。
 
 - 本番 DB は読むだけ（pg_dump は読み取り専用のトランザクション）。書き込みはしない。
 - 接続文字列は環境変数 DATABASE_URL（Secret Manager の database-url:1）。引数には載せず、PG* 環境変数で pg_dump に渡す。
