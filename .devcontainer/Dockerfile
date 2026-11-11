@@ -139,7 +139,10 @@ RUN set -eu; \
     esac; \
     curl -fsSL -o /tmp/claude "https://downloads.claude.ai/claude-code-releases/${CLAUDE_CODE_VERSION}/${platform}/claude"; \
     echo "${expected}  /tmp/claude" | sha256sum -c -; \
-    install -m 755 /tmp/claude /usr/local/bin/claude; \
+    install -D -m 755 /tmp/claude /usr/local/libexec/claude-real; \
     rm -f /tmp/claude; \
-    HOME=/tmp/claude-build claude --version; \
+    HOME=/tmp/claude-build /usr/local/libexec/claude-real --version; \
     rm -rf /tmp/claude-build
+# /usr/local/bin/claude は、root の実行を断る薄いラッパー（2026-11-11）。root の claude は、CLAUDE_CONFIG_DIR（vscode の ~/.claude）の
+# 設定ファイルを root 所有に書き換えて、vscode が読めなくしてしまうため。実体は /usr/local/libexec/claude-real。
+COPY --chmod=755 claude-root-guard.sh /usr/local/bin/claude
