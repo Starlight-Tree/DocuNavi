@@ -13,7 +13,9 @@
 	// 実キーの .env でも D1_API_URL が無いと、api は起動の検査に失敗して unhealthy のまま止まる（ローカルの api は D1 につながない。モックモードなら起動する）。
 	// それでも開発コンテナの作成が止まらないよう、./docker-compose.yml で frontend の待ちを service_started に緩めてある。
 	"service": "dev",
-	"runServices": ["api", "frontend"],
+	// 2026-11-11: 旧 Compose の api・frontend は起動しない（ローカルの入口は scripts/dev-local.sh の画面 3000 に一本化。
+	// frontend が先に 3000 を取ると、転送が別の番号にずれる）。runServices に dev だけを書いたときの動作は未確認。
+	"runServices": ["dev"],
 	"workspaceFolder": "/workspaces/docunavi",
 	"remoteUser": "vscode",
 	// stopCompose: VS Code のウィンドウを閉じると、dev・api・frontend をまとめて止める（down ではない。コンテナも残る）。
@@ -83,7 +85,9 @@
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// 3100: frontend/ の next dev、8100: tests/e2e_server.py の偽 API（Next.js 版の画面をホストのブラウザーで確かめる用）
-	"forwardPorts": [3100, 8100],
+	// 3000: scripts/dev-local.sh の画面（ローカルの標準構成の入口。BETTER_AUTH_URL が http://localhost:3000 なので、番号がずれたら失敗にする）
+	"forwardPorts": [3100, 8100, 3000],
+	"portsAttributes": { "3000": { "label": "DocuNavi (dev-local)", "requireLocalPort": true } },
 
 	// コンテナの作成・再ビルド時に自動でインストールする拡張機能。
 	// Python 系は features/python も入れるが、設定ファイルの python.analysis.* を使うので明示しておく
