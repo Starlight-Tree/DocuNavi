@@ -43,3 +43,6 @@ evals/results/graph_rules_ext_compare.json
 # langgraph dev のローカル状態
 .langgraph_api/
 .github-app.env
+
+# scripts/dev-local.sh の、実 API の承認とキー情報の記録（キーの値は入れない。コミットしない）
+/.dev-local/
