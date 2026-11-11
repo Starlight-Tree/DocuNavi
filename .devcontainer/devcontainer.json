@@ -97,6 +97,8 @@
 	"forwardPorts": [3100, 8100],
 	// 3000 は、コンテナ内で待ち受けが始まると VS Code が自動転送しようとし、ホストの 3000（Compose の公開）と衝突して 3001 などにずれる。自動転送を無視する。
 	// 8000（API の uvicorn）はホストから使わないので、同じく自動転送を無視する。
+	// 注意: .vscode/settings.json の remote.portsAttributes（ワークスペースの設定）が、ここより優先される。そちらも ignore にそろえてある
+	// （そこが "silent" のとき、ここで ignore にしても 3001 と 8000 が自動転送された）。変えるときは両方を直す。
 	"portsAttributes": {
 		"3000": { "label": "DocuNavi (Compose で公開済み)", "onAutoForward": "ignore" },
 		"8000": { "label": "docunavi-api (ホストからは使わない)", "onAutoForward": "ignore" }

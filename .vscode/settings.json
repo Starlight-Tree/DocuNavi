@@ -9,18 +9,21 @@
     "containers.containers.groupByLabel": "local.ui.group",
     "containers.containers.label": "ContainerName",
     "containers.containers.description": ["Status"],
+    // 3000・8000 は自動転送しない（2026-11-11）。ここ（ワークスペースの設定）は devcontainer.json の portsAttributes より優先されるので、
+    // ここが "silent" のままだと、devcontainer.json で ignore にしても自動転送された（3000 はホストの Compose の公開と衝突して 3001 にずれ、8000 も出た）。
+    // 3000 は .devcontainer/docker-compose.yml の ports で公開済み、8000（API）はホストから使わない。変えるときは devcontainer.json の portsAttributes と揃える。
     "remote.portsAttributes": {
         "8000": {
-            "label": "docunavi-api",
-            "onAutoForward": "silent"
+            "label": "docunavi-api (ホストからは使わない)",
+            "onAutoForward": "ignore"
         },
         "2024": {
             "label": "langgraph-studio (langgraph dev)",
             "onAutoForward": "silent"
         },
         "3000": {
-            "label": "docunavi-ui (next dev)",
-            "onAutoForward": "silent"
+            "label": "DocuNavi (Compose で公開済み)",
+            "onAutoForward": "ignore"
         }
     }
 }
