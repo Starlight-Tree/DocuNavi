@@ -17,7 +17,7 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
-現在の本番（2026-11-08 から。画面は Cloudflare の Worker `docunavi-web`、API は Cloud Run の FastAPI、DB は Prisma Postgres〔Free・東京。pgvector で検索〕、認証は Worker `docunavi-api` の Better Auth を Hyperdrive 経由で同じ Postgres に載せる。D1・Vectorize・Worker の `/v1` は撤去済み。バックアップは R2 への毎日の `pg_dump`〔`docs/pg-backup.md`〕）と、目標構成と、Go・Django などを採用する条件は [docs/target-architecture.md](docs/target-architecture.md)。
+現在の本番（2026-11-08 から。画面は Cloudflare の Worker `docunavi-web`、API は Cloud Run の FastAPI、DB は Prisma Postgres〔Free・東京。pgvector で検索〕、認証は Worker `docunavi-api` の Better Auth を Hyperdrive 経由で同じ Postgres に載せる。D1・Vectorize・Worker の `/v1` は撤去済み。バックアップは R2 への週 1 回の `pg_dump`〔`docs/pg-backup.md`〕）と、目標構成と、Go・Django などを採用する条件は [docs/target-architecture.md](docs/target-architecture.md)。
 新しいサービス・言語・フレームワーク・DB・インフラを足す前に、それを読んで、ユーザーに確認する。
 
 - `app/api/routes.py`: `/chat` `/chat/stream` `/health`。LLM の失敗は固定メッセージの 429/504/500/502 に変換する。画面は SSE の `/chat/stream`（組み立ては `ui_stream.py`）を使う
