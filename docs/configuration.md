@@ -84,6 +84,9 @@
 `AUTH_MODE=off`（既定）では何も確かめず、従来どおり匿名で動きます。**公開する前に `required` にしてください。**
 2026-11-08 に、Supabase Auth から Better Auth へ移しました（それ以前の記録は Git の履歴）。
 
+- **セッションの確認は、5 分間 Cookie の写しで済ませる（2026-11-11）:** Worker `docunavi-api` の Better Auth は `session.cookieCache`（`maxAge` 5 分、公式の既定の `compact` 方式）を有効にして、
+  `get-session` と `/token` のたびに DB を引かない。メモリ DB の Better Auth で `get-session` + `/token` を 5 回ずつ流すと、DB 操作は 22 → 12（セッションの読み取りが 0）。残りは署名鍵（`jwks`）の読み取り。
+  **サーバー側でセッションを失効させても、最大 5 分は有効に見える**（利用者自身のログアウトは Cookie も消すので、すぐ効く）。`refreshCache` は使わない（DB に確認しないまま延び続けるため）。**配備は Worker のデプロイ（`deploy.yml`）が要る。未配備。**
 - **検証すること:** 署名（`{AUTH_BASE_URL}/api/auth/jwks` の公開鍵。ES256 / RS256 だけ。`alg=none` と HS256 は受け付けない）、
   `exp` `iss`（`AUTH_BASE_URL`）`aud`（`AUTH_AUDIENCE`。既定 `docunavi`）`sub` が全部あること、`sub` が英数字・`_`・`-` の 8〜64 文字であること。
   失敗は、固定メッセージの 401（`WWW-Authenticate: Bearer`）。鍵を取得できないときは 503。
@@ -115,7 +118,10 @@
 - 利用者のロール（`chatbot.user_roles`。`user_id` は JWT の `sub`）が持つグループ（`chatbot.role_collection_access`）の和集合。
 - ロールが 1 つも割り当てられていない利用者は `default` ロール（初期データは `zahard` `cafe` `guides` の 3 グループ）。`AUTH_MODE=off` の匿名も `default`。
   ほかのロールを 1 つでも割り当てると `default` は使われない（足したいときは `default` も割り当てる）。
-- キャッシュは持たず、リクエストごとに DB から引く。割り当てを変えると、次のリクエストから効く。
+- プロセス内に、利用者ごとの短い TTL のキャッシュを持つ（`ACCESS_CACHE_TTL_SECONDS`。既定 60 秒、0 で無効。負・数でない値は起動を失敗させる）。
+  Prisma Postgres の無料枠は operations（SQL 1 本が 1）で数えるので、リクエストごとのロールの確認を減らすため（2026-11-11 に利用者が決定）。
+  **割り当ての変更・外しが効くまでに、最大でこの秒数かかる**（Cloud Run のインスタンスごとに別の控え。即時に効かせるには、リビジョンを入れ替える）。
+  引けなかった結果と、「存在する全グループを引けなかった」結果は控えない。控えは接続プールに結びつく（プールが替われば使わない）。
 - グループを持たない資料（`collection` が NULL）は、`ACCESS_MODE=enforce` では誰にも見えない（`ACCESS_MODE=off` の検索・一覧にだけ出る）。
 - 権限の判断はサーバーだけで行う（LLM には任せない）。検索は、検索の前に SQL で範囲を絞る（取ってから消さない）。範囲を絞った検索は、返ってきた行も確かめ直す。
 

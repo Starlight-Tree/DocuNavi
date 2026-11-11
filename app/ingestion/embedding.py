@@ -273,6 +273,17 @@ class D1EmbeddingStore:
 
     def save_embeddings(self, rows: Sequence[tuple[PendingChunk, list[float]]]) -> int:
         self._pending = None
+        bulk = getattr(self._db, "write_embeddings", None)
+        if bulk is not None:
+            # Postgres: 100 件ずつ、ベクトルと記録を 1 本の UPDATE で書く（1 件ずつなら、件数の 2 倍 + 1 本を使う）
+            return sum(
+                bulk(
+                    [(c.id, c.content_hash, c.heading, c.input_hash, v) for c, v in rows[i : i + MAX_BATCH]],
+                    MODEL,
+                    DIMENSIONS,
+                )
+                for i in range(0, len(rows), MAX_BATCH)
+            )
         # 本文のハッシュと見出しが、埋め込みを作ったときのままの行だけを更新する（取り込みで入れ替わった行に、古い入力のベクトルを付けない）
         saved = 0
         for i in range(0, len(rows), MAX_BATCH):

@@ -778,6 +778,121 @@ def test_completeness_raises_like_visible_collections_without_a_pool(monkeypatch
         asyncio.run(access.visible_with_completeness(None))
 
 
+# ---- プロセス内の短い TTL キャッシュ（DB の operations を減らす。権限の反映は最大 TTL 秒遅れる） ------------------------------
+
+
+def test_the_cache_serves_the_same_user_within_the_ttl_without_touching_the_db(monkeypatch):
+    pool = CompletenessPool(["cafe"], ["cafe", "guides"])
+    monkeypatch.setattr(access, "get_pool", lambda: pool)
+    first = asyncio.run(access.visible_with_completeness("u1"))
+    again = asyncio.run(access.visible_with_completeness("u1"))
+    assert first == again == (frozenset({"cafe"}), False)
+    assert pool.connections == 1  # 2 回目は DB を読まない
+    asyncio.run(access.visible_with_completeness("u2"))  # 別の利用者は引く
+    assert pool.connections == 2
+
+
+def test_a_cached_entry_expires_after_the_ttl_and_the_new_roles_take_effect(monkeypatch):
+    now = [1000.0]
+    monkeypatch.setattr(access.time, "monotonic", lambda: now[0])
+    monkeypatch.setenv("ACCESS_CACHE_TTL_SECONDS", "60")
+    pool = CompletenessPool(["cafe"], ["cafe", "guides"])
+    monkeypatch.setattr(access, "get_pool", lambda: pool)
+    assert asyncio.run(access.visible_with_completeness("u1"))[0] == {"cafe"}
+    pool.visible = ["cafe", "guides"]  # ロールを付け足した
+    now[0] += 59
+    assert asyncio.run(access.visible_with_completeness("u1"))[0] == {"cafe"}  # TTL 内は、古いまま（許容した遅れ）
+    now[0] += 2
+    assert asyncio.run(access.visible_with_completeness("u1"))[0] == {"cafe", "guides"}  # TTL を過ぎれば反映
+    assert pool.connections == 2
+
+
+def test_the_cache_is_off_when_the_ttl_is_zero(monkeypatch):
+    monkeypatch.setenv("ACCESS_CACHE_TTL_SECONDS", "0")
+    pool = CompletenessPool(["cafe"], ["cafe"])
+    monkeypatch.setattr(access, "get_pool", lambda: pool)
+    asyncio.run(access.visible_with_completeness("u1"))
+    asyncio.run(access.visible_with_completeness("u1"))
+    assert pool.connections == 2
+
+
+def test_an_incomplete_lookup_is_not_cached(monkeypatch):
+    pool = CompletenessPool(["cafe"], [], known_error=RuntimeError("x"))
+    monkeypatch.setattr(access, "get_pool", lambda: pool)
+    assert asyncio.run(access.visible_with_completeness("u1"))[1] is False
+    pool.known_error = None
+    assert asyncio.run(access.visible_with_completeness("u1")) == (
+        frozenset({"cafe"}),
+        True,
+    )  # 回復したら、すぐ引き直す
+    assert pool.connections == 2
+
+
+def test_a_failed_lookup_is_not_cached(monkeypatch):
+    monkeypatch.setattr(access, "get_pool", lambda: None)
+    with pytest.raises(access.AccessUnavailable):
+        asyncio.run(access.visible_with_completeness("u-failed"))
+    assert "u-failed" not in access._cache
+
+
+class PerUserPool:
+    """利用者 ID ごとに別のグループを返す偽の接続（ロールの違う利用者を、控えが取り違えないことの確認）。"""
+
+    def __init__(self, by_user: dict[str | None, list[str]], known: list[str]) -> None:
+        self.by_user, self.known = by_user, known
+        self.queries = 0
+
+    @asynccontextmanager
+    async def connection(self):
+        pool = self
+
+        class Conn:
+            async def execute(self, sql: str, params: dict[str, Any] | None = None) -> CollectionsCursor:
+                if sql == access._KNOWN_SQL:
+                    return CollectionsCursor([{"collection": n} for n in pool.known])
+                pool.queries += 1
+                return CollectionsCursor([{"collection": n} for n in pool.by_user[(params or {})["uid"]]])
+
+        yield Conn()
+
+
+def test_cached_groups_are_never_mixed_up_between_users_or_with_anonymous(monkeypatch):
+    pool = PerUserPool({"staff-1": ["zahard", "cafe"], "guest-2": ["cafe"], None: ["cafe"]}, ["zahard", "cafe"])
+    monkeypatch.setattr(access, "get_pool", lambda: pool)
+    for _ in range(3):  # 2 巡目からは控えから返る。それでも、利用者ごとの結果は入れ替わらない
+        assert asyncio.run(access.visible_with_completeness("staff-1")) == (frozenset({"zahard", "cafe"}), True)
+        assert asyncio.run(access.visible_with_completeness("guest-2")) == (frozenset({"cafe"}), False)
+        assert asyncio.run(access.visible_with_completeness(None)) == (frozenset({"cafe"}), False)
+    assert pool.queries == 3  # 3 人 x 1 回だけ。残りは控え
+
+
+def test_the_cache_is_not_shared_across_connection_pools(monkeypatch):
+    first = CompletenessPool(["cafe"], ["cafe"])
+    second = CompletenessPool(["guides"], ["guides"])
+    monkeypatch.setattr(access, "get_pool", lambda: first)
+    assert asyncio.run(access.visible_with_completeness("u-pool"))[0] == {"cafe"}
+    monkeypatch.setattr(access, "get_pool", lambda: second)
+    assert asyncio.run(access.visible_with_completeness("u-pool"))[0] == {
+        "guides"
+    }  # プールが替わったら、控えを使わない
+
+
+@pytest.mark.parametrize("value", ["abc", "-1", "nan", "inf"])
+def test_an_invalid_ttl_fails_startup_instead_of_falling_back(monkeypatch, value):
+    monkeypatch.setenv("ACCESS_MODE", "enforce")
+    monkeypatch.setenv("ACCESS_CACHE_TTL_SECONDS", value)
+    with pytest.raises(access.AccessConfigError, match="ACCESS_CACHE_TTL_SECONDS"):
+        asyncio.run(access.verify_access_config())
+
+
+def test_the_cache_is_bounded(monkeypatch):
+    access.clear_cache()  # 他のテストの控えが残っていても、件数の上限だけを確かめる
+    monkeypatch.setattr(access, "_CACHE_MAX_ENTRIES", 3)
+    for i in range(10):
+        access._cache_put(f"u{i}", frozenset({"cafe"}), True, None)
+    assert len(access._cache) <= 3 and "u9" in access._cache
+
+
 def _legacy_thread(thread_id: str, *, with_key: bool = False) -> None:
     """collection の項目が無い出典の、古い形の会話を保存する（検索結果に基づく回答 1 回）。"""
     config = {"configurable": {"thread_id": thread_id}}
