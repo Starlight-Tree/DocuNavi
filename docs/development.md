@@ -5,6 +5,85 @@
 フロントエンドで Supabase のログインを有効にする場合（`frontend/.env.local` に `NEXT_PUBLIC_SUPABASE_URL` などがある）、バックエンドも `AUTH_MODE=required`（と `SUPABASE_URL`）で起動します。
 `off` で起動すると、ログイン画面は出るのに、`/threads` などが 404 になります（匿名の会話には持ち主がいないため）。
 
+## ローカルの標準構成（Postgres + 認証 + 固定回答の偽 LLM）
+
+会話の履歴・ログイン・アクセス制御を、本物の実装で確かめるための入口（開発コンテナの中で `scripts/dev-local.sh`）。DB・認証・履歴は本物で、
+LLM だけを置き換える（`GEMINI_API_KEY` を空にして起動するので、API はモックモード。`MockChatModel` の固定の返答）。本番 DB・実 API・実 LLM には接続しない
+（DB のホストがローカル以外なら起動を拒否する）。実 LLM を使う確認は、これとは別に、質問文・回数・費用を示して承認を得てから行う。
+
+| コマンド | 内容 |
+|---|---|
+| `scripts/dev-local.sh check` | 前提の確認（ツール、`workers/api/.dev.vars` の項目の名前、DB の表の有無）。読み取りだけ |
+| `scripts/dev-local.sh start` / `stop` / `status` | Worker(8787)・API(8000)・画面(3000) の起動・停止・状態。停止は記録した PID だけ |
+| `scripts/dev-local.sh login` | テスト用ユーザーでログインし、Cookie を保存する（値は表示しない） |
+| `scripts/dev-local.sh cookie` | その Cookie の値を出す（**ユーザーが自分の端末で実行する。エージェントは実行しない**） |
+
+- **ポート:** 3100・3101・8100 は E2E 専用（`frontend/playwright.config.ts`）。使わない。画面は 3000（ローカルの入口はこれ 1 つ）。旧 Compose の `frontend` `api` は、同じ 3000 を使うので、ホストで `docker compose -p docunavi stop frontend api` して止めておく（`devcontainer.json` の `runServices` からも外してある）。
+- **DB:** 既定は `docunavi`（ローカルの Postgres、`host.docker.internal:5433`）。別の DB を使うときは `LOCAL_DB_NAME`。
+  **スキーマの適用・DB の作成・削除は、スクリプトがしない。** 新しい DB は `db/migrations/0001_schema.sql` を手で 1 回適用する。
+- **`workers/api/.dev.vars`**（Git 管理外）は、**手で書かない**。正本は Infisical のプロジェクト `docunavi-local`（環境 `dev`、パス `/`）で、`scripts/dev-local.sh start`（または `vars`）が、ログイン済みのユーザーの権限で取り、権限 600 で作り直す（取れないときは、理由を出して止まる）。
+  キーは 6 つ: `BETTER_AUTH_SECRET` `BETTER_AUTH_URL`（`http://localhost:3000`） `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` `TEST_LOGIN_EMAIL` `TEST_LOGIN_TOKEN`（ランダム 32 文字以上）。
+  初回の登録と、Google のクライアントの設定は、下の「Google ログインの設定」。
+- **`jwks` の暗号鍵:** Better Auth の署名鍵は、`BETTER_AUTH_SECRET` で暗号化して `jwks` に保存される。DB に残った行が別の秘密で暗号化されていると、
+  `/api/auth/token` が 500（Worker の log に `Failed to decrypt private key`）になる。その DB の `jwks` の行を消す（Worker が次のトークン発行で作り直す）か、別の DB を使う。
+- **ホストのブラウザーで会話の履歴を見る手順**（画面のログインは Google だけなので、テスト用ログインの Cookie を手で入れる）:
+  1. 開発コンテナで `scripts/dev-local.sh start`、続けて `login`。
+  2. `scripts/dev-local.sh cookie` で値を出し、コピーする（値はチャット・ファイル・コミットに出さない）。
+  3. ホストのブラウザーで `http://localhost:3000` を開き（VS Code の「ポート」パネルに 3000 が転送されていること。`forwardPorts` に入れてあるが、反映前は「ポートの転送」で手動追加）、DevTools の Application → Cookies → `http://localhost:3000` に、
+     名前 `better-auth.session_token`、値は 2 のもの、Path `/`、HttpOnly にチェックして追加する。
+  4. 再読み込みする。左に「会話の履歴」が出て、質問を送ると並ぶ。
+- **未確認:** ホストのブラウザーから 3000 番へ届くこと（2026-11-11 に、3200 番は自動転送されず ERR_CONNECTION_REFUSED だった。3000 は `forwardPorts` + `requireLocalPort` に変えたが、反映後の確認はまだ）、DevTools での Cookie の追加。
+  開発コンテナの Playwright での確認（2026-11-11）は、同じ構成（`docunavi_authcheck` の DB）で通った（会話が 2 件並び、再読み込みで残り、選ぶと復元された）。
+
+### Google ログインの設定（ローカル。2026-11-11）
+
+ローカルの画面（3000）のログインは Google。ダミーの値では、Google の画面でエラーになる。本番の設定・本番の OAuth クライアントの既存 Secret には触れない。
+
+#### 保存先と再利用の方針（正本は Infisical）
+
+| 項目 | 内容 |
+|---|---|
+| 保存先 | Infisical のプロジェクト `docunavi-local`（ID `e5c18c98-5cfd-4f4e-a495-f309752289de`）、環境 `dev`、パス `/`（2026-11-11 に、ユーザーのログインで作成） |
+| キー（6 つ） | `BETTER_AUTH_SECRET` `BETTER_AUTH_URL`（`http://localhost:3000`） `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` `TEST_LOGIN_EMAIL` `TEST_LOGIN_TOKEN` |
+| 取得 | `bash scripts/dev-local.sh vars`（`start` も先頭で同じことをする）。ログイン済みのユーザーの権限で取り、`workers/api/.dev.vars` を権限 600 で作り直す。値は表示しない。マシン ID（Viewer）は、このプロジェクトに入れない（権限を広げない） |
+| 再利用 | ローカルの起動・再設定は、**まず Infisical を参照**する。同じ Client ID と Secret を使い回し、**毎回 Secret を追加しない** |
+| 禁止（自動でしない） | Secret の追加・ローテーション・無効化。必要なときは、理由と影響を示してユーザーの承認を得る（`register` は、登録済みなら何もせず、`--overwrite` を付けたときだけ上書きする） |
+
+実値は、文書・CLAUDE.md・メモリー・Git に書かない。
+
+**Google 側の Secret と共用の方針（2026-11-11 にユーザーが決定）:** 本番とローカルは、**同じクライアント（`docunavi-app`）の同じ Secret（2026-11-11 にローカル用として作成したもの）を共用する**。追加の Secret は作らない（分離のための 3 つ目は不要という決定）。
+- **保存先（正本）:** ローカル = Infisical `docunavi-local` / `dev` / `/`。本番 = Infisical `docunavi-prod`（ID `19ae32bb-f2f0-4534-bfa2-f56da66f8873`）/ `prod` / `/` の `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET`（2026-11-11 に保存。再取得で、ローカルと一致を確認済み）。実行環境: 本番 Worker `docunavi-api`（Cloudflare アカウント Starlight）の Secret `GOOGLE_CLIENT_SECRET`、ローカルの `.dev.vars`。
+- **本番の Worker への反映:** `wrangler secret put`（2026-11-11 07:24Z。デプロイ `5aa23ffd…`。`GOOGLE_CLIENT_ID` と他の Secret は変えていない）。
+- **旧 Secret（末尾 `wbec`、2026-11-08 作成）:** 本番の Google ログインは、新 Secret で成功を確認済み（2026-11-11、ユーザーが実施）。**2026-11-11 に Google の画面で削除済み**（ユーザーの操作）。削除後、Infisical の 2 か所の値でクライアント認証が通ることを確認済み（無効な code でのトークン呼び出しが `invalid_grant`）。旧 Secret の値は、どこにも保存されていなかったので、戻せない。
+- **影響:** 漏れる・失効する・更新するときの影響は、本番とローカルの両方に及ぶ。**今後の更新では、Infisical の 2 か所と、本番 Worker・ローカルの `.dev.vars` を、そろえて更新する**（順序: Google で新 Secret → 両方の Infisical → 本番 Worker `wrangler secret put` → ローカル `register --overwrite`。本番のログインを確認してから、旧 Secret を消す）。承認なしに追加・ローテーションしない。
+
+#### 初回の設定（済んでいれば不要）
+
+1. **Google Cloud の OAuth クライアント**（<https://console.cloud.google.com/apis/credentials?project=docunavi-app>。実機では未確認の URL）。本番と同じクライアントに、次を**追加**する（既存の値は消さない）:
+   - 「承認済みのリダイレクト URI」: `http://localhost:3000/api/auth/callback/google`、「承認済みの JavaScript 生成元」: `http://localhost:3000`（2026-11-11 に追加済み）。
+   - 「クライアント シークレット」の「Add secret」で、新しい Secret（2026-11-11 に追加・保存済み。**以後は追加しない**）。作成直後に 1 回だけ表示され、チャットには貼らない。
+   - 同意画面が「テスト」状態なら、自分のアカウントをテストユーザーに追加する。
+2. **登録**（開発コンテナの端末、vscode ユーザー。`infisical login` 済み。ホストからは `docker exec -it -u vscode -e HOME=/home/vscode docunavi-devcontainer bash -c 'cd /workspaces/docunavi && bash scripts/dev-local.sh register'`）:
+   Client ID と Secret は `read -rs` で受ける（表示されない）。ほかの 4 つは、いまの `.dev.vars` の値をそのまま移す。権限 600 の一時ファイルを `infisical secrets set --file` に渡す（コマンド引数・ログ・チャットに出ない。成功・失敗のどちらでも一時ファイルを消す）。
+   登録後に Infisical から取得し直し、登録した値と一致することを確かめ（値は表示しない）、`.dev.vars` を権限 600 で作り直す。
+3. **起動と確認:** `bash scripts/dev-local.sh start` のあと、ブラウザーで `http://localhost:3000` → Google でログイン。認可 URL の `client_id`（先頭の数文字）と `redirect_uri` が上の設定と合っていること、ログイン後にローカル DB の `user` `account` に行ができることを確かめる。
+
+#### 取れないときの確認順（「Secret が無い」と即断しない）
+
+`vars` は、取れないとき、次の順の確認材料を値なしで出す。
+
+1. ログイン中のアカウントと組織（`infisical user get`、`infisical org`。別のアカウントでログインしていないか。組織は `Wataru`）。
+2. プロジェクト ID（上の表）が見えているか（同じ名前の別 ID がないか）。
+3. 環境 `dev`・パス `/`、いま入っているキー名（読めないキーは出ない = 権限を疑う）。
+4. 自分の権限（プロジェクトの Members）。`infisical login` の期限切れ（`infisical login` をやり直す）。
+5. それでも無い場合に限り、理由と影響を示して、ユーザーの承認を得てから、追加・ローテーションを検討する。
+
+**確認の状況（2026-11-11）:**
+- **確認済み:** ローカル用の 2 つ目の Secret を Infisical（`docunavi-local` / `dev` / `/`）へ保存し、6 キーを取得し直して、登録した値と一致することを確かめた（値は表示せず、`register` が一致を検査）。`vars` で `.dev.vars` を権限 600 で作り直し、`start` で Worker・API・画面が起動し、`/health` が通り、認可 URL（`accounts.google.com`。`redirect_uri` は `http://localhost:3000/api/auth/callback/google`、`client_id` は Google のクライアントのもの）が出ることも確かめた。**次回はこの保存値を再利用する。Secret を追加しない。**
+- **`register` の不具合を直した:** 成功時に `tmp: unbound variable` で終わり、一時ファイルが残る不具合（EXIT の trap が関数のローカル変数 `tmp` を参照していた）。trap にパスを展開して埋め込む形にし、ダミー値で、成功・登録失敗・不一致のどれでも一時ファイルが残らないことを確かめた。
+- **Google ログインの実動作（2026-11-11、ユーザーがブラウザーで実施）:** ログインできた。ローカル DB に `account`（`google`）と `user`（メール確認済み）の行ができ、`session` が作られ、API の `/threads` が 200 を返した（Worker の `/api/auth/callback/google` は 302）。
+- **未確認:** 本番の Cloudflare で使われている Secret が `wbec` であること（読み出せない）。ログイン後の会話の送信・履歴の保存（ブラウザーでの操作）。`user_roles` は空（ロール別の資料制御はローカルでは `ACCESS_MODE=off`）。
+
 ## テスト
 
 ```bash
