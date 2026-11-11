@@ -16,6 +16,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['127.0.0.1'],
   // `next dev` が AGENTS.md を自動で作るのを止める
   agentRules: false,
+  // `next dev` の左下の「N」のアイコンが、画面の左下（モックのアイコンなど）に重なるので出さない（開発時だけ。本番には影響しない。エラーの表示は残る）
+  devIndicators: false,
   // UI モック（/mock）は、UI_MOCK=1 で起動・ビルドしたときだけ開く。本番（Worker）では設定しないので、/ へ戻す
   async redirects() {
     if (process.env.UI_MOCK === '1') return [];
@@ -24,7 +26,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     // /api/auth/* は rewrites ではなく app/api/auth/[...all]/route.ts が中継する（rewrites は 302 をたどって Set-Cookie を捨てる）
     if (!apiProxyTarget) return [];
-    const api = ['/health', '/chat', '/chat/stream', '/threads', '/threads/:path*', '/documents', '/documents/:path*', '/collections'].map(
+    const api = ['/health', '/chat', '/chat/stream', '/threads', '/threads/:path*', '/documents', '/documents/:path*', '/collections', '/targets', '/doc-types'].map(
       (source) => ({ source, destination: `${apiProxyTarget}${source}` }),
     );
     return api;
