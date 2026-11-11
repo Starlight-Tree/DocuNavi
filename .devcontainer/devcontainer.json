@@ -14,12 +14,14 @@
 	// それでも開発コンテナの作成が止まらないよう、./docker-compose.yml で frontend の待ちを service_started に緩めてある。
 	"service": "dev",
 	// 2026-11-11: 旧 Compose の api・frontend は起動しない（ローカルの入口は scripts/dev-local.sh の画面 3000 に一本化。
-	// frontend が先に 3000 を取ると、転送が別の番号にずれる）。runServices に dev だけを書いたときの動作は未確認。
+	// 旧 frontend も 3000 を公開するので、起動すると取り合いになる）。runServices に dev だけを書いたときの動作は未確認。
 	"runServices": ["dev"],
 	"workspaceFolder": "/workspaces/docunavi",
 	"remoteUser": "vscode",
-	// stopCompose: VS Code のウィンドウを閉じると、dev・api・frontend をまとめて止める（down ではない。コンテナも残る）。
-	"shutdownAction": "stopCompose",
+	// none: VS Code のウィンドウの切断（Host ⇄ 開発コンテナの切り替え・再読み込み・閉じる）でコンテナを止めない（2026-11-11 に stopCompose から変更）。
+	// stopCompose だと、切断の 10 秒後までに再接続が終わらないと `compose stop -t 0 dev` で止まる（shutdownMonitor のログと docker events で確認。exit 143）。
+	// 切り替えで止まると、中の dev-local.sh のサーバー（Worker・API・画面）も落ちる。止めるときは明示的に: README と docs/development.md の「開発コンテナの停止」。
+	"shutdownAction": "none",
 	// Docker は、ホストのソケットを渡さず、読み取り専用のプロキシ（.devcontainer/docker-proxy/compose.yml）経由にする。
 	// initializeCommand: ホストで、コンテナの作成の前に実行される。プロキシを起動し、ネットワーク docunavi-dev を作る
 	// （無いと、./docker-compose.yml の external のネットワークが見つからず失敗する）。ホストに docker（OrbStack）が無いと、ここで止まる。
@@ -85,9 +87,11 @@
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// 3100: frontend/ の next dev、8100: tests/e2e_server.py の偽 API（Next.js 版の画面をホストのブラウザーで確かめる用）
-	// 3000: scripts/dev-local.sh の画面（ローカルの標準構成の入口。BETTER_AUTH_URL が http://localhost:3000 なので、番号がずれたら失敗にする）
-	"forwardPorts": [3100, 8100, 3000],
-	"portsAttributes": { "3000": { "label": "DocuNavi (dev-local)", "requireLocalPort": true } },
+	// 3000（scripts/dev-local.sh の画面）は、ここでは転送しない。.devcontainer/docker-compose.yml の ports（127.0.0.1:3000:3000）で、VS Code に依存せず公開する
+	// （二重にすると、VS Code の転送が 3001 などにずれる）。
+	"forwardPorts": [3100, 8100],
+	// 3000 は、コンテナ内で待ち受けが始まると VS Code が自動転送しようとし、ホストの 3000（Compose の公開）と衝突して 3001 などにずれる。自動転送を無視する。
+	"portsAttributes": { "3000": { "label": "DocuNavi (Compose で公開済み)", "onAutoForward": "ignore" } },
 
 	// コンテナの作成・再ビルド時に自動でインストールする拡張機能。
 	// Python 系は features/python も入れるが、設定ファイルの python.analysis.* を使うので明示しておく

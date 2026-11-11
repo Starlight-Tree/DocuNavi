@@ -19,6 +19,7 @@ LLM だけを置き換える（`GEMINI_API_KEY` を空にして起動するの�
 | `scripts/dev-local.sh cookie` | その Cookie の値を出す（**ユーザーが自分の端末で実行する。エージェントは実行しない**） |
 
 - **ポート:** 3100・3101・8100 は E2E 専用（`frontend/playwright.config.ts`）。使わない。画面は 3000（ローカルの入口はこれ 1 つ）。旧 Compose の `frontend` `api` は、同じ 3000 を使うので、ホストで `docker compose -p docunavi stop frontend api` して止めておく（`devcontainer.json` の `runServices` からも外してある）。
+  3000 は VS Code の転送ではなく、`.devcontainer/docker-compose.yml` の `ports: 127.0.0.1:3000:3000` でホストに公開する（2026-11-11。エディターや Host ⇄ 開発コンテナの切り替えに依存しない。画面は `0.0.0.0` で待ち受け、公開先はホストの loopback だけ）。`forwardPorts` に 3000 は入れない（二重にすると 3001 などにずれる）。
 - **DB:** 既定は `docunavi`（ローカルの Postgres、`host.docker.internal:5433`）。別の DB を使うときは `LOCAL_DB_NAME`。
   **スキーマの適用・DB の作成・削除は、スクリプトがしない。** 新しい DB は `db/migrations/0001_schema.sql` を手で 1 回適用する。
 - **`workers/api/.dev.vars`**（Git 管理外）は、**手で書かない**。正本は Infisical のプロジェクト `docunavi-local`（環境 `dev`、パス `/`）で、`scripts/dev-local.sh start`（または `vars`）が、ログイン済みのユーザーの権限で取り、権限 600 で作り直す（取れないときは、理由を出して止まる）。
@@ -29,10 +30,10 @@ LLM だけを置き換える（`GEMINI_API_KEY` を空にして起動するの�
 - **ホストのブラウザーで会話の履歴を見る手順**（画面のログインは Google だけなので、テスト用ログインの Cookie を手で入れる）:
   1. 開発コンテナで `scripts/dev-local.sh start`、続けて `login`。
   2. `scripts/dev-local.sh cookie` で値を出し、コピーする（値はチャット・ファイル・コミットに出さない）。
-  3. ホストのブラウザーで `http://localhost:3000` を開き（VS Code の「ポート」パネルに 3000 が転送されていること。`forwardPorts` に入れてあるが、反映前は「ポートの転送」で手動追加）、DevTools の Application → Cookies → `http://localhost:3000` に、
+  3. ホストのブラウザーで `http://localhost:3000` を開き（ホストの 3000 は Compose の `ports` で公開済み。VS Code の「ポート」パネルに 3000 を足さない）、DevTools の Application → Cookies → `http://localhost:3000` に、
      名前 `better-auth.session_token`、値は 2 のもの、Path `/`、HttpOnly にチェックして追加する。
   4. 再読み込みする。左に「会話の履歴」が出て、質問を送ると並ぶ。
-- **未確認:** ホストのブラウザーから 3000 番へ届くこと（2026-11-11 に、3200 番は自動転送されず ERR_CONNECTION_REFUSED だった。3000 は `forwardPorts` + `requireLocalPort` に変えたが、反映後の確認はまだ）、DevTools での Cookie の追加。
+- **未確認:** ホストのブラウザーから 3000 番へ届くこと（2026-11-11 に、3200 番は VS Code の自動転送がされず ERR_CONNECTION_REFUSED だった。3000 は Compose の `ports` に変えた。反映後の確認は、下の「開発コンテナの停止と切り替え」に記録）、DevTools での Cookie の追加。
   開発コンテナの Playwright での確認（2026-11-11）は、同じ構成（`docunavi_authcheck` の DB）で通った（会話が 2 件並び、再読み込みで残り、選ぶと復元された）。
 
 ### Google ログインの設定（ローカル。2026-11-11）
@@ -83,6 +84,22 @@ LLM だけを置き換える（`GEMINI_API_KEY` を空にして起動するの�
 - **`register` の不具合を直した:** 成功時に `tmp: unbound variable` で終わり、一時ファイルが残る不具合（EXIT の trap が関数のローカル変数 `tmp` を参照していた）。trap にパスを展開して埋め込む形にし、ダミー値で、成功・登録失敗・不一致のどれでも一時ファイルが残らないことを確かめた。
 - **Google ログインの実動作（2026-11-11、ユーザーがブラウザーで実施）:** ログインできた。ローカル DB に `account`（`google`）と `user`（メール確認済み）の行ができ、`session` が作られ、API の `/threads` が 200 を返した（Worker の `/api/auth/callback/google` は 302）。
 - **未確認:** 本番の Cloudflare で使われている Secret が `wbec` であること（読み出せない）。ログイン後の会話の送信・履歴の保存（ブラウザーでの操作）。`user_roles` は空（ロール別の資料制御はローカルでは `ACCESS_MODE=off`）。
+
+### 開発コンテナの停止と切り替え（2026-11-11）
+
+1 つの VS Code ウィンドウで、Project Manager から Host ⇄ 開発コンテナを切り替えて使う前提（2 ウィンドウ化・新しいウィンドウで開く設定は使わない）。
+
+- **停止の原因（確認済み）:** `shutdownAction: stopCompose` のとき、切り替え・再読み込みでウィンドウが切断されると、Dev Containers の shutdownMonitor が 10 秒待ち、その間に再接続が終わらないと `docker compose … stop -t 0 dev` を実行する（2026-11-11 07:35 UTC に、shutdownMonitor のログと `docker events` の `kill 15` → `kill 9` → `die exit=143` が 10 秒差で一致。06:29 UTC の停止も同じ流れ）。切断の操作そのもの（再読み込み・開き直し・閉じる）はログから特定できていない。OOM・再起動ポリシー・コンテナのログに異常はない。
+- **対策:** `shutdownAction` を `"none"` に明示した。切り替えで切断されても、コンテナと中の `dev-local.sh` のサーバーは動き続ける。
+- **3000 番:** VS Code の転送ではなく、Compose の `ports: 127.0.0.1:3000:3000` で公開する。Host に切り替えても `http://localhost:3000` に届く。
+- **明示的な停止（`none` のときは、自動では止まらない）:**
+  - ローカルのサーバーだけ: 開発コンテナの端末で `bash scripts/dev-local.sh stop`（記録した PID だけを止める）。
+  - 開発コンテナを止める: ホストで `docker compose -p docunavi -f docker-compose.yml -f .devcontainer/docker-compose.yml stop dev`（`down` は使わない。ボリューム・DB は消えない）。
+  - 再開: VS Code で開発コンテナを開く（止まっていれば起動される）、またはホストで同じコマンドの `start dev`。
+- **VS Code のウィンドウを閉じても止まらない。** 使わないときは上の停止を実行する。
+- **3000 の自動転送を無視する:** `portsAttributes` の `3000` に `onAutoForward: ignore` を入れてある。無いと、コンテナ内で待ち受けが始まったときに VS Code が自動転送し、ホストの 3000（Compose の公開）と衝突して 3001 などにずれる。以前に Ports パネルに残った 3001 の項目は、手動で削除する。
+- **確認済み（2026-11-11）:** `devcontainer up --remove-existing-container`（VS Code と同じ引数。ボリューム・DB は消さない）で `dev` を作り直し、`127.0.0.1:3000->3000/tcp` が公開された。旧 `api`・`frontend` は停止のまま。コンテナ内で `dev-local.sh start`（Infisical の保存済み Secret を再利用）が通り、ホストの `localhost:3000/` が 200、`/health` が `mode: mock`、`/api/auth/ok` が `{"ok":true}`。Python・socat の暫定転送は使っていない。
+- **未確認:** 同じウィンドウで「開発コンテナ → Host → 開発コンテナ」と切り替えたときに、コンテナが止まらず、サーバーが動き続け、Host でも `localhost:3000` に届き、戻ったときに再接続できること（VS Code の画面操作が要る。結果はここに追記する）。Google ログインのブラウザーでの再確認。
 
 ## テスト
 
