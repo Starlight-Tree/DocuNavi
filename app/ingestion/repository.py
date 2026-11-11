@@ -14,6 +14,9 @@ from typing import Any, Protocol
 from app.d1 import MAX_BATCH
 from app.ingestion.chunker import Chunk
 
+# 複数行 INSERT の 1 本あたりの行数（1 行 8 個のパラメーター。SQLite の上限 999 個に収める）
+INSERT_ROWS = 100
+
 
 class _KeepTitle:
     """`save()` に題名を渡さなかった印。保存済みの題名をそのまま残す（None を渡すと「題名なし」として消す）。"""
@@ -134,27 +137,26 @@ class D1Repository:
         names = sorted(set(sources))
         if not names:
             return
-        docs = self._db.execute(
-            "SELECT id, source, content_hash, status, pages, title, collection FROM documents "
-            "WHERE source IN (SELECT value FROM json_each(?))",
+        # 文書の行とチャンクのハッシュを 1 本で読む（Prisma Postgres の operations は SQL 1 本が 1。文書の数にも資料群の数にも比例させない）。
+        # チャンクの無い文書も 1 行返る（LEFT JOIN。chunk_hash が NULL）
+        rows = self._db.execute(
+            "SELECT d.id AS id, d.source AS source, d.content_hash AS content_hash, d.status AS status, d.pages AS pages, "
+            "d.title AS title, d.collection AS collection, c.content_hash AS chunk_hash "
+            "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id "
+            "WHERE d.source IN (SELECT value FROM json_each(?)) ORDER BY d.id, c.chunk_index",
             (json.dumps(names),),
         )
-        ids = [row["id"] for row in docs]
-        by_doc: dict[int, list[str]] = {i: [] for i in ids}
-        if ids:
-            for row in self._db.execute(
-                "SELECT document_id, content_hash FROM chunks "
-                "WHERE document_id IN (SELECT value FROM json_each(?)) ORDER BY document_id, chunk_index",
-                (json.dumps(ids),),
-            ):
-                by_doc[row["document_id"]].append(row["content_hash"])
         self._states = {name: None for name in names}
         self._hashes = {}
-        for row in docs:
-            self._states[row["source"]] = DocumentState(
-                row["content_hash"], row["status"], row["pages"], row["title"], row["collection"]
-            )
-            self._hashes[row["source"]] = by_doc[row["id"]]
+        for row in rows:
+            source = row["source"]
+            if source not in self._hashes:
+                self._states[source] = DocumentState(
+                    row["content_hash"], row["status"], row["pages"], row["title"], row["collection"]
+                )
+                self._hashes[source] = []
+            if row["chunk_hash"] is not None:
+                self._hashes[source].append(row["chunk_hash"])
 
     def _forget(self, source: str) -> None:
         self._states.pop(source, None)
@@ -225,21 +227,27 @@ class D1Repository:
                     (chunk.index, chunk.page, chunk.page_end, chunk.kind, chunk.heading, row_id),
                 )
             )
-        for chunk in insert:
+        # 新しいチャンクは、1 本の複数行 INSERT にまとめる（1 件ずつだと、チャンクの数だけ operations を使う）
+        for i in range(0, len(insert), INSERT_ROWS):
+            part = insert[i : i + INSERT_ROWS]
+            values = ", ".join(["(?, ?, ?, ?, ?, ?, ?, ?)"] * len(part))
+            params: list[Any] = []
+            for chunk in part:
+                params += [
+                    doc_id,
+                    chunk.index,
+                    chunk.page,
+                    chunk.page_end,
+                    chunk.kind,
+                    chunk.heading,
+                    chunk.text,
+                    chunk.content_hash,
+                ]
             statements.append(
                 (
                     "INSERT INTO chunks (document_id, chunk_index, page, page_end, kind, heading, content, content_hash) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        doc_id,
-                        chunk.index,
-                        chunk.page,
-                        chunk.page_end,
-                        chunk.kind,
-                        chunk.heading,
-                        chunk.text,
-                        chunk.content_hash,
-                    ),
+                    f"VALUES {values}",
+                    params,
                 )
             )
         for i in range(0, len(statements), MAX_BATCH):

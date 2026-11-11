@@ -366,6 +366,38 @@ class SyncPg:
             raise _fail(exc) from None
         return len(vectors)
 
+    def write_embeddings(
+        self, rows: Sequence[tuple[int, str, str | None, str, Sequence[float]]], model: str, dimensions: int
+    ) -> int:
+        """埋め込み（ベクトル・モデル・次元・入力ハッシュ）を、1 本の UPDATE でまとめて書く。書いた行数を返す。
+
+        rows は (チャンク ID, 本文のハッシュ, 見出し, 入力ハッシュ, ベクトル)。本文のハッシュと見出しが、埋め込みを作ったときのままの行だけを更新する
+        （取り込みで入れ替わった行に、古い入力のベクトルを付けない）。1 件ずつだと件数だけ operations を使うので、1 本にまとめる。
+        """
+        if not rows:
+            return 0
+        self.statements += 1
+        try:
+            cur = self._db().execute(
+                "UPDATE chunks c SET embedding = v.emb::vector, embedding_model = %s, embedding_dimensions = %s, "
+                "embedding_input_hash = v.ih "
+                "FROM (SELECT unnest(%s::bigint[]) AS id, unnest(%s::text[]) AS ch, unnest(%s::text[]) AS h, "
+                "unnest(%s::text[]) AS ih, unnest(%s::text[]) AS emb) v "
+                "WHERE c.id = v.id AND c.content_hash = v.ch AND c.heading IS NOT DISTINCT FROM v.h",
+                [
+                    model,
+                    dimensions,
+                    [int(r[0]) for r in rows],
+                    [r[1] for r in rows],
+                    [r[2] for r in rows],
+                    [r[3] for r in rows],
+                    [_vector_literal(r[4]) for r in rows],
+                ],
+            )
+            return cur.rowcount
+        except psycopg.Error as exc:
+            raise _fail(exc) from None
+
     def vectors_delete(self, ids: Sequence[str]) -> int:
         """消えるチャンクの行は別の文が消すので、ここは何もしない（行の削除で埋め込みも消える）。"""
         return len(ids)

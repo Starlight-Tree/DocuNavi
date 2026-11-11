@@ -44,6 +44,10 @@ function auth(env: Env, pool: Pool) {
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
     socialProviders: { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } },
+    // セッションの確認（get-session・/token）を、5 分間は Cookie の署名つきの写しで済ませ、DB を引かない（Prisma Postgres の operations を減らす）。
+    // 公式の既定の方式（compact。BETTER_AUTH_SECRET で署名）と、公式の既定の 5 分。サーバー側でセッションを失効させても、最大 5 分は有効に見える
+    // （利用者自身のログアウトは Cookie も消すので、すぐ効く）。refreshCache は使わない（DB に確認しないまま延び続けるため）。
+    session: { cookieCache: { enabled: true, maxAge: 5 * 60 } },
     // 既定は無効（Google ログインだけ）。自動テスト用の 1 アドレスのときだけ有効にする（上の Env の説明）
     emailAndPassword: { enabled: allowedEmail !== null, autoSignIn: false, minPasswordLength: 24, maxPasswordLength: 128 },
     hooks: {

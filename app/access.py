@@ -1,7 +1,9 @@
 """ロール別の資料グループ制御（ロードマップ ⑧）。利用者ごとに、検索・回答・出典・本文・PDF・関係図・会話の表示が届くグループを決める。
 
 - 見えるグループ = 利用者のロール（`user_roles`）が持つグループ（`role_collection_access`）の和集合。ロールが 1 つも無い利用者
-  （`AUTH_MODE=off` の匿名を含む）は `default` ロール。キャッシュは持たず、リクエストごとに引く（権限の変更が次のリクエストから効く）。
+  （`AUTH_MODE=off` の匿名を含む）は `default` ロール。プロセス内に短い TTL（既定 60 秒。`ACCESS_CACHE_TTL_SECONDS`、0 で無効）の
+  キャッシュを持つ（DB の operations を減らすため）。ロールの付け替え・外しが効くまでに、最大でこの秒数かかる（2026-11-11 に利用者が許容）。
+  引けなかった結果と、「全グループを引けなかった」結果は、キャッシュしない。
 - 権限の判断はサーバーだけで行う（LLM には任せない）。検索は **検索の前に** SQL で絞る（結果を取ってから消さない）。
 - `ACCESS_MODE`: `off`（既定。制限なし。DB も読まない）/ `shadow`（制限せず、enforce なら何件が絞り込まれるかをログに出す）/
   `enforce`（制限する）。知らない値は起動を失敗させる。enforce で権限を引けなければ 503（制限なしには倒れない）、shadow では制限なしで続ける。
@@ -13,6 +15,7 @@
 
 import logging
 import os
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Annotated, Any
@@ -79,11 +82,62 @@ def access_mode() -> str:
     return value
 
 
+DEFAULT_CACHE_TTL_SECONDS = 60.0
+_CACHE_MAX_ENTRIES = 1024
+# 利用者 ID（匿名は None）→ (期限の monotonic 秒, 見えるグループ, 全グループを含むか, 引いた接続プール)。プロセス内だけ。Cloud Run のインスタンスごとに別。
+# 接続プールが入れ替わったら（テストの偽の DB を含む）、控えは使わない
+_cache: dict[str | None, tuple[float, frozenset[str], bool, Any]] = {}
+
+
+def cache_ttl_seconds() -> float:
+    """`ACCESS_CACHE_TTL_SECONDS`（秒。0 で無効。既定 60）。負・数でない値は、黙って既定にせず例外にする。"""
+    raw = os.environ.get("ACCESS_CACHE_TTL_SECONDS", "").strip()
+    if not raw:
+        return DEFAULT_CACHE_TTL_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        raise AccessConfigError("ACCESS_CACHE_TTL_SECONDS は 0 以上の数（秒）にしてください。") from None
+    if value < 0 or value != value or value == float("inf"):
+        raise AccessConfigError("ACCESS_CACHE_TTL_SECONDS は 0 以上の数（秒）にしてください。")
+    return value
+
+
+def clear_cache() -> None:
+    """キャッシュを空にする（テスト・運用の即時反映用）。"""
+    _cache.clear()
+
+
+def _cache_get(user_id: str | None, pool: Any) -> tuple[frozenset[str], bool] | None:
+    hit = _cache.get(user_id)
+    if hit is None or hit[3] is not pool:
+        return None
+    if hit[0] <= time.monotonic():
+        _cache.pop(user_id, None)
+        return None
+    return hit[1], hit[2]
+
+
+def _cache_put(user_id: str | None, visible: frozenset[str], complete: bool, pool: Any) -> None:
+    ttl = cache_ttl_seconds()
+    if ttl <= 0:
+        return
+    now = time.monotonic()
+    if len(_cache) >= _CACHE_MAX_ENTRIES:
+        for key in [k for k, v in _cache.items() if v[0] <= now]:
+            del _cache[key]
+        if len(_cache) >= _CACHE_MAX_ENTRIES:
+            _cache.pop(next(iter(_cache)))  # 最も古く入れたもの
+    _cache[user_id] = (now + ttl, visible, complete, pool)
+
+
 async def visible_collections(user_id: str | None) -> frozenset[str]:
-    """利用者が見えるグループ。毎回 DB から引く（キャッシュなし）。ロールが 1 つも無い利用者（None を含む）は default ロール。"""
+    """利用者が見えるグループ。ロールが 1 つも無い利用者（None を含む）は default ロール。TTL 内は、プロセス内の控えを返す。"""
     pool = get_pool()
     if pool is None:
         raise AccessUnavailable("DB の接続が開いていません")
+    if (hit := _cache_get(user_id, pool)) is not None:
+        return hit[0]
     async with pool.connection() as conn:
         cursor = await conn.execute(_VISIBLE_SQL, {"uid": user_id, "default": DEFAULT_ROLE})
         rows = await cursor.fetchall()
@@ -99,6 +153,8 @@ async def visible_with_completeness(user_id: str | None) -> tuple[frozenset[str]
     pool = get_pool()
     if pool is None:
         raise AccessUnavailable("DB の接続が開いていません")
+    if (hit := _cache_get(user_id, pool)) is not None:
+        return hit
     async with pool.connection() as conn:
         cursor = await conn.execute(_VISIBLE_SQL, {"uid": user_id, "default": DEFAULT_ROLE})
         visible = frozenset(row["collection"] for row in await cursor.fetchall())
@@ -109,8 +165,10 @@ async def visible_with_completeness(user_id: str | None) -> tuple[frozenset[str]
             logger.warning(
                 "存在する資料グループを引けませんでした (%s)。古い会話は伏せたままにします", type(exc).__name__
             )
-            return visible, False
-    return visible, bool(visible) and known <= visible
+            return visible, False  # 引けなかった結果は、控えない
+    complete = bool(visible) and known <= visible
+    _cache_put(user_id, visible, complete, pool)
+    return visible, complete
 
 
 async def target_is_visible(scope: Scope, target: str) -> bool:
@@ -201,6 +259,7 @@ async def verify_access_config() -> None:
     if mode == "off":
         logger.info("アクセス制御: 無効（ACCESS_MODE=off。利用者ごとの資料の制限はしない）")
         return
+    cache_ttl_seconds()  # 不正な値は、起動を失敗させる
     pool = get_pool()
     if pool is None:
         raise AccessConfigError(f"ACCESS_MODE={mode} には D1_API_URL が必要です。")

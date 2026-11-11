@@ -171,29 +171,24 @@ class D1Saver(BaseCheckpointSaver[str]):
         if not writes:
             return
         verb = "INSERT OR REPLACE" if all(w[0] in WRITES_IDX_MAP for w in writes) else "INSERT OR IGNORE"
-        sql = (
-            f"{verb} INTO checkpoint_writes (thread_id, checkpoint_ns, checkpoint_id, task_id, idx, channel, type, value) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-        statements = []
+        # 1 回の書き込み（通常 1〜3 件）を、複数行の 1 本の INSERT にする（1 件ずつだと、件数だけ operations を使う）
+        thread_id = str(config["configurable"]["thread_id"])
+        ns = str(config["configurable"]["checkpoint_ns"])
+        checkpoint_id = str(config["configurable"]["checkpoint_id"])
+        rows: dict[int, list[Any]] = {}
         for idx, (channel, value) in enumerate(writes):
             type_, blob = self.serde.dumps_typed(value)
-            statements.append(
-                (
-                    sql,
-                    (
-                        str(config["configurable"]["thread_id"]),
-                        str(config["configurable"]["checkpoint_ns"]),
-                        str(config["configurable"]["checkpoint_id"]),
-                        task_id,
-                        WRITES_IDX_MAP.get(channel, idx),
-                        channel,
-                        type_,
-                        self._enc(blob),
-                    ),
-                )
-            )
-        await self.pool.batch(statements)
+            key = WRITES_IDX_MAP.get(channel, idx)
+            if verb == "INSERT OR IGNORE" and key in rows:
+                continue  # 先に入れた行が残る（1 件ずつの INSERT OR IGNORE と同じ）
+            # 同じ主キーが 1 本の文に 2 回入ると、Postgres の ON CONFLICT DO UPDATE は失敗する。REPLACE は、後の行が残る
+            rows[key] = [thread_id, ns, checkpoint_id, task_id, key, channel, type_, self._enc(blob)]
+        params: list[Any] = [v for row in rows.values() for v in row]
+        sql = (
+            f"{verb} INTO checkpoint_writes (thread_id, checkpoint_ns, checkpoint_id, task_id, idx, channel, type, value) "
+            f"VALUES {', '.join(['(?, ?, ?, ?, ?, ?, ?, ?)'] * len(rows))}"
+        )
+        await self.pool.batch([(sql, params)])
 
     async def adelete_thread(self, thread_id: str) -> None:
         await self.pool.batch(
