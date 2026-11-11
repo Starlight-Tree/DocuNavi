@@ -10,9 +10,17 @@
 
 set -euo pipefail
 
+# 失敗の原因は、標準エラーの先頭の「[原因: …]」で区別する。
+#   root で実行された        → root の HOME（/root）には資格情報が無く、起動に失敗して「CONNECTION_CLOSED」になる。vscode ユーザーで実行する
+#   資格情報（identity）が無い → マシン ID の資格情報を置く（README の「開発環境の Infisical」）
+if [ "$(id -u)" = 0 ]; then
+  echo "infisical-mcp: [原因: root で実行された] root の HOME（${HOME:-?}）にはマシン ID の資格情報がありません。vscode ユーザーで実行してください（docker exec -u vscode -e HOME=/home/vscode …）。Claude Code から呼ばれる通常の経路は vscode ユーザーです。" >&2
+  exit 1
+fi
+
 identity="$HOME/.infisical/identity"
 if [ ! -r "$identity" ]; then
-  echo "infisical-mcp: $identity がありません（マシン ID の資格情報を置いてください）。" >&2
+  echo "infisical-mcp: [原因: 資格情報が無い] $identity がありません。マシン ID の資格情報を置いてください（README の「開発環境の Infisical」）。" >&2
   exit 1
 fi
 
