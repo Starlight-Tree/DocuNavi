@@ -132,6 +132,7 @@ Playwright で `host.docker.internal:3000` を開くと、`allowedDevOrigins` �
   `api` はホストにポートを公開せず、公開するのは `frontend` の 3000 番だけです。起動順は `api` → `frontend`（`condition: service_healthy`）。
 - **`.env` に実キーがあっても、ローカルの `api` は D1 につながりません。** `D1_API_URL` が無いと、本物の LLM では資料の検索の起動の検査に失敗し（コード上の読みで、実機では未確認）、`frontend` も起動しません。モックモード（`.env` を別名にする）で起動します。
   資料の取り込みと検索は、本番の D1 + Vectorize（データ用 Worker `docunavi-api`）と取り込みジョブで行い、ローカルでは行いません。
+- **`.env` の実キーなしでローカルの `api` を動かすとき:** `docker-compose.mock.yml` を重ねる（`docker compose -f docker-compose.yml -f docker-compose.mock.yml up -d --force-recreate api`）。`.env` を読まず、本番の DB・実 API につながない（会話履歴はメモリ）。2026-11-11 に、起動と、環境変数が空・`is_mock_mode()` が True・healthy・`/chat` がモックの固定文・ネットワークが `docunavi-frontend-net` だけ、の 5 点を確認（画面の見た目は未確認）。普段の `docker compose up` や `--force-recreate` は `.env` を読むので、実キーのままだと `api` は unhealthy になる。
 - **`docker compose down -v` は ボリュームを消します**。`node_modules` だけ消したいときは `docker volume rm docunavi_frontend_next_node_modules`（先に `docker compose down`）。
 - `api` の 8000 番を確かめたいとき（ビルド済みの画面配信・`curl`）: `docker compose -f docker-compose.yml -f docker-compose.api-port.yml up -d`。8000 番は `127.0.0.1` にだけ公開されます。
   上のコマンド例の `localhost:8000` は、この上書きを重ねたときの話です（`frontend` の 3000 番経由なら、`localhost:3000/health` などが `api` に届きます）。
