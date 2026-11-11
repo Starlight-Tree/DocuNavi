@@ -17,6 +17,11 @@ services:
     init: true
     # コンテナを起こしておくだけ。VS Code が中に入る（devcontainer.json の overrideCommand の既定と同じ）。
     command: sleep infinity
+    # scripts/dev-local.sh の画面（3000）を、ホストの 127.0.0.1 だけに公開する（2026-11-11）。VS Code の転送に依存しない。
+    # BETTER_AUTH_URL・Google の redirect URI が http://localhost:3000 なので、番号は変えない。
+    # 旧 Compose の frontend（../docker-compose.yml の 3000:3000）と同時には起動できない（runServices で dev だけにしてある）。
+    ports:
+      - "127.0.0.1:3000:3000"
     volumes:
       - .:/workspaces/docunavi:cached
       # コンテナを再ビルドしても Claude Code の履歴・認証情報が消えないよう、~/.claude を名前付きボリュームに永続化する。

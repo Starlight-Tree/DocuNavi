@@ -282,12 +282,13 @@ cmd_start() {
   echo $! >"$(pid_file api)"
   wait_for api "http://127.0.0.1:${API_PORT}/health" 60
 
-  # 画面。frontend/.env.local の値（本番の URL など）より、ここで渡す値が優先される
+  # 画面。frontend/.env.local の値（本番の URL など）より、ここで渡す値が優先される。
+  # 待ち受けは 0.0.0.0（コンテナの外から届くように。ホストへは .devcontainer/docker-compose.yml が 127.0.0.1:3000 だけに公開する）
   (
     cd frontend
     NEXT_PUBLIC_AUTH_ENABLED=1 NEXT_PUBLIC_AUTH_BASE_URL= NEXT_PUBLIC_API_BASE_URL= NEXT_PUBLIC_STREAM_BASE_URL= \
       API_PROXY_TARGET="http://127.0.0.1:${API_PORT}" AUTH_PROXY_TARGET="http://127.0.0.1:${WORKER_PORT}" NEXT_TELEMETRY_DISABLED=1 \
-      nohup npx next dev -H 127.0.0.1 -p "$WEB_PORT" >"$STATE/web.log" 2>&1 </dev/null &
+      nohup npx next dev -H 0.0.0.0 -p "$WEB_PORT" >"$STATE/web.log" 2>&1 </dev/null &
     echo $! >"$(pid_file web)"
   )
   wait_for web "http://127.0.0.1:${WEB_PORT}/" 90

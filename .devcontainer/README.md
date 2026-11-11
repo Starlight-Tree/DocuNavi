@@ -352,7 +352,7 @@ Container Tools の画面は、一覧が見える（検証 7）。未確認: コ
 | 設定の置き場所 | dev の定義は `.devcontainer/docker-compose.yml`。`containerEnv` は `devcontainer.json` にも残し（場所を変えない。CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT を含む）、同じ値を dev の `environment` にも置く。変えるときは両方 |
 | ボリューム | 名前は今のまま（`claude-code-config-<ID>` など 5 つ）。Compose の `volumes` で名前を指定した。履歴・ログイン・トークンは引き継がれる想定 |
 | プロジェクト名 | `docker-compose.yml` の `name: docunavi` で固定（ホストの `docker compose up` と同じコンテナ・ボリュームを使う） |
-| 閉じたとき | `shutdownAction: stopCompose`。ウィンドウを閉じると dev・db・api・frontend が止まる（`down` ではない。`pg-data` は残る） |
+| 閉じたとき | 2026-11-11 から `shutdownAction: none`。ウィンドウの切断（Host ⇄ 開発コンテナの切り替え・再読み込み・閉じる）で止まらない。止めるときは明示的に（docs/development.md「開発コンテナの停止と切り替え」）。以前の `stopCompose` は、切断の 10 秒後までに再接続が終わらないと `stop -t 0 dev` で止まった。画面 3000 は `ports: 127.0.0.1:3000:3000` で公開 |
 | api が失敗するとき | 実キーの `.env` で db が空だと、api は起動の検査に失敗する（`uvicorn --reload` なので、コンテナは落ちず `unhealthy` のまま止まる。再起動はされない）。開発コンテナ経由の起動だけ、`frontend` の待ちを `service_started` に緩めて、作成が止まらないようにした。資料を取り込み、`docker compose restart api` するまで api は healthy にならない（2026-10-22 に取り込み済み。healthy を確認） |
 
 **再ビルドは VS Code の「Dev Containers: Rebuild Container」で行う（2026-11-11）。** ホストの `docker compose build dev` は、node・python の feature
