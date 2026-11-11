@@ -7,7 +7,7 @@ interface LoginScreenProps {
 export function LoginScreen({ notice, onSignIn }: LoginScreenProps) {
   return (
     <main className="login-screen">
-      <h1 className="app-title">ドキュナビ</h1>
+      <h1 className="app-title">DocuNavi</h1>
       <p>利用するには、Google アカウントでログインしてください。</p>
       {notice && (
         <p className="error-banner login-notice" role="alert">
