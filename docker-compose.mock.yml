@@ -1,0 +1,18 @@
+# ローカルの api を、モックモードで起動する上書き（2026-11-11）。秘密は入っていない。
+#   docker compose -f docker-compose.yml -f docker-compose.mock.yml up -d --force-recreate api
+#
+# 目的: `.env` に実キー（GEMINI_API_KEY など）があっても、本番の DB・実 API につながないで api を動かす。
+# - `env_file: !reset []` で、`.env` を api に渡さない（`.env` の退避・復元は要らない。Compose v2.24 以降の `!reset`）。
+# - GEMINI_API_KEY が空 = モックモード（app/agents/graph.py の is_mock_mode）。資料の検索も LLM の呼び出しもしない。
+# - DB を指す値はすべて空にする。会話履歴はプロセス内のメモリ（再起動で消える）。
+# 普段の起動（`docker compose up`）には影響しない。重ねたときだけ効く。確認の手順は docs/development.md の「ローカルの構成」。
+services:
+  api:
+    env_file: !reset []
+    environment:
+      GEMINI_API_KEY: ""
+      DATABASE_URL: ""
+      DB_BACKEND: ""
+      D1_API_URL: ""
+      AUTH_MODE: "off"
+      GOOGLE_GENAI_USE_VERTEXAI: "false"
