@@ -13,7 +13,7 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
-| Docker | 開発コンテナは Compose ベースで、開いても `api` `frontend` は起動しない（2026-11-11 から。`runServices` は `dev` だけ。ローカルの入口は `scripts/dev-local.sh` の画面 3000 に一本化。反映は再ビルド後で、未確認）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`api` はポート非公開（`dev` から直接は届かない）。ローカルの `api` は本番の DB につながず、モックモードで動く（実キーでも DB の設定〔`DB_BACKEND=pg` と `DATABASE_URL`〕が無いと unhealthy のまま止まる）。**未確認:** `api` から Gemini への到達、`stopCompose`、ホストのブラウザー（`localhost:3000`）での HMR（旧 Compose の `frontend` の話）。構成の詳細・確認の日付・手順は [docs/development.md](docs/development.md)。会話の履歴・ログインまで確かめる標準のローカル構成（ローカル Postgres + 認証 + 固定回答の偽 LLM）は `scripts/dev-local.sh`（「ローカルの標準構成」の節。実 LLM・本番 DB には接続しない） |
+| Docker | 開発コンテナは Compose ベースで、開いても `api` `frontend` は起動しない（2026-11-11 から。`runServices` は `dev` だけ。ローカルの入口は `scripts/dev-local.sh` の画面 3000 に一本化。反映は再ビルド後で、未確認）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`api` はポート非公開（`dev` から直接は届かない）。ローカルの `api` は本番の DB につながず、モックモードで動く（実キーでも DB の設定〔`DB_BACKEND=pg` と `DATABASE_URL`〕が無いと unhealthy のまま止まる）。**未確認:** `api` から Gemini への到達、`stopCompose`、ホストのブラウザー（`localhost:3000`）での HMR（旧 Compose の `frontend` の話）。構成の詳細・確認の日付・手順は [docs/development.md](docs/development.md)。会話の履歴・ログインまで確かめる標準のローカル構成（ローカル Postgres + 認証。**LLM は実 API が既定、モックは `--llm mock` と明示したときだけ**。キーが取れなくてもモックに戻らない）は `scripts/dev-local.sh`（「ローカルの標準構成」の節。本番 DB には接続しない。エージェントは、テストのために通常の 3000 番をモックへ切り替え・再起動しない） |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
@@ -76,7 +76,7 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 - **画面に渡してよいのは公開用の値だけ。** `NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。入れてよいのは API・中継・認証（Better Auth）の URL など、公開してよい値だけ。
   秘密鍵・`D1_API_TOKEN`・`GEMINI_API_KEY` は入れない。
 - **設定は環境変数で渡す。** 認証・DB・LLM の値をコード・文書・コミットに書かない。`.env` と `frontend/.env.local` は Git 管理外。
-- **ローカルの認証情報（Google ログインなど）の正本は Infisical `docunavi-local`（ID `<INFISICAL_PROJECT_ID>`・環境 `dev`・パス `/`・6 キー）。** `workers/api/.dev.vars` は手で書かず、`scripts/dev-local.sh start|vars` で作る（権限 600）。
+- **ローカルの認証情報（Google ログインなど）の正本は Infisical `docunavi-local`（ID `<INFISICAL_PROJECT_ID>`・環境 `dev`・パス `/`・6 キー）。** `workers/api/.dev.vars` は手で書かず、`scripts/dev-local.sh start|vars` で作る（権限 600）。**実 API の `GEMINI_API_KEY` も同じ保存先**（7 つ目。`.dev.vars` には入れず、API のプロセスの環境変数にだけ渡す。画面・Worker・ログ・引数には出さない。`.env` の既存のキーを `register-gemini` で写す。新しいキーは発行せず、本番のキーは変えない）。無料・有料は、キーの変数名では決めず、`gemini-key-info` と `ack-gemini` で確かめて承認を得る。
   **本番（Worker `docunavi-api`。保存先は Infisical `docunavi-prod`/`prod`/`/`）と同じ Google Secret を共用**するので、更新は両方の保存先と実行環境をそろえる。必ず先にここを参照し、再利用する。Secret の追加・ローテーション・無効化は自動でせず、理由と影響を示して承認を得る。取れないときは「無い」と即断せず、組織・ID・環境・パス・権限を確認する（順序は `docs/development.md`「Google ログインの設定」）。値は文書・メモリー・Git に書かない。
 - **他の人が届く環境（Cloud Run など）は `AUTH_MODE=required`。** `off`（既定）は、自分だけが使うローカル開発用。
 - **キーを誤ってコミット・公開したら、失効させて作り直す。** 履歴から消すだけでは足りない。

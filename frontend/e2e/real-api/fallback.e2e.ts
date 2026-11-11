@@ -29,6 +29,19 @@ interface SearchRecord {
   hits: number; // 偽の検索が返した件数
 }
 
+// 1 回の実行の予算（tests/real_api_budget.py）。外部 API 呼び出し 20 回・質問 10 件・全体 300 秒が上限で、超えると stopped_reason が入る
+interface Budget {
+  calls: number;
+  max_calls: number;
+  questions: number;
+  max_questions: number;
+  elapsed_seconds: number;
+  max_seconds: number;
+  refused_calls: number;
+  refused_questions: number;
+  stopped_reason: string | null;
+}
+
 interface ServerState {
   primary: string;
   fallback: string;
@@ -36,6 +49,7 @@ interface ServerState {
   mock_mode: boolean;
   calls: GeminiCall[];
   searches: SearchRecord[];
+  budget: Budget;
 }
 
 interface Turn {
@@ -67,6 +81,11 @@ async function state(request: APIRequestContext): Promise<ServerState> {
   const response = await request.get('/__real_api/state');
   expect(response.ok()).toBe(true);
   return (await response.json()) as ServerState;
+}
+
+/** 予算に達していたら、その理由。使えるなら null（上限に達したら、追加の質問・再試行はしない）。 */
+async function budgetStop(request: APIRequestContext): Promise<string | null> {
+  return (await state(request)).budget.stopped_reason;
 }
 
 async function setPrimaryFail(request: APIRequestContext, on: boolean) {
@@ -153,13 +172,14 @@ test('主モデルで始めた会話を、フォールバックのモデルで�
   // 本物の主モデルが、いま混んでいて失敗する（503・タイムアウト）ことがある。その回は、主モデルが作った履歴を
   // フォールバックが引き継ぐ検証ができない。失敗ではなく「確かめられなかった」として記録し、スキップする
   const inconclusive: string[] = [];
+  let finalBudget: Budget | null = null;
   // 失敗にはしないが、結果に残す気づき（引き継ぎの検証とは別の件）
   const notes: string[] = [];
   const report = () => {
     mkdirSync('test-results', { recursive: true });
     writeFileSync(
       'test-results/real-api-fallback.json',
-      JSON.stringify({ primary: initial.primary, fallback: initial.fallback, inconclusive, notes, turns }, null, 2),
+      JSON.stringify({ primary: initial.primary, fallback: initial.fallback, budget: finalBudget, inconclusive, notes, turns }, null, 2),
     );
   };
 
@@ -193,6 +213,14 @@ test('主モデルで始めた会話を、フォールバックのモデルで�
       test.skip(true, inconclusive[0]);
     }
 
+    // 予算に達していたら、追加の質問はしない（結果を報告して止まる）
+    const stopAfter1 = await budgetStop(request);
+    if (stopAfter1) {
+      inconclusive.push(`2 ターン目の前に予算に達した: ${stopAfter1}。追加の質問・再試行はしていない。`);
+      report();
+      test.skip(true, inconclusive[0]);
+    }
+
     // 2) 主モデルを 503 にして、同じ会話を続ける → フォールバックのモデルが、1 の履歴を引き継ぐ
     await setPrimaryFail(request, true);
     const t2 = await ask(request, '2 フォールバックで継続', 'さっきの大気の主成分は何でしたか？', t1.threadId, true);
@@ -205,6 +233,13 @@ test('主モデルで始めた会話を、フォールバックのモデルで�
     expect(t2.usedPrimary, '503 のはずの主モデルが本物に届いた').toBe(0);
     expect(t2.usedFallback, 'フォールバックが発火していない').toBeGreaterThan(0);
     expect(t2.calls.filter((c) => c.model === initial.fallback).every((c) => c.status === 200)).toBe(true);
+
+    const stopAfter2 = await budgetStop(request);
+    if (stopAfter2) {
+      inconclusive.push(`3 ターン目の前に予算に達した: ${stopAfter2}。追加の質問・再試行はしていない。`);
+      report();
+      test.skip(true, inconclusive[0]);
+    }
 
     // 3) 主モデルに戻して、続ける → 2 でフォールバックが足した履歴も引き継げる（逆方向）
     await setPrimaryFail(request, false);
@@ -221,6 +256,7 @@ test('主モデルで始めた会話を、フォールバックのモデルで�
     }
     expect(t3.usedFallback).toBe(0);
   } finally {
+    finalBudget = (await state(request)).budget; // 結果に、使った呼び出し回数と質問数を残す
     report();
     await setPrimaryFail(request, false);
   }

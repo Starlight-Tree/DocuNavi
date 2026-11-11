@@ -5,16 +5,19 @@
 フロントエンドで Supabase のログインを有効にする場合（`frontend/.env.local` に `NEXT_PUBLIC_SUPABASE_URL` などがある）、バックエンドも `AUTH_MODE=required`（と `SUPABASE_URL`）で起動します。
 `off` で起動すると、ログイン画面は出るのに、`/threads` などが 404 になります（匿名の会話には持ち主がいないため）。
 
-## ローカルの標準構成（Postgres + 認証 + 固定回答の偽 LLM）
+## ローカルの標準構成（Postgres + 認証 + LLM は実 API が既定）
 
-会話の履歴・ログイン・アクセス制御を、本物の実装で確かめるための入口（開発コンテナの中で `scripts/dev-local.sh`）。DB・認証・履歴は本物で、
-LLM だけを置き換える（`GEMINI_API_KEY` を空にして起動するので、API はモックモード。`MockChatModel` の固定の返答）。本番 DB・実 API・実 LLM には接続しない
-（DB のホストがローカル以外なら起動を拒否する）。実 LLM を使う確認は、これとは別に、質問文・回数・費用を示して承認を得てから行う。
+会話の履歴・ログイン・アクセス制御を、本物の実装で確かめるための入口（開発コンテナの中で `scripts/dev-local.sh`）。DB・認証・履歴はローカルの本物。
+**LLM は実 API（Gemini）が既定**（2026-11-11 に利用者が決定）。モック（`MockChatModel` の固定の返答）は、`--llm mock` か `DEV_LOCAL_LLM=mock` と**明示したときだけ**で、
+キーが取れなくても自動ではモックに戻らない。本番 DB には接続しない（DB のホストがローカル以外なら起動を拒否する）。
+通常の画面（`localhost:3000`）で利用者が質問する回数に、上限は付けない。詳細は下の「LLM のモードと Gemini キー」。
 
 | コマンド | 内容 |
 |---|---|
 | `scripts/dev-local.sh check` | 前提の確認（ツール、`workers/api/.dev.vars` の項目の名前、DB の表の有無）。読み取りだけ |
-| `scripts/dev-local.sh start` / `stop` / `status` | Worker(8787)・API(8000)・画面(3000) の起動・停止・状態。停止は記録した PID だけ |
+| `scripts/dev-local.sh start [--llm real\|mock]` / `stop` / `status` | Worker(8787)・API(8000)・画面(3000) の起動・停止・状態。停止は記録した PID だけ。`status` は、LLM のモード（実 API / モック）と、PID・ポートの確認結果も出す |
+| `scripts/dev-local.sh register-gemini` / `gemini-key-info` / `ack-gemini` | 実 API の準備（**ユーザーが自分の端末で実行**。下の「LLM のモードと Gemini キー」） |
+| `scripts/dev-local.sh with-key -- <コマンド>` | 実 API のテスト用。キーを、そのコマンドのプロセスの環境変数にだけ渡す |
 | `scripts/dev-local.sh login` | テスト用ユーザーでログインし、Cookie を保存する（値は表示しない） |
 | `scripts/dev-local.sh cookie` | その Cookie の値を出す（**ユーザーが自分の端末で実行する。エージェントは実行しない**） |
 
@@ -36,6 +39,41 @@ LLM だけを置き換える（`GEMINI_API_KEY` を空にして起動するの�
 - **未確認:** ホストのブラウザーから 3000 番へ届くこと（2026-11-11 に、3200 番は VS Code の自動転送がされず ERR_CONNECTION_REFUSED だった。3000 は Compose の `ports` に変えた。反映後の確認は、下の「開発コンテナの停止と切り替え」に記録）、DevTools での Cookie の追加。
   開発コンテナの Playwright での確認（2026-11-11）は、同じ構成（`docunavi_authcheck` の DB）で通った（会話が 2 件並び、再読み込みで残り、選ぶと復元された）。
 
+### LLM のモードと Gemini キー（2026-11-11）
+
+- **モードの決め方（`start` と `autostart` で同じ）:** 引数 `--llm real|mock` > 環境変数 `DEV_LOCAL_LLM` > 既定 `real`。`mock` は明示したときだけ。
+- **`real` の中身:** Gemini Developer API。モデルは `app/agents/graph.py` の `DEFAULT_MODEL`（いまは `gemini-3.1-flash-lite`。変えない）、質問の埋め込みは `gemini-embedding-2`。
+  有料キー（`GEMINI_API_KEY_PAID`）・Vertex AI・フォールバックのモデル・`GEMINI_MODEL` の上書き・LangSmith への送信は、空・無効にして渡す（`.env` に値があっても使わない）。課金の有効化・Vertex AI への変更・モデル変更はしない。
+- **キーの保存先と再利用（正本）:** Infisical `docunavi-local` / `dev` / `/` の `GEMINI_API_KEY`（7 つ目。`.dev.vars` には入れない）。**まず Infisical を参照して再利用する。** 新しいキーは発行せず、本番（Secret Manager・Cloud Run）のキーや設定は変えない。
+  `.env` の既存のキーを、`register-gemini` が、値を表示せずに写し、取得し直して一致を確かめる（ほかの 6 キーが残っていることも確かめる。登録済みなら何もしない。上書きは `--overwrite` で、承認が要る）。
+- **キーを渡す先:** API のプロセスの環境変数だけ（`export` は組み込みで、コマンドの引数に出ない）。画面（`NEXT_PUBLIC_*` に入れない）・Worker・`.dev.vars`・ログには出さない。`with-key` も、起動するコマンドの環境変数にだけ渡す。
+  プロセスの環境は、同じユーザーなら `/proc` から読める（`.dev.vars` が権限 600 のファイルにあるのと同程度）。
+- **課金状態の扱い（「`GEMINI_API_KEY` だから無料」とは扱わない）:** Gemini API の無料・有料は、請求アカウントで決まり、プロジェクトとキーが引き継ぐ（公式の文書、2026-11-11、証拠等級 B）。キー単独の設定はない。
+  - `gemini-key-info`（ユーザーの端末）: Google の API でキーの所属プロジェクトと `billingEnabled` を調べる（ユーザー自身の権限。キー・トークンは表示も保存もしない。結果は Git 管理外の `.dev-local/gemini-key-info`）。**API の権限・動作は未確認。** 調べられなければ「未確認」と表示し、[AI Studio の API キーのページ](https://aistudio.google.com/apikey)（キーごとにプロジェクトと Plan が出る。実機では未確認）で確認する。
+  - 確認できなくても、実 API の起動を完全には止めない。**`ack-gemini`**（ユーザーの端末）が、モデル・無料枠の有無・課金状態（確認できた範囲、または「未確認」）・概算費用・上限を表示し、`yes` の入力で承認を記録する（`.dev-local/gemini-ack`。キーの指紋〔SHA-256 の先頭 12 桁〕とモデル名だけ。値は含まない）。**承認が無い、またはキー・モデルが変わると、実 API は起動しない。**
+  - 料金（2026-11-11、公式の料金表）: 無料枠あり（入力が製品の改善に使われる）。有料枠は `gemini-3.1-flash-lite` が入力 $0.25・出力 $1.50、`gemini-embedding-2` が入力 $0.20（100 万トークンあたり）。1 問あたり約 $0.003〜$0.005（LLM 2 回で入力 4〜10k・出力約 1k トークンと仮定した見積もり。**トークン数は未測定**）。
+- **キーが取れないとき:** Infisical にキーが無い・ログインが無い・承認が無いときは、理由を出して止まる（`start` は終了コード 1、`autostart` は 0 でログと `status` に残す）。**モックには戻らない。** `.dev.vars` は変えず、`register` は呼ばず、既存のプロセスも止めない。
+- **起動後のモード:** `start` と `status` が「LLM: 実API（モデル名・キー: Infisical docunavi-local / dev / GEMINI_API_KEY）」または「LLM: モック（明示指定）」を出す（キーの値は出さない）。記録は `/tmp/docunavi-dev-local/llm-mode`、実際のモードは `/health` の `mode`（`gemini` = 実 API）。食い違えば `status` が警告する。
+- **`autostart` の再利用:** 3 つとも記録があるとき、PID だけでなく、所有者・コマンド・**そのポートの待ち受けが記録した PID の子孫のものか**を確かめ、記録のモード・モデル・キーの指紋が、いまの要求と同じときだけ「起動済み」として何もしない。
+  違う・記録が無いとき（古い方法で起動した、など）は、再利用せず、止めずに理由を出して失敗する（`stop` → `start` はユーザーの判断）。別のプロセスに再利用された古い PID は、止めない。
+- **実 API の起動時の検査:** API は、起動時に、DB の資料と埋め込みが検索できる状態かを確かめ、合わなければ起動しない。ローカルの DB は、2026-11-11 に、資料 6 件・チャンク 80 件がすべて `ready`・埋め込み付き（`gemini-embedding-2`・768 次元）で、検査を通る状態だった（読み取りだけで確認）。
+  足りないと分かっても、取り込み・再埋め込みは、対象件数・DB への変更・API 費用を示して承認を得てから行う（自動ではしない）。答えの根拠は、ローカルの DB の資料だけ（本番の資料ではない）。
+- **テストは分ける:** pytest と既存 E2E（3100・3101・8100）は、モックのまま（偽の LLM・偽の検索。DB に書かない）。エージェントは、テストのために、通常の 3000 番をモックへ切り替えたり再起動したりしない。
+  実 API のテストは、明示指定・承認制（下の「実 API の検証」。1 回の実行の予算つき）で、自動起動にも通常のテストにも混ぜない。履歴は、利用者ごと（`<sub>:<thread_id>`）に分かれる。テスト用ユーザー（`TEST_LOGIN_EMAIL`）と、ユーザー自身の Google ログインは別なので、一覧は混ざらない。
+- **確認済み（2026-11-11、開発コンテナの中。証拠等級 A）:**
+  - 準備: キーは Infisical に登録済みで、`gemini-key-info` と `ack-gemini` はユーザーの端末で実行済み（承認の記録あり）。`with-key` の照合は通った。
+  - 実 API **モードでの起動**: `stop` のあと `start`（既定）で起動し、起動時の検査（DB の資料・埋め込み）も通った。`status` の LLM 行（実API・gemini-3.1-flash-lite）と `/health` の `mode=gemini` が一致した。
+  - コンテナ内の `localhost:3000` が 200。
+  - **手動 `start` のあと**の `autostart` 再実行は、「何もしません」で成功し、PID は変わらず（worker 29891 / api 29972 / web 30004）、二重起動もなかった。
+  - キーが無いときの失敗（`.dev.vars` の内容・更新時刻が不変、既存の 3 プロセスの PID が不変、`autostart` は終了コード 0）、記録なし・別モードの記録・モードが同じ記録での `autostart` の判定、偽のキー（秘密ではない文字列）での承認の照合と `with-key`（子プロセスの環境にだけ入る）。
+- **ユーザー確認済み（2026-11-11、ユーザーがホストのブラウザーで実施。質問の文面と回数は記録していない）:** ホストのブラウザーから `localhost:3000` へアクセスできること、Google ログインできること、実 API（Gemini）への質問に回答が返ること。
+  「実 API モードで起動できた」（上の確認）と「Gemini への質問が成功した」（この確認）は別の事実で、後者はユーザーの確認による。エージェントは Gemini に質問していない（テスト用ユーザーのログインが 401 だったため。DB・テストユーザーは変更していない）。
+- **権限制御の記録:** `register-gemini` をエージェントが実行しようとしたところ、自動モードの判定（Secret の書き込み）に拒否された。実行はユーザーの端末で行った。完了を妨げる未確認事項ではない。
+- **未確認（2026-11-11）:**
+  - **自動起動の完了条件。** Dev Containers 経由のリビルド・再作成のあと、手動 `start` なしで、ホストの `localhost:3000` が 200 になること（実 API モードでは未実施）。手動 `start` のあとの 200 と、`autostart` の再実行で PID が変わらないことだけでは、この条件を満たしたとは扱わない（上の確認は、起動済みの環境での再利用の判定にすぎない）。
+  - キーの所属プロジェクトと課金状態（`gemini-key-info` は「不明」、プロジェクト ID も空。[AI Studio](https://aistudio.google.com/apikey) の画面での確認は未実施）。承認は、不明のまま記録されている。
+  - Docker 単体の起動（`docker start`）: Dev Containers 経由とは別で、実 API モードでは未検証。今回は対応範囲外（モックの時点の結果は下の「サーバーの自動起動」に記録）。
+
 ### Google ログインの設定（ローカル。2026-11-11）
 
 ローカルの画面（3000）のログインは Google。ダミーの値では、Google の画面でエラーになる。本番の設定・本番の OAuth クライアントの既存 Secret には触れない。
@@ -45,7 +83,7 @@ LLM だけを置き換える（`GEMINI_API_KEY` を空にして起動するの�
 | 項目 | 内容 |
 |---|---|
 | 保存先 | Infisical のプロジェクト `docunavi-local`（ID `<INFISICAL_PROJECT_ID>`）、環境 `dev`、パス `/`（2026-11-11 に、ユーザーのログインで作成） |
-| キー（6 つ） | `BETTER_AUTH_SECRET` `BETTER_AUTH_URL`（`http://localhost:3000`） `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` `TEST_LOGIN_EMAIL` `TEST_LOGIN_TOKEN` |
+| キー（`.dev.vars` になるのは 6 つ） | `BETTER_AUTH_SECRET` `BETTER_AUTH_URL`（`http://localhost:3000`） `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` `TEST_LOGIN_EMAIL` `TEST_LOGIN_TOKEN` |
 | 取得 | `bash scripts/dev-local.sh vars`（`start` も先頭で同じことをする）。ログイン済みのユーザーの権限で取り、`workers/api/.dev.vars` を権限 600 で作り直す。値は表示しない。マシン ID（Viewer）は、このプロジェクトに入れない（権限を広げない） |
 | 再利用 | ローカルの起動・再設定は、**まず Infisical を参照**する。同じ Client ID と Secret を使い回し、**毎回 Secret を追加しない** |
 | 禁止（自動でしない） | Secret の追加・ローテーション・無効化。必要なときは、理由と影響を示してユーザーの承認を得る（`register` は、登録済みなら何もせず、`--overwrite` を付けたときだけ上書きする） |
@@ -102,9 +140,11 @@ LLM だけを置き換える（`GEMINI_API_KEY` を空にして起動するの�
 - **未確認:** 同じウィンドウで「開発コンテナ → Host → 開発コンテナ」と切り替えたときに、コンテナが止まらず、サーバーが動き続け、Host でも `localhost:3000` に届き、戻ったときに再接続できること（VS Code の画面操作が要る。結果はここに追記する）。ブラウザーでの Google ログインの再確認。
 - **サーバーの自動起動（2026-11-11）:** 「コンテナを止めない」（`shutdownAction`）・「ポート公開」（Compose の `ports`）・「サーバーの自動起動」は別の設定。自動起動は `devcontainer.json` の `postStartCommand` の末尾（`scripts/dev-local.sh autostart`、背景で実行）。
   - 動き: Infisical の保存済み Secret から `.dev.vars` を作り、Worker・API・画面を起こす。3 つとも起動中なら何もしない（再起動しない）。一部だけ起動中なら、記録した PID の持ち主（自分のユーザー・コマンドラインに `wrangler` / `uvicorn` / `next`）を確かめて止め、起動し直す。別のプロセスに再利用された PID は止めない（`stop` も同じ）。`flock` で同時実行を排他する。
+  - **LLM のモード（2026-11-11）:** 既定は実 API（`start` と同じ決め方）。キーの取得・承認ができないと、モックに戻らず、理由をログに残して失敗する（既存のプロセス・`.dev.vars` は変えない）。モードが違う、または記録の無いプロセスは、再利用せず、止めずに失敗する。
+  実 API の準備（`register-gemini` → `gemini-key-info` → `ack-gemini`）が済む前に、コンテナを再起動すると、`localhost:3000` は起動しない（理由は `autostart.log` と `status`）。
   - 失敗しても終了コードは 0（コンテナへの接続を妨げない）。結果と理由は `/tmp/docunavi-dev-local/autostart.log` と `bash scripts/dev-local.sh status` の `autostart:` 行。Infisical の取得に失敗したときは、Secret の作成・上書き（`register`）を呼ばず、`.dev.vars` も変えない（取得に成功したときだけ書き換える）。ログに値は出さない。直したら `bash scripts/dev-local.sh start`。
   - 実行されるのは、**Dev Containers 経由でコンテナが起動したとき**（VS Code で開く、`devcontainer up`、再ビルド）。Host ⇄ 開発コンテナの切り替え（切断・再接続）では再実行されない。**`docker start` 単体では実行されなかった**（2026-11-11 に `docker stop` → `docker start` で、サーバーは起きず、`localhost:3000` は 000）。その場合は、VS Code で開くか、`bash scripts/dev-local.sh start`。Docker 単体の起動のための常駐監視は入れていない。
-  - 確認済み（2026-11-11）: `devcontainer up --remove-existing-container` で再作成した直後、手動 `start` なしで、ホストの `localhost:3000/` が約 15 秒で 200（`autostart.log` に成功）。`autostart` を 2 つ同時に再実行しても、PID は変わらず（worker 274 / api 347 / web 362）、プロセスは二重にならず、後から来たほうは「別の autostart が実行中」でスキップ。`docker stop` → `docker start`（Docker 単体）ではサーバーは起きず、続けて `devcontainer up`（作り直さない）で自動起動して 200。
+  - 確認済み（2026-11-11。**モックで起動した時点の結果。実 API モードの再作成後は未確認**。上の「LLM のモードと Gemini キー」の未確認を参照）: `devcontainer up --remove-existing-container` で再作成した直後、手動 `start` なしで、ホストの `localhost:3000/` が約 15 秒で 200（`autostart.log` に成功）。`autostart` を 2 つ同時に再実行しても、PID は変わらず（worker 274 / api 347 / web 362）、プロセスは二重にならず、後から来たほうは「別の autostart が実行中」でスキップ。`docker stop` → `docker start`（Docker 単体）ではサーバーは起きず、続けて `devcontainer up`（作り直さない）で自動起動して 200。
   - 失敗系の確認（隔離した状態・空の HOME で実行。動いている環境は巻き込まない）: Infisical 未ログインで、`autostart.log` に「Infisical のユーザーログインがありません…」と失敗が残り、`.dev.vars` の内容の指紋と更新時刻が変わらず、終了コードは 0。古い PID が別プロセス（`sleep`）に再利用されている状態で `stop` しても、そのプロセスは止まらず、記録だけが消えた。
   - 未確認: Infisical の別の失敗（プロジェクト ID・権限など）での記録の中身、DB（ホストの 5433）が未起動のときの記録、新しい clone で `.venv`・`node_modules` が無いとき。
 
@@ -149,6 +189,12 @@ pytest
 - 1 つの会話で 3 ターン: ① 主モデル（検索のツール呼び出しを含む）→ ② 主モデルを 503 にして、同じ会話を続ける（フォールバックが履歴を引き継ぐ）→ ③ 主モデルに戻して続ける。
   結果は `frontend/test-results/real-api-fallback.json` に残ります（各ターンのステータス、秒数、Gemini に出た要求のモデル・差し替えの有無・ステータス、エラー。API キーや本文の全体は残しません）。
 - 呼び出しは 1 回の実行で通常 6 回前後、最悪で 18 回程度です（1 ターンに LLM を 2 回呼び、遅いと 8 秒でヘッジの追加が最大 3 本）。
+- **1 回の実行の予算（2026-11-11。時間あたりのレート制限ではない）:** `tests/real_api_budget.py`。Gemini への外部 API 呼び出し**総数 20 回**（LLM の回答・質問と資料の埋め込み・429 などの再試行・ヘッジの追加を含む。httpx の送信の位置で数え、偽の 503 は数えない）、
+  質問 **10 件**、実行全体 **300 秒**。上限に達したら、送信の前に止め（ネットワークに出ない）、質問も 429 で受け付けず、追加の質問・再試行をせずに結果（`real-api-fallback.json` の `budget`）を報告する。環境変数 `REAL_API_MAX_CALLS` `REAL_API_MAX_QUESTIONS` `REAL_API_MAX_SECONDS` で下げられるが、天井は超えられない。
+  再試行は `LLM_MAX_ATTEMPTS=2`、1 試行 30 秒、全体 60 秒に固定する。起動時に、目的・モデル・上限・概算費用（有料枠の上限の見積もり。約 $0.11 以下。トークン数は未測定）を標準エラーに出す。
+- **実行のしかた（承認制）:** 目的を `REAL_API_PURPOSE` に書かないと起動しない。キーは Infisical から、`REAL_API_PURPOSE='…' bash scripts/dev-local.sh with-key -- npm run test:e2e:real-api`（`frontend/` で）。`ack-gemini` の承認が無いと、キーを渡さない。
+  質問文・回数・費用を示して承認を得てから実行する（通常のテスト・CI・自動起動には入らない）。
+  確認済み: 上限の実装は、モックだけで確認した（`tests/test_real_api_budget.py`。偽の送信で 20 回目まで通り 21 回目は送信前に止まる、質問 10 件、300 秒、環境変数の天井、目的が無いと起動しない。サーバーをモックで起動し、質問の上限で 429 を確認）。**実 API での実行は、この変更のあとまだしていない。**
 - 失敗した応答のヘッダーは、`retry-after` と `x-ratelimit-*` の 7 つだけを JSON に残します（レート制限か容量不足かの切り分け用。キー・Authorization・Cookie・本文は残しません）。
 - **確かめられたこと・まだのこと（2026-10-20、実行 2 回）:** 主モデルが本物の 503 を返し続けた回では、フォールバックのモデルが 200 で答えるところまでは確かめた
   （本物の 503 に `retry-after` と `x-ratelimit-*` は付いていなかった）。主モデルが一度も成功しないと、1 ターン目を「検証不能」として記録して止まるので、
