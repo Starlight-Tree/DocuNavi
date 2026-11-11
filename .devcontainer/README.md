@@ -355,6 +355,10 @@ Container Tools の画面は、一覧が見える（検証 7）。未確認: コ
 | 閉じたとき | `shutdownAction: stopCompose`。ウィンドウを閉じると dev・db・api・frontend が止まる（`down` ではない。`pg-data` は残る） |
 | api が失敗するとき | 実キーの `.env` で db が空だと、api は起動の検査に失敗する（`uvicorn --reload` なので、コンテナは落ちず `unhealthy` のまま止まる。再起動はされない）。開発コンテナ経由の起動だけ、`frontend` の待ちを `service_started` に緩めて、作成が止まらないようにした。資料を取り込み、`docker compose restart api` するまで api は healthy にならない（2026-10-22 に取り込み済み。healthy を確認） |
 
+**再ビルドは VS Code の「Dev Containers: Rebuild Container」で行う（2026-11-11）。** ホストの `docker compose build dev` は、node・python の feature
+が入らないイメージ（`docunavi-dev:latest`）を作り、`npx`・`python3` が無くなって MCP（github・infisical・playwright）が起動しなくなる。
+feature は Dev Containers のビルドでだけ入る。
+
 **再ビルドの前（ホストで）:** 古い Dockerfile ベースのコンテナを消す。名前が衝突するため。ボリュームは消えない（`-v` を付けない）。
 `docker rm -f docunavi-devcontainer`。
 
