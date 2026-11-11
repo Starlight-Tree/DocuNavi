@@ -2,6 +2,8 @@
 # 標準のローカル開発構成: ローカル Postgres + 認証（Better Auth の Worker）+ API + 画面。開発コンテナの中で動かす。
 #   scripts/dev-local.sh check    起動せずに、前提を調べる（読み取りだけ。DB には何も書かない）
 #   scripts/dev-local.sh start    Infisical から .dev.vars を作ったあと、Worker(8787)・API(8000)・画面(3000) を起動する（PID と log は $STATE に置く）
+#   scripts/dev-local.sh autostart  開発コンテナの起動時に自動で呼ばれる（.devcontainer/devcontainer.json の postStartCommand）。3 つとも起動中なら何もしない。
+#                                   失敗しても終了コードは 0（コンテナへの接続を妨げない）。結果と理由は $STATE/autostart.log と status に出る
 #   scripts/dev-local.sh vars     Infisical（docunavi-local・dev・/）から、workers/api/.dev.vars だけを作り直す（権限 600。値は表示しない）
 #   scripts/dev-local.sh register Infisical へ 6 個の値を登録する（ユーザーが自分の端末で実行する。エージェントは実行しない）
 #   scripts/dev-local.sh status   起動状態と /health
@@ -86,8 +88,9 @@ check_vars() {
 infisical_py() {
   local tok
   command -v infisical >/dev/null 2>&1 || die "infisical コマンドがありません。"
-  tok="$(infisical user get token --plain --silent 2>/dev/null)" || true
-  [ -n "$tok" ] || die "Infisical のユーザーログインがありません。開発コンテナの端末（vscode ユーザー）で infisical login を実行してください（ブラウザーでの承認が要ります）。"
+  # 未ログインのとき、CLI は終了コード 1 で、対話の選択画面の文字を標準出力に出す。終了コードと、トークンの文字種（英数字と . _ -）の両方で見分ける
+  tok="$(infisical user get token --plain --silent </dev/null 2>/dev/null)" || tok=""
+  case "$tok" in "" | *[!A-Za-z0-9._-]*) die "Infisical のユーザーログインがありません（または期限切れです）。開発コンテナの端末（vscode ユーザー）で infisical login を実行してください（ブラウザーでの承認が要ります）。" ;; esac
   INF_TOKEN="$tok" PROJECT_NAME="$INFISICAL_PROJECT_NAME" PROJECT_ID="$INFISICAL_PROJECT_ID" INF_ENV="$INFISICAL_ENV" REQUIRED="$REQUIRED_VARS" OUT="$DEV_VARS" MODE="$1" python3 -I - <<'PY'
 import json, os, sys, urllib.error, urllib.parse, urllib.request
 
@@ -245,7 +248,17 @@ killtree() {
   kill "$1" 2>/dev/null || true
 }
 
-alive() { [ -f "$(pid_file "$1")" ] && kill -0 "$(cat "$(pid_file "$1")")" 2>/dev/null; }
+# 記録した PID が、今も「このスクリプトが起動したプロセス」かを確かめる（PID が別のプロセスに再利用されていたら、偽にする）。
+# 条件: 生きている / 自分のユーザーのもの / コマンドラインに、起動したコマンドの語（wrangler・uvicorn・next）が入っている
+owned_pid() { # 名前 PID
+  local pat
+  case "$1" in worker) pat="wrangler" ;; api) pat="uvicorn" ;; web) pat="next" ;; *) return 1 ;; esac
+  [ -n "${2:-}" ] && kill -0 "$2" 2>/dev/null || return 1
+  [ "$(ps -o uid= -p "$2" 2>/dev/null | tr -d ' ')" = "$(id -u)" ] || return 1
+  ps -o args= -p "$2" 2>/dev/null | grep -q -- "$pat"
+}
+
+alive() { [ -f "$(pid_file "$1")" ] && owned_pid "$1" "$(cat "$(pid_file "$1")")"; }
 
 wait_for() { # 名前 URL 秒
   local i
@@ -269,7 +282,7 @@ cmd_start() {
   (
     cd workers/api
     CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="$DATABASE_URL_LOCAL" WRANGLER_SEND_METRICS=false \
-      nohup npx wrangler dev --local --port "$WORKER_PORT" >"$STATE/worker.log" 2>&1 </dev/null &
+      nohup npx wrangler dev --local --port "$WORKER_PORT" >"$STATE/worker.log" 2>&1 </dev/null 9>&- &
     echo $! >"$(pid_file worker)"
   )
   wait_for worker "http://127.0.0.1:${WORKER_PORT}/health" 60
@@ -278,7 +291,7 @@ cmd_start() {
   GEMINI_API_KEY= GEMINI_API_KEY_PAID= GOOGLE_GENAI_USE_VERTEXAI= D1_API_URL= D1_API_TOKEN= \
     DB_BACKEND=pg DATABASE_URL="$DATABASE_URL_LOCAL" ACCESS_MODE=off \
     AUTH_MODE=required AUTH_BASE_URL="$WEB_ORIGIN" AUTH_JWKS_URL="http://127.0.0.1:${WORKER_PORT}/api/auth/jwks" \
-    nohup .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT" >"$STATE/api.log" 2>&1 </dev/null &
+    nohup .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT" >"$STATE/api.log" 2>&1 </dev/null 9>&- &
   echo $! >"$(pid_file api)"
   wait_for api "http://127.0.0.1:${API_PORT}/health" 60
 
@@ -288,7 +301,7 @@ cmd_start() {
     cd frontend
     NEXT_PUBLIC_AUTH_ENABLED=1 NEXT_PUBLIC_AUTH_BASE_URL= NEXT_PUBLIC_API_BASE_URL= NEXT_PUBLIC_STREAM_BASE_URL= \
       API_PROXY_TARGET="http://127.0.0.1:${API_PORT}" AUTH_PROXY_TARGET="http://127.0.0.1:${WORKER_PORT}" NEXT_TELEMETRY_DISABLED=1 \
-      nohup npx next dev -H 0.0.0.0 -p "$WEB_PORT" >"$STATE/web.log" 2>&1 </dev/null &
+      nohup npx next dev -H 0.0.0.0 -p "$WEB_PORT" >"$STATE/web.log" 2>&1 </dev/null 9>&- &
     echo $! >"$(pid_file web)"
   )
   wait_for web "http://127.0.0.1:${WEB_PORT}/" 90
@@ -296,6 +309,45 @@ cmd_start() {
   say "起動しました: ${WEB_ORIGIN}（API :${API_PORT}、Worker :${WORKER_PORT}）。log: $STATE/*.log"
   say "画面のログインは Google だけです。会話の履歴を見るには、login のあと、docs/development.md の「ローカルの標準構成」の手順で Cookie を入れてください。"
   say "止めるとき: scripts/dev-local.sh stop"
+}
+
+stamp() { date '+%Y-%m-%d %H:%M:%S'; }
+
+autostart_body() { # サブシェルで set -e のまま動かす。失敗は呼び出し側（cmd_autostart）が記録する
+  local n up=0
+  for n in worker api web; do alive "$n" && up=$((up + 1)); done
+  if [ "$up" = 3 ]; then
+    # すでに起動中。再起動しない。画面がまだコンパイル中かもしれないので、応答だけ待つ
+    wait_for web "http://127.0.0.1:${WEB_PORT}/" 90
+    say "3 つとも起動中です。何もしません（PID: worker $(cat "$(pid_file worker)") / api $(cat "$(pid_file api)") / web $(cat "$(pid_file web)")）。"
+    return 0
+  fi
+  if [ "$up" -gt 0 ]; then
+    say "一部だけ起動中です（${up}/3）。記録した PID の持ち主を確かめて片付け、起動し直します。"
+    cmd_stop
+  fi
+  cmd_start
+}
+
+cmd_autostart() { # 終了コードは常に 0。コンテナへの接続を妨げない
+  mkdir -p "$STATE" && chmod 700 "$STATE"
+  local log="$STATE/autostart.log" rc=0
+  exec 9>"$STATE/autostart.lock"
+  if ! flock -n 9; then
+    echo "$(stamp) スキップ: 別の autostart が実行中です。" >>"$log"
+    return 0
+  fi
+  echo "$(stamp) 開始" >>"$log"
+  set +e
+  ( set -e; autostart_body ) >>"$log" 2>&1
+  rc=$?
+  set -e
+  if [ "$rc" = 0 ]; then
+    echo "$(stamp) 結果: 成功（${WEB_ORIGIN}）" >>"$log"
+  else
+    echo "$(stamp) 結果: 失敗（終了コード ${rc}）。理由は上の dev-local: の行。Secret の作成・上書きはしていません（.dev.vars は取得に成功したときだけ書き換わります）。直したら、scripts/dev-local.sh start。" >>"$log"
+  fi
+  return 0
 }
 
 cmd_status() {
@@ -306,6 +358,11 @@ cmd_status() {
   echo "worker /health: $(http_code "http://127.0.0.1:${WORKER_PORT}/health")"
   echo "api /health:    $(curl -s -m 3 "http://127.0.0.1:${API_PORT}/health" 2>/dev/null || echo 'つながりません')"
   echo "web /:          $(http_code "http://127.0.0.1:${WEB_PORT}/")"
+  if [ -f "$STATE/autostart.log" ]; then
+    echo "autostart:      $(grep '結果:' "$STATE/autostart.log" | tail -n 1 || true)（詳細: $STATE/autostart.log）"
+  else
+    echo "autostart:      記録なし（Dev Containers 経由で起動していないか、まだ実行されていません）"
+  fi
 }
 
 cmd_stop() {
@@ -313,9 +370,13 @@ cmd_stop() {
   for n in web api worker; do
     if [ -f "$(pid_file "$n")" ]; then
       pid="$(cat "$(pid_file "$n")")"
-      killtree "$pid"
+      if owned_pid "$n" "$pid"; then
+        killtree "$pid"
+        say "$n を止めました（PID $pid）"
+      else
+        say "$n の記録（PID $pid）は、すでに無いか、別のプロセスです。止めずに、記録だけ消します。"
+      fi
       rm -f "$(pid_file "$n")"
-      say "$n を止めました（PID $pid）"
     fi
   done
   sleep 2
@@ -358,11 +419,12 @@ cmd_cookie() { # Cookie の値だけを出す（ユーザー用。エージェ�
 case "${1:-}" in
   check) cmd_check ;;
   start) cmd_start ;;
+  autostart) cmd_autostart ;;
   vars) cmd_vars ;;
   register) cmd_register "$@" ;;
   status) cmd_status ;;
   stop) cmd_stop ;;
   login) cmd_login ;;
   cookie) cmd_cookie ;;
-  *) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
