@@ -80,7 +80,11 @@
 		"cli-tools": "bash .devcontainer/install-playwright.sh; for t in gcloud gh go docker infisical; do command -v $t >/dev/null || echo missing: $t >&2; done"
 	},
 
-	"postStartCommand": "bash .devcontainer/persist-infisical-login.sh > /tmp/persist-infisical-login.log 2>&1 || true; REGISTER_INFISICAL_MCP_WAIT_TRIES=4 bash .devcontainer/register-infisical-mcp.sh > /tmp/register-infisical-mcp.log 2>&1 || true",
+	// 末尾の autostart（2026-11-11）: コンテナが Dev Containers 経由で起動するたびに、localhost:3000 の画面・API・Worker を自動で起こす。
+	// Infisical の保存済み Secret から .dev.vars を作り、3 つとも起動中なら何もしない（flock で排他。Host ⇄ 開発コンテナの切り替えでは再実行されない）。
+	// 起動に 1〜2 分かかるので、待たずに切り離す（setsid nohup … &）。失敗しても接続は妨げない。結果は /tmp/docunavi-dev-local/autostart.log と `dev-local.sh status`。
+	// `docker start` 単体では postStartCommand が実行されるとは限らない（Dev Containers 経由の起動だけを前提にする）。その場合は手動で `bash scripts/dev-local.sh start`。
+	"postStartCommand": "bash .devcontainer/persist-infisical-login.sh > /tmp/persist-infisical-login.log 2>&1 || true; REGISTER_INFISICAL_MCP_WAIT_TRIES=4 bash .devcontainer/register-infisical-mcp.sh > /tmp/register-infisical-mcp.log 2>&1 || true; setsid nohup bash scripts/dev-local.sh autostart </dev/null >/tmp/dev-local-autostart.out 2>&1 &",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},

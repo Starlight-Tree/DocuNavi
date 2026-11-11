@@ -99,7 +99,14 @@ LLM だけを置き換える（`GEMINI_API_KEY` を空にして起動するの�
 - **VS Code のウィンドウを閉じても止まらない。** 使わないときは上の停止を実行する。
 - **3000 の自動転送を無視する:** `portsAttributes` の `3000` に `onAutoForward: ignore` を入れてある。無いと、コンテナ内で待ち受けが始まったときに VS Code が自動転送し、ホストの 3000（Compose の公開）と衝突して 3001 などにずれる。以前に Ports パネルに残った 3001 の項目は、手動で削除する。
 - **確認済み（2026-11-11）:** `devcontainer up --remove-existing-container`（VS Code と同じ引数。ボリューム・DB は消さない）で `dev` を作り直し、`127.0.0.1:3000->3000/tcp` が公開された。旧 `api`・`frontend` は停止のまま。コンテナ内で `dev-local.sh start`（Infisical の保存済み Secret を再利用）が通り、ホストの `localhost:3000/` が 200、`/health` が `mode: mock`、`/api/auth/ok` が `{"ok":true}`。Python・socat の暫定転送は使っていない。
-- **未確認:** 同じウィンドウで「開発コンテナ → Host → 開発コンテナ」と切り替えたときに、コンテナが止まらず、サーバーが動き続け、Host でも `localhost:3000` に届き、戻ったときに再接続できること（VS Code の画面操作が要る。結果はここに追記する）。Google ログインのブラウザーでの再確認。
+- **未確認:** 同じウィンドウで「開発コンテナ → Host → 開発コンテナ」と切り替えたときに、コンテナが止まらず、サーバーが動き続け、Host でも `localhost:3000` に届き、戻ったときに再接続できること（VS Code の画面操作が要る。結果はここに追記する）。ブラウザーでの Google ログインの再確認。
+- **サーバーの自動起動（2026-11-11）:** 「コンテナを止めない」（`shutdownAction`）・「ポート公開」（Compose の `ports`）・「サーバーの自動起動」は別の設定。自動起動は `devcontainer.json` の `postStartCommand` の末尾（`scripts/dev-local.sh autostart`、背景で実行）。
+  - 動き: Infisical の保存済み Secret から `.dev.vars` を作り、Worker・API・画面を起こす。3 つとも起動中なら何もしない（再起動しない）。一部だけ起動中なら、記録した PID の持ち主（自分のユーザー・コマンドラインに `wrangler` / `uvicorn` / `next`）を確かめて止め、起動し直す。別のプロセスに再利用された PID は止めない（`stop` も同じ）。`flock` で同時実行を排他する。
+  - 失敗しても終了コードは 0（コンテナへの接続を妨げない）。結果と理由は `/tmp/docunavi-dev-local/autostart.log` と `bash scripts/dev-local.sh status` の `autostart:` 行。Infisical の取得に失敗したときは、Secret の作成・上書き（`register`）を呼ばず、`.dev.vars` も変えない（取得に成功したときだけ書き換える）。ログに値は出さない。直したら `bash scripts/dev-local.sh start`。
+  - 実行されるのは、**Dev Containers 経由でコンテナが起動したとき**（VS Code で開く、`devcontainer up`、再ビルド）。Host ⇄ 開発コンテナの切り替え（切断・再接続）では再実行されない。**`docker start` 単体では実行されなかった**（2026-11-11 に `docker stop` → `docker start` で、サーバーは起きず、`localhost:3000` は 000）。その場合は、VS Code で開くか、`bash scripts/dev-local.sh start`。Docker 単体の起動のための常駐監視は入れていない。
+  - 確認済み（2026-11-11）: `devcontainer up --remove-existing-container` で再作成した直後、手動 `start` なしで、ホストの `localhost:3000/` が約 15 秒で 200（`autostart.log` に成功）。`autostart` を 2 つ同時に再実行しても、PID は変わらず（worker 274 / api 347 / web 362）、プロセスは二重にならず、後から来たほうは「別の autostart が実行中」でスキップ。`docker stop` → `docker start`（Docker 単体）ではサーバーは起きず、続けて `devcontainer up`（作り直さない）で自動起動して 200。
+  - 失敗系の確認（隔離した状態・空の HOME で実行。動いている環境は巻き込まない）: Infisical 未ログインで、`autostart.log` に「Infisical のユーザーログインがありません…」と失敗が残り、`.dev.vars` の内容の指紋と更新時刻が変わらず、終了コードは 0。古い PID が別プロセス（`sleep`）に再利用されている状態で `stop` しても、そのプロセスは止まらず、記録だけが消えた。
+  - 未確認: Infisical の別の失敗（プロジェクト ID・権限など）での記録の中身、DB（ホストの 5433）が未起動のときの記録、新しい clone で `.venv`・`node_modules` が無いとき。
 
 ## テスト
 
