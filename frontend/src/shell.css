@@ -14,8 +14,9 @@
   --ws-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
 }
 
+/* ダークの値は、styles.css と同じく 2 か所に同じ内容を書く（theme.test.ts が一致を確かめる） */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --ws-ok: #7fd5a0;
     --ws-ok-bg: #16301f;
     --ws-wait: #f0cd72;
@@ -25,6 +26,17 @@
     --ws-mark: #5a4a12;
     --ws-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
   }
+}
+
+:root[data-theme='dark'] {
+  --ws-ok: #7fd5a0;
+  --ws-ok-bg: #16301f;
+  --ws-wait: #f0cd72;
+  --ws-wait-bg: #382d10;
+  --ws-err: #ffb4b4;
+  --ws-err-bg: #3a1c20;
+  --ws-mark: #5a4a12;
+  --ws-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
 }
 
 .ws-shell [hidden],
@@ -1716,6 +1728,11 @@
   flex: none;
   align-items: center;
   padding: 0.5rem 0.75rem 0;
+}
+
+/* テーマの切り替えは、帯の右端（左には、閉じているときの再表示のボタン） */
+.ws-theme-toggle {
+  margin-left: auto;
 }
 
 .ws-account {

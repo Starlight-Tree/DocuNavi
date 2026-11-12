@@ -12,6 +12,7 @@ import { PanelHost } from './components/PanelHost';
 import { ScopeConfirm } from './components/ScopeConfirm';
 import { ScopePicker } from './components/ScopePicker';
 import type { TargetMenuItem } from './components/ScopePicker';
+import { ThemeToggle } from './components/ThemeToggle';
 import { ThreadSidebar } from './components/ThreadSidebar';
 import { useBackendMode } from './hooks/useBackendMode';
 import { ALL_SCOPE, sameScope, useChat } from './hooks/useChat';
@@ -275,13 +276,15 @@ function ChatScreen() {
       {/* 拡大中は、パネルが上に重なる。下のチャット・資料一覧は作り直さず、操作と読み上げだけ外す */}
       <div className="ws-main" inert={panelOpen && expanded}>
         {/* サイドバーを閉じている間も、再表示のボタンは残す（チャットでも資料一覧でも、同じ場所） */}
-        {!sideOpen && !rail && (
-          <div className="ws-main-bar">
+        {/* 帯は常設。左に再表示のボタン（閉じている間だけ）、右にテーマの切り替え */}
+        <div className="ws-main-bar">
+          {!sideOpen && !rail && (
             <button ref={reopenRef} type="button" className="ws-icon-btn" aria-label="サイドバーを開く" onClick={() => toggleSide(true)}>
               <SidebarIcon />
             </button>
-          </div>
-        )}
+          )}
+          <ThemeToggle />
+        </div>
         {pendingScope && (
           <ScopeConfirm
             targetLabel={scopeLabel(pendingScope.scope)}

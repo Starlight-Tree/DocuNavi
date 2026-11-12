@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light dark; /* 手動で選んだときは、下の data-theme が上書きする */
 
   /* 無彩色に近い灰色の地に、青を 1 色だけ。紫の塗りはやめ、枠線は薄くする */
   --bg: #f6f7f5;
@@ -31,8 +31,9 @@
     'Noto Sans JP', Meiryo, sans-serif;
 }
 
+/* ダークの値は、OS 追従（手動でライトを選んでいない間）と、手動でダークを選んだとき（data-theme）の 2 か所に、同じ内容を書く。CSS では共有できないので、変えるときは両方（theme.test.ts が一致を確かめる） */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #141715;
     --surface: #1a1e1c;
     --surface-muted: #232825;
@@ -50,6 +51,34 @@
     --impact-direct: #ff8a57;
     --impact-indirect: #e0c04a;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #141715;
+  --surface: #1a1e1c;
+  --surface-muted: #232825;
+  --text: #e6eae7;
+  --text-muted: #9aa59f;
+  --border: #2e3532;
+  --accent: #8aa2ff;
+  --accent-text: #101319;
+  --user-bg: #3b55c9;
+  --user-text: #ffffff;
+  --danger-bg: #3a1c20;
+  --danger-border: #8f3a44;
+  --danger-text: #ffd5d9;
+  --focus: #f2a65a;
+  --impact-direct: #ff8a57;
+  --impact-indirect: #e0c04a;
+}
+
+/* ブラウザー側の部品（スクロールバー・フォーム）の配色も、選んだテーマに合わせる */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 *,
