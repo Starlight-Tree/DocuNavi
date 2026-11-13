@@ -19,7 +19,7 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 
 ## 再ビルドの可能性
 
-- 開発コンテナの定義は、このリポジトリのファイルだけで完結させる。例外は星庭ジョブの bind mount（ホストの `/Users/wataru/Projects/hoshiniwa-job` が前提。作業ツリーは 2026-11-01 から書き込み可能で、`.git/hooks` と `.git/config` だけ `:ro`）で、残す。
+- 開発コンテナの定義は、このリポジトリのファイルだけで完結させる。例外は星庭ジョブの bind mount（ホストの `/Users/Home/Projects/hoshiniwa-job` が前提。作業ツリーは 2026-11-01 から書き込み可能で、`.git/hooks` と `.git/config` だけ `:ro`）で、残す。
 - `devcontainer.json`・`.devcontainer/docker-compose.yml`・`.devcontainer/Dockerfile` に、ホストの絶対パス・別プロジェクトのファイル・外部のアカウント（GCP プロジェクト ID など）を足す変更は、事前にユーザーに確認する
 - 再ビルドはホスト側の作業。承認なしに実行しない
 

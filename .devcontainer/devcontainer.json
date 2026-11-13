@@ -121,7 +121,8 @@
 				"ms-ossdata.vscode-pgsql",
 				"ms-azuretools.vscode-containers",
 				"golang.go",
-				"alefragnani.project-manager"
+				"alefragnani.project-manager",
+				"ms-ceintl.vscode-language-pack-ja"
 			]
 		}
 	}

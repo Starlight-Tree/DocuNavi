@@ -52,23 +52,23 @@ services:
       # つまり、このマウントはホストに星庭ジョブのリポジトリがあることが前提（無い環境では、下の 4 件のマウントを外す。README の「開発環境の方針」）。
       # 子のマウントは親より後ろに書く。重ねたマウントが期待どおりに効くかは、再ビルド後に確認する（未確認）。
       - type: bind
-        source: /Users/wataru/Projects/hoshiniwa-job
+        source: /Users/Home/Projects/hoshiniwa-job
         target: /workspaces/hoshiniwa-job
         bind:
           create_host_path: false
       - type: bind
-        source: /Users/wataru/Projects/hoshiniwa-job/.git
+        source: /Users/Home/Projects/hoshiniwa-job/.git
         target: /workspaces/hoshiniwa-job/.git
         bind:
           create_host_path: false
       - type: bind
-        source: /Users/wataru/Projects/hoshiniwa-job/.git/hooks
+        source: /Users/Home/Projects/hoshiniwa-job/.git/hooks
         target: /workspaces/hoshiniwa-job/.git/hooks
         read_only: true
         bind:
           create_host_path: false
       - type: bind
-        source: /Users/wataru/Projects/hoshiniwa-job/.git/config
+        source: /Users/Home/Projects/hoshiniwa-job/.git/config
         target: /workspaces/hoshiniwa-job/.git/config
         read_only: true
         bind:
