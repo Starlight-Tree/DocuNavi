@@ -22,6 +22,7 @@
 | [deploy.md](deploy.md) | 現状＋記録 | Cloud Run・Cloudflare へのデプロイ手順と、本番運用の記録 |
 | [pg-backup.md](pg-backup.md) | 現状 | 本番 Postgres のバックアップ（週 1 回、R2 へ）と復元の確認 |
 | [r2-key-issuer.md](r2-key-issuer.md) | 現状 | R2 のキーを発行・取り消す Job |
+| [access-separation.md](access-separation.md) | 現状 | プロジェクトごとの権限・資格情報の分離の方針と、DocuNavi の対応表（GCP・Infisical・MCP）、整理の候補 |
 | [roadmap.md](roadmap.md) | 現状 | 順序と状態（何が済み、何が待ちか） |
 
 ## 設計メモ・計画
