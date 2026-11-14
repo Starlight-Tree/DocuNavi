@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { openKnowledge, goChat } from './test/navigation';
 import { AuthProvider } from './auth/AuthContext';
@@ -485,14 +485,17 @@ describe('資料一覧: 元PDF', () => {
   const createObjectURL = vi.fn<(blob: Blob) => string>();
   const revokeObjectURL = vi.fn<(url: string) => void>();
 
+  // jsdom には Blob URL が無い。偽物は、このブロックの間ずっと入れておく（テストごとに外すと、外してから次のテストが
+  // 入れ直すまでの隙間に、前の画面の PDF 取得が終わって、Node の本物の URL.createObjectURL が jsdom の Blob を受けて落ちうる）
+  beforeAll(() => {
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+  });
   beforeEach(() => {
     let n = 0;
     createObjectURL.mockReset().mockImplementation(() => `blob:test/${++n}`);
     revokeObjectURL.mockReset();
-    // jsdom には Blob URL が無い
-    Object.assign(URL, { createObjectURL, revokeObjectURL });
   });
-  afterEach(() => {
+  afterAll(() => {
     Reflect.deleteProperty(URL, 'createObjectURL');
     Reflect.deleteProperty(URL, 'revokeObjectURL');
   });
