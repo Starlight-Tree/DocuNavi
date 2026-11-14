@@ -92,6 +92,7 @@ cd frontend && npm test     # Vitest
 | [docs/deploy.md](docs/deploy.md) | デプロイ手順と本番運用の記録 |
 | [docs/roadmap.md](docs/roadmap.md) | これからの計画 |
 | [docs/decisions/](docs/decisions/README.md) | 重要な決定と、その理由（1 件 1 ファイル） |
+| [docs/README.md](docs/README.md) | 全文書の索引（現状・設計メモ・記録の別つき） |
 | [CLAUDE.md](CLAUDE.md) | AI エージェント（Claude Code）が守ること |
 
 ## ライセンス

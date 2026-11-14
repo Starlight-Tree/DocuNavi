@@ -1,6 +1,6 @@
 # docs/（文書）
 
-全体の方針は、ルートの [CLAUDE.md](../CLAUDE.md)。文書の入口は [README.md](../README.md) の「ドキュメント」の表。
+全体の方針は、ルートの [CLAUDE.md](../CLAUDE.md)。文書の入口は [README.md](../README.md) の「ドキュメント」の表と、全文書の索引（状態つき）の [README.md](README.md)。文書を足す・状態が変わるときは、索引も直す。
 
 ## どの文書が何の正本か
 
