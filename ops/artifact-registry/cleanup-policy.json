@@ -10,6 +10,11 @@
     "mostRecentVersions": {"packageNamePrefixes": ["docunavi-"], "keepCount": 1000}
   },
   {
+    "name": "keep-pinned",
+    "action": {"type": "Keep"},
+    "condition": {"tagState": "tagged", "tagPrefixes": ["pin-"], "packageNamePrefixes": ["docunavi"]}
+  },
+  {
     "name": "delete-docunavi-older",
     "action": {"type": "Delete"},
     "condition": {"tagState": "any", "packageNamePrefixes": ["docunavi"]}

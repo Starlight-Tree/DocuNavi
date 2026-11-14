@@ -683,6 +683,17 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
 - **イメージ（Artifact Registry）**: 保管料がかかるので、クリーンアップポリシーで自動で消す。定義は [ops/artifact-registry/cleanup-policy.json](../ops/artifact-registry/cleanup-policy.json)。
   - `docunavi` のイメージは最新 5 個を残し、それより古いものを消す。5 個にしたのは、戻し先の 3 つのイメージを、配備が増えても守る余裕のため。
   - `docunavi-admin` `docunavi-ingest` `docunavi-mcp` など、`docunavi-` で始まる別のパッケージは触らない。パッケージ名の指定は前方一致で、`docunavi` だけでは、これらにも消す条件が当たるため。
+  - **使用中のイメージは `pin-` タグで守る（2026-11-15 に追加。`keep-pinned`）。** 「最新 5 個」は本番と Job が同じ枠を取り合うため、Job のイメージは配備が数回進むと枠外になり、消える（`docunavi-history-cleanup` が一度 `ContainerMissing` になった原因）。タグ `pin-*` が付いた `docunavi` のイメージは、枠外でも残る。
+    - 付けたタグ: `pin-prod`（本番・戻し先 `00061-sir`）、`pin-history-cleanup`（`e34b160c…`）、`pin-ingest-sync`（`01bd3e9c…`）、`pin-ingest-queue`（`9255400e…`）。
+    - **本番または Job のイメージを更新したら、そのたびにタグを付け替える**（古いイメージは枠外になれば自動で消える）:
+      ```bash
+      R=asia-northeast1-docker.pkg.dev/docunavi-app/cloud-run-source-deploy/docunavi
+      gcloud artifacts docker tags add $R@sha256:<新しいダイジェスト> $R:pin-<名前>
+      ```
+      `tags add` は `--project` `--location` を受け付けない（URL に含まれる）。
+    - 更新のあとに、参照が残っているか確かめる（`gcloud run jobs list` と `gcloud run revisions list` のイメージを、`gcloud artifacts docker images describe` で 1 つずつ）。タグの付け忘れは、これで気づく。
+    - `docunavi-` で始まる別パッケージ、`pg-backup`、`r2-key-issuer`、`r2-wire` は、このポリシーの対象外か別枠で、影響を受けない。
+    - **未確認:** `keep-pinned` が実際に削除を防ぐこと（次の削除の実行後、`docunavi` が 5 個 + 枠外のタグ付きになり、`pin-` のイメージが残るかで確かめる）。`r2-verify` の `docunavi:60833f5` は 2026-11-15 時点で消えていて、Job は動かない（未対処。差し替えるかどうかは判断待ち）。
   - 設定するとき:
     ```bash
     gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy \
