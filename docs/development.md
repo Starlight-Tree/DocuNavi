@@ -82,7 +82,7 @@
 
 | 項目 | 内容 |
 |---|---|
-| 保存先 | Infisical のプロジェクト `docunavi-local`（ID `<INFISICAL_PROJECT_ID>`）、環境 `dev`、パス `/`（2026-11-11 に、ユーザーのログインで作成） |
+| 保存先 | Infisical のプロジェクト `docunavi-local`（ID は環境変数 `INFISICAL_PROJECT_ID_LOCAL`）、環境 `dev`、パス `/`（2026-11-11 に、ユーザーのログインで作成） |
 | キー（`.dev.vars` になるのは 6 つ） | `BETTER_AUTH_SECRET` `BETTER_AUTH_URL`（`http://localhost:3000`） `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` `TEST_LOGIN_EMAIL` `TEST_LOGIN_TOKEN` |
 | 取得 | `bash scripts/dev-local.sh vars`（`start` も先頭で同じことをする）。ログイン済みのユーザーの権限で取り、`workers/api/.dev.vars` を権限 600 で作り直す。値は表示しない。マシン ID（Viewer）は、このプロジェクトに入れない（権限を広げない） |
 | 再利用 | ローカルの起動・再設定は、**まず Infisical を参照**する。同じ Client ID と Secret を使い回し、**毎回 Secret を追加しない** |
@@ -91,7 +91,7 @@
 実値は、文書・CLAUDE.md・メモリー・Git に書かない。
 
 **Google 側の Secret と共用の方針（2026-11-11 にユーザーが決定）:** 本番とローカルは、**同じクライアント（`docunavi-app`）の同じ Secret（2026-11-11 にローカル用として作成したもの）を共用する**。追加の Secret は作らない（分離のための 3 つ目は不要という決定）。
-- **保存先（正本）:** ローカル = Infisical `docunavi-local` / `dev` / `/`。本番 = Infisical `docunavi-prod`（ID `<INFISICAL_PROJECT_ID>`）/ `prod` / `/` の `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET`（2026-11-11 に保存。再取得で、ローカルと一致を確認済み）。実行環境: 本番 Worker `docunavi-api`（Cloudflare アカウント Starlight）の Secret `GOOGLE_CLIENT_SECRET`、ローカルの `.dev.vars`。
+- **保存先（正本）:** ローカル = Infisical `docunavi-local` / `dev` / `/`。本番 = Infisical `docunavi-prod`（ID は環境変数 `INFISICAL_PROJECT_ID_PROD`）/ `prod` / `/` の `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET`（2026-11-11 に保存。再取得で、ローカルと一致を確認済み）。実行環境: 本番 Worker `docunavi-api`（Cloudflare アカウント Starlight）の Secret `GOOGLE_CLIENT_SECRET`、ローカルの `.dev.vars`。
 - **本番の Worker への反映:** `wrangler secret put`（2026-11-11 07:24Z。デプロイ `5aa23ffd…`。`GOOGLE_CLIENT_ID` と他の Secret は変えていない）。
 - **旧 Secret（末尾 `wbec`、2026-11-08 作成）:** 本番の Google ログインは、新 Secret で成功を確認済み（2026-11-11、ユーザーが実施）。**2026-11-11 に Google の画面で削除済み**（ユーザーの操作）。削除後、Infisical の 2 か所の値でクライアント認証が通ることを確認済み（無効な code でのトークン呼び出しが `invalid_grant`）。旧 Secret の値は、どこにも保存されていなかったので、戻せない。
 - **影響:** 漏れる・失効する・更新するときの影響は、本番とローカルの両方に及ぶ。**今後の更新では、Infisical の 2 か所と、本番 Worker・ローカルの `.dev.vars` を、そろえて更新する**（順序: Google で新 Secret → 両方の Infisical → 本番 Worker `wrangler secret put` → ローカル `register --overwrite`。本番のログインを確認してから、旧 Secret を消す）。承認なしに追加・ローテーションしない。
@@ -149,6 +149,20 @@
   - 確認済み（2026-11-11。**モックで起動した時点の結果**）: `devcontainer up --remove-existing-container` で再作成した直後、手動 `start` なしで、ホストの `localhost:3000/` が約 15 秒で 200（`autostart.log` に成功）。`autostart` を 2 つ同時に再実行しても、PID は変わらず（worker 274 / api 347 / web 362）、プロセスは二重にならず、後から来たほうは「別の autostart が実行中」でスキップ。`docker stop` → `docker start`（Docker 単体）ではサーバーは起きず、続けて `devcontainer up`（作り直さない）で自動起動して 200。
   - 失敗系の確認（隔離した状態・空の HOME で実行。動いている環境は巻き込まない）: Infisical 未ログインで、`autostart.log` に「Infisical のユーザーログインがありません…」と失敗が残り、`.dev.vars` の内容の指紋と更新時刻が変わらず、終了コードは 0。古い PID が別プロセス（`sleep`）に再利用されている状態で `stop` しても、そのプロセスは止まらず、記録だけが消えた。
   - 未確認: Infisical の別の失敗（プロジェクト ID・権限など）での記録の中身、DB（ホストの 5433）が未起動のときの記録、新しい clone で `.venv`・`node_modules` が無いとき。
+
+### Infisical のプロジェクト ID の置き場
+
+プロジェクトの ID は、リポジトリに置きません（公開してよい値ですが、公開時に手がかりを増やさないため）。使うのは次の環境変数です。
+
+| 変数 | プロジェクト | 使う場所 |
+|---|---|---|
+| `INFISICAL_PROJECT_ID_LOCAL` | `docunavi-local` | `scripts/dev-local.sh` |
+| `INFISICAL_PROJECT_ID_DEV` | 開発用（Secret の原本） | `workers/api/test-login.sh`、このリポジトリの `infisical sm run --projectId …` のコマンド例 |
+| `INFISICAL_PROJECT_ID_PROD` | `docunavi-prod` | 文書の説明だけ |
+
+値は、Git 管理外の `.dev-local/infisical-ids.env`（権限 600。`INFISICAL_PROJECT_ID_LOCAL=…` の形で 3 行）に書くか、環境変数で渡します。スクリプトは、環境変数が空のときだけ、このファイルを読み、どちらも無ければ案内を出して止まります。
+Infisical CLI がプロジェクトを選ぶ `.infisical.yaml` も Git 管理外です。`.infisical.yaml.example` をコピーして `<PROJECT_ID>` を直すか、`infisical init` で作ります。
+コマンド例は、`set -a; . .dev-local/infisical-ids.env; set +a` で読み込んでから実行します。
 
 ## テスト
 
@@ -394,7 +408,7 @@ LangGraph の会話・グラフ・state・ツール呼び出し・レイテン�
   専用のプロジェクト（環境 `dev`）に置く。`.env` には置かない（`LANGSMITH_TRACING=true` だけ置いてよい）。登録はユーザーが端末で行う（値が会話に出ない）。
   `langgraph.json` の `env: ".env"` は、プロセスの環境変数より優先されることがある。`.env` に同名のキーを残さない。
 - 入れ方: `.venv/bin/pip install -r requirements-studio.in`（`langgraph-cli[inmem]` と `debugpy`）。
-- 起動: `infisical sm run --silent --projectId <INFISICAL_PROJECT_ID> --env=dev -- .venv/bin/langgraph dev --debug-port 5678`（`infisical secrets-manager` というサブコマンドは無い。`sm` か `run`）。
+- 起動: `infisical sm run --silent --projectId "$INFISICAL_PROJECT_ID_DEV" --env=dev -- .venv/bin/langgraph dev --debug-port 5678`（`infisical secrets-manager` というサブコマンドは無い。`sm` か `run`）。
   Studio は <https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024>（APAC は <https://apac.smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024>。Chromium。ポート 2024 を転送）。
   VS Code では、起動後に「LangGraph: attach (debugpy 5678)」（`.vscode/launch.json`）でつなぐ。ブレークポイントは `app/` のコードに置く。
 - グラフの入口は `langgraph.json` → `app/agents/studio.py`。`GEMINI_API_KEY` が無ければモック（資料を検索せず固定の返答）。
@@ -422,12 +436,12 @@ LangGraph の会話・グラフ・state・ツール呼び出し・レイテン�
 - **スクリプト:** [scripts/prod_smoke_chat.py](../scripts/prod_smoke_chat.py)。既定はログインして JWT を取るだけ。`--send` で `/chat` を 1 回だけ叩く（本番の LLM・埋め込みを使う。課金される）。`--create` は初回だけ。
 
 **運用の決定（2026-11-09）:** テストユーザーは DB に**残す**。`TEST_LOGIN_TOKEN` は**使うときだけ**入れ、終わったら**削除**する（平時は無効）。
-テスト用の認証情報の原本は Infisical（プロジェクト `f451ae41…`・環境 `dev`）の `TEST_LOGIN_EMAIL` `TEST_LOGIN_PASSWORD` `TEST_LOGIN_TOKEN`。JWT は保存せず、毎回サインインして取る。
+テスト用の認証情報の原本は Infisical（プロジェクト `環境変数 `INFISICAL_PROJECT_ID_DEV` のプロジェクト`・環境 `dev`）の `TEST_LOGIN_EMAIL` `TEST_LOGIN_PASSWORD` `TEST_LOGIN_TOKEN`。JWT は保存せず、毎回サインインして取る。
 
 手順（運用者。Worker の Secret は本番への書き込みなので、私は実行しない。ホストのターミナルで）:
 
 1. 有効にする: `bash workers/api/test-login.sh on`（Infisical の値を `wrangler secret put` に標準入力で渡す。要 `wrangler login --device`）。
-2. テストする: `infisical sm run --silent --projectId <INFISICAL_PROJECT_ID> --env=dev -- python scripts/prod_smoke_chat.py --send`（`--send` は本番の LLM・埋め込みを使う。課金される）。
+2. テストする: `infisical sm run --silent --projectId "$INFISICAL_PROJECT_ID_DEV" --env=dev -- python scripts/prod_smoke_chat.py --send`（`--send` は本番の LLM・埋め込みを使う。課金される）。
    ユーザーが無いとき（作り直したとき）だけ `--create` を付ける。
 3. **終わったら無効にする:** `bash workers/api/test-login.sh off`（`TEST_LOGIN_TOKEN` を削除。入口は 400 に戻る）。`status` で Secret の名前を確かめられる。
 4. 初回の配備とユーザーの作成は 2026-11-09 に済んだ。次からは手順 1〜3 だけ。

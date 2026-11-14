@@ -1,0 +1,6 @@
+# Infisical CLI のプロジェクト設定の例。コピーして .infisical.yaml にし、<PROJECT_ID> を自分のプロジェクトの ID に変える
+# （または infisical init で作る）。.infisical.yaml は Git 管理外
+version: 1
+general: {}
+secrets-management:
+    project-id: <PROJECT_ID>

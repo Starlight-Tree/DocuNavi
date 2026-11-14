@@ -76,7 +76,7 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 - **画面に渡してよいのは公開用の値だけ。** `NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。入れてよいのは API・中継・認証（Better Auth）の URL など、公開してよい値だけ。
   秘密鍵・`D1_API_TOKEN`・`GEMINI_API_KEY` は入れない。
 - **設定は環境変数で渡す。** 認証・DB・LLM の値をコード・文書・コミットに書かない。`.env` と `frontend/.env.local` は Git 管理外。
-- **ローカルの認証情報（Google ログインなど）の正本は Infisical `docunavi-local`（ID `<INFISICAL_PROJECT_ID>`・環境 `dev`・パス `/`・6 キー）。** `workers/api/.dev.vars` は手で書かず、`scripts/dev-local.sh start|vars` で作る（権限 600）。**実 API の `GEMINI_API_KEY` も同じ保存先**（7 つ目。`.dev.vars` には入れず、API のプロセスの環境変数にだけ渡す。画面・Worker・ログ・引数には出さない。`.env` の既存のキーを `register-gemini` で写す。新しいキーは発行せず、本番のキーは変えない）。無料・有料は、キーの変数名では決めず、`gemini-key-info` と `ack-gemini` で確かめて承認を得る。
+- **ローカルの認証情報（Google ログインなど）の正本は Infisical `docunavi-local`（ID は環境変数 `INFISICAL_PROJECT_ID_LOCAL`・環境 `dev`・パス `/`・6 キー）。** `workers/api/.dev.vars` は手で書かず、`scripts/dev-local.sh start|vars` で作る（権限 600）。**実 API の `GEMINI_API_KEY` も同じ保存先**（7 つ目。`.dev.vars` には入れず、API のプロセスの環境変数にだけ渡す。画面・Worker・ログ・引数には出さない。`.env` の既存のキーを `register-gemini` で写す。新しいキーは発行せず、本番のキーは変えない）。無料・有料は、キーの変数名では決めず、`gemini-key-info` と `ack-gemini` で確かめて承認を得る。
   **本番（Worker `docunavi-api`。保存先は Infisical `docunavi-prod`/`prod`/`/`）と同じ Google Secret を共用**するので、更新は両方の保存先と実行環境をそろえる。必ず先にここを参照し、再利用する。Secret の追加・ローテーション・無効化は自動でせず、理由と影響を示して承認を得る。取れないときは「無い」と即断せず、組織・ID・環境・パス・権限を確認する（順序は `docs/development.md`「Google ログインの設定」）。値は文書・メモリー・Git に書かない。
 - **他の人が届く環境（Cloud Run など）は `AUTH_MODE=required`。** `off`（既定）は、自分だけが使うローカル開発用。
 - **キーを誤ってコミット・公開したら、失効させて作り直す。** 履歴から消すだけでは足りない。

@@ -874,7 +874,7 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
    ```bash
    API_URL=https://citations-20261109---docunavi-xe42miq4da-an.a.run.app \
-   infisical sm run --silent --projectId <INFISICAL_PROJECT_ID> --env=dev -- \
+   infisical sm run --silent --projectId "$INFISICAL_PROJECT_ID_DEV" --env=dev -- \
      python scripts/prod_smoke_chat.py --stream --question "入寮の申込みの期限と、退寮の届出の期限を教えてください"
    ```
 
@@ -902,7 +902,7 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 4. `cafe` の質問（範囲内）と `zahard` の質問（範囲外）を、それぞれ 1 回送る:
 
    ```bash
-   infisical sm run --silent --projectId <INFISICAL_PROJECT_ID> --env=dev -- \
+   infisical sm run --silent --projectId "$INFISICAL_PROJECT_ID_DEV" --env=dev -- \
      python scripts/prod_smoke_chat.py --stream --expect-collections cafe --question "みなとコーヒーはいつ創業しましたか。"
    ```
 

@@ -55,7 +55,9 @@ DEV_VARS="workers/api/.dev.vars"
 REQUIRED_TABLES="user session account verification jwks checkpoints checkpoint_writes user_roles"
 REQUIRED_VARS="BETTER_AUTH_SECRET BETTER_AUTH_URL GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET TEST_LOGIN_EMAIL TEST_LOGIN_TOKEN"
 INFISICAL_PROJECT_NAME="docunavi-local"
-INFISICAL_PROJECT_ID="<INFISICAL_PROJECT_ID>" # 2026-11-11 に作成。ID は秘密ではない
+# Infisical のプロジェクト ID は、リポジトリに置かない。環境変数、または Git 管理外の .dev-local/infisical-ids.env から読む
+if [ -z "${INFISICAL_PROJECT_ID_LOCAL:-}" ] && [ -f "$ROOT/.dev-local/infisical-ids.env" ]; then . "$ROOT/.dev-local/infisical-ids.env"; fi
+INFISICAL_PROJECT_ID="${INFISICAL_PROJECT_ID_LOCAL:-}" # docunavi-local（2026-11-11 に作成）
 INFISICAL_ENV="dev"
 GEMINI_KEY_SOURCE="Infisical ${INFISICAL_PROJECT_NAME} / ${INFISICAL_ENV} / GEMINI_API_KEY"
 LOCAL_DIR="$ROOT/.dev-local" # Git 管理外。承認の記録とキー情報の記録（キーの値は入れない）
@@ -110,6 +112,7 @@ infisical_py() {
   # 未ログインのとき、CLI は終了コード 1 で、対話の選択画面の文字を標準出力に出す。終了コードと、トークンの文字種（英数字と . _ -）の両方で見分ける
   tok="$(infisical user get token --plain --silent </dev/null 2>/dev/null)" || tok=""
   case "$tok" in "" | *[!A-Za-z0-9._-]*) die "Infisical のユーザーログインがありません（または期限切れです）。開発コンテナの端末（vscode ユーザー）で infisical login を実行してください（ブラウザーでの承認が要ります）。" ;; esac
+  [ -n "$INFISICAL_PROJECT_ID" ] || die "INFISICAL_PROJECT_ID_LOCAL がありません。.dev-local/infisical-ids.env に書くか、環境変数で渡してください（docs/development.md の「Infisical のプロジェクト ID」）。"
   INF_TOKEN="$tok" PROJECT_NAME="$INFISICAL_PROJECT_NAME" PROJECT_ID="$INFISICAL_PROJECT_ID" INF_ENV="$INFISICAL_ENV" REQUIRED="$REQUIRED_VARS" OUT="$DEV_VARS" MODE="$1" python3 -I - <<'PY'
 import json, os, sys, urllib.error, urllib.parse, urllib.request
 

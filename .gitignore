@@ -40,3 +40,6 @@ evals/results/graph_rules_ext_compare.json
 
 # scripts/dev-local.sh の、実 API の承認とキー情報の記録（キーの値は入れない。コミットしない）
 /.dev-local/
+
+# Infisical のプロジェクト設定（プロジェクト ID を含む。.infisical.yaml.example を参照）
+/.infisical.yaml
