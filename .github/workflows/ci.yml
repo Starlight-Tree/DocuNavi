@@ -104,6 +104,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: zizmor --no-progress .
 
+  commit-messages:
+    name: Commit messages (English, Conventional Commits)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0  # 範囲（push の前の位置〜今）のコミットを読む
+          persist-credentials: false  # 後続のステップで git の認証は使わない
+      # 新しいコミットの件名だけを検査する（過去の履歴は対象外）。起点が無いとき（強制プッシュの直後・
+      # 手動実行）は、最新の 1 件だけを見る。値は環境変数で渡す（式をコマンドに埋め込まない）
+      - name: Check the new commit subjects
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 scripts/check_commit_messages.py --range "${BASE_SHA}..${HEAD_SHA}"
+
   frontend:
     name: Frontend (Next.js) tests, type-check and build (Node 24)
     runs-on: ubuntu-latest

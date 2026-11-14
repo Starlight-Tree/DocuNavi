@@ -86,7 +86,7 @@ def test_secret_in_staged_diff_is_denied_without_echoing_the_value() -> None:
 
 def test_removed_lines_and_clean_diff_pass() -> None:
     diff = f"+++ b/app/x.py\n@@ -1,1 +1,1 @@\n-KEY = '{FAKE_GOOGLE_KEY}'\n+KEY = 'removed'\n"
-    assert guard.decide("git commit -m x", ".", lambda *_a: diff) is None
+    assert guard.decide("git commit -m \"chore: x\"", ".", lambda *_a: diff) is None
 
 
 def test_secret_in_command_text_is_denied() -> None:
