@@ -12,6 +12,10 @@ updates:
     # このリポジトリのコミット規約（Conventional Commits）に合わせる
     commit-message:
       prefix: ci
+    # minor と patch は 1 つの PR にまとめる。major はまとめず、1 件ずつ PR にする（互換性を個別に確かめる）
+    groups:
+      github-actions-minor-patch:
+        update-types: [minor, patch]
 
   # Dockerfile のベースイメージ（FROM）を最新に保つ。Dockerfile は置き場所ごとに別のディレクトリ。
   - package-ecosystem: docker
@@ -32,6 +36,9 @@ updates:
     commit-message:
       prefix: build
       include: scope
+    groups:
+      docker-minor-patch:
+        update-types: [minor, patch]
 
   # go.mod は Go の中継と疑似上流にだけある（今は外部の依存なし）。
   - package-ecosystem: gomod
@@ -45,3 +52,6 @@ updates:
     commit-message:
       prefix: build
       include: scope
+    groups:
+      gomod-minor-patch:
+        update-types: [minor, patch]

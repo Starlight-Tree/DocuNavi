@@ -310,6 +310,13 @@ Playwright で `host.docker.internal:3000` を開くと、`allowedDevOrigins` �
 
 アクションのコミット SHA 固定は、Dependabot（`.github/dependabot.yml`）が週次で更新の PR を出します（公開から 7 日待ちます）。手動実行もできます（`workflow_dispatch`）。
 
+**依存更新の方針**（Dependabot。`.github/dependabot.yml`）:
+
+- 頻度は週次。公開から 7 日たったリリースだけを提案する（`cooldown`。侵害されたリリースが報告される猶予）。
+- minor と patch は、エコシステムごと（github-actions・docker・gomod）に 1 つの PR にまとめる（`groups`）。major はまとめず、1 件ずつ PR にして互換性を個別に確かめる。
+- マージは手動。CI が通ったことを確かめてから、人が行う。自動マージは入れない（配備でだけ使う Action は CI で動かず、通っても安全の確認にならないため）。
+- マージ後のブランチの削除は、リポジトリの設定「Automatically delete head branches」を有効にして行う（GitHub の設定。コードには含まれない。有効にしたかは、設定画面で確かめる）。
+
 依存のバージョンは `requirements.txt` と `requirements-dev.txt` に固定しています（Python 3.12、全プラットフォーム向け）。
 どちらも `requirements.in` / `requirements-dev.in` から [uv](https://docs.astral.sh/uv/) で生成したファイルなので、直接は編集しません。
 更新するときは `.in` を編集して、次を実行します（`pip install uv` で入ります）。
