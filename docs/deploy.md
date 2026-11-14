@@ -668,7 +668,7 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
 | 21:14 | 本番（100%）は `docunavi-00005-zl7`（タグ `r2new`）。`--no-traffic --tag preview-20261021-2114` で配備 → `docunavi-00009-voj`（0%） |
 | 21:15 | 確認: 00009 は 0%、本番は 00005 のまま。`/health` 200（`gemini` `postgres`）。環境変数の名前 10 個・Secret 参照 3 つ・ボリューム・実行 SA が 00005 と同じ。イメージのダイジェストはビルドと一致 |
 | 21:17 | `update-traffic --to-tags preview-20261021-2114=100` → 100% が 00009 に移った。本番の `/health` 200 |
-| 21:30 | 本番の画面（`docunavi-<PROJECT_NUMBER>.asia-northeast1.run.app`）にログイン（`/threads` 200） |
+| 21:30 | 本番の画面（`docunavi-<プロジェクト番号>.asia-northeast1.run.app`）にログイン（`/threads` 200） |
 | 21:37 | 質問 1 回目: 502（37.5 秒）。原因は Gemini の `503 UNAVAILABLE`（高負荷）。アプリは固定メッセージを返した |
 | 21:38 | 資料一覧から元の PDF を開いた（`/documents/2/file` 200、0.28 秒。R2 のエラーログ 0 件）。本番が R2 から PDF を返すことの確認 |
 | 21:41 | 質問を再送 → `/chat/stream` 200（14.1 秒）。WARNING 以上のログは 0 件 |
@@ -827,7 +827,7 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
   見るところ: 先頭が `postgresql://`、ホストが `…pooler.supabase.com`、ユーザー名が `<ロール>.<プロジェクト ref>`、ポートが 6543（transaction）か 5432（session）。
   `db.<ref>.supabase.co` の直接接続は IPv6 のみで、Cloud Run からは届かない。
 - **ログイン後に `localhost:5173` へ戻される（`ERR_CONNECTION_REFUSED`）。** Cloud Run のサービスには URL が 2 種類ある
-  （`https://docunavi-<PROJECT_NUMBER>.asia-northeast1.run.app` と、ハッシュ付きの `https://docunavi-xe42miq4da-an.a.run.app`）。
+  （`https://docunavi-<プロジェクト番号>.asia-northeast1.run.app` と、ハッシュ付きの `https://docunavi-xe42miq4da-an.a.run.app`）。
   Supabase の Redirect URLs は文字列で照合するので、登録していない側から入ると、Site URL に戻される（当時の Site URL は `http://localhost:5173`。いまは公開の URL）。
   正規の URL は前者の 1 つとし、Redirect URLs にもそれだけを入れる。ハッシュ付きの URL は使わない。
 - **`gcloud run services proxy` をバックグラウンドで動かすと止まる。** 「確かめる」を参照（ID トークン付きの `curl` を使う）。
