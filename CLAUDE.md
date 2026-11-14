@@ -13,7 +13,7 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
 | 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
-| Docker | 開発コンテナは Compose ベースで、開いても `api` `frontend` は起動しない（2026-11-11 から。`runServices` は `dev` だけ。ローカルの入口は `scripts/dev-local.sh` の画面 3000 に一本化。反映は再ビルド後で、未確認）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。`api` はポート非公開（`dev` から直接は届かない）。ローカルの `api` は本番の DB につながず、モックモードで動く（実キーでも DB の設定〔`DB_BACKEND=pg` と `DATABASE_URL`〕が無いと unhealthy のまま止まる）。**未確認:** `api` から Gemini への到達、`stopCompose`、ホストのブラウザー（`localhost:3000`）での HMR（旧 Compose の `frontend` の話）。構成の詳細・確認の日付・手順は [docs/development.md](docs/development.md)。会話の履歴・ログインまで確かめる標準のローカル構成（ローカル Postgres + 認証。**LLM は実 API が既定、モックは `--llm mock` と明示したときだけ**。キーが取れなくてもモックに戻らない）は `scripts/dev-local.sh`（「ローカルの標準構成」の節。本番 DB には接続しない。エージェントは、テストのために通常の 3000 番をモックへ切り替え・再起動しない） |
+| Docker | 開発コンテナは Compose ベースで、開いても `api` `frontend` は起動しない（2026-11-11 から。ローカルの入口は `scripts/dev-local.sh` の画面 3000 に一本化）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。ローカルの `api` は本番の DB につながない。**未確認の点・構成の詳細・確認の日付は [docs/development.md](docs/development.md)。** 標準のローカル構成（ローカル Postgres + 認証。**LLM は実 API が既定、モックは `--llm mock` と明示したときだけ**）は `scripts/dev-local.sh`。本番 DB には接続しない。エージェントは、テストのために通常の 3000 番をモックへ切り替え・再起動しない |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）
 
@@ -76,8 +76,8 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 - **画面に渡してよいのは公開用の値だけ。** `NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。入れてよいのは API・中継・認証（Better Auth）の URL など、公開してよい値だけ。
   秘密鍵・`D1_API_TOKEN`・`GEMINI_API_KEY` は入れない。
 - **設定は環境変数で渡す。** 認証・DB・LLM の値をコード・文書・コミットに書かない。`.env` と `frontend/.env.local` は Git 管理外。
-- **ローカルの認証情報（Google ログインなど）の正本は Infisical `docunavi-local`（ID は環境変数 `INFISICAL_PROJECT_ID_LOCAL`・環境 `dev`・パス `/`・6 キー）。** `workers/api/.dev.vars` は手で書かず、`scripts/dev-local.sh start|vars` で作る（権限 600）。**実 API の `GEMINI_API_KEY` も同じ保存先**（7 つ目。`.dev.vars` には入れず、API のプロセスの環境変数にだけ渡す。画面・Worker・ログ・引数には出さない。`.env` の既存のキーを `register-gemini` で写す。新しいキーは発行せず、本番のキーは変えない）。無料・有料は、キーの変数名では決めず、`gemini-key-info` と `ack-gemini` で確かめて承認を得る。
-  **本番（Worker `docunavi-api`。保存先は Infisical `docunavi-prod`/`prod`/`/`）と同じ Google Secret を共用**するので、更新は両方の保存先と実行環境をそろえる。必ず先にここを参照し、再利用する。Secret の追加・ローテーション・無効化は自動でせず、理由と影響を示して承認を得る。取れないときは「無い」と即断せず、組織・ID・環境・パス・権限を確認する（順序は `docs/development.md`「Google ログインの設定」）。値は文書・メモリー・Git に書かない。
+- **ローカルの認証情報（Google ログインなど）の正本は Infisical `docunavi-local`（ID は環境変数 `INFISICAL_PROJECT_ID_LOCAL`・環境 `dev`・パス `/`）。** `workers/api/.dev.vars` は手で書かず、`scripts/dev-local.sh start|vars` で作る（権限 600）。**実 API の `GEMINI_API_KEY` も同じ保存先**で、API のプロセスの環境変数にだけ渡す（画面・Worker・ログ・引数には出さない）。新しいキーは発行せず、本番のキーは変えない。無料・有料は、変数名では決めず、`gemini-key-info` と `ack-gemini` で確かめて承認を得る。
+  **本番（Worker `docunavi-api`。Infisical `docunavi-prod`）と同じ Google Secret を共用**するので、更新は両方の保存先と実行環境をそろえる。必ず先にここを参照し、再利用する。Secret の追加・ローテーション・無効化は自動でせず、理由と影響を示して承認を得る。取れないときは「無い」と即断せず、組織・ID・環境・パス・権限を確認する（順序・手順は `docs/development.md`「Google ログインの設定」）。値は文書・メモリー・Git に書かない。
 - **他の人が届く環境（Cloud Run など）は `AUTH_MODE=required`。** `off`（既定）は、自分だけが使うローカル開発用。
 - **キーを誤ってコミット・公開したら、失効させて作り直す。** 履歴から消すだけでは足りない。
 - **ガードレールはルールベースで、プロンプトインジェクションを完全には防がない**（`docs/guardrails.md`）。
@@ -148,7 +148,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
 - **GitHub MCP（`github`。Actions の起動と監視だけ）:** user スコープ。トークンは GitHub App（`docunavi-agent-actions`）の installation トークン（このリポジトリだけ、`Actions: write` `Metadata: read`、1 時間）で、
   `headersHelper`（`scripts/github-mcp-header.sh`）が、Infisical（`docunavi-github`）の秘密鍵から作る。App の作成は `scripts/github-app-setup.py`（ホストで 1 回）。機能は `actions` だけに絞る。私が使うのは `actions_run_trigger`（`run_workflow`、`deploy.yml` を `main` で）と、
   `actions_list` `actions_get` `get_job_logs`（監視）。`rerun` `cancel` は、言葉で頼まれたときだけ（「y」だけでは足りない）。ヘルパーは私が実行せず、トークンを表示・保存しない。
-  **`deploy.yml` の起動は、そのたびに、対象のコミットと `workers/` `frontend/` の変更の有無を示して、利用者の明示の承認を得てから行う。前の承認は次に及ばない。** Environment「production」の必須レビュアーは、非公開の無料プランでは効かず、承認なしで本番へ出た（2026-11-09）。2026-11-15 にリポジトリを公開してから設定でき、承認待ちで止まることを確認したが、毎回の画面の承認が煩雑なので外した（許可するブランチは `main` だけ）。この承認は会話の約束だけで、技術的な関門ではない。
+  **`deploy.yml` の起動は、そのたびに、対象のコミットと `workers/` `frontend/` の変更の有無を示して、利用者の明示の承認を得てから行う。前の承認は次に及ばない。** Environment「production」の必須レビュアーは外してある（許可するブランチは `main` だけ。経緯は `docs/deploy.md`）。この承認は会話の約束だけで、技術的な関門ではない。
 
 ## Git
 
@@ -168,7 +168,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
   （`scripts/check-sensitive-terms.sh origin/main..HEAD`。語は Git の管理外の `.git/sensitive-terms` に置く）。
 - **しないこと:** 強制プッシュと、公開済み履歴の書き換えはしない（必要なら相談する）。`git reset` と `git restore` は、承認を得てから行う。
 - **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、`frontend`（単体テスト・型検査・ビルド）、Go（中継と疑似の上流の `go vet`・`-race` テスト）、ワークフローの静的検査を行う。**CI 自体にデプロイは含まない。**
-  `.github/workflows/deploy.yml` は**手動の実行だけ**（`workflow_dispatch`。自動では起動しない）。`main` の CI の成功を確かめたうえで、利用者の明示の承認を得て実行し（GitHub MCP で私が起動してもよい。承認は会話で取る。Environment「production」の必須レビュアーは 2026-11-15 に外した。許可するブランチは `main` だけ）、Cloudflare の Worker（`workers/api` = `docunavi-api`〔認証だけ。D1 は無い〕、`frontend` = `docunavi-web`）を本番へデプロイする。
+  `.github/workflows/deploy.yml` は**手動の実行だけ**（`workflow_dispatch`。自動では起動しない）。`main` の CI の成功を確かめたうえで、利用者の明示の承認を得て実行し（GitHub MCP で私が起動してもよい。承認は会話で取る）、Cloudflare の Worker（`workers/api` = `docunavi-api`〔認証だけ。D1 は無い〕、`frontend` = `docunavi-web`）を本番へデプロイする。
   Cloudflare の資格情報は GitHub に置かず、OIDC で Infisical（`docunavi-deploy`）から取る（[.claude/rules/secrets.md](.claude/rules/secrets.md)）。
   プッシュの承認を求めるときは、`workers/` `frontend/` の変更が含まれるか（＝ユーザーが `deploy.yml` を実行したときに本番へ出る）を添える。プッシュだけでは Worker は本番に出ない。`deploy.yml` の起動と監視は、GitHub MCP で私がしてよい（起動は、上の承認を得てから）。
   Worker の秘密（`wrangler secret put`）はこの経路に含めない。Cloud Run（FastAPI・中継）は自動デプロイしない。
