@@ -12,7 +12,7 @@ The searchable documents live in `storage/pdf/<group name>/*.pdf`: setting docum
 |---|---|
 | ![Chat screen](docs/images/chat.png) | ![Document list](docs/images/documents.png) |
 
-The screenshots were taken with mock responses (the fake LLM and fake search used by the E2E tests, no real API). The answer text is not real.
+The chat screenshot was taken on 2026-11-15 with the real LLM (`gemini-3.1-flash-lite`) and real search (a local Postgres with the PDFs in `storage/pdf/`), signed in as a local test user. The document list screenshot was taken earlier with mock data (the fake backend used by the E2E tests, no real API); that screen does not call an LLM.
 
 ## Features
 
