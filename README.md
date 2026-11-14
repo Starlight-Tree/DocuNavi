@@ -58,12 +58,14 @@ Tests: `pip install -r requirements-dev.txt && pytest` (mock mode, no real API c
 
 The documents are written in Japanese.
 
-- [docs/README.md](docs/README.md): index of all documents
-- [docs/architecture.md](docs/architecture.md): request flow and directory layout
-- [docs/configuration.md](docs/configuration.md): environment variables, handling of LLM latency and failures
-- [docs/api.md](docs/api.md): API reference
-- [docs/decisions/](docs/decisions/README.md): important decisions and their reasons
-- [evals/README.md](evals/README.md): evaluation procedures and results
+| Document | Contents |
+|---|---|
+| [docs/README.md](docs/README.md) | Index of all documents |
+| [docs/architecture.md](docs/architecture.md) | Request flow and directory layout |
+| [docs/configuration.md](docs/configuration.md) | Environment variables; handling of LLM latency and failures |
+| [docs/api.md](docs/api.md) | API reference |
+| [docs/decisions/](docs/decisions/README.md) | Important decisions and their reasons |
+| [evals/README.md](evals/README.md) | Evaluation procedures and results |
 
 ## About this repository
 

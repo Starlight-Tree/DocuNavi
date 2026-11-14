@@ -56,12 +56,14 @@ npm run dev
 
 ## ドキュメント
 
-- [docs/README.md](docs/README.md): 全文書の索引
-- [docs/architecture.md](docs/architecture.md): 処理の流れとディレクトリ構成
-- [docs/configuration.md](docs/configuration.md): 環境変数、LLM の遅延・失敗への対処
-- [docs/api.md](docs/api.md): API の仕様
-- [docs/decisions/](docs/decisions/README.md): 重要な決定と、その理由
-- [evals/README.md](evals/README.md): 評価の手順と結果
+| 文書 | 内容 |
+|---|---|
+| [docs/README.md](docs/README.md) | 全文書の索引 |
+| [docs/architecture.md](docs/architecture.md) | 処理の流れとディレクトリ構成 |
+| [docs/configuration.md](docs/configuration.md) | 環境変数、LLM の遅延・失敗への対処 |
+| [docs/api.md](docs/api.md) | API の仕様 |
+| [docs/decisions/](docs/decisions/README.md) | 重要な決定と、その理由 |
+| [evals/README.md](evals/README.md) | 評価の手順と結果 |
 
 ## このリポジトリについて
 
