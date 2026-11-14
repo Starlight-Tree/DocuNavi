@@ -1,6 +1,6 @@
 # 検索の設計（DB のベクトル検索に一本化した理由と、見直す条件）
 
-チャットの検索（`search_documents`）は、**DB（Supabase / pgvector）の `chunks` へのベクトル検索だけ**です。ローカルの PDF を読む
+チャットの検索（`search_documents`）は、**DB（Postgres / pgvector）の `chunks` へのベクトル検索だけ**です。ローカルの PDF を読む
 BM25 の経路と、`SEARCH_BACKEND`・`SEARCH_SCOPE` の切り替えは、なくしました。この文書は、そう決めた根拠と、いつ見直すかを残します。
 環境変数と動かし方は [configuration.md](configuration.md)、測定の詳細は [evals/README.md](../evals/README.md) と `evals/search_compare/` です。
 

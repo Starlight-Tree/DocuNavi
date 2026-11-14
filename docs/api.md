@@ -10,8 +10,8 @@
 ```
 
 - `mode`: `mock`（ダミー応答）または `gemini`（本物の LLM。Vertex AI の場合も `gemini`）。
-- `history`: 会話履歴の置き場所。`memory`（プロセス内。再起動で消える）または `d1`（`D1_API_URL` のデータ用 Worker 経由の D1）。
-  D1 には問い合わせないので、DB の障害では値も応答も変わりません（[configuration.md](configuration.md) の「会話履歴の保存先」）。
+- `history`: 会話履歴の置き場所。`memory`（プロセス内。再起動で消える）または `pg`（Postgres。`DB_BACKEND=pg`。旧経路の `d1` もコードに残してある）。
+  DB には問い合わせないので、DB の障害では値も応答も変わりません（[configuration.md](configuration.md) の「会話履歴の保存先」）。
 
 ## `POST /chat`
 
@@ -101,7 +101,7 @@
 | 504 | LLM の応答がタイムアウト |
 | 500 | API キー・モデル設定の誤り、想定外の例外 |
 | 502 | その他の LLM 呼び出し失敗 |
-| 503 | 会話履歴の保存先（D1）に接続できない（`D1_API_URL` を設定したときだけ）、または資料の検索（質問の埋め込み・Vectorize + D1 の検索）に失敗した（「資料の検索に失敗しました。…」。別の検索経路には戻らない） |
+| 503 | 会話履歴の保存先（Postgres）に接続できない（`DATABASE_URL` を設定したときだけ）、または資料の検索（質問の埋め込み・pgvector の検索）に失敗した（「資料の検索に失敗しました。…」。別の検索経路には戻らない） |
 
 クライアントが切断した場合は、LLM 呼び出しを取り消して何も返しません（ステータスはクライアントに届かないため、上の表にはありません）。
 
@@ -142,7 +142,7 @@ data: [DONE]
 - **`message-metadata` の `context`**: `/chat` の `context` と同じ（今回のターンで検索された設定資料。完了の直前に届く）。
 - **`message-metadata` の `collection` と `hit_count`**: `/chat` と同じ意味（この会話の検索対象と、今回のターンの検索で拾ったチャンクの数。検索していなければ `hit_count` は `null`）。
 - **`message-metadata` の `target`**: この会話の質問の対象（`null` は絞らない）。`sources` の各 `target` は、回答を作った時点のその資料の対象（未分類は `null`。あとで分類が変わっても変わらない）。
-- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, weak, collection, target, document_id}`。`document_id` は資料の ID（`documents.id`。不明なら `null`）で、画面が出典から資料を直接開くのに使う。`collection` はその資料のグループ（未設定なら `null`）。`page` は D1 の `chunks.page`（PDF の 1 始まりのページ）、
+- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, weak, collection, target, document_id}`。`document_id` は資料の ID（`documents.id`。不明なら `null`）で、画面が出典から資料を直接開くのに使う。`collection` はその資料のグループ（未設定なら `null`）。`page` は Postgres の `chunks.page`（PDF の 1 始まりのページ）、
   `page_end` はページをまたぐ表の最終ページ（またがなければ `null`）。値が不正なとき（1 未満・整数でない・`page_end` が `page` 以下）は `null`。
   各要素の `weak` は、同じ検索の 1 位との類似度の差が 0.05（`app/agents/tools.py` の `WEAK_GAP`）を超える 2 件目以降で `true`。画面は出典カードに出さない
   （LLM が受け取った抜粋は変えず、折りたたみの一覧には残る）。類似度が無いときと 1 件目は `false`。
@@ -204,9 +204,9 @@ data: [DONE]
 
 - **エラー:** 404（`指定された会話が見つかりません。` / off の一覧は `会話の一覧は、ログイン（AUTH_MODE=required）のときだけ使えます。`）、
   422（不正な `thread_id`）、503（履歴の保存先を操作できない。固定メッセージで、例外の内容・接続先は含まない）。
-- **確認の状況:** 本物のログイン（旧環境の Supabase・Google）での動作は、利用者が実機で確認済み（2026-10-19、利用者の報告。確認した範囲の詳細は記録していない）。Better Auth + D1 での確認は、2026-11-08 の移行の記録（`docs/cloudflare-migration.md`）による。
-  テストは、メモリと偽の D1 で行った（`tests/test_threads.py`）。
-  **個別には未確認:** 本番の D1 での速度（題名のために会話ごとに履歴を読むので、最大 50 回の読み出しがある）、返答の生成中に同じ会話を削除したときの挙動。
+- **確認の状況:** 本物のログイン（旧環境の Supabase・Google）での動作は、利用者が実機で確認済み（2026-10-19、利用者の報告。確認した範囲の詳細は記録していない）。Better Auth での確認は、2026-11-08 の移行の記録（`docs/cloudflare-migration.md`）による。
+  テストは、メモリと、実際の `PgSaver` の直列化に合わせた偽の行で行った（`tests/test_threads.py`。本物の Postgres での実行は `tests/test_history_pg_backend.py`、`PG_TEST_URL` が要る）。
+  **個別には未確認:** 本番の Postgres での速度（題名のために会話ごとに履歴を読むので、最大 50 回の読み出しがある）、返答の生成中に同じ会話を削除したときの挙動。
 
 ## 資料グループのアクセス制御（`ACCESS_MODE`）
 
@@ -226,7 +226,7 @@ data: [DONE]
 
 ## `GET /documents`、`GET /documents/{id}/chunks`、`GET /documents/{id}/file`
 
-資料の一覧（読み取り専用）。**D1（`documents` / `chunks`）に保存された内容**を返します。チャットの検索（Vectorize + D1）が読むのと同じデータなので、
+資料の一覧（読み取り専用）。**Postgres（`documents` / `chunks`）に保存された内容**を返します。チャットの検索（pgvector）が読むのと同じデータなので、
 ここで見える本文が、検索の対象になる本文です。
 
 ```json
@@ -242,13 +242,13 @@ data: [DONE]
   日本語の表示名（設定資料・店舗案内・規程・取扱説明書）は画面が持ち、API は名前だけを返します。一覧の絞り込みも画面側で行います。
 - **`target` / `doc_type`:** 資料の対象（`documents.target`）と資料種別（`documents.doc_type`）の識別名。未分類は `null`。表示名は `GET /targets` と `GET /doc-types`。
   閲覧権限は変えない（権限は `collection` が決める）。一覧の絞り込みは画面側で行う。
-- **`GET /documents`:** 文書ごとの情報とチャンク数、埋め込み済みの数。`configured` が `false` のときは、`D1_API_URL` が空で資料の D1 を
-  使っていません（エラーではなく 200。`documents` は空）。`configured: true` で `documents` が空なら、DB はあるが文書が 0 件です。
+- **`GET /documents`:** 文書ごとの情報とチャンク数、埋め込み済みの数。`configured` が `false` のときは、`DATABASE_URL` が空で資料の DB を
+  使っていません（モックモードなど）（エラーではなく 200。`documents` は空）。`configured: true` で `documents` が空なら、DB はあるが文書が 0 件です。
 - **`GET /documents/{id}/chunks`:** その文書のチャンクを `chunk_index` 順に、`page`・`page_end`・`kind`・`heading`・`content`（全文）・
   `embedded`（埋め込みがあるか）・`embedding_model` で返します。**埋め込みのベクトルそのものは返しません。**
   存在しない `id` は 404、`id` が 1 以上の整数でなければ 422。応答の `original_pdf`（真偽値）は、元の PDF を `/file` で返せるか。
 - **`GET /documents/{id}/file`:** 取り込んだ元の PDF（`application/pdf`、`Content-Disposition: inline`。日本語のファイル名は `filename*=UTF-8''…`）。
-  D1 の `source`（ファイル名）と `content_hash`（取り込んだ PDF の sha256）に合うものだけを、`storage/pdf/<資料群>/` の直下（本番は `PDF_STORE=r2` で、R2 の同じ資料群）から探して返す。
+  DB の `source`（ファイル名）と `content_hash`（取り込んだ PDF の sha256）に合うものだけを、`storage/pdf/<資料群>/` の直下（本番は `PDF_STORE=r2` で、R2 の同じ資料群）から探して返す。
   **名前だけでは選ばない**（同じ名前で中身が違う PDF は返さない）。返すのは、ハッシュを確かめたバイト列そのもの。
   `source` はファイル名としてだけ扱い（`/` `\` `..` を含むものは探さない）、シンボリックリンクは、行き先が置き場の中でも使わない。
   20 MiB を超えるファイルは返さない。
@@ -271,12 +271,12 @@ data: [DONE]
 ```
 
 - **`name`:** 検索の絞り込みに渡す値（`POST /chat` の `collection`）。`documents.collection` と同じ形で、変わらない。
-- **`label` / `description` / `sort_order`:** D1 の `document_collections`（`workers/api/migrations/0001_schema.sql`）に登録した値。
+- **`label` / `description` / `sort_order`:** Postgres の `document_collections`（`db/migrations/0001_schema.sql`）に登録した値。
   並びは `sort_order` の小さい順、同じなら名前順。
 - **未登録の名前:** `documents.collection` にあって表に無い名前（フォルダを置いて取り込んだだけのグループ）も返す。`registered: false`、
   `label` は名前そのもの、`description` は空、`sort_order` は `null`（登録済みの後ろ）。
 - **`document_count` / `ready_count`:** 全ての文書の数と、検索の対象になる文書（`status = 'ready'`）の数。登録済みで資料が無いグループは 0 / 0。
-- **`configured`:** `false` のときは `D1_API_URL` が空（エラーではなく 200、`collections` は空）。
+- **`configured`:** `false` のときは `DATABASE_URL` が空（エラーではなく 200、`collections` は空）。
 - **エラー:** 表が無い（マイグレーション 0006 の前）ときは、固定メッセージ「資料グループの情報がまだ用意されていません。」の 503。
   そのほかの DB の失敗は、固定メッセージの 503（例外の内容・接続先は含まない）。表が空なのはエラーではない。
 - **認証:** `/documents` と同じ（`AUTH_MODE=required` では Bearer が要る）。`Cache-Control: no-store`。書き込みの API はない（POST などは 405）。
@@ -292,7 +292,7 @@ data: [DONE]
 
 - **見える資料のある分類だけ**を返す（資料が 1 件も見えない対象・種別は、存在しないのと同じに出さない）。件数も、利用者が見える資料（`ACCESS_MODE=enforce` なら、見えるグループの資料）だけを数える。
 - `document_count` は見える資料の数（取り込み中も含む）、`ready_count` は検索の対象になる資料（`status = 'ready'`）の数。0 の対象は「準備中」と出せる。未分類の資料は、どの分類にも数えない。
-- `sort_order` の小さい順、同じなら名前順。`configured: false` は `D1_API_URL` が空（エラーではなく 200）。表・列が無い（M1 の前）ときは固定メッセージの 503。見えるグループが 0 件なら 403。
+- `sort_order` の小さい順、同じなら名前順。`configured: false` は `DATABASE_URL` が空（エラーではなく 200）。表・列が無い（M1 の前）ときは固定メッセージの 503。見えるグループが 0 件なら 403。
 - 認証・`Cache-Control: no-store`・書き込み不可は `/collections` と同じ。分類の設定は運用者の SQL（[configuration.md](configuration.md) の「対象と資料種別」）。
 
 ## `GET /documents/{id}/graph`、`GET /documents/{id}/impact`
