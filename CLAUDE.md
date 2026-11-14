@@ -152,6 +152,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
 
 ## Git
 
+- **作者名:** `git config user.name` は `Starlight-Tree`（GitHub の登録名。2026-11-14 から。メールは変えない）。古いコミットの `Starlight` は書き換えない。
 - **コミットメッセージ:** Conventional Commits（`type(scope): 英語の命令形の要約`）。type は `feat` `fix` `docs` `refactor` `test` `chore` `build` `ci` `perf`。
   件名は 72 文字以内・小文字始まり・末尾ピリオドなし。本文に「なぜ」と検証結果（限界も）を書く。1 コミット 1 論理変更。
 - **運用:** `main` に直接コミットし、`origin/main` へ通常のプッシュ。
