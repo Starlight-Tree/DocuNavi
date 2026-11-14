@@ -57,6 +57,8 @@ _VERIFY_SQL = (
     "c.embedding_dimensions AS dims, c.embedding_input_hash AS input_hash "
     "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id"
 )
+# app/startup_checks.py が、アクセス制御の検査と 1 本の SQL にまとめるときの元（列名は id / source / status / heading / content / has_vector / model / dims / input_hash）
+VERIFY_SQL = _VERIFY_SQL
 
 # Vectorize の $in は 100 件まで。それを超える絞り込みはフィルターに載せず、D1 側の条件だけで絞る
 _VECTORIZE_IN_LIMIT = 100
@@ -238,22 +240,19 @@ async def search(
     return [hit for hit in hits if scope.allows(hit.collection) and (target is None or hit.target == target)]
 
 
-async def verify() -> None:
-    """起動時の検査（本物の LLM のときだけ）。検索を使える状態でなければ VectorSearchError（起動を止める）。
-
-    API キー（質問の埋め込み）と DB の接続プールがあり、DB の検索できる資料（status = 'ready'）の全チャンクに、
-    現在のモデル・入力の埋め込みがあることを確かめる。ローカルの PDF とは突き合わせない（検索は DB だけを読む）。
-    """
+def check_config() -> None:
+    """起動時の検査のうち、DB を使わない部分（質問の埋め込みの API キー）。"""
     _api_key()
-    pool = get_pool()
-    if pool is None:
-        raise VectorSearchError("資料の検索には D1_API_URL が要ります（DB の接続が開いていません）")
-    async with pool.connection() as conn:
-        cursor = await conn.execute(_VERIFY_SQL)
-        rows = await cursor.fetchall()
-    by_document: dict[Any, list[dict[str, Any]]] = {}
+
+
+def check_rows(rows: Sequence[Mapping[str, Any]]) -> None:
+    """起動時の検査の結果（`VERIFY_SQL` の行）を判定する。合っていなければ VectorSearchError（起動を止める）。
+
+    資料が 1 件も無いときに 1 行だけ返る、`id` が NULL の行（アクセス制御の検査と 1 本にまとめたとき）は、資料として数えない。
+    """
+    by_document: dict[Any, list[Mapping[str, Any]]] = {}
     for row in rows:
-        if row["status"] == "ready":
+        if row["id"] is not None and row["status"] == "ready":
             by_document.setdefault(row["id"], []).append(row)
     if not by_document:
         raise VectorSearchError(
@@ -271,6 +270,23 @@ async def verify() -> None:
             "資料の埋め込みが DB と合っていません（python -m app.ingestion.embed --apply で更新）: "
             + "; ".join(sorted(problems))
         )
+
+
+async def verify() -> None:
+    """起動時の検査（本物の LLM のときだけ）。検索を使える状態でなければ VectorSearchError（起動を止める）。
+
+    API キー（質問の埋め込み）と DB の接続プールがあり、DB の検索できる資料（status = 'ready'）の全チャンクに、
+    現在のモデル・入力の埋め込みがあることを確かめる。ローカルの PDF とは突き合わせない（検索は DB だけを読む）。
+    本番の起動は `app/startup_checks.py` が、アクセス制御の検査とまとめて 1 回の問い合わせで行う。これは、単独の経路。
+    """
+    check_config()
+    pool = get_pool()
+    if pool is None:
+        raise VectorSearchError("資料の検索には D1_API_URL が要ります（DB の接続が開いていません）")
+    async with pool.connection() as conn:
+        cursor = await conn.execute(_VERIFY_SQL)
+        rows = await cursor.fetchall()
+    check_rows(rows)
 
 
 def _embedding_is_current(row: Mapping[str, Any]) -> bool:

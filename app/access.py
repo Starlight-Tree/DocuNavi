@@ -53,11 +53,13 @@ _KNOWN_SQL = (
     "SELECT name AS collection FROM document_collections "
     "UNION SELECT collection FROM documents WHERE collection IS NOT NULL"
 )
-_PROBE_SQL = (
-    "SELECT (SELECT count(*) FROM roles WHERE name = %(default)s) AS default_roles, "
+# 起動時の検査の列（app/startup_checks.py が、資料の検査と 1 本の SQL にまとめるときにも使う）
+PROBE_COLUMNS_SQL = (
+    "(SELECT count(*) FROM roles WHERE name = %(default)s) AS default_roles, "
     "(SELECT count(*) FROM role_collection_access WHERE role = %(default)s) AS default_collections, "
     "(SELECT count(*) FROM user_roles) AS assignments"
 )
+_PROBE_SQL = f"SELECT {PROBE_COLUMNS_SQL}"
 
 
 # この範囲で見える資料が 1 件でもある対象か（状態は問わない。取り込み中の資料だけの対象は、「準備中」として選べる）
@@ -250,16 +252,35 @@ async def request_access(user_id: Annotated[str | None, Depends(current_user)]) 
     return Access(mode, Scope(visible, complete=complete))
 
 
+def check_config() -> str:
+    """起動時の検査のうち、DB を使わない部分。ACCESS_MODE を返す。知らない値・不正な TTL は、起動を失敗させる。"""
+    mode = access_mode()
+    if mode != "off":
+        cache_ttl_seconds()
+    return mode
+
+
+def check_probe_row(mode: str, row: dict[str, Any]) -> None:
+    """起動時の検査の結果（`PROBE_COLUMNS_SQL` の 1 行）を判定する。default ロールが無ければ AccessConfigError。"""
+    if not row["default_roles"]:
+        raise AccessConfigError(
+            "roles に default ロールがありません。マイグレーション 20261026045921 の初期データを確認してください。"
+        )
+    if not row["default_collections"]:
+        logger.warning("default ロールに資料グループが割り当てられていません。ロールの無い利用者は、何も見えません")
+    logger.info("アクセス制御: %s（user_roles の割り当て %d 件）", mode, row["assignments"])
+
+
 async def verify_access_config() -> None:
     """起動時の検査。ACCESS_MODE が shadow / enforce で使えない状態なら、AccessConfigError で起動を失敗させる。
 
     off は何も読まない。それ以外は DB が要り、マイグレーション（20261026045921）の表と default ロールが無ければ失敗する。
+    本番の起動は `app/startup_checks.py` が、資料の検査とまとめて 1 回の問い合わせで行う。これは、まとめられないときの単独の経路。
     """
-    mode = access_mode()
+    mode = check_config()
     if mode == "off":
         logger.info("アクセス制御: 無効（ACCESS_MODE=off。利用者ごとの資料の制限はしない）")
         return
-    cache_ttl_seconds()  # 不正な値は、起動を失敗させる
     pool = get_pool()
     if pool is None:
         raise AccessConfigError(f"ACCESS_MODE={mode} には D1_API_URL が必要です。")
@@ -271,13 +292,7 @@ async def verify_access_config() -> None:
         raise AccessConfigError(
             f"ロールの表を読めませんでした ({type(exc).__name__})。マイグレーション 20261026045921 が適用済みか確認してください。"
         ) from exc
-    if not row["default_roles"]:
-        raise AccessConfigError(
-            "roles に default ロールがありません。マイグレーション 20261026045921 の初期データを確認してください。"
-        )
-    if not row["default_collections"]:
-        logger.warning("default ロールに資料グループが割り当てられていません。ロールの無い利用者は、何も見えません")
-    logger.info("アクセス制御: %s（user_roles の割り当て %d 件）", mode, row["assignments"])
+    check_probe_row(mode, row)
 
 
 def _source_allowed(source: dict[str, Any], scope: Scope) -> bool:
