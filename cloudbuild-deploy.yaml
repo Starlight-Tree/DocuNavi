@@ -20,6 +20,9 @@ steps:
   - id: check-tag
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
+    # 置換変数はシェルの環境変数にならないので、env で渡す（渡さないと $${TAG_NAME} が空になる。2026-11-14 の初回で失敗）
+    env:
+      - TAG_NAME=${TAG_NAME}
     args:
       - -c
       - |
