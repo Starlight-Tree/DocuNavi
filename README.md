@@ -1,106 +1,112 @@
-# ドキュナビ（DocuNavi）
+# DocuNavi
 
-> **DocuNavi** is a RAG chatbot that answers questions from PDF documents and cites its sources (FastAPI, LangGraph, Gemini, Postgres + pgvector, Next.js on Cloudflare Workers).
-> It is a personal project built to explore production concerns: guardrails, LLM failure handling, role-based document access, and measured search quality. Docs are in Japanese.
+English | [日本語](README.ja.md)
 
-資料（PDF）を根拠に答える RAG チャットボットです。回答には出典の番号が付き、押すと資料が開きます。
-検索する資料は `storage/pdf/<資料群の名前>/*.pdf` で、架空の惑星「ザーハード」の設定資料、架空のカフェチェーンの店舗案内、架空の家電の取扱説明書・学生寮の入寮規程があります。
+DocuNavi is a RAG chatbot that answers questions from PDF documents and cites its sources (FastAPI, LangGraph, Gemini, Postgres + pgvector, Next.js on Cloudflare Workers).
+It is a personal project built to explore production concerns: guardrails, LLM failure handling, role-based document access, and measured search quality.
 
-| チャット（出典と、続けて聞く候補つき） | 資料一覧（対象・資料種別で絞り込み、回答に使う資料を選ぶ） |
+Answers carry numbered citations; selecting one opens the source document.
+The searchable documents live in `storage/pdf/<group name>/*.pdf`: setting documents for a fictional planet ("Zahard"), store guides for a fictional café chain, and a user manual and a dormitory regulation for fictional products.
+
+> **Language note:** the documents under `docs/`, the `CLAUDE.md` files, and the sample PDFs are written in Japanese. Commit messages and code identifiers are in English.
+
+| Chat (with citations and follow-up suggestions) | Document list (filter by group and type, choose which documents to use) |
 |---|---|
-| ![チャット画面](docs/images/chat.png) | ![資料一覧](docs/images/documents.png) |
+| ![Chat screen](docs/images/chat.png) | ![Document list](docs/images/documents.png) |
 
-画面は、実 API を使わないモックの応答（E2E 用の偽の LLM・偽の検索）で撮ったものです。回答の文面は本物ではありません。
+The screenshots were taken with mock responses (the fake LLM and fake search used by the E2E tests, no real API). The answer text is not real.
 
-## 特徴
+## Features
 
-- **出典つきの回答。** 文末の番号 `[n]` から、根拠の資料とページを開けます。資料ごとに、回答に使うかを選べます。
-- **検索の設計と測定。** PDF の文字の位置から見出し・段落・表を組み立ててチャンクにし、Postgres + pgvector で検索します。ハイブリッド（BM25 + ベクトル）・ルールベースのリランク・GraphRAG を重ね、構成ごとの効果は `evals/` で測っています（[docs/search-design.md](docs/search-design.md)）。
-- **ガードレール。** 入力と完成した回答を検査し、ストリーミング中も、システムプロンプトの漏洩を逐次検知して止めます。ルールベースで、プロンプトインジェクションを完全には防ぎません（限界は [docs/guardrails.md](docs/guardrails.md)）。
-- **LLM の不安定さへの対処。** 遅い呼び出しは待たずに追加の試行を投げ（ヘッジ）、別モデルへのフォールバックと、無料枠が尽きたときの有料キーへの切り替えを備えます。切断は失敗として数えず、LLM の呼び出しを取り消します（[docs/configuration.md](docs/configuration.md)）。
-- **ロール別の資料アクセス制御。** 利用者のロールに応じて、見える資料グループを制限します。権限はサーバーが決めます。
-- **ログイン。** Better Auth（Google ログイン）が発行した JWT を検証します。履歴は利用者ごとに分けて保存します。
+- **Answers with citations.** The `[n]` marker at the end of a sentence opens the source document and page. You can choose which documents an answer may use.
+- **Search design and measurement.** Headings, paragraphs and tables are rebuilt from the position of each character in the PDF and split into chunks, then searched with Postgres + pgvector. Hybrid search (BM25 + vectors), rule-based reranking and GraphRAG are layered on top, and the effect of each configuration is measured in `evals/` ([docs/search-design.md](docs/search-design.md), in Japanese).
+- **Guardrails.** Input and finished answers are checked, and system-prompt leaks are detected incrementally and stopped while streaming. The guardrails are rule-based and do not fully prevent prompt injection (limits are described in [docs/guardrails.md](docs/guardrails.md)).
+- **Handling unreliable LLM calls.** Slow calls are not waited for: extra attempts are launched in parallel (hedging). There is a fallback to another model and a switch to a paid key when the free tier is exhausted. A client disconnect is not counted as a failure; the LLM call is cancelled instead ([docs/configuration.md](docs/configuration.md)).
+- **Role-based document access.** The groups of documents a user can see depend on their role. The server decides the permissions.
+- **Login.** JWTs issued by Better Auth (Google login) are verified. Conversation history is stored per user.
 
-## アーキテクチャ
+## Architecture
 
 ```mermaid
 flowchart LR
-    B[ブラウザー] --> W["Cloudflare Worker<br/>docunavi-web (Next.js)"]
-    B -->|"/chat/stream (SSE)"| R["Go の SSE 中継<br/>Cloud Run"]
-    B -->|"/chat ほか"| A
+    B[Browser] --> W["Cloudflare Worker<br/>docunavi-web (Next.js)"]
+    B -->|"/chat/stream (SSE)"| R["Go SSE relay<br/>Cloud Run"]
+    B -->|"/chat etc."| A
     R --> A["FastAPI + LangGraph<br/>Cloud Run"]
-    B -->|ログイン| AU["Cloudflare Worker<br/>docunavi-api (Better Auth)"]
+    B -->|login| AU["Cloudflare Worker<br/>docunavi-api (Better Auth)"]
     A --> G[Gemini]
     A --> DB[("Postgres + pgvector<br/>Prisma Postgres")]
     AU --> DB
-    R2[("Cloudflare R2<br/>PDF・バックアップ")] -.取り込み.-> DB
+    R2[("Cloudflare R2<br/>PDFs and backups")] -.ingest.-> DB
 ```
 
-質問は、入力ガード → エージェント（必要なら資料を検索するツール呼び出しのループ）→ 出力ガードの順に LangGraph で処理します。詳細は [docs/architecture.md](docs/architecture.md)。
+A question is processed by LangGraph in this order: input guard → agent (a loop of tool calls that search the documents when needed) → output guard. Details are in [docs/architecture.md](docs/architecture.md).
 
-選んだ理由の例（決定の記録は [docs/decisions/](docs/decisions/README.md)）:
+Examples of design choices (decision records are in [docs/decisions/](docs/decisions/README.md)):
 
-- **画面と API を別オリジンにした。** 画面はブラウザーだけで描く SPA にして Cloudflare で配信し、API は Cloud Run に置いています。
-- **ストリーミングだけ Go の中継を通す。** 長い SSE 接続の安定、切断時の上流の取り消し、同時接続が増えたときの備えを試すためです。製品上の必要から入れたものではなく、学習と検証が目的で、Python の API より速い・安定するとは測定で示せていません（[決定 0005](docs/decisions/0005-go-sse-relay-without-prod-limit.md)、[docs/go-architecture-plan.md](docs/go-architecture-plan.md)）。
+- **The UI and the API are on separate origins.** The UI is a browser-rendered SPA served from Cloudflare; the API runs on Cloud Run.
+- **Only streaming goes through a Go relay.** The aim is to try out stable long-lived SSE connections, cancelling the upstream call on disconnect, and headroom for more concurrent connections. It was not added out of a product need; its purpose is learning and verification, and it has not been shown by measurement to be faster or more stable than the Python API ([decision 0005](docs/decisions/0005-go-sse-relay-without-prod-limit.md), [docs/go-architecture-plan.md](docs/go-architecture-plan.md)).
 
-## 動かす（モックモード。実キー不要）
+## Running it (mock mode, no real keys needed)
 
-`GEMINI_API_KEY` が未設定なら、資料を検索せず固定の返答を返すモックモードで動きます。画面と API のつなぎ目を確かめられます。
+If `GEMINI_API_KEY` is not set, the app runs in mock mode: it does not search documents and returns a fixed reply. This is enough to check how the UI and the API connect.
 
 ```bash
-# API（http://localhost:8000）
+# API (http://localhost:8000)
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 
-# 画面（別のターミナル。http://localhost:3000）
+# UI (in another terminal, http://localhost:3000)
 cd frontend && npm ci
-cp .env.example .env.local   # 初回だけ
+cp .env.example .env.local   # first time only
 npm run dev
 ```
 
 ```bash
 curl -s localhost:8000/chat -H 'Content-Type: application/json' \
-  -d '{"message": "ザーハードの大気について教えて"}'
+  -d '{"message": "Tell me about the atmosphere of Zahard"}'
 ```
 
-本物の LLM と検索には、`DATABASE_URL`（資料を取り込み・埋め込み済みの Postgres）と `GEMINI_API_KEY`（または Vertex AI）が要ります（[docs/configuration.md](docs/configuration.md)）。Docker Compose・開発コンテナ・ローカルの Postgres を使う構成は [docs/development.md](docs/development.md)、API の仕様は [docs/api.md](docs/api.md)。
+A real LLM and real search need `DATABASE_URL` (a Postgres with the documents ingested and embedded) and `GEMINI_API_KEY` (or Vertex AI); see [docs/configuration.md](docs/configuration.md). For setups with Docker Compose, a dev container, or a local Postgres, see [docs/development.md](docs/development.md). The API reference is [docs/api.md](docs/api.md).
 
-## 品質の取り組み
+## Quality
 
-- **テスト:** pytest（3,300 件超を収集。DB や実 API が要るものは、環境が無ければスキップ）、画面は Vitest（556 件）と Playwright の E2E（偽の LLM・偽の検索）。
-- **CI:** GitHub Actions で、バックエンド・画面（単体・型検査・ビルド）・Go（`go vet`、`-race`）・認証 Worker の型検査・Docker のビルドと起動確認・ワークフローの静的検査（actionlint、zizmor）・コミット件名の検査を行います。アクションはコミット SHA で固定し、依存の更新は Dependabot（週次・7 日待ち・minor と patch をまとめる）が出します。
-- **評価:** `evals/` に、検索の構成の比較、GraphRAG、完全一致の質問 50 問、回答の評価（ゴールデンセット）を置いています。測定の手順と結果は [evals/README.md](evals/README.md)。
-- **デプロイ:** 本番への反映は手動（`deploy.yml`、Cloud Build のタグ）です。資格情報は OIDC で取得し、リポジトリには置きません。
+- **Tests:** pytest (more than 3,300 collected; tests that need a DB or a real API are skipped when the environment is missing). The UI has Vitest (556 tests) and Playwright E2E tests (fake LLM, fake search).
+- **CI:** GitHub Actions runs the backend, the UI (unit tests, type check, build), Go (`go vet`, `-race`), a type check of the auth Worker, a Docker build and start-up check, static analysis of the workflows (actionlint, zizmor), and a check of commit subjects. Actions are pinned by commit SHA, and Dependabot (weekly, 7-day cooldown, minor and patch updates grouped) proposes dependency updates.
+- **Evaluation:** `evals/` holds comparisons of search configurations, GraphRAG, 50 exact-match questions, and answer evaluation (a golden set). Procedures and results are in [evals/README.md](evals/README.md).
+- **Deployment:** releases to production are manual (`deploy.yml`, Cloud Build tags). Credentials are obtained through OIDC and are not stored in the repository.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                      # モックモード固定。実 API は呼ばない
+pytest                      # fixed to mock mode; no real API calls
 cd frontend && npm test     # Vitest
 ```
 
-## ドキュメント
+## Documentation
 
-| 文書 | 内容 |
+The documents are written in Japanese.
+
+| Document | Contents |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | 処理の流れ、ディレクトリ構成、環境構成 |
-| [docs/search-design.md](docs/search-design.md) | 検索の設計と、見直す条件 |
-| [docs/guardrails.md](docs/guardrails.md) | 入出力ガードレール（拒否の条件、ストリーミング中の逐次検査） |
-| [docs/configuration.md](docs/configuration.md) | 環境変数、LLM の遅延・失敗・切断への対処 |
-| [docs/api.md](docs/api.md) | `/health`・`/chat`・`/chat/stream` ほかの仕様、エラー |
-| [docs/development.md](docs/development.md) | 開発環境、テスト、CI、依存の更新 |
-| [docs/deploy.md](docs/deploy.md) | デプロイ手順と本番運用の記録 |
-| [docs/roadmap.md](docs/roadmap.md) | これからの計画 |
-| [docs/decisions/](docs/decisions/README.md) | 重要な決定と、その理由（1 件 1 ファイル） |
-| [docs/README.md](docs/README.md) | 全文書の索引（現状・設計メモ・記録の別つき） |
-| [CLAUDE.md](CLAUDE.md) | AI エージェント（Claude Code）が守ること |
+| [docs/architecture.md](docs/architecture.md) | Request flow, directory layout, environments |
+| [docs/search-design.md](docs/search-design.md) | Search design and the conditions for revisiting it |
+| [docs/guardrails.md](docs/guardrails.md) | Input and output guardrails (rejection conditions, incremental checks while streaming) |
+| [docs/configuration.md](docs/configuration.md) | Environment variables; handling LLM latency, failures and disconnects |
+| [docs/api.md](docs/api.md) | Specification of `/health`, `/chat`, `/chat/stream` and others, and errors |
+| [docs/development.md](docs/development.md) | Development environment, tests, CI, dependency updates |
+| [docs/deploy.md](docs/deploy.md) | Deployment steps and a log of production operations |
+| [docs/roadmap.md](docs/roadmap.md) | Plans |
+| [docs/decisions/](docs/decisions/README.md) | Important decisions and their reasons (one file each) |
+| [docs/README.md](docs/README.md) | Index of all documents (marked as current state, design notes, or records) |
+| [CLAUDE.md](CLAUDE.md) | Rules for the AI agent (Claude Code) |
 
-## このリポジトリについて
+## About this repository
 
-- ポートフォリオとして公開している個人開発のリポジトリです。題材の資料は架空のものです。
-- **秘密情報（API キー・トークン・接続文字列・パスワード）は含みません。** 値は、Git 管理外の環境変数と、シークレット管理（Infisical）に置いています。コミット時に、秘密のパターンと登録語の検査をしています。ただし、パターンによる検査は完全な保証ではありません。
-- **本番の資格情報や、本番にだけある設定値は含みません。** デプロイの仕組みを示すために、設定ファイル（`cloudbuild*.yaml`、`wrangler.jsonc`、`.github/workflows/`）と運用の記録（`docs/deploy.md` など）は含めています。記録には、実行した日付と、確認できたこと・できていないことを書いています。
+- This is a personal project published as a portfolio. The sample documents are fictional.
+- **It contains no secrets (API keys, tokens, connection strings, passwords).** Values are kept in environment variables outside Git and in secret management (Infisical). Commits are checked for secret patterns and registered terms. Pattern-based checks are not a complete guarantee.
+- **It contains no production credentials and no settings that exist only in production.** To show how deployment works, the repository includes configuration files (`cloudbuild*.yaml`, `wrangler.jsonc`, `.github/workflows/`) and operation records (such as `docs/deploy.md`). The records state the date of each action, and what was and was not confirmed.
 
-## ライセンス
+## License
 
 [MIT](LICENSE)
