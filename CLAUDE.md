@@ -134,7 +134,7 @@ gcloud と gh には、誤操作や、取り込んだ文書に埋め込まれた
 - ヘルパーは Claude Code が実行する。ガードのフックも確認も通らず、ユーザー自身の権限で動く。**私は実行しない**（標準出力が ID トークンになる）。
 - スクリプトの変更は、事前にユーザーの承認を得る。「ID トークンを JSON で返す」以外をさせない。トークンは標準エラー・ログ・ファイル・コミットにも出さない。
 - 画面の Authenticate は押さない（ヘッダー無しの OAuth 探索になり、403 で失敗する）。
-- 旧プロキシ `scripts/mcp-proxy.sh` は、ユーザーが明示的に指示したときだけ実行する。実行前に `git diff 579d80e -- scripts/mcp-proxy.sh` が空であることを確かめる。自動再起動ループは足さない。
+- 旧プロキシ `scripts/mcp-proxy.sh` は、ユーザーが明示的に指示したときだけ実行する。実行前に `git diff 048960a -- scripts/mcp-proxy.sh` が空であることを確かめる。自動再起動ループは足さない。
 
 ## gh（読み取り専用のトークン + ガード）と GitHub MCP（Actions だけ）
 
@@ -152,7 +152,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
 
 ## Git
 
-- **作者名:** `git config user.name` は `Starlight-Tree`（GitHub の登録名。2026-11-14 から。メールは変えない）。古いコミットの `Starlight` は書き換えない。
+- **作者名:** `git config user.name` は `Starlight-Tree`（GitHub の登録名。メールは変えない）。2026-11-14 に、全履歴の作者・コミッターを `Starlight-Tree` に書き換えた（[docs/history-rewrite.md](docs/history-rewrite.md)）。
 - **コミットメッセージ:** Conventional Commits（`type(scope): 英語の命令形の要約`）。type は `feat` `fix` `docs` `refactor` `test` `chore` `build` `ci` `perf`。
   件名は 72 文字以内・小文字始まり・末尾ピリオドなし。本文に「なぜ」と検証結果（限界も）を書く。1 コミット 1 論理変更。
 - **運用:** `main` に直接コミットし、`origin/main` へ通常のプッシュ。
