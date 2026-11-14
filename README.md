@@ -8,8 +8,6 @@ It is a personal project built to explore production concerns: guardrails, LLM f
 Answers carry numbered citations; selecting one opens the source document.
 The searchable documents live in `storage/pdf/<group name>/*.pdf`: setting documents for a fictional planet ("Zahard"), store guides for a fictional café chain, and a user manual and a dormitory regulation for fictional products.
 
-> **Language note:** the documents under `docs/`, the `CLAUDE.md` files, and the sample PDFs are written in Japanese. Commit messages and code identifiers are in English.
-
 | Chat (with citations and follow-up suggestions) | Document list (filter by group and type, choose which documents to use) |
 |---|---|
 | ![Chat screen](docs/images/chat.png) | ![Document list](docs/images/documents.png) |
