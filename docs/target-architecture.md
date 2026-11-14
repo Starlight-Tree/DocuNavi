@@ -23,18 +23,6 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 
 証拠等級: A = 実機・実測で確認 / B = 公式の文書 / C = 第三者の記事・別の AI の回答 / 不明。
 
-## 今の構成（実装済み。ただし 2026-11-08 に画面・認証・データを Cloudflare へ移した。現在の構成は [cloudflare-migration.md](cloudflare-migration.md)。以下は移行前の記録）
-
-```
-ブラウザー → Cloudflare Worker `docunavi-web`（frontend。Next.js の画面。2026-11-08 に Vercel から移した）
-         → Cloud Run（FastAPI。API だけ。画面は配信しない）→ Supabase（Postgres + pgvector、Auth。2026-11-08 までの構成）
-                                                          → Cloudflare R2（PDF の原本）
-
-（2026-10-24 までは、Cloud Run が Vite のビルド成果物も配信していた。外した。下の「FastAPI の静的配信」）
-```
-
-資料の取り込みは Cloud Run の Job（毎時）。LLM の遅延・失敗への対処（ヘッジ、フォールバック、有料キー）はアプリの中にある（[configuration.md](configuration.md)）。
-
 ## 目標構成（2026-11-09 に改訂）
 
 ```
@@ -45,52 +33,13 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 
 2026-10 に決めた「独自ドメインの `api.` を Cloudflare のプロキシにし、Worker を前段に置く」形は、2026-11-09 に廃止した（[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)）。上の図は、廃止後の、いま動いている入口の形。roadmap の段階 7 の「Vite のまま静的配信か」は、この決定に合わせて直した（2026-10-24）。
 
-## 開発環境: ローカル Supabase（設計。2026-10-25。中止）
-
-**現状（2026-10-25）:** 中止（利用者の指示）。段階 0 の検証に使ったローカル Supabase（コンテナ、ボリューム、イメージ、ホストの `supabase` CLI）は削除済み。今動いているのは Compose の `db`（ローカルの Postgres）と本番の Supabase で、ローカル Supabase は動いていない。再開するときは `supabase init` と `supabase start` から。
-
-**方向（利用者の指示、2026-10-25）:** 開発環境の DB と Auth を、ローカルの Supabase（Supabase CLI の `supabase start`）にそろえる。本番は Supabase Platform のまま。
-**決めていないこと:** Compose の `db` との関係。**「置き換え候補」**であって、置き換えるか併用するかは、この文書のレビューのあとに利用者が決める。
-
-```
-ホスト（Mac、OrbStack）: supabase start ── Auth :54321 / Postgres :54322 / Studio :54323（pgroonga 入り）
-開発コンテナ・Compose の api ── ホストのポートへ到達（下の「接続の注意」）
-本番: Supabase Platform（変えない）
-```
-
-**ねらい:** ログインの確認が本番にしかない状態をなくす。ローカルの Auth で、JWT の検証・更新・利用者ごとの分離を、本番に触れずに繰り返し試す（本番の履歴に確認用の会話が残る問題も避ける）。
-本番の Postgres には pgroonga があるが、Compose の `db`（`pgvector/pgvector:0.8.7-pg17`）には無い。ローカル Supabase なら両方そろう。
-
-**段階 0 の実測（2026-10-25、証拠等級 A。ホストの作業用フォルダー〔リポジトリの外〕で `supabase init` + `start`。CLI の版は記録していない）:**
-
-- JWKS（`/auth/v1/.well-known/jwks.json`）は鍵 1 本、EC P-256 / ES256、`kid` 付き。アプリの `_parse_keys` が ES256 の鍵として受け付けた。
-- ローカルでサインアップして得たトークンのヘッダーは `alg: ES256`、`kid` が JWKS の鍵と一致。つまり、**署名方式の面では、アプリの認証コードの変更は要らない。**
-- 拡張: `vector` 0.8.2、`pgroonga` 3.2.5 が使える。Postgres は 17.11。`extensions` スキーマはあり、`chatbot` スキーマはまだ無い。
-
-**未確認（段階 2 以降）:** `chatbot` スキーマとマイグレーション 0001〜0005 の適用、アプリとローカル Auth の接続、E2E、トークンの `iss` の値（`http://127.0.0.1:54321/auth/v1` と推測。未確認）。
-
-**接続の注意（読んで分かったこと。アプリの変更の要否に関わる）:** `app/auth.py` は、`SUPABASE_URL` の `http` を `localhost` とループバックの IP にだけ許し、`iss` が `{SUPABASE_URL}/auth/v1` と一致することを求める。
-そのため、開発コンテナや Compose の `api` から `http://host.docker.internal:54321` を `SUPABASE_URL` にする案は、今のままだと拒否される。対策の案は 2 つ。
-(a) コンテナの中で `127.0.0.1:54321` をホストへ転送する（アプリの変更なし。転送の仕組みの追加が要る）。(b) アプリ側で、許すホストや JWKS の取得先を分ける（認証コードの変更。ガードを緩めるので慎重に）。どちらにするかは段階 2 で決める。
-
-**注意（デメリット）:**
-- 本番との差はゼロにならない（接続用のプーラー、メール送信、Google の OAuth クライアントなど）。**ローカルで通っても本番で通る保証にはならない。** Google ログインの画面を通る部分は、本番での最終確認のまま。
-- 設定が 2 か所（ローカルの設定ファイルと、本番のダッシュボード〔Redirect URLs など〕）になり、ずれうる。
-- コンテナが約 10 個増える。起動・停止はホストで行う（開発コンテナの中には Docker エンジンが無い）。
-- ローカルの DB は空で始まる。資料を入れ直すには、埋め込みの実 API が要る。
-- **全サービスが `0.0.0.0` で待ち受け、Studio は認証なし**（CLI の起動時の警告）。外出先・共用の Wi-Fi では `supabase stop` で止める。鍵は既定のローカル用の値で、本番の鍵と取り違えない。
-
-**段階:** 0 = 起動と署名方式・拡張の確認（済み。上）/ 1 = この設計の記録（本節。ローカル Supabase は中止。roadmap の ⑧ は削除した）/ 2 以降 = マイグレーションの適用、アプリへの接続、Compose の `db` との関係、E2E の移行（それぞれ承認を取る）。
-
 ## 要素ごとの状態
 
 | 要素 | 状態 | 根拠 | 採用の条件・備考 |
 |---|---|---|---|
 | Cloud Run の FastAPI | 実装済み | 本番で稼働 | - |
-| Supabase Auth / Postgres + pgvector | 2026-11-08 に D1 + Vectorize + Better Auth へ移行（アプリは未使用。Supabase の解約は未実施） | [cloudflare-migration.md](cloudflare-migration.md) | 移行前は本番で稼働 |
 | Cloudflare R2（原本） | 実装済み | 本番で稼働 | - |
-| ローカル Supabase（開発環境） | 中止（2026-10-25、利用者の指示。段階 0 の記録は残す） | 利用者の指示（2026-10-25）。段階 0 の実測（A）: ES256 の JWKS、`vector`、`pgroonga` | Compose の `db` との関係は未決。段階 0 の検証環境は 2026-10-25 に削除済み（今は動いていない）。上の「開発環境: ローカル Supabase」 |
-| Next.js（Worker `docunavi-web`） | 実装済み（2026-11-08 に Vercel から移行。Vercel のプロジェクトは削除済み） | 本番 URL `https://docunavi-web.wataru-apps.workers.dev`。移行前は `https://docunavi-eosin.vercel.app`（2026-10-24 にデプロイ）。Cloud Run は 2026-10-25 に API のみのリビジョンを promote 済み | 確認の結果と未確認の点は roadmap の①。決めたこと: 下の「段階 7 の前に決めること」 |
+| Next.js（Worker `docunavi-web`） | 実装済み（2026-11-08 から） | 本番で稼働。Cloud Run は 2026-10-25 に API のみのリビジョンを promote 済み | 確認の結果と未確認の点は roadmap の① |
 | Cloudflare Worker + プロキシ（`api.` の前段） | **廃止**（2026-11-09、利用者の決定。[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)） | 廃止前の測定: SSE の通過は測定済み（A、プローブ。下記） | 独自ドメインを使わないので置かない。画面の Worker `docunavi-web` と、認証の Worker `docunavi-api` は別物で、残る |
 | Cloud Run の `--use-http2` + h2c 対応サーバー（hypercorn） | **本番に適用済み**（2026-10-25） | 切断の伝わりをプローブで測定（A）。本番（`docunavi-00016-ces`）で、ブラウザーの停止ボタンによる取り消しを確認済み（A。roadmap ②の追記） | 適用済み。旧リビジョン（HTTP/1.1）へ戻すと取り消しは効かなくなる |
 | Hono | 候補 | 不明 | Worker のルートが増えたとき。今のプローブは素の Worker |
@@ -241,27 +190,6 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 - 開発環境でも、中間ルーティングプロキシは使わない。開発時の AI 支援は Claude Code（VS Code 拡張）で、Gemini CLI is not part of the docunavi runtime（開発コンテナにも入れない）。
 - Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は導入しない。GCP の操作は原則 gcloud CLI で行う（[README.md](../README.md) の「開発環境の方針」）。
 - 画像生成の Cloud Run Job は、星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理する。このリポジトリに `job/` は置かない。
-
-## 段階 7（Vercel）の前に決めること
-
-> 2026-11-08 に、画面を Vercel から Cloudflare の Worker `docunavi-web` へ移し、Vercel のプロジェクトを削除した。本番へのデプロイは、`main` へのプッシュ（Git 連携）ではなく、手動の `.github/workflows/deploy.yml`（Environment の承認つき）。以下は、当時の決定の記録で、Vercel の記述は現在のものではない。
-
-**決定（2026-10-24、利用者）:**
-
-- API のつなぎ方: 移行の期間は、Vercel から Cloud Run を直接呼ぶ。Worker はドメインの取得後（この前段の Worker は 2026-11-09 に廃止）。切り替え時に `CORS_ORIGINS` を Vercel の URL に絞る（**済み**。2026-10-25 に読んだ本番の値は `https://docunavi-eosin.vercel.app` だけ。コードの既定は `*` のまま）。
-- Vercel のデプロイ（**2026-10-24 に変更。利用者の指示: 自動化を後回しにしない**）: 最初の 1 回だけ CLI で手動デプロイして URL を確定し（Supabase の Redirect URLs と Cloud Run の `CORS_ORIGINS` に入れるため）、**そのあと続けて Git 連携に移す**。`main` = 本番。Root Directory は `frontend`。以前の決定は「Git 連携は止め、手動のデプロイだけ。安定してから見直す」だった。
-- プレビューの API と DB: 本番の DB に接続させない。静的な確認か、ローカル・別の DB だけにする。実装は、Vercel の **Preview の環境変数に `NEXT_PUBLIC_API_BASE_URL` を入れない**こと（API を呼べない）と、Cloud Run の `CORS_ORIGINS` にプレビューの URL を入れないこと（入れても弾かれる）。Supabase の別プロジェクトは、Preview でログインまで確かめたくなってから。
-- FastAPI の静的配信: **2026-10-24 に外した**（旧 Vite 版の `frontend/`（現在の `frontend/` とは別物）ごと削除。利用者が Vercel 上の `frontend` でログインと質問を確認した後、決定）。退路は git の履歴と、Vite 版のイメージを持つ Cloud Run の以前のリビジョンだけ。API のみのイメージ（`docunavi-00016-ces`）を 2026-10-25 に promote 済みで、本番の Cloud Run の `/` は 404（画面は配信しない）。
-
-**まだ決まっていない・未確認:**
-
-- プレビュー環境の API と DB の分離（Vercel の環境変数だけでは DB を分けられない）。
-- Git 連携の後の運用: `main` へのプッシュで Vercel の本番が更新される。CLAUDE.md の「CI の結果の扱い」「プッシュ」の運用を見直す（`ci.yml` に `frontend` のジョブ〔単体テスト・型検査・ビルド〕を足した。2026-10-24）。連携は Vercel の GitHub アプリをこのリポジトリに入れる外向きの設定で、利用者が行う。
-- （2026-11-09 に前段の Worker を廃止したので、この案は実現しない）Worker が付ける秘密ヘッダーを FastAPI が検査し、`*.run.app` への直接のアクセスを防ぐ（`/health` は除く）。
-- クライアント IP は `CF-Connecting-IP` で受ける。CORS は `CORS_ORIGINS` / `allow_origin_regex`。
-- タイムアウトの鎖: LLM 60 秒 < Cloud Run 90 秒 < Cloudflare 125 秒（前段の Worker は 2026-11-09 に廃止。最後の項は当時の想定）。
-- h2c への切り替え（切断の取り消しのため）: 本番に適用済み（`docunavi-00016-ces`。2026-10-25）。
-- 未確認: Worker の Free プランの制限（90 秒より先）、Vercel Hobby の規約（公式の Hobby と Fair Use のページは 2026-10-24 に読み、個人・非商用ならよい。利用規約の本文は未読）、`@supabase/ssr` のクッキーの読み取り、125 秒の壁の挙動。
 
 ## やらないこと
 

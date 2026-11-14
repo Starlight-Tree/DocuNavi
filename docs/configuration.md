@@ -105,7 +105,7 @@
 有効でなければログイン画面は出ず、認証なしで動きます（その状態でバックエンドが `required` だと、チャットは 401 になります）。
 
 自動テスト（`tests/test_auth.py`、`frontend/src/auth/`）は、手元で作った鍵と偽の JWKS を使います。
-**未確認:** トークンの期限切れ後の更新（Better Auth のクライアントの実際の動作）の、記録に残る確認。Google OAuth のシークレットの入れ替え（`docs/cloudflare-migration.md`）。
+**未確認:** トークンの期限切れ後の更新（Better Auth のクライアントの実際の動作）の、記録に残る確認。
 
 ## 資料グループのアクセス制御
 
@@ -168,7 +168,7 @@
 
 **MCP（`docunavi-mcp`）:** 運用者専用で、利用者のロールを持たない。`Scope.ALL` を明示して**全グループ**を検索する。利用者には公開しない（IAM の `roles/run.invoker` を持つ運用者だけが呼べる）。
 
-**ロールの割り当て:** 運用者が、`python -m app.access_admin show|assign|revoke`（既定は確認だけ。`--apply` で書き、`access_audit` に 1 行残す。2026-11-09 に追加）か、Postgres の `user_roles` への SQL で更新します（Django の管理画面は 2026-11-08 に廃止しました。経緯は [access-admin.md](access-admin.md)）。
+**ロールの割り当て:** 運用者が、`python -m app.access_admin show|assign|revoke`（既定は確認だけ。`--apply` で書き、`access_audit` に 1 行残す。2026-11-09 に追加）か、Postgres の `user_roles` への SQL で更新します（Django の管理画面は 2026-11-08 に廃止しました）。
 ロールの作成と、ロールが持つグループの編集も SQL です。API は DB を読むだけで、書き込みは運用者の権限（`DATABASE_URL` の接続）で行います。変更は `access_audit` に残す想定です。例:
 
 ```sql
@@ -186,7 +186,7 @@ insert into user_roles (user_id, role) values ('<"user".id>', 'cafe-staff');
 
 ## 対象と資料種別（`target` / `doc_type`）
 
-2026-11-03 に実装（ローカルのみ。**本番の DB・Cloud Run・Vercel は未適用**）。決定は [decisions/0008](decisions/0008-document-target-and-type.md)。
+2026-11-03 に実装（ローカルのみ。**本番の DB・Cloud Run・画面は未適用**）。決定は [decisions/0008](decisions/0008-document-target-and-type.md)。
 
 資料に、`collection`（資料グループ）とは別の分類を 2 つ足した。画面の名前は「対象」「資料種別」、DB と API の名前は `target` / `doc_type`。
 
@@ -255,7 +255,7 @@ update chatbot.documents set target = 'minato-coffee' where id = 6;
 
 **確かめた範囲（2026-11-03、ローカルのみ）:** `tests/test_target_scope.py`（API の 409・422・403・復元・メタデータ・履歴の取得）、`tests/test_classification_postgres.py`（一時 Postgres 17 + pgvector 0.8.0。M1・バックフィル・検索の本物の SQL・
 キャッシュ・enforce のロール・チャットの端から端まで。pgvector が無い環境では検索と API の部分だけスキップ）。
-**未確認:** 本番の DB・`chatbot_app`・Cloud Run・Vercel での動作、本物の埋め込み（Gemini）での対象つきの検索の質、旧版の画面（Vercel の前の版）が新しいバックエンドに送る `collection` だけの会話の実機の確認、
+**未確認:** 本番の DB・`chatbot_app`・Cloud Run・画面での動作、本物の埋め込み（Gemini）での対象つきの検索の質、旧版の画面が新しいバックエンドに送る `collection` だけの会話の実機の確認、
 Django 管理画面（`ops/access_admin/`。2026-11-08 に廃止）への影響（`target` は読まない。`manage.py check` は未実行）。
 
 ## 会話履歴の保存先

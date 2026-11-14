@@ -16,7 +16,7 @@ Django（SaaS 管理）は、学習のために測る対象だった。試作 `o
 ## 結果と限界
 - 試作の測定（疑似データ・各 1 回）: マイグレーションは `saas` だけで完結し `chatbot` は不変、JWT の検証は `app/auth.py` と同程度。実鍵・本番・課金は未測定。
 - 本番の SaaS 管理としての Django（組織・課金・利用制限の強制）は、要件が固まるまで条件待ち。
-- 未確認: Django 画面の「見えるグループ」の表示、`actor=access_admin` の監査記録（[access-admin.md](../access-admin.md)）。
+- 未確認: Django 画面の「見えるグループ」の表示、`actor=access_admin` の監査記録（文書は削除済み。Git の履歴）。
 
 ## 出典
-[target-architecture.md](../target-architecture.md) の「Django」「Django の測定」、[access-admin.md](../access-admin.md)、[roadmap.md](../roadmap.md) の ⑤⑧、[ops/django-saas/CLAUDE.md](../../ops/django-saas/CLAUDE.md)
+[target-architecture.md](../target-architecture.md) の「Django」「Django の測定」、[roadmap.md](../roadmap.md) の ⑤⑧、[ops/django-saas/CLAUDE.md](../../ops/django-saas/CLAUDE.md)

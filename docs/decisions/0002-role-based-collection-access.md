@@ -20,4 +20,4 @@
 - 未確認: 検索が `cafe` 以外を返さないこと（実際の Gemini の埋め込みが要る）、公開環境のサインアップの方針ほか（[access-control-plan.md](../access-control-plan.md) の「未確認」）。
 
 ## 出典
-[access-control-plan.md](../access-control-plan.md)、[access-admin.md](../access-admin.md)、[configuration.md](../configuration.md) の「資料グループのアクセス制御」
+[access-control-plan.md](../access-control-plan.md)、[configuration.md](../configuration.md) の「資料グループのアクセス制御」

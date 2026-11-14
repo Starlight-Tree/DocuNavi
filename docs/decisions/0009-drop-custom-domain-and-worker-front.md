@@ -16,7 +16,7 @@
 - 廃止の理由の詳細は、利用者から聞いていないので記録しない。
 - Worker 前段で得るはずだったレート制限は、SSE 中継（`/chat/stream` だけ。[0005](0005-go-sse-relay-without-prod-limit.md)）にある分だけになる。`/chat` などほかの経路の制限は、今の設計には無い（この決定では足さない）。
 - 前段の Worker の秘密ヘッダーで `*.run.app` への直接のアクセスを防ぐ案（[target-architecture.md](../target-architecture.md)）も、前段を置かない以上、この決定では実現しない。
-- [target-architecture.md](../target-architecture.md)（構成図・「段階 7 の前に決めること」の当時の記録）と [go-architecture-plan.md](../go-architecture-plan.md)（タイムアウトの鎖）にも、廃止の注記を入れた（2026-11-09）。
+- [target-architecture.md](../target-architecture.md)（構成図）と [go-architecture-plan.md](../go-architecture-plan.md)（タイムアウトの鎖）にも、廃止の注記を入れた（2026-11-09）。
 
 ## 出典
 利用者の指示（2026-11-09）、[roadmap.md](../roadmap.md)、[target-architecture.md](../target-architecture.md)

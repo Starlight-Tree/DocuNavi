@@ -13,7 +13,7 @@
 | API の仕様 | [api.md](api.md)。環境変数と LLM の挙動は [configuration.md](configuration.md) |
 | 検索の設計 | [search-design.md](search-design.md)。ガードレールは [guardrails.md](guardrails.md) |
 | 開発・テスト・CI | [development.md](development.md)。配備と本番運用は [deploy.md](deploy.md) |
-| 領域ごとの設計・手順 | `access-admin.md` `access-control-plan.md` `ingestion-stage4-design.md` `r2-*.md` `go-architecture-plan.md` `mcp-tool-design.md` |
+| 領域ごとの設計・手順 | `access-control-plan.md` `ingestion-stage4-design.md` `r2-*.md` `go-architecture-plan.md` `mcp-tool-design.md` |
 | 画面のバックログ・UX の調査 | [backlog.md](backlog.md)、[ux-research.md](ux-research.md) |
 
 領域ごとの規約は、各領域の `CLAUDE.md`（`app/` `frontend/` `evals/` `tests/` `ops/django-saas/` `ops/sse-relay/`）。コードの置き場所の表は architecture.md。

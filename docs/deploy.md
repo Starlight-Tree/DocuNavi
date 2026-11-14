@@ -195,7 +195,7 @@ as_me gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$R
 `D1_API_URL`（データ用 Worker の URL。公開してよい値）と `D1_API_TOKEN`（Secret `d1-api-token`）は、資料の検索（Vectorize + D1）と会話履歴の保存先を兼ねます。
 無いと、本物の LLM では起動に失敗します（[configuration.md](configuration.md) の「資料の検索」「会話履歴の保存先」）。
 トークンは Worker の `DATA_API_TOKEN` に対応する値で、キーと同じく **Secret Manager から渡します。** Secret `d1-api-token` は 2026-11-07 に作成済みです
-（作り方と移行の経緯は [cloudflare-migration.md](cloudflare-migration.md)）。新しい実行用サービスアカウントで使うときは、読み取りを許します。
+新しい実行用サービスアカウントで使うときは、読み取りを許します。
 
 ```bash
 as_me gcloud secrets add-iam-policy-binding d1-api-token \
@@ -336,7 +336,7 @@ as_me gcloud billing budgets create --billing-account=<請求先アカウント 
 
 **未対応（公開の前に要る）:**
 
-- **画面のログインは、画面側（`frontend`）の環境変数で有効にする（2026-10 の当時は Vercel の `NEXT_PUBLIC_SUPABASE_*`。2026-11-08 からは Worker のビルドで `NEXT_PUBLIC_AUTH_ENABLED=1`、認証は Better Auth）。** Cloud Run のイメージに画面の設定は入らない（2026-10-24 から。画面は Cloud Run が配信しない）。画面にログイン設定が無いと、`AUTH_MODE=required` では質問できない（`/chat/stream` が 401）。
+- **画面のログインは、画面側（`frontend`）の環境変数で有効にする（Worker のビルドで `NEXT_PUBLIC_AUTH_ENABLED=1`。認証は Better Auth）。** Cloud Run のイメージに画面の設定は入らない（2026-10-24 から。画面は Cloud Run が配信しない）。画面にログイン設定が無いと、`AUTH_MODE=required` では質問できない（`/chat/stream` が 401）。
 - トークンの期限切れ後の更新は未確認。
 - 課金の有効化は、このセッションでは確認できなかった（gcloud にログインしていない）。
 
@@ -709,7 +709,7 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
 
 **状態（2026-11-14）: サービスアカウント `docunavi-build`、GitHub の接続 `docunavi-github`（2nd gen。`asia-northeast1`）、リポジトリの登録、トリガー `docunavi-tag-deploy`（承認必須）を作成し、2 回目のタグ push で 0% の配備まで通った（下の「限界と未確認」）。**
 `deploy/*` のタグを push したときだけ、Cloud Build がビルドして `--no-traffic --tag` で配備する（`cloudbuild-deploy.yaml`）。
-役割の分け方は、`main` への push はテストだけ（2026-11-08 までは Vercel の `frontend` も更新された。いまの画面は手動の `deploy.yml`）、Cloud Run はタグ push だけ。**本番のトラフィックは自動では変えない**（100% への切り替えは `./scripts/preview.sh promote`、戻すのは `rollback`。あなたが実行）。
+役割の分け方は、`main` への push はテストだけ（画面は手動の `deploy.yml`）、Cloud Run はタグ push だけ。**本番のトラフィックは自動では変えない**（100% への切り替えは `./scripts/preview.sh promote`、戻すのは `rollback`。あなたが実行）。
 
 - タグ名は `deploy/<Cloud Run のタグ名>`（例: `deploy/h2c-20261024` → タグ `h2c-20261024`）。形が違えば、ビルドの前に止まる（検査のシェルは、手元で 7 通りの入力を確認済み）。
 - 配備は `--set-env-vars` `--set-secrets` `--use-http2` を付けない。環境変数・Secret・ポート名（`http1` か `h2c`）は、サービスの最新の設定を引き継ぐ。
@@ -857,10 +857,6 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
 **ロールバック:** 前のリビジョンに戻すのは、上の「公開する・戻す」の `update-traffic`。この記録の通りには実行していない（コマンドの確認のみ）。
 イメージのタグがコミットごとに違うので、前のリビジョンのイメージが残る。
-
-## 管理画面（`docunavi-admin`。ロードマップ ⑧ のフェーズ 4a）
-
-ロール別の資料グループの割り当て画面（Django Admin）は、別の非公開の Cloud Run サービス（`docunavi-admin`）として配備していました（2026-10-26、ステージ R0〜R9 完了）。**2026-11-08 に、サービス `docunavi-admin` とジョブ `docunavi-admin-migrate` を削除し、`ops/access_admin/` もリポジトリから削除しました。** 当時の手順・環境変数・Secret・戻し方は、廃止の記録として [access-admin.md](access-admin.md) に残してあります。
 
 ## 保留中の運用の準備（2026-11-09。実行は利用者の操作待ち）
 

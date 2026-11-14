@@ -41,9 +41,7 @@
 
 | 文書 | 状態 | 内容 |
 |---|---|---|
-| [cloudflare-migration.md](cloudflare-migration.md) | 記録 | Vercel・Supabase から Cloudflare への移行（その後、データは Postgres へ移った） |
 | [r2-rollout.md](r2-rollout.md) | 記録 | 元 PDF を R2 から読む本番への切り替え |
-| [access-admin.md](access-admin.md) | 記録 | ロール別の資料グループの管理画面（Django。2026-11-08 に撤去済み） |
 | [history-rewrite.md](history-rewrite.md) | 記録 | Git の履歴の書き換え（2026-10-25、2026-11-14）と、旧ハッシュの対応表 |
 | [ux-research.md](ux-research.md) | 記録 | UI/UX リサーチの記録 |
 

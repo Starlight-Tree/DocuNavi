@@ -53,7 +53,7 @@ flowchart LR
 
 本番環境（Cloud Run + Cloudflare Workers〔画面・認証〕+ Cloudflare R2 + Prisma Postgres + Gemini）およびローカル開発環境の構成と通信経路です。
 **2026-11-08 から、本番のデータ（資料・チャンク・埋め込み・会話履歴・認証）は、Prisma Postgres（Free・東京。pgvector で検索）に置く。** FastAPI・MCP・取り込み／履歴削除の Job は `DATABASE_URL` で直接つなぐ。認証は、Worker `docunavi-api`（Better Auth）が Hyperdrive 経由で同じ Postgres を使う。
-同日に撤去したもの: D1・Vectorize・データ用 Worker の `/v1`（Supabase から Cloudflare の D1 + Vectorize へ移した後、同日に Postgres へ移した）。経緯は [cloudflare-migration.md](cloudflare-migration.md)。バックアップは、R2 への週 1 回の `pg_dump` です（[pg-backup.md](pg-backup.md)）。
+バックアップは、R2 への週 1 回の `pg_dump` です（[pg-backup.md](pg-backup.md)）。
 本番の Cloud Run には `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認）、Vertex AI は使っていません。LiteLLM などの LLM ゲートウェイは通っていません
 （LiteLLM gateway is removed and no longer used.）。Gemini CLI is not part of the docunavi runtime。
 
@@ -163,14 +163,14 @@ sequenceDiagram
 - **信頼の境界。** バックエンドが信じるのは、検証に通ったトークンの `sub` だけです。クライアントが送る `thread_id` や、画面の状態は信じません。
 - **秘密と公開の区別。** 画面に渡すのは認証の有効化フラグと認証のオリジンだけです（公開してよい値）。Gemini のキーと DB の接続文字列は、バックエンドの環境変数にだけあります。
 - **401 のとき。** 画面は、トークンの更新を 1 回試し、だめならログインを促す固定の文を出します。ログイン前の画面（`?tab=documents` など）は、ログイン後に元へ戻ります。
-- **確認の状況。** 旧環境（Supabase Auth）では、ローカル（2026-10-19）と本番（2026-10-20、2026-10-24〜25）で確認しました。Better Auth での確認は、2026-11-08 の本番の移行時のもの（`docs/cloudflare-migration.md`）で、この文書では独立に確かめていません。
+- **確認の状況。** Better Auth での確認は、2026-11-08 の本番の移行時のもので、この文書では独立に確かめていません。
 
 ## 画面はどう配信されるか
 
 画面（`frontend/`、Next.js）は Cloudflare の Worker `docunavi-web`（OpenNext）が配信します。FastAPI は画面を配信せず、API だけを持ちます（2026-10-24 に、Vite の画面の配信を外した）。
 ブラウザーは、Worker の画面から API を呼ぶ別オリジンの構成なので、API は `CORS_ORIGINS` に画面のオリジンを持ちます。
 Cloud Run の `/` は 404 です。ローカルの開発では、Next.js の開発サーバーが `next.config.ts` の rewrites で API を同じオリジンに見せます。構成の決定は [target-architecture.md](target-architecture.md) です。
-本番への画面（と、認証用の Worker `docunavi-api`）のデプロイは、`main` へのプッシュでは行われません。ユーザーが GitHub の Actions で手動の `.github/workflows/deploy.yml` を実行し、Environment の承認を経て出ます（[cloudflare-migration.md](cloudflare-migration.md)）。
+本番への画面（と、認証用の Worker `docunavi-api`）のデプロイは、`main` へのプッシュでは行われません。ユーザーが GitHub の Actions で手動の `.github/workflows/deploy.yml` を実行し、Environment の承認を経て出ます。
 
 ## ガードレールはどう働くか
 

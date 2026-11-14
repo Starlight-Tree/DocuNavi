@@ -24,4 +24,4 @@
 - 画面（`frontend/`）の配信先は、Vercel から Cloudflare の Worker `docunavi-web`（OpenNext）へ移った。Vercel のプロジェクトは削除済み。
 - 本番へのデプロイは、`main` へのプッシュ（Git 連携）ではなく、ユーザーが手動で実行する `.github/workflows/deploy.yml`（Environment の承認つき）。
 - 変わらないもの: FastAPI は画面を配信せず `/` は 404、全捕捉ルートを足さない、画面はブラウザーだけで描く SPA（`ssr: false`）、`NEXT_PUBLIC_*` には公開してよい値だけ。
-- 移行の手順と状態は [cloudflare-migration.md](../cloudflare-migration.md)。上の本文は、当時の決定として残している。
+- 上の本文は、当時の決定として残している。

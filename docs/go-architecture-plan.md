@@ -22,18 +22,18 @@
 ```mermaid
 flowchart LR
     browser["ブラウザー"]
-    vercel["Vercel<br/>frontend（Next.js）"]
+    web["Cloudflare Worker<br/>docunavi-web（Next.js）"]
     relay["Cloud Run: docunavi-sse-relay<br/>Go（main.go 234 行）<br/>POST /chat/stream だけ"]
     api["Cloud Run: docunavi<br/>FastAPI + LangGraph（h2c, hypercorn）"]
-    pg[("Supabase<br/>Postgres + pgvector")]
-    authsb["Supabase Auth<br/>JWKS"]
+    pg[("Prisma Postgres<br/>+ pgvector")]
+    authsb["Worker docunavi-api<br/>Better Auth（JWKS）"]
     r2[("Cloudflare R2<br/>PDF の原本")]
     gemini["Gemini API<br/>回答・埋め込み"]
     q["Cloudflare Queue<br/>docunavi-ingest（テスト用ルールのみ）"]
     job["Cloud Run Job<br/>docunavi-ingest-sync（毎時, Python）"]
     clean["Cloud Run Job<br/>docunavi-history-cleanup（週 1, Python）"]
 
-    browser --> vercel
+    browser --> web
     browser -->|"POST /chat/stream"| relay --> api
     browser -->|"それ以外の API"| api
     api --> pg
@@ -47,7 +47,7 @@ flowchart LR
     r2 -.->|"イベント通知（本番ルールは未作成）"| q
 ```
 
-- 画面から API への経路は 2 つ。`/chat/stream` だけが中継を通り、それ以外（`/chat`、`/threads`、`/documents` など）は API へ直接届く（`NEXT_PUBLIC_STREAM_BASE_URL` は Vercel の Production だけ。[../ops/sse-relay/README.md](../ops/sse-relay/README.md)）。
+- 画面から API への経路は 2 つ。`/chat/stream` だけが中継を通り、それ以外（`/chat`、`/threads`、`/documents` など）は API へ直接届く（`NEXT_PUBLIC_STREAM_BASE_URL` は本番の画面のビルドだけ。[../ops/sse-relay/README.md](../ops/sse-relay/README.md)）。
 - Cloud Run の設定（2026-10-25 に読み取り専用の gcloud で確認。証拠等級 A）:
 
 | 項目 | `docunavi`（API） | `docunavi-sse-relay` |
@@ -72,7 +72,7 @@ flowchart LR
 | 2 | `/chat` `/chat/stream` の処理 | `app/api/routes.py` 462 行（入力検証、切断の監視、エラーの分類）、`app/api/ui_stream.py` 145 行（AI SDK の UI message stream への変換） | Gemini | チェックポイント | 2 の API と同じ | 約 60（`test_chat*`）+ `test_hedged_stream` ほか | Cloud Run `docunavi` |
 | 3 | 回答の生成（グラフ） | `app/agents/graph.py` 624、`resilience.py` 835（ヘッジ・フォールバック・有料キー切り替え）、`tools.py` | Gemini（langchain-google-genai） | チェックポイント | Gemini キー（無料・有料） | `test_llm*` 約 130、`test_key_switch` 27 ほか | 同上 |
 | 4 | ガードレール | `app/agents/guardrails.py` 270（ルールベース。ストリーミング用の `StreamingOutputGuard` を含む） | なし | なし | なし | 約 30 | 同上 |
-| 5 | 認証 | `app/auth.py` 288（JWKS の取得・キャッシュ、ES256/RS256 の検証、`sub` から履歴のキー） | Supabase の JWKS | なし | なし（公開鍵） | 40 | 同上 |
+| 5 | 認証 | `app/auth.py` 288（JWKS の取得・キャッシュ、ES256/RS256 の検証、`sub` から履歴のキー） | Better Auth の JWKS | なし | なし（公開鍵） | 40 | 同上 |
 | 6 | 会話履歴・会話の一覧 | `app/history.py` 136、`app/api/threads.py` 213（LangGraph の Postgres チェックポインタ） | なし | `checkpoints` 系（LangGraph が作る表） | `database-url` | 約 60 | 同上 |
 | 7 | 履歴の保守 CLI | `app/history_admin.py` 100（SQL のみ。LangGraph を読み込まない） | なし | `checkpoints` 系 | `database-url` | 5 | Cloud Run Job `docunavi-history-cleanup`（同じ API イメージ `cc5709c`） |
 | 8 | 資料の検索 | `app/search_vector.py` 232（質問の埋め込み → pgvector） | Gemini（埋め込み） | `chunks` | Gemini キー、`database-url` | 約 30 | 同上 |
@@ -84,7 +84,7 @@ flowchart LR
 | 14 | 取り込みの制御（Queue） | `app/ingestion/queue_worker.py` 418（Queue から pull、メッセージの検査、ack/retry の判断） | Cloudflare Queues の REST、R2 | 11・12 経由 | 上の 3 つ + `ingest-queue-token` | 36 関数（展開後 65 件） | **配備済み（2026-10-26）**。Cloud Run Job `docunavi-ingest-queue`（イメージ `docunavi-ingest:8a9ba33`）を Cloud Scheduler `docunavi-ingest-queue-every-5min` が 5 分おきに起動する（[r2-ingest-design.md](r2-ingest-design.md) の「本番への切り替え」） |
 | 15 | 運用の Job | `ops/r2_key_issuer`（664 行）、`ops/r2_wire`（429 行）、`ops/budget_guard`（72 行） | Cloudflare / Cloud Run / Billing の API | なし | 各々 | `test_r2_key_issuer` `test_r2_wire` `test_budget_guard` | Cloud Run Job、Cloud Run functions |
 | 16 | 検索の MCP サーバー | `ops/mcp_search/main.py` 150（`app.search_vector` を使う） | Gemini | `chunks`（読み取り専用ロール） | `database-url-readonly` `gemini-api-key` | 13 | Cloud Run `docunavi-mcp`（非公開） |
-| 17 | 画面 | `frontend/`（Next.js） | API | なし | 公開用の値のみ | 単体 + E2E | Vercel |
+| 17 | 画面 | `frontend/`（Next.js） | API | なし | 公開用の値のみ | 単体 + E2E | Cloudflare Worker |
 
 境界の性質で見ると、次の 3 つが重要。
 
@@ -178,7 +178,7 @@ flowchart LR
 | 上限 | 101 本目が 503（または SSE の `error`）で明確に拒否される |
 | 継続 | 切断・再接続を混ぜても、メモリが増え続けない |
 
-**この試験でも言えないこと:** 本物の LLM 生成が 100 本同時に通ること（API は最大 2 台 × 同時 20 = 40 本）。本番の経路（ブラウザー → Vercel → 中継）の性能。Cloudflare Worker を挟んだときの挙動。
+**この試験でも言えないこと:** 本物の LLM 生成が 100 本同時に通ること（API は最大 2 台 × 同時 20 = 40 本）。本番の経路（ブラウザー → 画面の Worker → 中継）の性能。Cloudflare Worker を挟んだときの挙動。
 
 この目標を置くときに、先に押さえておくこと（読んだ設定と測定記録から。証拠等級は各項目に付ける）。
 
