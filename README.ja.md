@@ -38,7 +38,7 @@ flowchart LR
 
 ## Quick start
 
-キーなしのモック（固定の返答、資料の検索なし）で動きます。画面と API をつないで試すだけのものです。本物の回答には、資料を入れた Postgres と Gemini のキーが要ります（[docs/development.md](docs/development.md)、[docs/configuration.md](docs/configuration.md)）。
+取り込んだ資料を Postgres（pgvector）で検索し、Gemini で回答します。環境変数 `DB_BACKEND=pg`、`DATABASE_URL`、`GEMINI_API_KEY` を読みます。設定の詳細は [docs/development.md](docs/development.md)、[docs/configuration.md](docs/configuration.md)。
 
 ```bash
 # API（http://localhost:8000）
@@ -52,7 +52,7 @@ cp .env.example .env.local   # 初回だけ
 npm run dev
 ```
 
-テスト: `pip install -r requirements-dev.txt && pytest`（モックモード固定。実 API は呼ばない）と `cd frontend && npm test`。
+テスト: `pip install -r requirements-dev.txt && pytest` と `cd frontend && npm test`。テストはキーなしのモック（固定の返答、資料の検索なし）で動きます。
 
 ## ドキュメント
 

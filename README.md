@@ -38,7 +38,7 @@ A question goes through LangGraph: input guard → agent (tool-call loop that se
 
 ## Quick start
 
-This runs a keyless mock (fixed replies, no document search), just to try the UI and the API together. Real answers need a Postgres with the documents and a Gemini key: see [docs/development.md](docs/development.md) and [docs/configuration.md](docs/configuration.md).
+The app searches the ingested documents in Postgres (pgvector) and answers with Gemini. It reads `DB_BACKEND=pg`, `DATABASE_URL` and `GEMINI_API_KEY` from the environment. Setup details: [docs/development.md](docs/development.md), [docs/configuration.md](docs/configuration.md).
 
 ```bash
 # API (http://localhost:8000)
@@ -52,7 +52,7 @@ cp .env.example .env.local   # first time only
 npm run dev
 ```
 
-Tests: `pip install -r requirements-dev.txt && pytest` (mock mode, no real API calls) and `cd frontend && npm test`.
+Tests: `pip install -r requirements-dev.txt && pytest` and `cd frontend && npm test`. Tests run without keys, in a mock mode (fixed replies, no document search).
 
 ## Documentation
 
