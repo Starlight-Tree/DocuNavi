@@ -249,7 +249,7 @@ def test_search_runs_the_real_sql_with_scope_target_and_document_filters(pg_url,
 @needs_pg
 def test_every_application_query_runs_on_postgres(pg_url, monkeypatch):
     """アプリの各モジュールの SQL を、そのまま Postgres で実行する（構文・型の誤りがあれば例外になる）。"""
-    from app import access, history_admin
+    from app import access, history_admin, startup_checks
     from app.api import classifications, collections, documents, graph, threads
     from app.scope import ALLOWED_FILTER_SQL
     from app.search import pipeline
@@ -282,6 +282,7 @@ def test_every_application_query_runs_on_postgres(pg_url, monkeypatch):
                 await q("hero", documents._HERO_SQL, {"id": 1})
                 await q("graph_doc", graph._DOCUMENT_SQL, {"id": 1})
                 await q("verify", search_vector._VERIFY_SQL)
+                await q("startup", startup_checks.COMBINED_SQL, {"default": "default"})
                 await q("threads", threads._LIST_SQL, {"prefix": "u1:", "limit": 10})
                 params = {"collection": None, "target": None, "doc_ids": None, "allowed": None}
                 await q("corpus", pipeline._CORPUS_SQL, {**params, "limit": 10, "offset": 0})

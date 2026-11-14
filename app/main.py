@@ -11,8 +11,6 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
-from app.access import verify_access_config  # noqa: E402
-from app.agents.graph import is_mock_mode  # noqa: E402
 from app.api.classifications import router as classifications_router  # noqa: E402
 from app.api.collections import router as collections_router  # noqa: E402
 from app.api.documents import router as documents_router  # noqa: E402
@@ -23,6 +21,7 @@ from app.auth import verify_auth_config  # noqa: E402
 from app.history import history_store  # noqa: E402
 from app.pg import StatementCountMiddleware  # noqa: E402
 from app.search import vector as search_vector  # noqa: E402
+from app.startup_checks import run_startup_checks  # noqa: E402
 
 _APP_LOG_HANDLER = "app-log"
 
@@ -64,12 +63,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # DATABASE_URL があれば、会話履歴の接続プールを起動時に開いて終了時に閉じる（無ければ何もしない）。
     # 開けなければ、履歴がメモリに切り替わらないよう、起動を失敗させる
     async with history_store():
-        # ACCESS_MODE が shadow / enforce のとき、ロールの表（DB）が使えるかを確かめる。使えなければ、制限なしで動き出さないよう、起動を失敗させる
-        await verify_access_config()
-        # 本物の LLM のときは、DB の資料と埋め込みが使える状態かを確かめる。使えなければ、検索のない状態で動き出さず、起動を失敗させる
-        # （接続プールは history_store が開く。検索はそれを借りる）。モックモードは資料を検索しないので、DB も API も要らない
-        if not is_mock_mode():
-            await search_vector.verify()
+        # DB の検査（アクセス制御の表・資料と埋め込み）。使えなければ、制限なし・検索なしで動き出さないよう、起動を失敗させる
+        # （接続プールは history_store が開く。検査はそれを借りる）。両方が有効なら 1 回の問い合わせにまとめる。モックモードは資料を検索しない
+        await run_startup_checks()
         try:
             yield
         finally:
