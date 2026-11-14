@@ -1,7 +1,6 @@
 # 設定と LLM 呼び出しの挙動
 
-環境変数の一覧と、LLM の遅延・失敗・クライアントの切断への対処をまとめています。
-雛形は [`.env.example`](../.env.example) です。
+環境変数の一覧と、LLM の遅延・失敗・クライアントの切断への対処をまとめています。雛形は [`.env.example`](../.env.example) です。
 
 ## 環境変数
 
@@ -10,119 +9,93 @@
 | `GEMINI_API_KEY` | （空） | 空または `your_api_key_here` のときはモックモード（資料を検索せず、固定の返答）。本物の LLM では、質問の埋め込み（資料の検索）にも使う。Vertex AI で LLM を使う場合も、埋め込みのために要る |
 | `GOOGLE_GENAI_USE_VERTEXAI` | （空） | `true` で Vertex AI を使う。キー不要で ADC（Cloud Run ならサービスアカウント）で認証し、キーの有無にかかわらずモックにならない |
 | `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` | （空） | Vertex AI 利用時のプロジェクトとロケーション。未設定なら SDK が ADC やメタデータサーバーから解決する |
-| `EMBEDDING_USE_VERTEXAI` | （空） | `true` で、埋め込み（取り込みと質問の両方。`gemini-embedding-2`・768 次元のまま）を Vertex AI で呼ぶ。ADC 認証でキーは使わず、有料キーへの切り替えも無い。LLM 用の `GOOGLE_GENAI_USE_VERTEXAI` とは独立（どちらも他方を変えない）。**既定は空 = API キー。本番を切り替える前に `scripts/check_vertex_embedding.py` で確かめる**（下の「埋め込みを Vertex AI で呼ぶ」） |
-| `EMBEDDING_VERTEX_LOCATION` | `global` | 上の Vertex AI のロケーション。`gemini-embedding-2` は global・us・eu で提供（公式のモデルページ）。プロジェクトは `GOOGLE_CLOUD_PROJECT` |
+| `EMBEDDING_USE_VERTEXAI` | （空） | `true` で、埋め込み（取り込みと質問の両方。`gemini-embedding-2`・768 次元のまま）を Vertex AI で呼ぶ。ADC 認証でキーは使わず、有料キーへの切り替えも無い。`GOOGLE_GENAI_USE_VERTEXAI` とは独立。**既定は空 = API キー**（下の「埋め込みを Vertex AI で呼ぶ」） |
+| `EMBEDDING_VERTEX_LOCATION` | `global` | 上の Vertex AI のロケーション。`gemini-embedding-2` は global・us・eu で提供 |
 | `GEMINI_MODEL` | `gemini-3.1-flash-lite` | モデル名の上書き（Vertex AI はリージョンごとに提供モデルが違う） |
-| `GEMINI_FALLBACK_MODEL` | （空） | 主モデルの試行が一時的な失敗で尽きたときだけ、このモデルで 1 回試す（下記「主モデルが落ちたとき」）。空なら使わない。**本番（Cloud Run）では 2026-10-21 から `gemini-3.5-flash-lite` で有効**（実 API で履歴の引き継ぎを確かめた。実際に切り替わった回はまだ見ていない。下記「検証の状況」） |
-| `GEMINI_FALLBACK_HOLD_SECONDS` | `60` | `GEMINI_FALLBACK_MODEL` を使うとき、フォールバックに切り替えたあとの何秒間、主モデルを飛ばして最初からフォールバックを呼ぶか（下記）。`0` で無効（毎回、主モデルから試す）。不正値・負数は既定値に戻る |
-| `GEMINI_API_KEY_PAID` | （空） | 有料キー（予算ガード付きのプロジェクトのキー）。空なら使わない。`GEMINI_API_KEY`（無料キー）が 429（レート制限）で尽きたときだけ、同じモデルを有料キーで 1 回試す（下記「無料キーが 429 のとき」）。LLM と質問の埋め込みの両方に効く。Vertex AI では使わない |
-| `GEMINI_KEY_SWITCH_HOLD_SECONDS` | `60` | 有料キーへ切り替えたあとの何秒間、最初から有料キーで呼ぶか。`0` で無効（毎回、無料キーから試す）。不正値・負数は既定値に戻る |
+| `GEMINI_FALLBACK_MODEL` | （空） | 主モデルの試行が一時的な失敗で尽きたときだけ、このモデルで 1 回試す（下の「主モデルが落ちたとき」）。空なら使わない。**本番では 2026-10-21 から `gemini-3.5-flash-lite` で有効** |
+| `GEMINI_FALLBACK_HOLD_SECONDS` | `60` | フォールバックに切り替えたあとの何秒間、主モデルを飛ばして最初からフォールバックを呼ぶか。`0` で無効。不正値・負数は既定値に戻る |
+| `GEMINI_API_KEY_PAID` | （空） | 有料キー（予算ガード付きのプロジェクトのキー）。空なら使わない。無料キーが 429 で尽きたときだけ、同じモデルを有料キーで 1 回試す（下の「無料キーが 429 のとき」）。LLM と質問の埋め込みの両方に効く。Vertex AI では使わない |
+| `GEMINI_KEY_SWITCH_HOLD_SECONDS` | `60` | 有料キーへ切り替えたあとの何秒間、最初から有料キーで呼ぶか。`0` で無効。不正値・負数は既定値に戻る |
 | `CORS_ORIGINS` | `*` | 許可するオリジン（カンマ区切り） |
-| `LLM_TIMEOUT_SECONDS` | `60` | 1 回の `/chat`・`/chat/stream` で LLM を待つ上限秒数（ヘッジ・再試行を含む全体。クライアントが切断したらその時点で取り消す）。不正値は既定値に戻る |
-| `LLM_HEDGE_DELAY_SECONDS` | `8` | LLM がこの秒数たっても応答しなければ、追加の試行を投げる（下記）。`0` でヘッジを無効にする。小さくしすぎると、毎回 `LLM_MAX_ATTEMPTS` 本をほぼ同時に投げる。不正値（数値でない・負）は既定値に戻る |
-| `LLM_ATTEMPT_TIMEOUT_SECONDS` | `30`（ヘッジなしは `15`） | LLM への 1 回の試行を待つ上限秒数（接続・送信・受信の段階ごとの上限）。不正値は既定値に戻る |
-| `LLM_MAX_ATTEMPTS` | `3` | 1 回の LLM 呼び出しで投げる試行の最大数（最初の 1 回を含む）。`1` で追加・再試行なし。不正値は既定値に戻る |
-| `CHAT_RETRIEVAL_MODE` | `direct` | 検索の進め方（下記「検索の進め方（1 回の LLM 呼び出し）」）。`direct` は、質問ごとにアプリが先に検索し、LLM を 1 回呼んで回答させる。`agent` は従来の、LLM が検索を決める 2 回呼び出し（再ビルドなしで戻せる）。本物の Gemini にだけ効く（モックは常に従来の形）。知らない値は既定に戻る |
-| `CHAT_SMALLTALK_SKIP` | （空 = off） | `on` で、挨拶・お礼だけの発言（`app/agents/smalltalk.py` の閉じた一覧に全体が一致したものだけ）のとき、検索を飛ばして専用のプロンプトで答える（`direct` のみ）。質問が少しでも付けば検索する。挨拶のときの検索（質問の埋め込み 1 回、約 0.4〜1 秒）を省く。**既定は off。回答の質を実 API で確かめてから on にする（2026-11-08 時点で未確認）** |
-| `LLM_FIRST_CHUNK_DEADLINE_SECONDS` | `20` | LLM の 1 回の呼び出しで、最初のチャンクを待つ総時間の上限（ヘッジ・再試行・フォールバックを含む）。超えたら試行を全て取り消して 504 になる。`0` で上限なし。**20 秒は実測した値ではなく暫定値**。不正値・負数は既定値に戻る |
-| `LLM_MAX_SEARCHES` | `2` | 1 回の質問で検索できる最大回数（`direct` の最初の検索を含む。再検索は 1 回まで）。超えて検索を求められたら、ツール呼び出しを外し、本文があればそれを、無ければ固定の回答にする。LangGraph の再帰の上限は既定 10007 なので、これが無いと、ツールを呼び続けるモデルは `LLM_TIMEOUT_SECONDS` まで検索と LLM の呼び出しを繰り返す（2026-11-05 にローカルの偽 LLM で確認。従来の `agent` の形も同じ）。不正値・1 未満は既定値に戻る |
+| `LLM_TIMEOUT_SECONDS` | `60` | 1 回の `/chat`・`/chat/stream` で LLM を待つ上限秒数（ヘッジ・再試行を含む全体。切断したらその時点で取り消す）。不正値は既定値に戻る |
+| `LLM_HEDGE_DELAY_SECONDS` | `8` | LLM がこの秒数たっても応答しなければ、追加の試行を投げる（下の「LLM の遅延・失敗への対処」）。`0` でヘッジを無効にする。小さくしすぎると、毎回 `LLM_MAX_ATTEMPTS` 本をほぼ同時に投げる |
+| `LLM_ATTEMPT_TIMEOUT_SECONDS` | `30`（ヘッジなしは `15`） | LLM への 1 回の試行を待つ上限秒数（接続・送信・受信の段階ごと） |
+| `LLM_MAX_ATTEMPTS` | `3` | 1 回の LLM 呼び出しで投げる試行の最大数（最初の 1 回を含む）。`1` で追加・再試行なし |
+| `CHAT_RETRIEVAL_MODE` | `direct` | 検索の進め方（下の「検索の進め方」）。`direct` は、質問ごとにアプリが先に検索し、LLM を 1 回呼んで回答させる。`agent` は従来の、LLM が検索を決める 2 回呼び出し（再ビルドなしで戻せる）。本物の Gemini にだけ効く。知らない値は既定に戻る |
+| `CHAT_SMALLTALK_SKIP` | （空 = off） | `on` で、挨拶・お礼だけの発言（`app/agents/smalltalk.py` の閉じた一覧に全体が一致したものだけ）のとき、検索を飛ばして専用のプロンプトで答える（`direct` のみ）。**既定は off。回答の質を実 API で確かめてから on にする（2026-11-08 時点で未確認）** |
+| `LLM_FIRST_CHUNK_DEADLINE_SECONDS` | `20` | LLM の 1 回の呼び出しで、最初のチャンクを待つ総時間の上限（ヘッジ・再試行・フォールバックを含む）。超えたら全ての試行を取り消して 504。`0` で上限なし。**20 秒は実測した値ではなく暫定値** |
+| `LLM_MAX_SEARCHES` | `2` | 1 回の質問で検索できる最大回数（`direct` の最初の検索を含む。再検索は 1 回まで）。超えて求められたら、ツール呼び出しを外し、本文があればそれを、無ければ固定の回答にする。これが無いと、ツールを呼び続けるモデルは `LLM_TIMEOUT_SECONDS` まで検索を繰り返す（2026-11-05 にローカルの偽 LLM で確認） |
 | `LLM_EARLY_FALLBACK` | 有効 | `GEMINI_FALLBACK_MODEL` があるとき、主モデルの試行が一時的な失敗（5xx・接続）で終わったら、主モデルを投げ直さず、すぐフォールバックを投げる。`0`・`off`・`false` で、従来の「主モデルを `LLM_MAX_ATTEMPTS` 本まで再試行してから」に戻る。429 には効かない |
-| `LLM_QUERY_REWRITE_TIMEOUT_SECONDS` | `3`（2026-11-09 に 6 から変更。実測の補完 11 回の最大は 1.37 秒） | 追質問の検索語の補完（LLM の短い 1 回）を待つ上限。超えたら前の質問を足した検索語にする。不正値・0 以下は既定値に戻る |
-| `CHAT_ANSWER_BACKEND` | `gemini` | 回答の生成だけを切り替える試験用の設定。`workers_ai` で Cloudflare Workers AI の Qwen3 30B A3B FP8 に切り替える（下記「回答だけ Workers AI に切り替える（試験）」）。不正な値は、既定に戻さず起動を失敗させる。**本番では設定しない** |
-| `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | （空） | `CHAT_ANSWER_BACKEND=workers_ai` のとき必須（Workers AI の権限だけのトークン）。無ければ起動を失敗させる。値はログ・応答に出さない |
+| `LLM_QUERY_REWRITE_TIMEOUT_SECONDS` | `3` | 追質問の検索語の補完（LLM の短い 1 回）を待つ上限。超えたら前の質問を足した検索語にする（2026-11-09 に 6 から変更。実測の補完 11 回の最大は 1.37 秒） |
+| `CHAT_ANSWER_BACKEND` | `gemini` | 回答の生成だけを切り替える試験用の設定。`workers_ai` で Cloudflare Workers AI に切り替える（下の「回答だけ Workers AI に切り替える（試験）」）。不正な値は起動を失敗させる。**本番では設定しない** |
+| `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | （空） | `CHAT_ANSWER_BACKEND=workers_ai` のとき必須（Workers AI の権限だけのトークン）。値はログ・応答に出さない |
 | `WORKERS_AI_DAILY_NEURON_BUDGET` | `8000` | Workers AI の 1 日の予算（Neurons。UTC の日ごと・このプロセスの分だけ）。Free の無料枠 10,000 を超える値は 10,000 にする。達したら Cloudflare へ送らず止める |
 | `WORKERS_AI_MAX_TOKENS` | `1500` | Workers AI の 1 回の回答の最大トークン数 |
-| `WORKERS_AI_THINKING` | `default` | `off` で `chat_template_kwargs.enable_thinking=false` を送る（このモデルが受け付けるかは、実 API で確かめるまで未確認）。それ以外は何も送らない |
-| `GEMINI_THINKING_LEVEL` | （空） | 主モデルの `thinking_level`（`minimal`・`low`・`medium`・`high`）。空ならモデルの既定のまま（送らない）。どのモデルがどの値に対応するかは、実 API で確かめるまで未確認。不正値は無視する |
-| `GEMINI_FALLBACK_THINKING_LEVEL` | （空） | フォールバックのモデルの `thinking_level`。主モデルとは別の変数（対応する値が違いうる） |
-| `D1_API_URL` | （空） | **旧経路（`DB_BACKEND=d1`）のみ。** データ用 Worker の URL。本番の D1・Vectorize・Worker の `/v1` は 2026-11-08 に撤去したので、本番では使わない。コードはテストの偽 Worker（`tests/d1_fakes.py`）のために残してある。`DB_BACKEND=d1` のとき、本物の LLM では必須（空だと起動を失敗させる） |
-| `D1_API_TOKEN` | （空） | **旧経路（`DB_BACKEND=d1`）のみ。** データ用 Worker に送るトークン。Secret `d1-api-token` と Worker の `DATA_API_TOKEN` は撤去済み。**秘密情報**なのでコミットせず、ログにも出さない |
-| `DB_BACKEND` | `d1` | DB の置き場。`pg`（Postgres。`app/pg.py`、検索は pgvector。**本番は 2026-11-08 から `pg`**）か `d1`（旧経路。コードの既定のまま残してあるが、本番の D1 は撤去済み）。`pg` のときは `DATABASE_URL` を使う。スキーマは `db/migrations/` |
-| `DATABASE_URL` | （空） | `DB_BACKEND=pg` のときの Postgres の接続文字列（アプリはプール側 `pooled.db.prisma.io`、取り込みの CLI は直接 `db.prisma.io`）。**秘密情報**なのでコミットせず、ログにも出さない |
-| `DATABASE_POOL_MAX_SIZE` | `3` | `DB_BACKEND=pg` のとき、1 プロセスの接続プールの上限（1 以上の整数。空は既定。不正な値は黙って既定にせず起動を失敗させる）。最小は 1 で固定。Cloud Run は、最大インスタンス数 × この値 + 同じ DB を使う Job・サービスの接続が、DB の上限（Prisma Free のプール側は 10）に収まるようにする。取り込みなどの CLI（`SyncPg`）は、この値に関係なく 1 接続（2026-11-09 に追加。それまでは固定の 3 で、環境変数は読まれていなかった） |
-| `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Better Auth が発行した JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下記「ログイン（認証）」 |
+| `WORKERS_AI_THINKING` | `default` | `off` で `chat_template_kwargs.enable_thinking=false` を送る（このモデルが受け付けるかは未確認）。それ以外は何も送らない |
+| `GEMINI_THINKING_LEVEL` | （空） | 主モデルの `thinking_level`（`minimal`・`low`・`medium`・`high`）。空ならモデルの既定（送らない）。対応するモデルと値は未確認。不正値は無視する |
+| `GEMINI_FALLBACK_THINKING_LEVEL` | （空） | フォールバックのモデルの `thinking_level`。主モデルとは別の変数 |
+| `DB_BACKEND` | `d1` | DB の置き場。`pg`（Postgres。`app/pg.py`、検索は pgvector。**本番は 2026-11-08 から `pg`**）か、`d1`（廃止した旧経路。コードの既定とテストの偽 Worker のために残してあり、本番の D1 は無い）。`pg` のときは `DATABASE_URL` を使う。スキーマは `db/migrations/` |
+| `DATABASE_URL` | （空） | `DB_BACKEND=pg` のときの Postgres の接続文字列（アプリはプール側、取り込みの CLI は直接のホスト）。**秘密情報**なので、コミットせず、ログにも出さない |
+| `DATABASE_POOL_MAX_SIZE` | `3` | `DB_BACKEND=pg` のとき、1 プロセスの接続プールの上限（1 以上の整数。空は既定。不正な値は起動を失敗させる）。Cloud Run は、最大インスタンス数 × この値 + 同じ DB を使う Job・サービスの接続が、DB の上限（Prisma Free のプール側は 10）に収まるようにする。取り込みなどの CLI は、この値に関係なく 1 接続 |
+| `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Better Auth が発行した JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下の「ログイン（認証）」 |
 | `AUTH_BASE_URL` | （空） | `AUTH_MODE=required` のとき必須。Better Auth の公開オリジン（画面の Worker `docunavi-web` の URL。`https://<ホスト>` の形で、パスは付けない。`http` はローカルだけ）。JWT の公開鍵（`{AUTH_BASE_URL}/api/auth/jwks`）の取得先と、発行元（`iss`）の確認に使う |
 | `AUTH_AUDIENCE` | `docunavi` | JWT の対象（`aud`）として受け付ける値 |
 | `AUTH_JWKS_URL` | （空） | 公開鍵の取得先を上書きする（通常は使わない） |
-| `ACCESS_MODE` | `off` | 利用者のロールごとに、見える資料グループを制限するか（下記「資料グループのアクセス制御」）。`off` は制限なし（DB も読まない）、`shadow` は制限せずに絞り込まれる件数をログに出す、`enforce` は実際に制限する。知らない値は起動を失敗させる。`shadow` と `enforce` は `DATABASE_URL` と、マイグレーション `20261026045921` の適用が要る（無ければ起動を失敗させる） |
+| `ACCESS_MODE` | `off` | 利用者のロールごとに、見える資料グループを制限するか（下の「資料グループのアクセス制御」）。`off` は制限なし（DB も読まない）、`shadow` は制限せずに絞り込まれる件数をログに出す、`enforce` は実際に制限する。知らない値は起動を失敗させる。`shadow` と `enforce` は `DATABASE_URL` と、マイグレーション `20261026045921` の適用が要る |
+| `ACCESS_CACHE_TTL_SECONDS` | `60` | 利用者ごとの見えるグループの控えを持つ秒数（`0` で無効。負・数でない値は起動を失敗させる） |
 
 ## 資料の検索
 
-チャットの検索（`search_documents`）は、**DB の `chunks` へのベクトル検索だけ**です（`app/search/vector.py`）。決めた理由と、見直す条件は
-[search-design.md](search-design.md)、測定は [evals/README.md](../evals/README.md) にあります。
+チャットの検索（`search_documents`）は、**DB の `chunks` へのベクトル検索だけ**です（`app/search/vector.py`）。決めた理由と、見直す条件は [search-design.md](search-design.md)、測定は [evals/README.md](../evals/README.md) にあります。
 
-- **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元。質問ごとに API を 1 回呼ぶ）、pgvector で
-  コサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。本文とメタデータも同じ Postgres から取ります。対象は DB の `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループの文書のチャンクだけ。下の「検索の範囲」）で、PDF は読みません。
-  返す形は `[番号] ファイル名\n見出し\n本文` です（番号は 1 から。回答の文末の引用 `[n]` が指す。`docs/api.md` の「回答の文末の引用」）。
-- **必要なもの。** 本物の LLM では `DB_BACKEND=pg` と `DATABASE_URL`（履歴と同じ接続を借りる）と `GEMINI_API_KEY`（質問の埋め込み用。
-  Vertex AI で LLM を使う場合も、埋め込みは API キーで呼ぶ。`EMBEDDING_USE_VERTEXAI=true` のときだけ、埋め込みは Vertex AI で、キーは要らない）。Postgres に、取り込み・埋め込み済みであること。本番は、R2 の PDF を取り込みジョブ（`docunavi-ingest-sync` が毎時、`docunavi-ingest-queue` が R2 の通知で）が `python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で入れます。
-  R2 の最上位のプレフィックスが `documents.collection`（資料のグループ）になります（`hero/` は画像の置き場で、資料群ではありません）。
-- **検索の範囲。** `/chat` と `/chat/stream` は、任意の `collection`（グループの識別名）を受け付けます。会話ごとに検索の範囲は固定され（最初の発言で決まる）、
-  同じ会話に違う範囲を送ると 409 になります。`collection` を省略した場合は、従来どおり DB の全資料が対象です。仕様は [api.md](api.md) の「検索対象（`collection`）」。
-- **モックモード。** `GEMINI_API_KEY` が未設定なら、資料の検索も回答もしない固定の返答を返します（DB も API も要らない。画面と API の動作確認用）。
-- **起動の検査。** 本物の LLM のとき、`DATABASE_URL` が無い、`GEMINI_API_KEY` が無い、DB に検索できる資料（`ready`）が無い、
-  `ready` の文書に埋め込みが無い・古い（モデル・次元・入力のハッシュが違う）チャンクがある、のどれかなら、起動を失敗させます。
-  PDF を R2 に足す・差し替えたら、取り込みと埋め込みをやり直します（再起動は要りません。検索は Postgres を読むため）。
-- **しきい値。** 類似度が 0.65（`app/search/vector.py` の `MIN_SIMILARITY`）未満のチャンクは返しません。粗い下限で、「資料にない」の判断は LLM に任せます
-  （理由と評価は [search-design.md](search-design.md)）。変えるときは、評価をやり直します。
-- **失敗したとき。** クエリの埋め込みや DB の問い合わせが失敗したら、別の経路には戻らず、`/chat`・`/chat/stream` が 503（「資料の検索に失敗しました。…」の固定文）を返し、
-  WARNING を 1 行残します（例外の型の名前だけ。接続先・キー・クエリ・本文は出さない）。埋め込みは 1 回だけ試し（SDK の再試行なし）、待つ上限は約 10 秒です。
-  クライアントが切断して取り消されたときは、そのまま止まります。
-- **評価用の PDF の写し。** `storage/pdf/cafe/cafe_store_guide.pdf` は `evals/corpora/cafe/cafe_store_guide.pdf` と、
-  `storage/pdf/guides/` の 2 冊は `evals/corpora/guides/` の同名の PDF と、それぞれ同じファイルです
-  （`tests/test_bm25_collections.py` が一致を確かめる）。差し替えるときは、両方を更新し、評価の baseline を取り直します。
-  `storage/pdf/zahard/` の 3 冊は、元の .txt を PDF にしたものです（作り方は [evals/fixtures/zahard_pdf/README.md](../evals/fixtures/zahard_pdf/README.md)。`tests/test_zahard_pdf.py` が確かめる。見た目の目視は未確認）。
-  2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は、reportlab 製の 1 冊でしか試しておらず、実物で確かめるまでアプリには置かない（`evals/fixtures/two_column/`）。
-- **BM25 の基準線。** 以前の BM25（ローカルの PDF を読む）は、アプリから外し、評価用に `scripts/bm25_baseline.py` に残しました（`SEARCH_SCOPE` はこの基準線だけが読む）。
-- **確かめていないこと。** 画面が使う `/chat/stream` を、本物の LLM と DB で通した確認。LLM が書く検索クエリでの精度（評価は質問文のまま）。
-  質問ごとの追加の遅延と費用（評価では、埋め込みの API は 8 件の 1 回で 1.1〜1.4 秒）。
+- **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元）、pgvector でコサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。本文とメタデータも同じ Postgres から取ります。対象は `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループだけ）で、PDF は読みません。
+  返す形は `[番号] ファイル名\n見出し\n本文` です（番号は 1 から。回答の文末の引用 `[n]` が指す。[api.md](api.md) の「回答の文末の引用」）。
+- **必要なもの。** 本物の LLM では `DB_BACKEND=pg` と `DATABASE_URL`、`GEMINI_API_KEY`（質問の埋め込み用。`EMBEDDING_USE_VERTEXAI=true` のときだけ Vertex AI でキーは要らない）。Postgres に、取り込み・埋め込み済みであること。
+  本番は、R2 の PDF を取り込みジョブ（`docunavi-ingest-sync` が毎時、`docunavi-ingest-queue` が R2 の通知で）が `python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で入れます。R2 の最上位のプレフィックスが `documents.collection`（資料のグループ）になります（`hero/` は画像の置き場）。
+- **検索の範囲。** `/chat` と `/chat/stream` は、任意の `collection` を受け付けます。会話ごとに検索の範囲は固定され（最初の発言で決まる）、同じ会話に違う範囲を送ると 409 になります。省略した場合は DB の全資料が対象です。仕様は [api.md](api.md) の「検索対象（`collection`）」。
+- **モックモード。** `GEMINI_API_KEY` が未設定なら、資料の検索も回答もしない固定の返答を返します（画面と API の動作確認用）。
+- **起動の検査。** 本物の LLM のとき、`DATABASE_URL` が無い、`GEMINI_API_KEY` が無い、検索できる資料（`ready`）が無い、埋め込みが無い・古い（モデル・次元・入力のハッシュが違う）チャンクがある、のどれかなら、起動を失敗させます。
+  PDF を R2 に足す・差し替えたら、取り込みと埋め込みをやり直します（再起動は要りません）。
+- **しきい値。** 類似度が 0.65（`app/search/vector.py` の `MIN_SIMILARITY`）未満のチャンクは返しません。粗い下限で、「資料にない」の判断は LLM に任せます（理由と評価は [search-design.md](search-design.md)）。変えるときは、評価をやり直します。
+- **失敗したとき。** クエリの埋め込みや DB の問い合わせが失敗したら、別の経路には戻らず、`/chat`・`/chat/stream` が 503（固定文）を返し、WARNING を 1 行残します（例外の型の名前だけ）。埋め込みは 1 回だけ試し（SDK の再試行なし）、待つ上限は約 10 秒です。
+- **評価用の PDF の写し。** `storage/pdf/cafe/` と `storage/pdf/guides/` の PDF は、`evals/corpora/` の同名のファイルと同じです（`tests/test_bm25_collections.py` が一致を確かめる）。差し替えるときは、両方を更新し、評価の baseline を取り直します。
+  `storage/pdf/zahard/` の 3 冊は、元の .txt を PDF にしたものです（[evals/fixtures/zahard_pdf/README.md](../evals/fixtures/zahard_pdf/README.md)。見た目の目視は未確認）。
+  2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は、reportlab 製の 1 冊でしか試しておらず、実物で確かめるまでアプリには置きません（`evals/fixtures/two_column/`）。
+- **BM25 の基準線。** 以前の BM25 は、アプリから外し、評価用に `scripts/bm25_baseline.py` に残しました（`SEARCH_SCOPE` はこの基準線だけが読む）。
+- **確かめていないこと。** 画面が使う `/chat/stream` を、本物の LLM と DB で通した確認。LLM が書く検索クエリでの精度（評価は質問文のまま）。質問ごとの追加の遅延と費用（評価では、埋め込みの API は 1.1〜1.4 秒）。
 
 ## ログイン（認証）
 
-`AUTH_MODE=required` にすると、`/chat`・`/chat/stream`・`/documents`（資料一覧。`docs/api.md`）が `Authorization: Bearer <アクセストークン>` を要求します
-（`/health` は認証なし）。トークンは Better Auth（データ用 Worker の `/api/auth/*`。Google ログイン）が発行する JWT で、バックエンド（`app/auth.py`）が検証します。
-`AUTH_MODE=off`（既定）では何も確かめず、従来どおり匿名で動きます。**公開する前に `required` にしてください。**
-2026-11-08 に、Supabase Auth から Better Auth へ移しました（それ以前の記録は Git の履歴）。
+`AUTH_MODE=required` にすると、`/chat`・`/chat/stream`・`/documents` が `Authorization: Bearer <アクセストークン>` を要求します（`/health` は認証なし）。
+トークンは Better Auth（Worker `docunavi-api` の `/api/auth/*`。Google ログイン）が発行する JWT で、バックエンド（`app/auth.py`）が検証します。`off`（既定）では何も確かめず匿名で動きます。**公開する前に `required` にしてください。**
 
-- **セッションの確認は、5 分間 Cookie の写しで済ませる（2026-11-11）:** Worker `docunavi-api` の Better Auth は `session.cookieCache`（`maxAge` 5 分、公式の既定の `compact` 方式）を有効にして、
-  `get-session` と `/token` のたびに DB を引かない。メモリ DB の Better Auth で `get-session` + `/token` を 5 回ずつ流すと、DB 操作は 22 → 12（セッションの読み取りが 0）。残りは署名鍵（`jwks`）の読み取り。
-  **サーバー側でセッションを失効させても、最大 5 分は有効に見える**（利用者自身のログアウトは Cookie も消すので、すぐ効く）。`refreshCache` は使わない（DB に確認しないまま延び続けるため）。**配備は Worker のデプロイ（`deploy.yml`）が要る。未配備。**
-- **検証すること:** 署名（`{AUTH_BASE_URL}/api/auth/jwks` の公開鍵。ES256 / RS256 だけ。`alg=none` と HS256 は受け付けない）、
-  `exp` `iss`（`AUTH_BASE_URL`）`aud`（`AUTH_AUDIENCE`。既定 `docunavi`）`sub` が全部あること、`sub` が英数字・`_`・`-` の 8〜64 文字であること。
+- **検証すること:** 署名（`{AUTH_BASE_URL}/api/auth/jwks` の公開鍵。ES256 / RS256 だけ。`alg=none` と HS256 は受け付けない）、`exp` `iss`（`AUTH_BASE_URL`）`aud`（`AUTH_AUDIENCE`）`sub` が全部あること、`sub` が英数字・`_`・`-` の 8〜64 文字であること。
   失敗は、固定メッセージの 401（`WWW-Authenticate: Bearer`）。鍵を取得できないときは 503。
-- **鍵が無いときは止まる:** 起動時に JWKS を取得し、公開鍵が 1 つも無ければ、**共有秘密の検証へは切り替えず、起動を失敗させます。**
-  `AUTH_BASE_URL` が無い・不正な形・JWKS を取得できない場合も同じです。
-- **鍵の取り直し:** 取得した鍵は 10 分使い、過ぎたら取り直します（取り直しに失敗したら前の鍵で続けます）。知らない `kid` のトークンでは、60 秒に 1 回までしか取り直しません。
-- **会話と利用者の紐づけ:** 履歴のキーを `<利用者 ID>:<thread_id>` にします。利用者 ID は、検証に通ったトークンの `sub` だけから取り、クライアントが送った値は使いません。
-  `thread_id` は `:` を含められないので、他人の接頭辞を作って会話に届くことはできません。クライアントに返す `thread_id` は、接頭辞なしのままです。
-  同じ `thread_id` でも、利用者が違えば別の会話です。**`off` のときの履歴（接頭辞なしのキー）には、`required` から届きません。**
-- **会話の一覧と本人による削除**（`GET /threads`、`DELETE /threads/{thread_id}`。[api.md](api.md)）は、ログイン中のチャット画面の左サイドバーから使えます（会話を選ぶと、`GET /threads/{thread_id}/messages` で表示します）。
-  運用者が `python -m app.history_admin --thread-id` で消すときは、保存されているキー（`<利用者 ID>:<thread_id>`）を渡します。
+- **鍵が無いときは止まる:** 起動時に JWKS を取得し、公開鍵が 1 つも無ければ、**共有秘密の検証へは切り替えず、起動を失敗させます。** `AUTH_BASE_URL` が無い・不正な形・JWKS を取得できない場合も同じです。
+- **鍵の取り直し:** 取得した鍵は 10 分使い、過ぎたら取り直します（失敗したら前の鍵で続ける）。知らない `kid` のトークンでは、60 秒に 1 回までしか取り直しません。
+- **会話と利用者の紐づけ:** 履歴のキーを `<利用者 ID>:<thread_id>` にします。利用者 ID は、検証に通ったトークンの `sub` だけから取ります。`thread_id` は `:` を含められないので、他人の接頭辞を作って会話に届くことはできません。
+  クライアントに返す `thread_id` は接頭辞なしです。**`off` のときの履歴（接頭辞なしのキー）には、`required` から届きません。**
+- **会話の一覧と本人による削除**（`GET /threads`、`DELETE /threads/{thread_id}`。[api.md](api.md)）は、ログイン中のチャット画面の左サイドバーから使えます。運用者が `python -m app.history_admin --thread-id` で消すときは、保存されているキー（`<利用者 ID>:<thread_id>`）を渡します。
+- **セッションの確認は、5 分間 Cookie の写しで済ませる:** Worker の Better Auth は `session.cookieCache`（`maxAge` 5 分）を有効にして、`get-session` と `/token` のたびに DB を引かない（2026-11-11。DB 操作は 22 → 12）。
+  **サーバー側でセッションを失効させても、最大 5 分は有効に見える**（利用者自身のログアウトは Cookie も消すので、すぐ効く）。`refreshCache` は使わない。**配備は Worker のデプロイ（`deploy.yml`）が要る（2026-11-11 時点では未配備。いまの状態は未確認）。**
 - ログにトークンは出しません。出すのは失敗の種類（例外のクラス名）だけです。
 
-ブラウザー側（Google ログイン）は、`frontend` のビルド時に `NEXT_PUBLIC_AUTH_ENABLED` と `NEXT_PUBLIC_AUTH_BASE_URL` を渡すと有効になります
-（Worker `docunavi-web` のビルド時の環境変数。`frontend/deploy-web.sh` が設定する。[frontend/README.md](../frontend/README.md)）。
-有効でなければログイン画面は出ず、認証なしで動きます（その状態でバックエンドが `required` だと、チャットは 401 になります）。
-
-自動テスト（`tests/test_auth.py`、`frontend/src/auth/`）は、手元で作った鍵と偽の JWKS を使います。
-**未確認:** トークンの期限切れ後の更新（Better Auth のクライアントの実際の動作）の、記録に残る確認。
+ブラウザー側は、`frontend` のビルド時に `NEXT_PUBLIC_AUTH_ENABLED` と `NEXT_PUBLIC_AUTH_BASE_URL` を渡すと有効になります（Worker `docunavi-web` のビルド時の環境変数。[frontend/README.md](../frontend/README.md)）。
+有効でなければログイン画面は出ず、認証なしで動きます（その状態でバックエンドが `required` だと、チャットは 401）。
+自動テスト（`tests/test_auth.py`、`frontend/src/auth/`）は、手元で作った鍵と偽の JWKS を使います。**未確認:** トークンの期限切れ後の更新（Better Auth のクライアントの実際の動作）の、記録に残る確認。
 
 ## 資料グループのアクセス制御
 
 利用者ごとに、検索・回答・出典・本文・PDF・関係図・会話の表示が届く資料グループ（`documents.collection`）を決めます（ロードマップ ⑧。実装は `app/access.py` と `app/scope.py`）。
-**コードの既定は `ACCESS_MODE=off`（制限なし）です。本番は、2026-10-26 に `enforce` で動いています**（マイグレーション `20261026045921` を適用し、`shadow` で観察してから `enforce` に切り替えた。Cloud Run のリビジョン `docunavi-00025-qey`）。
-本番の `user_roles` は 0 件（全員が `default` ロール）。**本番で未確認:** 限定ロールの利用者での動作（`user_roles` への書き込みが要る）、`enforce` での `/chat` の検索経路（実 API の質問が要る）。
+**コードの既定は `ACCESS_MODE=off`（制限なし）です。本番は、2026-10-26 から `enforce` で動いています**（`shadow` で観察してから切り替えた）。本番の `user_roles` は 0 件（全員が `default` ロール）。
+**本番で未確認:** 限定ロールの利用者での動作、`enforce` での `/chat` の検索経路（実 API の質問が要る）。
 
 **見えるグループの決め方**
 
 - 利用者のロール（`chatbot.user_roles`。`user_id` は JWT の `sub`）が持つグループ（`chatbot.role_collection_access`）の和集合。
-- ロールが 1 つも割り当てられていない利用者は `default` ロール（初期データは `zahard` `cafe` `guides` の 3 グループ）。`AUTH_MODE=off` の匿名も `default`。
-  ほかのロールを 1 つでも割り当てると `default` は使われない（足したいときは `default` も割り当てる）。
-- プロセス内に、利用者ごとの短い TTL のキャッシュを持つ（`ACCESS_CACHE_TTL_SECONDS`。既定 60 秒、0 で無効。負・数でない値は起動を失敗させる）。
-  Prisma Postgres の無料枠は operations（SQL 1 本が 1）で数えるので、リクエストごとのロールの確認を減らすため（2026-11-11 に利用者が決定）。
-  **割り当ての変更・外しが効くまでに、最大でこの秒数かかる**（Cloud Run のインスタンスごとに別の控え。即時に効かせるには、リビジョンを入れ替える）。
-  引けなかった結果と、「存在する全グループを引けなかった」結果は控えない。控えは接続プールに結びつく（プールが替われば使わない）。
-- グループを持たない資料（`collection` が NULL）は、`ACCESS_MODE=enforce` では誰にも見えない（`ACCESS_MODE=off` の検索・一覧にだけ出る）。
+- ロールが 1 つも割り当てられていない利用者は `default` ロール（初期データは `zahard` `cafe` `guides`）。`AUTH_MODE=off` の匿名も `default`。ほかのロールを 1 つでも割り当てると `default` は使われない（足したいときは `default` も割り当てる）。
+- プロセス内に、利用者ごとの短い TTL の控えを持つ（`ACCESS_CACHE_TTL_SECONDS`。Prisma Postgres の無料枠が operations で数えられるため、2026-11-11 に利用者が決定）。**割り当ての変更が効くまでに、最大でこの秒数かかる**（インスタンスごとに別の控え。即時に効かせるには、リビジョンを入れ替える）。引けなかった結果は控えない。
+- グループを持たない資料（`collection` が NULL）は、`enforce` では誰にも見えない。
 - 権限の判断はサーバーだけで行う（LLM には任せない）。検索は、検索の前に SQL で範囲を絞る（取ってから消さない）。範囲を絞った検索は、返ってきた行も確かめ直す。
 
 **`ACCESS_MODE`**
@@ -133,8 +106,7 @@
 | `shadow` | 制限しない。毎回ロールの表を引いて、`enforce` なら何件が絞り込まれるかを INFO ログに出す（件数だけ。グループ名は出さない）。引けなくても制限なしで続ける。新しい使い方を本番へ入れるときに、まずこれで観察する |
 | `enforce` | 制限する。引けなければ 503 の固定文（制限なしには倒れない）。起動時に、ロールの表と `default` ロールを検査して、無ければ起動を失敗させる |
 
-`shadow` のログは `アクセス制御(shadow): <経路> 全 N 件のうち M 件が enforce では絞り込まれる` の形。検索は、返った上位の件数のうちの M 件で、
-絞り込んだときに繰り上がる次点の結果までは見ない（実際の差はこれより小さいことがある）。
+`shadow` のログは `アクセス制御(shadow): <経路> 全 N 件のうち M 件が enforce では絞り込まれる` の形。検索は、絞り込んだときに繰り上がる次点の結果までは見ない（実際の差はこれより小さいことがある）。
 
 **経路ごとの挙動（`enforce`）**
 
@@ -142,34 +114,24 @@
 |---|---|
 | 検索（`search_vector.search`） | SQL で範囲に絞る。`scope` は必須の引数で、渡し忘れ・`None` は `TypeError`、`Scope.NONE` は何も返さない。全グループは `Scope.ALL` を明示したときだけ |
 | `GET /documents` | 見えるグループの資料だけ |
-| `GET /documents/{id}/chunks`・`/file`・`/graph`・`/impact` | 見えない資料は、存在しない資料と同じ 404（文も同じ。関係図の「対象外」の文より先に確かめる） |
+| `GET /documents/{id}/chunks`・`/file`・`/graph`・`/impact` | 見えない資料は、存在しない資料と同じ 404（文も同じ） |
 | `GET /collections` | 見えるグループだけ |
 | `POST /chat`・`/chat/stream` | `collection` が見えない（存在しないグループも同じ）なら 403。続きの会話に保存された検索対象が見えなくなっていても 403。省略した検索対象（「すべて」）は、見えるグループすべて |
 | `GET /threads/{id}/messages` | 会話は表示する。見えないグループの検索結果に基づく回答は固定文に置き換える。保存された検索対象が見えなければ `collection` は null |
 | 上のすべて | 見えるグループが 0 件なら 403「利用できる資料がありません。」（会話の一覧・表示は止めない） |
 
-エラーの文はすべて固定で、見えないグループの名前を載せない。会話の途中で検索対象を変えたときの 409 の文も、グループ名を載せなくなった。
+エラーの文はすべて固定で、見えないグループの名前を載せません。
 
-**過去の会話:** 会話自体と本人の発言は表示する。1 回の質問の中で、いま見えないグループが出典に入った検索結果があれば、その結果と、その後の最終回答を伏せる
-（画面にも、次の質問で LLM に渡す履歴にも出さない）。出典のグループが分からない検索結果は、範囲を絞っているときは伏せる。
-伏せるのは検索結果とその回答だけで、ユーザーの発言や、検索していない回答には触れない。
+**過去の会話:** 会話自体と本人の発言は表示します。1 回の質問の中で、いま見えないグループが出典に入った検索結果があれば、その結果と、その後の最終回答を伏せます（画面にも、次の質問で LLM に渡す履歴にも出さない）。出典のグループが分からない検索結果は、範囲を絞っているときは伏せます。ユーザーの発言や、検索していない回答には触れません。
 
-- **古い会話（`collection` の項目が無い出典）:** 出典に `collection` を入れ始めたのは 2026-10-26（`efcf789`）。それより前の会話の出典には、この項目そのものが無い。
-  見える範囲が**いま存在する全グループ**（`document_collections` の登録済みと、`documents.collection` にあるものの両方）を含む利用者（`Scope.complete`）には、
-  この項目の無い出典を伏せない。限定ロールの利用者は、今までどおり伏せる。項目はあるが値が null の出典（グループの無い資料）は、全部見える利用者にも伏せる。
-- **`complete` は会話の伏せ方だけに効く。** 検索・一覧・本文・PDF の絞り込み（`Scope.allows`）は変えない（グループの無い資料は `default` ロールにも見えないまま）。
-- **判定:** `shadow` / `enforce` のとき、見えるグループを引くのと同じ接続で全グループを 1 回引く。見えるグループが空でなく、全グループを含むときだけ `complete`。
-  全グループを引けなかったときは `complete` にしない（警告ログ。会話を伏せる側に倒れるだけで、検索の範囲は変わらない）。`shadow` のログも同じ規則で数える。
-- **運用の注意（新しいグループを足すとき）:** 資料の取り込みで新しいグループができると、`default` ロールに割り当てるまで `complete` が外れ、
-  **古い会話が全員で伏せられる**（安全側の退行）。グループを足したら、`role_collection_access` で `default` にも割り当てる。
+- **古い会話（`collection` の項目が無い出典）:** 出典に `collection` を入れ始めたのは 2026-10-26。それより前の会話の出典には、この項目が無い。見える範囲が**いま存在する全グループ**を含む利用者（`Scope.complete`）には、この項目の無い出典を伏せない。限定ロールの利用者は伏せる。値が null の出典は、全部見える利用者にも伏せる。
+- **`complete` は会話の伏せ方だけに効く。** 検索・一覧・本文・PDF の絞り込み（`Scope.allows`）は変えない。判定は、見えるグループを引くのと同じ接続で全グループを 1 回引き、見えるグループが空でなく全グループを含むときだけ `complete`（引けなければ `complete` にしない。警告ログ）。
+- **運用の注意（新しいグループを足すとき）:** 取り込みで新しいグループができると、`default` ロールに割り当てるまで `complete` が外れ、**古い会話が全員で伏せられる**（安全側の退行）。グループを足したら、`role_collection_access` で `default` にも割り当てる。
 
-**検索の範囲の渡し方:** `config["configurable"]` の `access_scope` で検索ツールまで渡す。会話の状態（チェックポイント）には保存しない
-（`tests/test_access.py` が確かめる）。ツールを呼ぶ LLM の引数にも出ない。
+**検索の範囲の渡し方:** `config["configurable"]` の `access_scope` で検索ツールまで渡します。会話の状態には保存せず、LLM の引数にも出しません（`tests/test_access.py` が確かめる）。
+**MCP（`docunavi-mcp`）:** 運用者専用で、利用者のロールを持たず、`Scope.ALL` を明示して**全グループ**を検索します。利用者には公開しません（`roles/run.invoker` を持つ運用者だけが呼べる）。
 
-**MCP（`docunavi-mcp`）:** 運用者専用で、利用者のロールを持たない。`Scope.ALL` を明示して**全グループ**を検索する。利用者には公開しない（IAM の `roles/run.invoker` を持つ運用者だけが呼べる）。
-
-**ロールの割り当て:** 運用者が、`python -m app.access_admin show|assign|revoke`（既定は確認だけ。`--apply` で書き、`access_audit` に 1 行残す。2026-11-09 に追加）か、Postgres の `user_roles` への SQL で更新します（Django の管理画面は 2026-11-08 に廃止しました）。
-ロールの作成と、ロールが持つグループの編集も SQL です。API は DB を読むだけで、書き込みは運用者の権限（`DATABASE_URL` の接続）で行います。変更は `access_audit` に残す想定です。例:
+**ロールの割り当て:** 運用者が、`python -m app.access_admin show|assign|revoke`（既定は確認だけ。`--apply` で書き、`access_audit` に 1 行残す。2026-11-09 に追加）か、Postgres の `user_roles` への SQL で更新します。ロールの作成と、ロールが持つグループの編集も SQL です。API は DB を読むだけで、書き込みは運用者の権限（`DATABASE_URL` の接続）で行います。例:
 
 ```sql
 -- ロールを作る → ロールが見るグループを決める → 利用者（JWT の sub = "user".id）に割り当てる
@@ -178,321 +140,183 @@ insert into role_collection_access (role, collection) values ('cafe-staff', 'caf
 insert into user_roles (user_id, role) values ('<"user".id>', 'cafe-staff');
 ```
 
-利用者の ID は Postgres の `"user"` 表で確認する（メールとの対応は `"user".email`）。D1 の時点（2026-11-08）で `user_roles` は空でした（Postgres への移行後の中身は未確認）。
-
-**確かめた範囲:** `tests/test_access.py`（偽の DB。10 経路の漏れ、`default` ロールが `off` と同じ結果になること、`ACCESS_MODE` の 3 値、`scope` を渡し忘れても全件を検索しないこと、
-会話の伏せ方）。**未確認:** 本番の Postgres での `shadow` のログを実際の利用で観察した結果、`access_audit` に書き込む手順。
-
+利用者の ID は Postgres の `"user"` 表で確認します（メールとの対応は `"user".email`）。
+**確かめた範囲:** `tests/test_access.py`（偽の DB。10 経路の漏れ、`default` ロールが `off` と同じ結果になること、`ACCESS_MODE` の 3 値、`scope` を渡し忘れても全件を検索しないこと、会話の伏せ方）。**未確認:** 本番の Postgres での `shadow` のログの観察結果、`access_audit` に書き込む手順。
 
 ## 対象と資料種別（`target` / `doc_type`）
 
 2026-11-03 に実装（ローカルのみ。**本番の DB・Cloud Run・画面は未適用**）。決定は [decisions/0008](decisions/0008-document-target-and-type.md)。
-
-資料に、`collection`（資料グループ）とは別の分類を 2 つ足した。画面の名前は「対象」「資料種別」、DB と API の名前は `target` / `doc_type`。
+資料に、`collection` とは別の分類を 2 つ足しました。画面の名前は「対象」「資料種別」、DB と API の名前は `target` / `doc_type` です。
 
 | 項目 | 役割 | 保存先 |
 |---|---|---|
-| `collection` | 保存（R2 の配置）と**閲覧権限**の単位（`role_collection_access`）。変えない | `documents.collection` |
+| `collection` | 保存（R2 の配置）と**閲覧権限**の単位。変えない | `documents.collection` |
 | `target` | 何についての資料か（例: ザーハード / みなとコーヒー）。**チャットの質問の範囲**になる | `documents.target` → `document_targets.name` |
 | `doc_type` | 資料の性格（設定資料 / 店舗案内 / 規程 / 取扱説明書）。一覧の絞り込みだけに使う | `documents.doc_type` → `document_types.name` |
 
-- 1 資料に、対象 1 つ・資料種別 1 つ（NULL は未分類）。取り込み（`python -m app.ingestion`）は書かない。設定は運用者の SQL。ファイル名からの自動分類はしない。
-- 検索は **権限の範囲（`Scope`）∩ 対象**。対象を選んでも権限は広がらない。対象を指定しない検索は、これまでと同じ結果（未分類の資料も入る）。
-- 名前（`name`）は変えない（DB のトリガーが拒否）。使用中の対象・種別は消せない（外部キー）。表示名・説明・並び順は変えてよい。
-- 初期の語彙と対応（利用者が 2026-11-03 に承認した）: `zahard` ザーハード / `minato-coffee` みなとコーヒー / `tsubasa-dorm` つばさ大学学生寮 / `aoba-aw820` あおば電機 AW-820、
-  `setting` 設定資料 / `store-guide` 店舗案内 / `regulation` 規程 / `manual` 取扱説明書。資料 id 1〜6 の対応は `supabase/backfills/20261103150000_classify_initial_documents.sql` の先頭。
+- 1 資料に、対象 1 つ・資料種別 1 つ（NULL は未分類）。取り込みは書かず、設定は運用者の SQL です。ファイル名からの自動分類はしません。
+- 検索は **権限の範囲（`Scope`）∩ 対象**。対象を選んでも権限は広がりません。対象を指定しない検索は、これまでと同じ結果（未分類の資料も入る）です。
+- 名前（`name`）は変えられません（DB のトリガーが拒否）。使用中の対象・種別は消せません（外部キー）。
+- 初期の語彙: `zahard` ザーハード / `minato-coffee` みなとコーヒー / `tsubasa-dorm` つばさ大学学生寮 / `aoba-aw820` あおば電機 AW-820、`setting` 設定資料 / `store-guide` 店舗案内 / `regulation` 規程 / `manual` 取扱説明書（利用者が 2026-11-03 に承認）。
 
 ### チャットの指定（`POST /chat`・`/chat/stream`）
 
-`target` と `collection`（旧方式。互換のために残す）の扱い。会話の範囲は、最初の発言で決まり、チェックポイントに残る。
+`target` と `collection`（旧方式。互換のために残す）の扱いです。会話の範囲は、最初の発言で決まり、チェックポイントに残ります。
 
 | 送る値 | 新しい会話 | 続きの会話 |
 |---|---|---|
-| どちらも省略 | 絞らない | 保存された範囲を状態から復元する（`collection` も `target` も。広がらない） |
+| どちらも省略 | 絞らない | 保存された範囲を状態から復元する（広がらない） |
 | `target` だけ | その対象で固定。見えない・存在しない・資料のない対象は **403**（同じ固定文。名前は載せない） | 保存された `target` と同じなら通す。違えば **409**（保存が「絞らない」・旧 `collection` の会話も 409） |
-| `collection` だけ | 旧方式で固定（変わらない） | 保存された `collection` と同じなら通す。違えば 409（保存が `target` の会話も 409） |
+| `collection` だけ | 旧方式で固定 | 保存された `collection` と同じなら通す。違えば 409（保存が `target` の会話も 409） |
 | 両方 | **422** | **422**（黙って片方を捨てない） |
 
-- 旧 `collection` の会話は変換しない。`target` を足すと 409 になり、省略すれば旧 `collection` のまま探す（全資料には広がらない）。
-- 続きの会話の対象は、確かめ直さない。資料が別の対象へ移って空になっても会話は続けられ、検索は 0 件になる（`hit_count: 0`）。`GET /threads/{id}/messages` は、保存された範囲が
-  いま見えない・資料が無いとき `target` / `collection` を null にして `scope_unavailable: true` を返す（「すべて」と区別するため）。
-- 会話が固定するのは**対象の識別子だけ**で、資料の集合ではない。続きの質問は、そのときの `documents.target` で探す（資料集合のスナップショットは持たない）。
-- 回答の出典（`sources`）には、回答を作った時点の資料の `target` を記録する。あとで分類が変わっても、過去の出典の表示は変えない。
+- 旧 `collection` の会話は変換しません。`target` を足すと 409 になり、省略すれば旧 `collection` のまま探します（全資料には広がらない）。
+- 続きの会話の対象は、確かめ直しません。資料が別の対象へ移って空になっても会話は続けられ、検索は 0 件になります。`GET /threads/{id}/messages` は、保存された範囲がいま見えない・資料が無いとき `target` / `collection` を null にして `scope_unavailable: true` を返します。
+- 会話が固定するのは**対象の識別子だけ**で、資料の集合ではありません。続きの質問は、そのときの `documents.target` で探します。
+- 回答の出典（`sources`）には、回答を作った時点の資料の `target` を記録します。あとで分類が変わっても、過去の出典の表示は変えません。
 
 ### 検索とキャッシュ
 
-- ベクトル検索の SQL と、キーワード側（BM25）の資料の写しの SQL の両方に、同じ条件（`TARGET_FILTER_SQL`）を重ねる。GraphRAG の参照先は写しの中だけから探すので、対象の外には出ない。
-  返った行の `target` も確かめる。
-- 写しは `(範囲, collection, target)` ごとに `SEARCH_CORPUS_TTL_SECONDS` 秒持つ。**対象を指定した検索は、写しを使う前に、その対象に入る資料の id を軽い SQL で毎回引き**、
-  写しと違えば作り直す。運用者が SQL で分類を変えても、TTL を待たず、次の検索から効く。対象を指定しない検索は、従来どおり TTL だけで更新する（毎回の確認はしない）。
+- ベクトル検索の SQL と、キーワード側（BM25）の資料の写しの SQL の両方に、同じ条件（`TARGET_FILTER_SQL`）を重ねます。GraphRAG の参照先は写しの中だけから探すので、対象の外には出ません。返った行の `target` も確かめます。
+- 写しは `(範囲, collection, target)` ごとに `SEARCH_CORPUS_TTL_SECONDS` 秒持ちます。**対象を指定した検索は、写しを使う前に、その対象に入る資料の id を軽い SQL で毎回引き**、写しと違えば作り直します。運用者が SQL で分類を変えても、TTL を待たず、次の検索から効きます。
 
 ### 分類の変更（運用者の SQL）
 
 ```sql
--- 資料 6 を別の対象へ移す（存在しない名前は外部キーが弾く。updated_at は変わらない）
+-- 資料 6 を別の対象へ移す（存在しない名前は外部キーが弾く）
 update chatbot.documents set target = 'minato-coffee' where id = 6;
 ```
 
-| 変えたあと | 起きること |
-|---|---|
-| 検索 | 次の検索から新しい分類に従う（ベクトルは毎回 SQL、BM25 は上の確認で作り直す） |
-| 過去の出典 | 変わらない（保存済み。記録された `target` は当時の値） |
-| 続きの会話 | 保存された対象の識別子で、いまの分類を探す。移した先の資料は旧対象の会話から出ない |
-| 対象が空になった | 続きの会話は 200・0 件。`/targets` からは消え、新しい会話で指定すると 403 |
+変えたあと: 検索は次の検索から新しい分類に従う / 過去の出典は変わらない / 続きの会話は、保存された対象の識別子で、いまの分類を探す（移した先の資料は旧対象の会話から出ない）/ 対象が空になると、続きの会話は 200・0 件、`/targets` から消え、新しい会話で指定すると 403。
 
 ### ロールバックと配備の順序
 
-**旧版（`target` を知らないバックエンド）へ戻すと危険。** 2026-11-03 に、一時 Postgres 17 で確かめた（旧版 = `git archive HEAD` の `app/`）。新しいコードで `target` 付きの会話を作り、
-同じ会話を旧コードで続けると、(1) 検索に `target` が渡らず**全資料を探す**（範囲が広がる）、(2) その 1 ターンで保存されていた `target` が**チェックポイントから消える**（進めても戻らない）。
+**旧版（`target` を知らないバックエンド）へ戻すと危険です**（2026-11-03 に、一時 Postgres 17 で確認）。`target` 付きの会話を旧コードで続けると、(1) 検索に `target` が渡らず**全資料を探す**（範囲が広がる）、(2) その 1 ターンで保存されていた `target` が**チェックポイントから消える**。
 
-- **新しい画面の公開を止める**（Worker `docunavi-web` を前の版へ戻す）と、**`target` 対応のバックエンドを旧版へ戻す**ことは、別の操作。前者は安全（バックエンドは旧 UI の `collection` だけの送信も受ける）。
-- 旧版へ戻してよいのは、`target` 付きの会話が 0 件のときだけ。戻す前に確かめる（読むだけ）:
-  `select count(distinct thread_id) from chatbot.checkpoints where checkpoint->'channel_values'->>'target' is not null;` → 0 のときだけ。`tests/test_classification_postgres.py` が、この形（inline で残る）に依存して通ることを確かめている。
-- 0 でないとき、戻す先は「`target` 対応の 1 つ前のリビジョン」にする（互換版）。それも無いときは、旧版へ戻さず、新しいリビジョンを直して出す。
-- 配備の順序: ① M1（`supabase/migrations/20261103150000_document_classification.sql`）→ ② バックエンド（Cloud Run。`GET /documents` が `target` 列を読むので M1 が先）→ ③ バックフィル
-  （`supabase/backfills/…`。承認ごとに 1 回）→ ④ 画面（`main` へのプッシュ。`/targets` が 404 の間は、画面は対象の機能を出さない）。
-- 戻し方: M1 のファイル末尾に手順がある（先にコードを `target` を読まない版へ。上の注意に従う）。バックフィルは、先頭の「元に戻す」の SQL（NULL に戻す）。
+- 新しい画面の公開を止める（Worker `docunavi-web` を前の版へ戻す）ことは安全です（バックエンドは旧 UI の `collection` だけの送信も受ける）。**バックエンドを旧版へ戻す**ことは別の操作です。
+- 旧版へ戻してよいのは、`target` 付きの会話が 0 件のときだけです。戻す前に読み取りで確かめます: `select count(distinct thread_id) from chatbot.checkpoints where checkpoint->'channel_values'->>'target' is not null;` → 0 のときだけ。
+  0 でないときは「`target` 対応の 1 つ前のリビジョン」へ戻すか、新しいリビジョンを直して出します。
+- 配備の順序: ① DB のマイグレーション → ② バックエンド（Cloud Run。`GET /documents` が `target` 列を読むので①が先）→ ③ バックフィル（承認ごとに 1 回）→ ④ 画面（`/targets` が 404 の間は、画面は対象の機能を出さない）。
 
-**確かめた範囲（2026-11-03、ローカルのみ）:** `tests/test_target_scope.py`（API の 409・422・403・復元・メタデータ・履歴の取得）、`tests/test_classification_postgres.py`（一時 Postgres 17 + pgvector 0.8.0。M1・バックフィル・検索の本物の SQL・
-キャッシュ・enforce のロール・チャットの端から端まで。pgvector が無い環境では検索と API の部分だけスキップ）。
-**未確認:** 本番の DB・`chatbot_app`・Cloud Run・画面での動作、本物の埋め込み（Gemini）での対象つきの検索の質、旧版の画面が新しいバックエンドに送る `collection` だけの会話の実機の確認、
-Django 管理画面（`ops/access_admin/`。2026-11-08 に廃止）への影響（`target` は読まない。`manage.py check` は未実行）。
+**確かめた範囲（2026-11-03、ローカルのみ）:** `tests/test_target_scope.py`（API の 409・422・403・復元・メタデータ・履歴の取得）、`tests/test_classification_postgres.py`（一時 Postgres 17 + pgvector。検索の本物の SQL・キャッシュ・enforce・チャットの端から端まで）。
+**未確認:** 本番の DB・Cloud Run・画面での動作、本物の埋め込みでの対象つきの検索の質、旧版の画面が新しいバックエンドに送る `collection` だけの会話の実機の確認。
 
 ## 会話履歴の保存先
 
-DB の設定（`DB_BACKEND=pg` と `DATABASE_URL`）が無ければ、履歴はプロセス内メモリ（`MemorySaver`）に置きます。再起動で消え、複数のインスタンスの間では共有されません。
-設定すると、同じ `thread_id` の履歴を Postgres に保存します（LangGraph の checkpointer は `app/d1_saver.py`、接続は `app/history.py`。旧経路の `DB_BACKEND=d1` では D1 にデータ用 Worker 経由で保存します）。再起動しても、別のインスタンスでも続きから話せます。
-
-```text
-DB_BACKEND=pg
-DATABASE_URL=…   # Secret `database-url`（Secret Manager。版を固定して渡す）。値は出さない
-```
-
-`/health` の `history` が `pg` なら、Postgres に保存しています（`memory` なら、設定が届いていません）。表（`checkpoints` `checkpoint_writes`）は `db/migrations/` が作ります（アプリは作りません）。
+DB の設定（`DB_BACKEND=pg` と `DATABASE_URL`）が無ければ、履歴はプロセス内メモリ（`MemorySaver`）に置きます。再起動で消え、インスタンス間で共有されません。設定すると、同じ `thread_id` の履歴を Postgres に保存し、再起動しても別のインスタンスでも続きから話せます
+（checkpointer は `app/d1_saver.py`、接続は `app/history.py`。表 `checkpoints` `checkpoint_writes` は `db/migrations/` が作る）。`/health` の `history` が `pg` なら保存しています（`memory` なら、設定が届いていません）。
 
 - **起動時:** DB へ接続を開き、開けなければ**起動を失敗させます**（メモリに切り替えると、履歴が黙って失われるため）。
-- **実行中:** DB が使えないときの `/chat` は 503（固定メッセージ）です。LLM の失敗（502 など）とは区別します。`/health` は DB に触れません
-  （DB の障害で、すべてのインスタンスが「異常」になって再起動されないようにするため）。
-- **データの扱い:** 発言と回答の本文が Postgres に残ります。**保存期間の方針は 90 日（最後の動きから）です**（2026-10-14）。
-  期間を過ぎた会話・特定の会話は、運用者が次のコマンドで消せます（アプリと同じ `DB_BACKEND` / `DATABASE_URL` を使い、`.env` も読みます。
-  既定は件数の表示だけで、`--apply` を付けたときだけ削除します）。アプリ自体は実行しません。
-  定期実行は、Cloud Run Job `docunavi-history-cleanup` を Cloud Scheduler から呼ぶ形です（[deploy.md](deploy.md) の D）。
-  **2026-11-08 から、この Job は Postgres に向けて、`--apply` なし（件数の表示だけ）で動いています。** 削除を戻す時期は未決です（それまで履歴は消えません）。
+- **実行中:** DB が使えないときの `/chat` は 503（固定メッセージ）で、LLM の失敗（502 など）とは区別します。`/health` は DB に触れません（DB の障害で、すべてのインスタンスが再起動されないようにするため）。
+- **データの扱い:** 発言と回答の本文が Postgres に残ります。**保存期間の方針は、最後の動きから 7 日**です（2026-11-09 に利用者が決定。以前は 90 日）。運用者は次のコマンドで消せます（既定は件数の表示だけで、`--apply` を付けたときだけ削除。アプリ自体は実行しない）。
+  定期実行は、Cloud Run Job `docunavi-history-cleanup`（Cloud Scheduler、週 1 回）です（[deploy.md](deploy.md) の D）。**2026-11-15 に `--apply` を戻しました。最初の削除は 2026-11-22 の定期実行で、初回の結果と DELETE 権限は未確認です。**
 
   ```bash
-  python -m app.history_admin --older-than-days 90            # 90 日以上動きのない会話の数を表示（削除しない）
-  python -m app.history_admin --older-than-days 90 --apply    # それらを削除する
+  python -m app.history_admin --older-than-days 7             # 7 日以上動きのない会話の数を表示（削除しない）
+  python -m app.history_admin --older-than-days 7 --apply     # それらを削除する
   python -m app.history_admin --thread-id <thread_id> --apply # 1 件の会話を削除する
   ```
 
-  「動きのない」は、会話の最新のチェックポイントの時刻で決めます（続けて使われる会話は消えません）。表示するのは件数だけです（`thread_id` は出しません）。
-  D1 に向けた件数の表示は、2026-11-08 に Cloud Run Job で確かめました（対象 0 件）。Postgres に向けた Job の実行結果と、`--apply` での削除は未確認です（本番の履歴は Postgres への移行時に引き継いでいません）。
-  `AUTH_MODE=off` のあいだは、`thread_id` を知っていれば誰でも続きを書けます。`required` なら、履歴のキーに利用者 ID が付き、
-  他の利用者の会話には届きません（上の「ログイン（認証）」）。本人からの削除要求には、API（`DELETE /threads/{thread_id}`）で応えられます。
-
+  「動きのない」は、会話の最新のチェックポイントの時刻で決めます（続けて使われる会話は消えません）。表示するのは件数だけです。`AUTH_MODE=off` のあいだは、`thread_id` を知っていれば誰でも続きを書けます。`required` なら、履歴のキーに利用者 ID が付き、他の利用者の会話には届きません。本人からの削除要求には、API（`DELETE /threads/{thread_id}`）で応えられます。
 
 ## 検索の進め方（1 回の LLM 呼び出し）
 
-従来は 1 回の質問で LLM が 2 回、直列に呼ばれた（1 回目: 検索するかを決めて `search_documents` を呼ぶ。2 回目: 結果を受けて回答する）。
-`CHAT_RETRIEVAL_MODE=direct`（既定）は、1 回目を省く。
+従来は 1 回の質問で LLM が 2 回、直列に呼ばれました（1 回目: 検索するかを決めて `search_documents` を呼ぶ。2 回目: 結果を受けて回答する）。`CHAT_RETRIEVAL_MODE=direct`（既定）は、1 回目を省きます。
 
-- 質問ごとに、グラフの `retrieve` ノードが**先に検索**し（検索語は質問そのまま。検索の評価も質問文そのままで行っている）、LLM は 1 回だけ呼ぶ。
-- 履歴には、従来と同じ形（`search_documents` の呼び出し＋結果＋回答）で残る。アクセス制御の伏せ（`mask_hidden_turns`）が、結果の出典を見るため。
-  呼び出しの `id` はアプリが付けた作り物で、Gemini の thought signature は付かない。ライブラリ（langchain-google-genai）が、
-  現在の質問の中の署名の無い呼び出しに、公式の回避値（`skip_thought_signature_validator`）を入れる（変換までをオフラインで確認。**実 API では未確認**）。
-- **追質問だけ**、前の話題に頼るとき（短い質問〔12 文字未満〕や指示語「それ・その・もっと…」）に、LLM の短い 1 回で検索語を補う
-  （`LLM_QUERY_REWRITE_TIMEOUT_SECONDS` まで。失敗・遅延のときは、直前の質問を足した検索語）。材料は、いま見えないグループの部分を伏せた履歴だけ。
-  挨拶・お礼だけの発言（`is_smalltalk`）は、会話の途中でも補完しない（質問をそのまま検索語にする。検索を飛ばすかは `CHAT_SMALLTALK_SKIP`）。
-  この間、画面の状態は `analyzing`（通常の質問では `searching` → `generating` だけ）。
-- 結果で答えられないときは、LLM が `search_documents` を呼び直せる（ツールは付けたまま。プロンプトは `DIRECT_SYSTEM_PROMPT`）。
-- 再試行の重なり（2026-11-05 に確認）: SDK の再試行は、ヘッジが有効なら `max_retries=1`（google-genai の `attempts=1`＝再試行なし）で、LangChain とグラフには独自の再試行が無い。
-  重なっていたのは、**アプリの中**だった。主モデルが 503 を返すと、(1) 主モデルを `LLM_MAX_ATTEMPTS` 本まで直列に投げ直し、(2) それが尽きてからフォールバックを試し、
-  (3) これを 1 回の質問の LLM 2 回それぞれで行っていた。いまは、503 のあと主モデルを投げ直さずフォールバックをすぐ投げ（`LLM_EARLY_FALLBACK`）、
-  最初のチャンクまでの総時間に上限があり（`LLM_FIRST_CHUNK_DEADLINE_SECONDS`）、LLM の呼び出しは通常 1 回になった。
-- **未確認（実 API の計測が要る）:** 最初の文字まで・完了までの短縮の大きさ、回答の品質（検索語が質問そのままになった影響）、`thinking_level` の効果と対応モデル、
-  早期フォールバックでフォールバックに回る頻度（料金に響く）、補完の品質。数字は計測前に断定しない。
+- 質問ごとに、グラフの `retrieve` ノードが**先に検索**し（検索語は質問そのまま）、LLM は 1 回だけ呼びます。
+- 履歴には、従来と同じ形（`search_documents` の呼び出し＋結果＋回答）で残ります（アクセス制御の伏せが、結果の出典を見るため）。呼び出しの `id` はアプリが付けた作り物で、Gemini の thought signature は付きません。ライブラリが、署名の無い呼び出しに公式の回避値（`skip_thought_signature_validator`）を入れます（変換までをオフラインで確認。**実 API では未確認**）。
+- **追質問だけ**、前の話題に頼るとき（短い質問〔12 文字未満〕や指示語「それ・その・もっと…」）に、LLM の短い 1 回で検索語を補います（`LLM_QUERY_REWRITE_TIMEOUT_SECONDS` まで。失敗・遅延のときは、直前の質問を足した検索語）。材料は、いま見えないグループの部分を伏せた履歴だけです。
+  挨拶・お礼だけの発言は、会話の途中でも補完しません。この間、画面の状態は `analyzing` になります。
+- 結果で答えられないときは、LLM が `search_documents` を呼び直せます（ツールは付けたまま。プロンプトは `DIRECT_SYSTEM_PROMPT`）。
+- 主モデルが 503 を返すとき、重なって遅くなる再試行を避けるため、503 のあと主モデルを投げ直さずフォールバックをすぐ投げ（`LLM_EARLY_FALLBACK`）、最初のチャンクまでの総時間に上限があり（`LLM_FIRST_CHUNK_DEADLINE_SECONDS`）、LLM の呼び出しは通常 1 回です（2026-11-05 に、ローカルで確認）。
+- **未確認（実 API の計測が要る）:** 最初の文字まで・完了までの短縮の大きさ、回答の品質（検索語が質問そのままになった影響）、`thinking_level` の効果と対応モデル、早期フォールバックでフォールバックに回る頻度（料金に響く）、補完の品質。
 
 ## LLM の遅延・失敗への対処
 
-2026-10 に開発環境から観測した範囲では、Gemini（特に `gemini-3.1-flash-lite`）は、1〜3 秒で返る回と、10 秒を超える回・応答がないまま 60 秒でサーバー側に打ち切られる回が混在していました。
-待ち続けると 1 回の遅延で `/chat` が 504 になるため、遅い呼び出しは待たずに**同じ要求をもう一度投げて、最初に成功したものを採ります**（ヘッジ）。
+2026-10 に開発環境から観測した範囲では、Gemini（特に `gemini-3.1-flash-lite`）は、1〜3 秒で返る回と、10 秒を超える回・応答がないまま 60 秒で打ち切られる回が混在していました。待ち続けると 1 回の遅延で `/chat` が 504 になるため、遅い呼び出しは待たずに**同じ要求をもう一度投げて、最初に成功したものを採ります**（ヘッジ）。
 
-- `LLM_HEDGE_DELAY_SECONDS` 秒たっても応答がなければ、追加の試行を投げる（`LLM_MAX_ATTEMPTS` 本まで）。成功したら残りは取り消す。
-- 試行が失敗（無応答・接続の失敗・408/500/502/503/504）したときは、0.5 秒後に次を投げる。ほかの試行が結果待ちなら、その結果か次のヘッジの時刻まで待つ。認証や不正なリクエストなど、投げ直しても同じ失敗は即座に返す。
-- 429（レート制限）を受けたら、追加を止めて間隔（2 秒、4 秒…）を空けて再試行する。全て失敗したときは 429 を返す（上流が待ち時間を示していれば `Retry-After` が付く）。
-- 追加・再試行が起きるとアプリのログに `WARNING` が出る（`app.agents.resilience`）。頻発するなら上流（Gemini）が不安定。
-- クライアントが切断したら、追加の試行は投げず、進行中の試行を取り消す（下記「クライアントの切断」）。
-- `/chat/stream`（ストリーミング）では、「最初に成功した試行」を「最初のチャンクが届いた試行」に読み替える。遅延・失敗・429 の扱いは同じで、
-  採った後は、その試行が最後まで流れる（途中で止まっても、別の試行へは切り替えない。先に送った本文と食い違うため）。
-  採らなかった試行のストリームは閉じる。最初のチャンクは完了より先に届くので、`LLM_HEDGE_DELAY_SECONDS` が同じなら、
-  追加の試行が `/chat` より増えることはない（最初のチャンクまでの時間は、別モデルでの 1 回の計測だけがある。直下。完了までは 2.6〜2.75 秒だった。下記の計測）。
-  **本物の Gemini でのストリーミング（2026-10-15 に確認。限られた範囲）:** 既定の `gemini-3.1-flash-lite` は、試した時間帯に
-  `503 UNAVAILABLE`（需要過多）を返し続け（従来の `/chat` も同じ失敗で、再試行 3 本の後に 502）、確かめられなかった。
-  `GEMINI_MODEL=gemini-3.5-flash-lite` をそのプロセスにだけ付けた 1 回では、200 で本文が最後まで流れ（最初の本文まで 1.8 秒、
-  合計 1.9 秒）、回答は設定資料の記述とほぼ同じだった。検索ツールが使われ、Gemini 3 の thought signature でも失敗しなかったと推定できる。
-  限界: 1 回だけで、回答は短く（95 文字。ガードが先頭 31 文字を保持するので、段階的な到着は見えていない）、ツール呼び出しは直接は
-  観測していない（UI ストリームはツールのチャンクを出さず、アプリもログに残さない）。**未確認:** 実機での途中切断、長い回答、
-  ガードの発動、`gemini-3.1-flash-lite` での挙動。
-  参考: `gemini-2.5-flash-lite` は、一覧には載っていても新規ユーザーには 404（提供終了）だった。`gemini-3.5-flash-lite` では
-  `temperature` が無視される（`temperature=0` を渡していた当時は、langchain が警告を出した。エラーにはならない）。
+- `LLM_HEDGE_DELAY_SECONDS` 秒たっても応答がなければ、追加の試行を投げます（`LLM_MAX_ATTEMPTS` 本まで）。成功したら残りは取り消します。
+- 試行が失敗（無応答・接続の失敗・408/500/502/503/504）したときは、0.5 秒後に次を投げます。認証や不正なリクエストなど、投げ直しても同じ失敗は即座に返します。
+- 429（レート制限）を受けたら、追加を止めて間隔（2 秒、4 秒…）を空けて再試行します。全て失敗したときは 429 を返します（上流が待ち時間を示していれば `Retry-After` が付く）。
+- 追加・再試行が起きるとアプリのログに `WARNING` が出ます（`app.agents.resilience`）。頻発するなら上流（Gemini）が不安定です。
+- クライアントが切断したら、追加の試行は投げず、進行中の試行を取り消します（下の「クライアントの切断」）。
+- `/chat/stream` では、「最初に成功した試行」を「最初のチャンクが届いた試行」に読み替えます。採った後は、その試行が最後まで流れます（途中で止まっても、別の試行へは切り替えない。先に送った本文と食い違うため）。採らなかった試行のストリームは閉じます。
+  **本物の Gemini でのストリーミング（2026-10-15、限られた範囲）:** `gemini-3.1-flash-lite` は、試した時間帯に 503 を返し続けて確かめられませんでした。`gemini-3.5-flash-lite` の 1 回では、200 で本文が最後まで流れました（最初の本文まで 1.8 秒）。**未確認:** 実機での途中切断、長い回答、ガードの発動、`gemini-3.1-flash-lite` での挙動。
 
 実 API で同じ時間帯に交互に流した比較（各 12 回、Gemini が不安定だった時間帯）では、成功率はヘッジなし 5/12、ヘッジあり 8/12 でした。小さな標本なので目安です。
 
-**コストの注意:** 遅い呼び出しでは、1 回の LLM 呼び出しに最大 `LLM_MAX_ATTEMPTS` 本のリクエストが投げられ、その分だけ入力トークンが増えます
-（取り消した試行の課金・クォータの扱いは Gemini 側の仕様次第です）。速く返っているときは 1 本のままです。
-クライアントが切断したときは、追加の試行を投げるのをやめます。
-抑えたいときは `LLM_MAX_ATTEMPTS` を下げるか、`LLM_HEDGE_DELAY_SECONDS=0` で無効にします（その場合は SDK が最大 `LLM_MAX_ATTEMPTS` 回（最初の 1 回を含む）を順に試し、試行の上限は短い `15` 秒になります）。
-
-**容量の注意:** Gemini が全体に遅いときは、1 呼び出しあたり最大 `LLM_MAX_ATTEMPTS` 本が同時に飛びます。SDK の HTTP 接続プール（既定 100 接続）を超えると、追加の試行が待たされて効果が薄れます。
-同時に処理する `/chat` の数 × `LLM_MAX_ATTEMPTS` が 100 を大きく超える環境（Cloud Run の同時実行数を上げるときなど）では、確認してください。
+**コストの注意:** 遅い呼び出しでは、1 回の LLM 呼び出しに最大 `LLM_MAX_ATTEMPTS` 本のリクエストが投げられ、その分だけ入力トークンが増えます（取り消した試行の課金は Gemini 側の仕様次第）。速く返っているときは 1 本のままです。抑えたいときは `LLM_MAX_ATTEMPTS` を下げるか、`LLM_HEDGE_DELAY_SECONDS=0` で無効にします（その場合は SDK が最大 `LLM_MAX_ATTEMPTS` 回を順に試し、試行の上限は短い 15 秒になります）。
+**容量の注意:** Gemini が全体に遅いときは、1 呼び出しあたり最大 `LLM_MAX_ATTEMPTS` 本が同時に飛びます。SDK の HTTP 接続プール（既定 100 接続）を超えると、追加の試行が待たされます。同時に処理する `/chat` の数 × `LLM_MAX_ATTEMPTS` が 100 を大きく超える環境（Cloud Run の同時実行数を上げるときなど）では、確認してください。
 
 ## チャットの指標（構造化ログ）
 
-`/chat` と `/chat/stream` は、応答 1 回ごとに **1 行の JSON**（ロガー `app.chat_metrics`。`app/metrics.py`）を INFO で出す（2026-11-09）。
-`app/main.py` の整形で、この行だけは時刻・レベルの前置きなしの JSON そのままになる。Cloud Run では `jsonPayload` になり、
-ログベース指標（`EXTRACT(jsonPayload.total_ms)` など）にできる。外部（LangSmith など）への送信は増えない（本番での LangSmith は無効のまま）。
-
-**入れないもの:** 質問・回答・検索クエリ・検索結果の本文、埋め込み、API キー・トークン、ユーザー ID の生値。区分・数値・真偽だけを出す
-（質問は `smalltalk` `lang` に、利用者は `user_id_hash` に直してから渡す）。`tests/test_chat_metrics.py` が、本文・生の ID が出ないことを確かめる。
-
-```
-{"severity":"INFO","message":"chat_metrics","trace_id":"…","request_id":"…","session_id":"…","user_id_hash":"…","endpoint":"chat_stream","provider":"vertex","model":"gemini-3.1-flash-lite","status":"ok","error_type":null,"guardrail_blocked":false,"timeout":false,"stream":true,"smalltalk":false,"multi_turn":false,"lang":"ja","ttft_ms":1530,"total_ms":1840,"llm_ms":1200,"retrieval_ms":420,"tool_ms":420,"llm_calls":1,"tool_calls":1,"search_calls":1,"retries":0,"input_tokens":480,"output_tokens":36,"total_tokens":516,"retrieved_chunks":2,"top_k":2,"answer_chars":58,"citation_count":1,"unrelated_source_mentioned":false}
-```
+`/chat` と `/chat/stream` は、応答 1 回ごとに **1 行の JSON**（ロガー `app.chat_metrics`。`app/metrics.py`）を INFO で出します（2026-11-09）。この行だけは時刻・レベルの前置きなしの JSON そのままで、Cloud Run では `jsonPayload` になり、ログベース指標にできます。外部（LangSmith など）への送信は増えません。
+**入れないもの:** 質問・回答・検索クエリ・検索結果の本文、埋め込み、API キー・トークン、ユーザー ID の生値。区分・数値・真偽だけを出します（`tests/test_chat_metrics.py` が確かめる）。
 
 | 項目 | 意味 |
 |---|---|
-| `trace_id` | Cloud Run の `X-Cloud-Trace-Context` の TRACE_ID（無い・不正なら新しい ID）。Cloud Trace・リクエストログとの突き合わせ用 |
-| `request_id` | 応答ごとの ID（サーバーが作る） |
-| `session_id` | クライアントの `thread_id`（利用者 ID は含まない。`<sub>:<thread_id>` の `sub` 側は入れない） |
+| `trace_id` / `request_id` | Cloud Run の `X-Cloud-Trace-Context` の TRACE_ID（無ければ新しい ID）/ 応答ごとの ID |
+| `session_id` | クライアントの `thread_id`（利用者 ID は含まない） |
 | `user_id_hash` | ユーザー ID の SHA-256 の先頭 16 桁。匿名（`AUTH_MODE=off`）は `anon` |
 | `endpoint` / `stream` | `chat` / `chat_stream`、ストリームか |
 | `provider` / `model` | `vertex` / `gemini_api` / `workers_ai` / `mock`、設定上のモデル名（実際のフォールバックは反映しない） |
-| `status` | `ok`、失敗した HTTP ステータス（`429` `504` など）、`gone`（切断）、`cancelled`（ストリームの取り消し） |
-| `error_type` | 失敗の例外のクラス名だけ（メッセージは入れない）。失敗でなければ `null` |
-| `guardrail_blocked` | 入力ガードが拒否した、または出力ガードが回答を定型文に置き換えた |
-| `timeout` | `status` が `504`、または例外が `TimeoutError` |
-| `smalltalk` | 質問が挨拶・お礼だけ（`app/agents/smalltalk.py` の判定。`CHAT_SMALLTALK_SKIP` が off でも判定する） |
-| `multi_turn` | 同じ会話の 2 ターン目以降 |
-| `lang` | 質問の主な言語の目安（`ja` / `en` / `other`） |
-| `ttft_ms` | 最初の本文（text-delta）を送るまで。`/chat` は `null`。**出力ガードが末尾 31 文字を保持するので、短い回答では総時間に近くなる** |
-| `total_ms` | 受け付けてから終わるまで |
-| `llm_ms` / `tool_ms` / `retrieval_ms` | LLM 呼び出し・ツール全体・`search_documents` の所要時間の合計（ヘッジで並行した試行は重ねて数えるので、`total_ms` を超えることがある） |
-| `llm_calls` / `tool_calls` / `search_calls` | 回数（追質問の検索語の補完、ヘッジ・再試行・フォールバックの試行も 1 回ずつ） |
-| `retries` | 失敗に終わった LLM の試行の数（取り消したヘッジの試行は除く） |
+| `status` / `error_type` | `ok`、失敗した HTTP ステータス、`gone`（切断）、`cancelled` / 失敗の例外のクラス名だけ（無ければ `null`） |
+| `guardrail_blocked` / `timeout` | 入力ガードの拒否または出力ガードの置き換え / `status` が `504` または `TimeoutError` |
+| `smalltalk` / `multi_turn` / `lang` | 挨拶・お礼だけの質問か / 2 ターン目以降か / 主な言語の目安（`ja` `en` `other`） |
+| `ttft_ms` / `total_ms` | 最初の本文を送るまで（`/chat` は `null`。出力ガードが末尾 31 文字を保持するので、短い回答では総時間に近い）/ 受け付けてから終わるまで |
+| `llm_ms` / `tool_ms` / `retrieval_ms` | LLM 呼び出し・ツール全体・`search_documents` の所要時間の合計（並行した試行は重ねて数えるので、`total_ms` を超えることがある） |
+| `llm_calls` / `tool_calls` / `search_calls` / `retries` | 回数（補完・ヘッジ・フォールバックの試行も 1 回ずつ）/ 失敗に終わった LLM の試行の数（取り消したヘッジは除く） |
 | `input_tokens` / `output_tokens` / `total_tokens` | LLM が返した使用量の合計（取り消した試行の分は取れない。返さなければ 0） |
-| `retrieved_chunks` / `top_k` | 検索で当たった件数 / 上限（`app/agents/tools.py` の `TOP_K`） |
-| `answer_chars` | 回答の文字数 |
-| `citation_count` | 出典のファイル数（重複を除く） |
+| `retrieved_chunks` / `top_k` / `answer_chars` / `citation_count` | 検索で当たった件数 / 上限 / 回答の文字数 / 出典のファイル数 |
 | `unrelated_source_mentioned` | 回答が検索結果の無関係さに触れた（「関係ありません」などの語で判定する規則ベースの近似） |
 
-- golden set（`evals/golden/`）は、同じ `ChatMetrics` で測る（本番と同じ数え方）。
-- 監視は Cloud Logging のログベース指標とアラートで行う。本番の Cloud Run（`docunavi-00050-wuw`）で、この行が `jsonPayload`（`message="chat_metrics"`）として入ることを、2026-11-09 の実ログ 1 件（`/chat`）で確認した。
-  同じ 1 件で、`status` は文字列、`smalltalk` は真偽値、`total_ms` は整数だった。ログベース指標は `docs/roadmap.md` の「監視設定」の 4 つを 2026-11-09 に作成した（gcloud の書き込みなので、ユーザーが実行）。**未確認:** 指標の値が増えること、失敗時の `status` の型、アラート（未作成）。しきい値は、本番の実測の分布を見てから決める（先に決めた値は無い）。
-- 本番への反映は 2026-11-09（`docunavi-00050-wuw`）。
-- コールバックは同期・インライン（`run_inline = True`）で動かす。非同期にすると、グラフの実行に `await` が増えて切断との先後が変わり、
-  `tests/test_chat_disconnect.py`（入力ガードの前の切断）が落ちる。
-- OpenTelemetry は、この構造化ログの次の段階の候補（未着手）。
+- golden set（`evals/golden/`）は、同じ `ChatMetrics` で測ります（本番と同じ数え方）。監視は Cloud Logging のログベース指標とアラートで行います（指標は `docs/roadmap.md` の「監視設定」の 4 つを 2026-11-09 に作成）。
+  本番の Cloud Run で、この行が `jsonPayload`（`message="chat_metrics"`）として入ることを、2026-11-09 の実ログ 1 件で確認しました。**未確認:** 指標の値が増えること、失敗時の `status` の型、アラート（未作成。しきい値は実測の分布を見てから決める）。
+- コールバックは同期・インライン（`run_inline = True`）で動かします。非同期にすると、切断との先後が変わり、`tests/test_chat_disconnect.py` が落ちます。OpenTelemetry は、次の段階の候補（未着手）です。
 
 ## temperature
 
-アプリは `temperature` を指定しない（2026-10-15 に `temperature=0` の指定を外した）。
+アプリは `temperature` を指定しません（2026-10-15 に `temperature=0` の指定を外した）。
 
-- 公式の [Gemini 3 のガイド](https://ai.google.dev/gemini-api/docs/gemini-3)は、`temperature` を既定の 1.0 のままにするよう
-  強く推奨している（1.0 未満は、ループや性能低下を招くことがある）。
-- `gemini-3.5-flash-lite` では、指定しても無視される（`temperature=0` を渡していた間は、langchain が警告を出していた）。
-- `langchain-google-genai`（4.4.1）は、Gemini 3 以降のモデルで未指定なら、リクエストに `temperature` を載せない
-  （サーバーの既定になる）。`tests/test_llm_config.py` がこの前提を確かめる。Gemini 3 より前のモデル
-  （`GEMINI_MODEL` に 2.5 系を指定した場合）は、ライブラリの既定の 0.7 になる。
-- 影響: 同じ質問でも、回答の言い回しが回ごとに変わりうる（0 では揃いやすかったが、確定的ではなかった）。
-  回答の正確さへの影響は、実 API では比べていない。出力ガードは連続一致で判定するので、温度には依存しない。
+- 公式の [Gemini 3 のガイド](https://ai.google.dev/gemini-api/docs/gemini-3)は、`temperature` を既定の 1.0 のままにするよう強く推奨しています（1.0 未満は、ループや性能低下を招くことがある）。`gemini-3.5-flash-lite` では、指定しても無視されます。
+- `langchain-google-genai`（4.4.1）は、Gemini 3 以降のモデルで未指定なら、リクエストに `temperature` を載せません。`tests/test_llm_config.py` がこの前提を確かめます。Gemini 3 より前のモデル（`GEMINI_MODEL` に 2.5 系を指定した場合）は、ライブラリの既定の 0.7 になります。
+- 影響: 同じ質問でも、回答の言い回しが回ごとに変わりえます。回答の正確さへの影響は、実 API では比べていません。出力ガードは連続一致で判定するので、温度には依存しません。
 
 ## 主モデルが落ちたとき（フォールバック）
 
-ヘッジと再試行は、同じモデルへ投げ直すだけです。モデル側の容量不足（`503 UNAVAILABLE`）が続くと、試行が全て失敗して 502 になります
-（2026-10-15 の開発環境では、`gemini-3.1-flash-lite` が 40 分以上これを続けた）。そこで、`GEMINI_FALLBACK_MODEL` を設定したときだけ、
-主モデルの試行が尽きた後に（`/chat/stream` は、主モデルが黙っているあいだ並行して）、別のモデルで **1 回だけ** 試します。
-空（既定）なら、挙動もコストも従来と同じです。
+ヘッジと再試行は、同じモデルへ投げ直すだけです。モデル側の容量不足（`503 UNAVAILABLE`）が続くと、試行が全て失敗して 502 になります（2026-10-15 の開発環境では、`gemini-3.1-flash-lite` が 40 分以上これを続けた）。
+そこで、`GEMINI_FALLBACK_MODEL` を設定したときだけ、主モデルの試行が尽きた後に（`/chat/stream` は、主モデルが黙っているあいだ並行して）、別のモデルで **1 回だけ** 試します。空（既定）なら、挙動もコストも従来と同じです。
 
 ```text
 GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 ```
 
-- **切り替える:** 主モデルの試行（ヘッジ・再試行、`LLM_MAX_ATTEMPTS` 本）が、全て一時的な失敗で終わったとき
-  （408/500/502/503/504・無応答・接続の失敗・チャンクが 1 つも無い応答）。
-- **切り替えない:** 429（従来どおり、間隔を空けて再試行し、尽きたら 429 を返す）と、認証・不正なリクエスト・モデルが使えない
-  （400/401/403/404）。別モデルでも解決しないか、叩き続けるだけになるため。
-- **回数:** フォールバック先は 1 回だけ（ヘッジ・再試行なし）。それも失敗したときは、フォールバック先の失敗ではなく、主モデルの失敗を返す
-  （API のエラー応答は従来と同じ。フォールバック先の失敗の種類だけログに残す）。全体の上限 `LLM_TIMEOUT_SECONDS` の中で行うので、
-  主モデルに時間を使い切った後は、フォールバックの時間が残らないことがある。
-- **ストリーミング:** 最初のチャンクが届く前の失敗だけ切り替える。送り始めた後の失敗は、先に送った本文と食い違うので切り替えない。
-- **黙っている主モデルを待たない（`/chat/stream` だけ）:** 主モデルが `LLM_HEDGE_DELAY_SECONDS`（既定 8 秒）たっても最初のチャンクを
-  返さないとき、主モデルの追加の試行の代わりに、フォールバックを 1 本だけ並行して投げる。先に最初のチャンクが届いた方を採り、
-  負けた方は取り消す（この 1 本は `LLM_MAX_ATTEMPTS` の 1 本分に数える）。新しい環境変数は無い。`LLM_HEDGE_DELAY_SECONDS=0`
-  （ヘッジなし）や `LLM_MAX_ATTEMPTS=1` のときは並行して投げない。429 を受けたあとも、並行して投げない（叩き続けないため）。
-  `LLM_ATTEMPT_TIMEOUT_SECONDS`（30 秒）は、そのまま残る（ヘッジしても応答しない試行と、生成中の長い沈黙を最終的に切る上限）。
-  `/chat`（画面は使っていない）は並行して投げず、従来どおり主モデルの試行が尽きてから 1 回だけ試す
-  （無応答のときは、試行ごとの上限（30 秒）まで待つ）。
-- **同じ質問の中では覚える:** 1 回の質問で LLM は 2 回呼ばれる（検索の判断 → 回答）。1 回目がフォールバックに切り替わったら、
-  2 回目は主モデルを試さず、フォールバックから始める（落ちている主モデルの失敗を、同じ質問の中で二重に待たないため。
-  1 つの質問の中で、モデルが混ざることもなくなる）。並行して投げたフォールバックが先に応答したときも同じ。
-  これは常に効く。次の質問には持ち越さない。
-- **次の質問以降は、一定時間、主モデルを飛ばす（エラーのときだけ）:** 主モデルの試行が実際に失敗して（5xx・接続・タイムアウト・
-  空の応答）フォールバックに切り替わってから `GEMINI_FALLBACK_HOLD_SECONDS`（既定 60 秒）の間は、
-  どの質問も最初からフォールバックを呼ぶ（落ちている主モデルを毎回 10 秒前後待たないため。プロセスごとの状態で、
-  再起動や、別のインスタンスとは共有しない）。満了したあとの最初の 1 件だけが主モデルを試し（その間の他の呼び出しはフォールバック）、
-  応答が返れば元に戻る。まだ落ちていれば、そのときのフォールバックの成功からまた数え直す。
-  飛ばしている間にフォールバックが失敗したら、その場で主モデルを通常の経路で 1 回試し、飛ばすのをやめる。
-  429 や設定の失敗では飛ばさない。**並行して投げたフォールバックが、遅いだけの主モデル（エラーが出る前）に勝ったときも
-  飛ばさない**（主モデルはまだ生きているかもしれず、数十秒も高いモデルに固定しないため）。そのため、主モデルが
-  エラーを返さずに黙り続ける間は、質問ごとに約 8 秒（ヘッジの遅延）待ってからフォールバックが答える。
-  「遅さ」でも一時的に飛ばす別のしきい値は、いまは入れていない。
-- **ログ:** 切り替えると `app.agents.resilience` が `WARNING` を出す（主モデルの失敗の種類とフォールバック先の名前。本文やキーは出さない）。
-  主モデルを飛ばし始めたとき・満了して 1 件だけ試すとき・戻ったときも出す（`主モデルが落ちています。60 秒間は…` /
-  `主モデルを 1 件だけ試して…` / `主モデルが戻りました`）。並行して投げたときは `app.agents.resilience` が、
-  `8 秒応答が無いため、追加の試行の代わりに … を並行して投げます`（`WARNING`）と、勝ったのがどちらか
-  （`… で成功（投げた試行 N 本。… が先に応答）`、`INFO`）を出す。遅いだけで勝ったときは「主モデルにエラーは出ていない」と出す。
-- **コスト:** 主モデルが成功する間は何も変わらない。切り替えが起きた回は、フォールバック先の料金で 1 回分が加わる。
-  主モデルを飛ばしている間（既定 60 秒）は、全ての質問がフォールバック先の料金になる（主モデルの失敗した試行の分は増えない）。
-  並行して投げた回は、主モデルの 1 本とフォールバックの 1 本が同時に走る。**負けた方を取り消したときの課金は確かめていない**
-  （取り消した試行の入力・出力トークンが課金されるかは Gemini 側の扱い次第）ので、二重にならないとは言えない。
-  実際の請求・使用量と照合するまで、増える前提で見積もる。負けた主モデルは取り消すので、「フォールバックが勝ったが、
-  主モデルも正常に答えるところだった」回は数えられない。
-  料金は[公式の料金表](https://ai.google.dev/gemini-api/docs/pricing)で確認する
-  （2026-10-14 更新の表では、`gemini-3.1-flash-lite` が入力 $0.25 / 出力 $1.50、`gemini-3.5-flash-lite` が $0.30 / $2.50（100 万トークンあたり））。
-- **接続の設定:** キー・Vertex AI・タイムアウトなどは主モデルと同じ。`temperature` はどちらにも渡さない（下記「temperature」）。
-- **注意:** フォールバック先には、主モデルで作られた会話履歴（ツール呼び出しと thought signature を含む）をそのまま渡す。
-  公式の Thinking ガイドには「モデルを切り替えるときも、前のモデルの thought ブロックを再送する。互換性はバックエンドが管理する」とあるが、
-  Interactions API の記述で、このアプリが使う `generateContent` に当てはまるかは、下記「検証の状況」の実 API の確認で確かめた（限られた範囲）。
+- **切り替える:** 主モデルの試行（ヘッジ・再試行、`LLM_MAX_ATTEMPTS` 本）が、全て一時的な失敗で終わったとき（408/500/502/503/504・無応答・接続の失敗・チャンクが 1 つも無い応答）。
+- **切り替えない:** 429（従来どおり、間隔を空けて再試行し、尽きたら 429 を返す）と、認証・不正なリクエスト・モデルが使えない（400/401/403/404）。別モデルでも解決しないか、叩き続けるだけになるため。
+- **回数:** フォールバック先は 1 回だけ（ヘッジ・再試行なし）。それも失敗したときは、主モデルの失敗を返します（フォールバック先の失敗の種類だけログに残す）。全体の上限 `LLM_TIMEOUT_SECONDS` の中で行うので、主モデルに時間を使い切ると、フォールバックの時間が残らないことがあります。
+- **ストリーミング:** 最初のチャンクが届く前の失敗だけ切り替えます。送り始めた後の失敗は、先に送った本文と食い違うので切り替えません。
+- **黙っている主モデルを待たない（`/chat/stream` だけ）:** 主モデルが `LLM_HEDGE_DELAY_SECONDS`（既定 8 秒）たっても最初のチャンクを返さないとき、主モデルの追加の試行の代わりに、フォールバックを 1 本だけ並行して投げます。先に最初のチャンクが届いた方を採り、負けた方は取り消します（この 1 本は `LLM_MAX_ATTEMPTS` の 1 本分に数える）。
+  `LLM_HEDGE_DELAY_SECONDS=0` や `LLM_MAX_ATTEMPTS=1` のとき、429 を受けたあとは、並行して投げません。`/chat`（画面は使っていない）は並行して投げず、主モデルの試行が尽きてから 1 回だけ試します。
+- **同じ質問の中では覚える:** 1 回の質問で LLM は 2 回呼ばれます。1 回目がフォールバックに切り替わったら、2 回目は主モデルを試さず、フォールバックから始めます（落ちている主モデルの失敗を二重に待たない。1 つの質問の中でモデルが混ざることもない）。次の質問には持ち越しません。
+- **次の質問以降は、一定時間、主モデルを飛ばす（エラーのときだけ）:** 主モデルの試行が実際に失敗して（5xx・接続・タイムアウト・空の応答）フォールバックに切り替わってから `GEMINI_FALLBACK_HOLD_SECONDS`（既定 60 秒）の間は、どの質問も最初からフォールバックを呼びます（プロセスごとの状態）。
+  満了したあとの最初の 1 件だけが主モデルを試し、応答が返れば元に戻ります。飛ばしている間にフォールバックが失敗したら、その場で主モデルを通常の経路で 1 回試し、飛ばすのをやめます。429 や設定の失敗では飛ばしません。
+  **並行して投げたフォールバックが、遅いだけの主モデル（エラーが出る前）に勝ったときも飛ばしません**（主モデルはまだ生きているかもしれないため）。そのため、主モデルがエラーを返さず黙り続ける間は、質問ごとに約 8 秒待ってからフォールバックが答えます。
+- **ログ:** 切り替えると `app.agents.resilience` が `WARNING` を出します（主モデルの失敗の種類とフォールバック先の名前。本文やキーは出さない）。主モデルを飛ばし始めたとき・満了して 1 件だけ試すとき・戻ったとき、並行して投げたとき（勝ったのがどちらか）も出します。
+- **コスト:** 主モデルが成功する間は何も変わりません。切り替えが起きた回は、フォールバック先の料金で 1 回分が加わり、主モデルを飛ばしている間（既定 60 秒）は、全ての質問がフォールバック先の料金になります。並行して投げた回は 2 本が同時に走り、**負けた方を取り消したときの課金は確かめていません**（二重にならないとは言えない）。
+  料金は[公式の料金表](https://ai.google.dev/gemini-api/docs/pricing)で確認します（2026-10-14 更新の表では、`gemini-3.1-flash-lite` が入力 $0.25 / 出力 $1.50、`gemini-3.5-flash-lite` が $0.30 / $2.50（100 万トークンあたり））。
+- **接続の設定:** キー・Vertex AI・タイムアウトなどは主モデルと同じ。`temperature` はどちらにも渡しません。
+- **注意:** フォールバック先には、主モデルで作られた会話履歴（ツール呼び出しと thought signature を含む）をそのまま渡します。公式の Thinking ガイドの記述が、このアプリが使う `generateContent` に当てはまるかは、下の「検証の状況」の実 API の確認で確かめました（限られた範囲）。
 
-**実測（2026-10-15、開発環境、主モデルが部分的に落ちていた間。最初の文字が出るまで）:**
-
-| 実装 | 場面 | 秒数 |
-|---|---|---|
-| 切り替えのみ（記憶なし） | 主モデルが 503 を返し続けた | 約 22 秒（1 回目の呼び出しで主モデルを約 10 秒、フォールバックでの検索の判断が約 7 秒、2 回目でまた主モデルを約 5 秒） |
-| 記憶 + 飛ばす | 主モデルが無応答（1 本が上限の 30 秒まで黙った） | 約 43 秒（1 回目は主モデルが 12 秒かけて成功、2 回目で 30 秒待ってからフォールバックが 0.7 秒） |
-| 記憶 + 飛ばす | 主モデルが速く失敗、満了後の 1 問目 | 8.6 秒（主モデルの 3 本が約 7 秒で失敗 → フォールバック） |
-| 記憶 + 飛ばす | その直後の 2 問目 | 2.2 秒（主モデルを呼ばない） |
-| 並行して投げる | 主モデルは**偽**（黙る）、フォールバックは実機の 3.5 | 9.5〜9.7 秒（8 秒 + 3.5 の最初のチャンク。1 回の質問で LLM は 2 回呼ばれるが、2 回目は主モデルを試さない）。2 問目も同じ（エラーが無いのでブレーカーは開かない） |
-| 並行して投げる | 主モデルは**偽**（1 回目は 0.3 秒で 503、その後黙る）、フォールバックは実機の 3.5 | 1 問目 10.1 秒 → 2 問目 **2.0 秒**（主モデルを飛ばす。ブレーカーが開いた） |
-
-条件（主モデルの失敗の仕方）が毎回違うので、同じ条件の比較ではない。確かめられたのは、2 問目以降の待ちが消えることだけ。
-上の「黙っている主モデルを待たない」（並行して投げる）の 2 行は、主モデルの沈黙を**偽の LLM（`asyncio.sleep`）で再現し、
-フォールバックだけ実機の `gemini-3.5-flash-lite` を呼んだ**記録（グラフを直接呼んだもので、HTTP 経由ではない）。
-本物の `gemini-3.1-flash-lite` が黙った回では測っていない（この確認の時刻は、主モデルが 1 本目の失敗のあと 2 本目で成功する状態で、
-並行して投げる経路は動かなかった。その状態の 3 問は 10.3 / 3.7 / 4.9 秒で、フォールバックは呼ばれなかった）。
-1 回の質問で LLM は 2 回呼ばれ、8 秒の予算は呼び出しごとにかかる。1 回目で勝てば、2 回目は記憶で主モデルを試さないが、
-1 回目が遅く成功して 2 回目が黙れば約 17 秒になる（推定）。
+**実測（2026-10-15、開発環境、主モデルが部分的に落ちていた間。最初の文字が出るまで）:** 切り替えのみ（記憶なし）では、主モデルが 503 を返し続けた場面で約 22 秒（1 回目と 2 回目の両方で主モデルを待つため）でした。記憶と飛ばす仕組みを入れると、主モデルが速く失敗した場面で満了後の 1 問目が 8.6 秒、その直後の 2 問目が 2.2 秒（主モデルを呼ばない）でした。
+主モデルが無応答の場面は約 43 秒（1 本が上限の 30 秒まで黙った）でした。**並行して投げる**場合（主モデルの沈黙は偽の LLM で再現し、フォールバックだけ実機の 3.5 を呼んだ。HTTP 経由ではない）は 9.5〜9.7 秒（8 秒 + 3.5 の最初のチャンク）で、主モデルが先に 503 を返す場合は 1 問目 10.1 秒 → 2 問目 2.0 秒でした。
+条件（主モデルの失敗の仕方）が毎回違うので、同じ条件の比較ではありません。確かめられたのは、2 問目以降の待ちが消えることだけです。本物の `gemini-3.1-flash-lite` が黙った回では測っていません。
 
 ### 検証の状況
 
-**本番での有効化（2026-10-21）:** `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite` を `--update-env-vars` で足したリビジョン `docunavi-00011-vuy` を 0% で作り、
-環境変数が 10 個 → 11 個（増えたのはこれだけ。Secret 参照 3 個とボリュームは変わらない）であることを確かめてから、100% に移した。
-昇格後に画面から 1 問（`/chat/stream`）が 200 で答え、PDF の取得も 200、起動ログに `LLM のフォールバック: gemini-3.5-flash-lite（…）` が出た。
-この 1 問は 40 秒かかった（主モデルの 1・2 本目が失敗し、3 本目が約 27 秒かけて成功。**フォールバックは働いていない**。
-設計上、主モデルの試行が全部失敗したあとに働くので、3 本目が遅くても成功すれば切り替わらない）。
+**本番での有効化（2026-10-21）:** `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite` を足したリビジョンを 0% で作り、環境変数が 1 つ増えただけであることを確かめてから 100% に移しました。昇格後に画面から 1 問が 200 で答え、起動ログに `LLM のフォールバック: gemini-3.5-flash-lite（…）` が出ました。
+この 1 問は 40 秒かかりました（主モデルの 1・2 本目が失敗し、3 本目が約 27 秒かけて成功。**フォールバックは働いていない**。設計上、主モデルの試行が全部失敗したあとに働くので、3 本目が遅くても成功すれば切り替わらない）。
 
-**実 API での履歴の引き継ぎの確認（2026-10-21、無料キーだけ、合計 15 リクエスト）:** アプリと同じクライアント（`_create_gemini`）・システムプロンプト・
-ツールのスキーマで、ツールの実行だけを偽（決まった文を返す）にして、モデルをまたいで会話を続けた。使い捨てのスクリプトで、リポジトリには置いていない。
+**実 API での履歴の引き継ぎの確認（2026-10-21、無料キーだけ、合計 15 リクエスト）:** アプリと同じクライアント・システムプロンプト・ツールのスキーマで、ツールの実行だけを偽にして、モデルをまたいで会話を続けました（使い捨てのスクリプト。リポジトリには置いていない）。
 
 | ケース | 結果 |
 |---|---|
@@ -501,95 +325,55 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 | 同じ質問の途中で替える（検索の判断は 3.1、回答は 3.5。本番のフォールバックと同じ形） | 成功 |
 | 同じ質問の途中で替える（検索の判断は 3.5、回答は 3.1） | **未確定**（3.1 が 503 を 2 回返した。署名のエラーではない） |
 
-- 全ての AI メッセージが thought signature を持ち、そのまま別のモデルに渡しても受け付けられた。回答は自然だった。
-- この日、`gemini-3.1-flash-lite` は何度も 503 を返し（上の最後のケースの 2 回を含む）、回答に 25 秒かかった回もあった。
-  `gemini-3.5-flash-lite` は 0.7〜1.2 秒で安定していた。
+全ての AI メッセージが thought signature を持ち、そのまま別のモデルに渡しても受け付けられ、回答は自然でした。この日、`gemini-3.1-flash-lite` は何度も 503 を返し、`gemini-3.5-flash-lite` は 0.7〜1.2 秒で安定していました。
 
-**未検証:**
-- 実際に切り替わった回（本番のログで `WARNING` が出た回）。出たら、どのモデルが答えたか・応答時間・回答を確かめる
-- 上の表の最後のケース（3.5 が判断し、3.1 が回答。主モデルを飛ばす保持が満了した直後に起こる）
-- 取り消した試行の課金（上の検証はヘッジを使っていない）
-- 本物の検索結果・長い履歴・HTTP（`/chat/stream`）経由での引き継ぎ（上の検証は偽のツール、短い履歴、1 つの会話）
-- 本物の主モデルが黙った回での並行投入（主モデルの沈黙は偽で再現しただけ）
-- 切り替えた回の回答の品質（短い質問を目で見ただけ）
-- 3 本目が約 27 秒かかっても成功すれば切り替わらないこと（上の 40 秒の回）。待ちを短くする設定は入れていない
-
-有効にしている間は、`WARNING` が出た回の応答を目で確かめる。
+**未検証:** 実際に切り替わった回（本番のログで `WARNING` が出た回。出たら、どのモデルが答えたか・応答時間・回答を確かめる）/ 上の表の最後のケース / 取り消した試行の課金 / 本物の検索結果・長い履歴・HTTP（`/chat/stream`）経由での引き継ぎ / 本物の主モデルが黙った回での並行投入 / 切り替えた回の回答の品質 /
+3 本目が約 27 秒かかっても成功すれば切り替わらないこと（待ちを短くする設定は入れていない）。有効にしている間は、`WARNING` が出た回の応答を目で確かめます。
 
 ## 無料キーが 429 のとき（有料キーへの切り替え）
 
-無料枠のキー（請求の無いプロジェクト）は、レート制限が厳しく、入力が製品改善に使われる扱いです。そこで `GEMINI_API_KEY_PAID`
-（予算ガード付きのプロジェクトのキー）を入れたときだけ、**無料キーが 429 で尽きた** ときに、同じモデルを有料キーで 1 回試します。
-空（既定）なら、挙動もコストも従来と同じです。Gemini のレート制限はプロジェクト単位なので、同じプロジェクトでキーを増やしても余裕は増えません
-（無料キーと有料キーは別のプロジェクトのキーにする）。
+無料枠のキー（請求の無いプロジェクト）は、レート制限が厳しく、入力が製品改善に使われる扱いです。そこで `GEMINI_API_KEY_PAID`（予算ガード付きのプロジェクトのキー）を入れたときだけ、**無料キーが 429 で尽きた** ときに、同じモデルを有料キーで 1 回試します。空（既定）なら、挙動もコストも従来と同じです。
+Gemini のレート制限はプロジェクト単位なので、同じプロジェクトでキーを増やしても余裕は増えません（無料キーと有料キーは別のプロジェクトのキーにする）。
 
-- **切り替える:** 無料キーの試行（ヘッジ・429 の間隔を空けた再試行、`LLM_MAX_ATTEMPTS` 本）が尽きて、429 を返したとき。
-- **切り替えない:** 400/401/403/404 と、5xx・無応答（別のキーでは解決しない。5xx は上の別モデルへのフォールバックの担当）。
-- **回数:** 有料キーは 1 回だけ。それも失敗したときは、有料キーの失敗ではなく、無料キーの 429 を返す（API のエラー応答は従来と同じ）。
-- **ストリーミング:** 最初のチャンクが届く前の 429 だけ切り替える。送り始めた後の失敗は、先に送った本文と食い違うので切り替えない。
-- **埋め込み:** 再試行しないので、429 ならすぐ有料キーで 1 回やり直す。LLM と埋め込みの切り替えの状態は別（モデルごとに上限が違うため）。
-- **保持:** 有料キーが成功してから `GEMINI_KEY_SWITCH_HOLD_SECONDS`（既定 60 秒）の間は、最初から有料キーを呼ぶ（毎回、無料キーの再試行
-  を待たないため）。有料キーが成功するたびに延びる。保持の間に有料キーが失敗したら、保持をやめて無料キーを試す。プロセスごとの状態。
-- **モデルと履歴:** 同じモデルなので、別モデルへのフォールバックで未検証の「履歴（thought signature）の引き継ぎ」の問題はない。
-- **ログ:** 切り替えると `app.agents.resilience` が `WARNING` を出す（`有料キーで応答しました（無料 N 回・有料 M 回）`）。キーの値は出さない。
-- **コスト:** 有料キーに流れた分は、そのプロジェクトの予算（`docs/deploy.md` の G）の対象になる。無料キーで 429 になった試行は課金されない。有料キーの残高が尽きると 402 になり、切り替えは起きない。
-- **未検証:** 本物の 429 での切り替え（偽の 429 で確かめただけ）。日次の上限（RPD）と毎分の上限を区別して保持を変えること
-  （`RetryInfo` の待ち時間を読むこと）はしていない。無料キーの入力が製品改善に使われる点は、切り替えても変わらない
-  （有料に回るのは 429 のときだけ）ので、他の人が個人情報を入れる段階になったら、無料キーを主にしない。
+- **切り替える:** 無料キーの試行（ヘッジ・429 の間隔を空けた再試行）が尽きて、429 を返したとき。**切り替えない:** 400/401/403/404 と、5xx・無応答（別のキーでは解決しない。5xx は別モデルへのフォールバックの担当）。
+- **回数:** 有料キーは 1 回だけ。それも失敗したときは、無料キーの 429 を返します。ストリーミングは、最初のチャンクが届く前の 429 だけ切り替えます。
+- **埋め込み:** 再試行しないので、429 ならすぐ有料キーで 1 回やり直します。LLM と埋め込みの切り替えの状態は別です（モデルごとに上限が違うため）。
+- **保持:** 有料キーが成功してから `GEMINI_KEY_SWITCH_HOLD_SECONDS`（既定 60 秒）の間は、最初から有料キーを呼びます（成功するたびに延びる）。保持の間に有料キーが失敗したら、保持をやめて無料キーを試します。プロセスごとの状態です。
+- **モデルと履歴:** 同じモデルなので、別モデルへのフォールバックで未検証の「履歴の引き継ぎ」の問題はありません。
+- **ログ:** 切り替えると `app.agents.resilience` が `WARNING` を出します（`有料キーで応答しました（無料 N 回・有料 M 回）`）。キーの値は出しません。
+- **コスト:** 有料キーに流れた分は、そのプロジェクトの予算（[deploy.md](deploy.md) の G）の対象です。無料キーで 429 になった試行は課金されません。有料キーの残高が尽きると 402 になり、切り替えは起きません。
+- **未検証:** 本物の 429 での切り替え（偽の 429 で確かめただけ）。日次の上限と毎分の上限を区別して保持を変えること。無料キーの入力が製品改善に使われる点は、切り替えても変わらないので、他の人が個人情報を入れる段階になったら、無料キーを主にしません。
 
 ## 回答だけ Workers AI に切り替える（試験）
 
-`CHAT_ANSWER_BACKEND=workers_ai` で、**回答の生成だけ**を Cloudflare Workers AI の `@cf/qwen/qwen3-30b-a3b-fp8`（追加学習なし）に切り替えられる（`app/agents/workers_ai.py`）。
-既定は Gemini のままで、本番（Cloud Run・Cloudflare Workers）は切り替えない。
+`CHAT_ANSWER_BACKEND=workers_ai` で、**回答の生成だけ**を Cloudflare Workers AI の `@cf/qwen/qwen3-30b-a3b-fp8`（追加学習なし）に切り替えられます（`app/agents/workers_ai.py`）。既定は Gemini のままで、本番は切り替えません。
 
-- **変わらないもの:** 検索（質問の埋め込みは Gemini のまま。`DATABASE_URL` と `GEMINI_API_KEY` が要る）、履歴、入力・出力のガード、追質問の検索語の補完（Gemini）。
-  `CHAT_RETRIEVAL_MODE` の既定（`direct`）で、LLM は 1 回。履歴の「検索の呼び出しと結果」は、OpenAI 互換のチャットの形で送る。
-- **使わないもの:** ヘッジ・再試行・有料キー・`GEMINI_FALLBACK_MODEL`。失敗しても Gemini へ自動では切り替えず、固定メッセージの 429/500/504/502 になる。
-  `<think>…</think>`（推論の過程）は取り除き、画面にも履歴にも出さない。モデル名は固定（環境変数で替えられない）。
-- **無料枠だけで使う。** Workers Free は 1 日 10,000 Neurons（UTC 0 時にリセット。公式の料金表、2026-11-05 に確認）。このモデルは入力 4,625・出力 30,475 Neurons / 100 万トークン
-  （4,000 入力 + 600 出力で約 36 Neurons）。呼び出しのたびに応答の `usage` から数え、`WORKERS_AI_DAILY_NEURON_BUDGET`（既定 8,000）に達したら送らずに止める。
-  Cloudflare が枠切れ（HTTP 429・エラー 3036）を返したら、その日の終わりまで止める（3040 の容量不足は止めない）。
-  **数えるのはこのプロセスの分だけ**（再起動で 0 に戻る。同じアカウントの他の利用は見えない）。アカウントが Workers Paid だと、枠を超えた分は課金される。
-  Free プランであることは、使う前に利用者がダッシュボードで確かめる（API では確認できなかった）。
-- **確認したこと（オフライン）:** 送る内容・応答・ストリーミング・ツール呼び出し・予算と枠切れの停止・UTC の日替わり・失敗の固定メッセージ・Gemini へ切り替わらないこと（`tests/test_llm_workers_ai.py`）。
-- **未確認（実 API が要る）:** 応答の実際の形（`usage` の有無・`reasoning_content` の有無・`stream_options` と `chat_template_kwargs` の受け付け）、速度、日本語の品質、
-  履歴の「ツール呼び出し」を Qwen3 が正しく読めるか。
-- 試験の手順: `CHAT_ANSWER_BACKEND=workers_ai CLOUDFLARE_ACCOUNT_ID=… CLOUDFLARE_API_TOKEN=…` を付けてローカルで `uvicorn` を起動する（トークンはシェルの履歴・ログ・ファイルに残さない）。
+- **変わらないもの:** 検索（質問の埋め込みは Gemini のまま）、履歴、入力・出力のガード、追質問の検索語の補完（Gemini）。LLM は 1 回です。
+- **使わないもの:** ヘッジ・再試行・有料キー・`GEMINI_FALLBACK_MODEL`。失敗しても Gemini へ自動では切り替えず、固定メッセージの 429/500/504/502 になります。`<think>…</think>` は取り除きます。モデル名は固定です。
+- **無料枠だけで使う。** Workers Free は 1 日 10,000 Neurons（UTC 0 時にリセット。公式の料金表、2026-11-05 に確認）。呼び出しのたびに応答の `usage` から数え、`WORKERS_AI_DAILY_NEURON_BUDGET`（既定 8,000）に達したら送らずに止めます。Cloudflare が枠切れを返したら、その日の終わりまで止めます。
+  **数えるのはこのプロセスの分だけ**（再起動で 0 に戻る）。アカウントが Workers Paid だと、枠を超えた分は課金されます。Free プランであることは、使う前に利用者がダッシュボードで確かめます（API では確認できなかった）。
+- **確認したこと（オフライン）:** `tests/test_llm_workers_ai.py`。**未確認（実 API が要る）:** 応答の実際の形（`usage`・`reasoning_content`・`stream_options` と `chat_template_kwargs` の受け付け）、速度、日本語の品質、履歴の「ツール呼び出し」を Qwen3 が正しく読めるか。
+- 試験の手順: `CHAT_ANSWER_BACKEND=workers_ai CLOUDFLARE_ACCOUNT_ID=… CLOUDFLARE_API_TOKEN=…` を付けてローカルで `uvicorn` を起動します（トークンはシェルの履歴・ログ・ファイルに残さない）。
 
 ## 埋め込みを Vertex AI で呼ぶ
 
-`EMBEDDING_USE_VERTEXAI=true` で、取り込み（`python -m app.ingestion.embed`）と質問の埋め込みの両方が Vertex AI になる（実装: `app/ingestion/embedding.py` の `make_client`）。
-モデル（`gemini-embedding-2`）・次元（768）・入力の形（前置き）は変えない。DB の `embedding_model` `embedding_dimensions` も同じ値のまま。
+`EMBEDDING_USE_VERTEXAI=true` で、取り込み（`python -m app.ingestion.embed`）と質問の埋め込みの両方が Vertex AI になります（`app/ingestion/embedding.py` の `make_client`）。モデル（`gemini-embedding-2`）・次元（768）・入力の形は変えません。既定（空）では従来と同じです。
 
-- **実装・テスト済み（偽の SDK）:** 経路の切り替え、キー不要、ロケーション、有料キーへ切り替えないこと。既定（空）では従来と同じ。
-- **未確認（実 API が要る。本番に切り替える前に確かめる）:**
-  1. Vertex AI が、複数の `Content` を 1 回で渡したときに 1 本ずつのベクトルを返すか（公式のモデルページに記載が無く、第三者の文書は「1 件ずつ」と書く）。返らないと、取り込みは `EmbeddingError`（数が合わない）で止まる。壊れた値は保存しない。
-  2. API キー経路と Vertex AI のベクトルが同じ空間か（コサイン類似度）。同じなら、保存済みのベクトルはそのまま使える。違うなら、全チャンクを作り直す。
-  3. ADC の用意、請求先とプロジェクトへのひも付け、Vertex AI API の有効化、実行する ID の `roles/aiplatform.user`（Cloud Run のサービスアカウント）。
-  4. 質問の遅延（`EMBED_TIMEOUT_SECONDS` = 10 秒に収まるか）と、`global` のエンドポイントの割り当て。
-- **実測（2026-11-09、証拠等級 A、開発コンテナから各 1 回。`docunavi-app`・`global`・利用者本人の ADC）:** 取り込みの形（1 回 1 本ずつ 3 本）は返却 3 本・768 次元で合計 1.85 秒。質問 1 本は 0.35〜0.39 秒（上限 10 秒に収まる）。API キー経路とのコサイン類似度は 3 文とも 1.0000 で、保存済みのベクトルは作り直さずに使える。上の未確認の 1・2・4 はこの範囲で確認した。分布ではなく 1〜2 回の値。Cloud Run からの遅延と、3（`docunavi-run` の `roles/aiplatform.user`）は未確認。
-- **確かめ方:** `python -m scripts.check_vertex_embedding --project <プロジェクト>`（Vertex AI だけ。API キー不要・実 API を 3 回呼ぶ。運用者が実行。上の 1 と 4 の目安が分かる）。上の 2（既存ベクトルとの互換性）は `--compare-api`（`GEMINI_API_KEY` が要り、API キー経路を 1 回余分に呼ぶ）を付けたときだけ測る。
-- **戻し方:** `EMBEDDING_USE_VERTEXAI` を外す（Cloud Run なら環境変数の更新）。ベクトルを作り直していなければ、データの戻しは要らない。
+- **実装・テスト済み（偽の SDK）:** 経路の切り替え、キー不要、ロケーション、有料キーへ切り替えないこと。
+- **実測（2026-11-09、証拠等級 A、開発コンテナから各 1 回。`docunavi-app`・`global`・利用者本人の ADC）:** 取り込みの形（1 本ずつ 3 本）は返却 3 本・768 次元で合計 1.85 秒。質問 1 本は 0.35〜0.39 秒（上限 `EMBED_TIMEOUT_SECONDS` = 10 秒に収まる）。API キー経路とのコサイン類似度は 3 文とも 1.0000 で、保存済みのベクトルは作り直さずに使えます。
+- **未確認:** Cloud Run からの遅延、Cloud Run のサービスアカウントへの `roles/aiplatform.user`、複数の `Content` を 1 回で渡したときの返り方（返らないと、取り込みは `EmbeddingError` で止まる。壊れた値は保存しない）。
+- **確かめ方:** `python -m scripts.check_vertex_embedding --project <プロジェクト>`（Vertex AI だけ。実 API を 3 回呼ぶ。運用者が実行）。`--compare-api` を付けると、API キー経路とのベクトルの互換性も測ります（`GEMINI_API_KEY` が要る）。
+- **戻し方:** `EMBEDDING_USE_VERTEXAI` を外します（Cloud Run なら環境変数の更新）。ベクトルを作り直していなければ、データの戻しは要りません。
 
 ## クライアントの切断
 
-クライアントが `/chat` の応答を待たずに切断したとき（タブを閉じる・リロードする・「新しい会話」で中断する・`curl` を Ctrl-C するなど）は、
-その LLM 呼び出しを取り消します。切断を検知したあとは新しい試行（ヘッジ・再試行）を投げず（検知と同時に開始した 1 本を除く）、進行中の試行は取り消し、通常は即座に戻ります。
-クライアントには何も返りません。記録は `app.api.routes` ロガーの `INFO`（`クライアントが切断したため LLM 呼び出しを取り消しました`、`thread_id` と経過秒のみ）が 1 行です。
-uvicorn の既定のログ設定では `app.*` の `INFO` は出力されません（`--log-level` は `uvicorn.*` にしか効きません）。見たいときは、アプリ側でルートロガーを `INFO` にします。
+クライアントが応答を待たずに切断したとき（タブを閉じる・リロードする・「新しい会話」で中断する・`curl` を Ctrl-C するなど）は、その LLM 呼び出しを取り消します。切断を検知したあとは新しい試行（ヘッジ・再試行）を投げず、進行中の試行を取り消し、通常は即座に戻ります。
+クライアントには何も返りません。記録は `app.api.routes` ロガーの `INFO`（`クライアントが切断したため LLM 呼び出しを取り消しました`、`thread_id` と経過秒のみ）が 1 行です。uvicorn の既定のログ設定では `app.*` の `INFO` は出力されません（見たいときは、アプリ側でルートロガーを `INFO` にする）。
 
-- すでに Gemini へ送った要求を、サーバー側が止めるか、出力した分だけが課金されるかは、クライアントからは確かめられません。
-  課金されるものとして見積もってください（ヘッジで負けた試行と同じ扱いです）。実測できたのは、クライアント側の動きだけです:
-  取り消しから制御が戻るまで、0〜2 ミリ秒でした（2026-10-14、開発コンテナから `gemini-3.1-flash-lite`。1 回の呼び出しの約 40% の時点で
-  6 回取り消し。取り消さない場合は 1 回で入力 34・出力 1091 トークン）。Gemini 側の使用量に、取り消した分が出たかは未確認です。
-- 切断がアプリまで届かない環境（途中のプロキシやロードバランサーが切断を伝えない場合）では、従来どおり、成功するか `LLM_TIMEOUT_SECONDS` に達するまで続きます。
-- 取り消したターンのユーザーの発言は履歴に残ります。検索（ツール呼び出し）のあとで取り消したときは、そこまでのツール呼び出しと検索結果も残ります。同じ `thread_id` で続けると、それらも次の発言と一緒に LLM へ渡ります（LLM が失敗・タイムアウトしたターンも同じです）。
-  ただし、ツールの実行中に取り消されて結果が付かなかった呼び出しだけは、次のターンの先頭で履歴から外されます（その発話に本文が無ければ定型の一文に置き換わります）。
+- すでに Gemini へ送った要求を、サーバー側が止めるか、出力した分だけが課金されるかは、クライアントからは確かめられません。課金されるものとして見積もってください（ヘッジで負けた試行と同じ扱い）。実測できたのは、取り消しから制御が戻るまで 0〜2 ミリ秒だったことだけです（2026-10-14、開発コンテナから 6 回）。Gemini 側の使用量に、取り消した分が出たかは未確認です。
+- 切断がアプリまで届かない環境（途中のプロキシやロードバランサーが切断を伝えない場合）では、成功するか `LLM_TIMEOUT_SECONDS` に達するまで続きます。
+- 取り消したターンのユーザーの発言は履歴に残ります。検索のあとで取り消したときは、そこまでのツール呼び出しと検索結果も残り、同じ `thread_id` で続けると次の発言と一緒に LLM へ渡ります（LLM が失敗・タイムアウトしたターンも同じ）。ただし、ツールの実行中に取り消されて結果が付かなかった呼び出しだけは、次のターンの先頭で履歴から外されます。
 - リクエストを送ったあと、応答を待たずに閉じるクライアント（投げっぱなし）は、LLM の処理も止まります。応答が要るなら、接続を開いたまま待ってください。
 
-`/chat/stream` も同じです。レスポンスはすぐ始めるので（2026-10-25 から。それ以前は最初の本文まで始めなかった）、切断は、Starlette が本体の生成を取り消して
-LLM 呼び出しを止めるか（`ストリームを中断し、LLM 呼び出しを取り消しました`）、アプリが切断を見つけて止めるか（`クライアントが切断したため…`）の、どちらかの `INFO` が 1 行です
-（どちらが出るかは、タイミングによる。ログで切断を探すときは、両方の文言を見る）。
-画面の「停止」は、このリクエストの切断です。それまでに届いた本文は画面に残り、履歴には、ユーザーの発言までが残ります（上記と同じ）。
-SSE が溜め込まれるプロキシ（応答をバッファする設定）では、本文が少しずつ届かなくなります。`x-accel-buffering: no` を付けていますが、
-Cloudflare や Cloud Run の前段に別のプロキシを置くときは確認してください。
+`/chat/stream` も同じです。レスポンスはすぐ始めるので（2026-10-25 から）、切断は、Starlette が本体の生成を取り消して LLM 呼び出しを止めるか（`ストリームを中断し、LLM 呼び出しを取り消しました`）、アプリが切断を見つけて止めるか（`クライアントが切断したため…`）の、どちらかの `INFO` が 1 行です（どちらが出るかはタイミングによる。ログで探すときは両方の文言を見る）。
+画面の「停止」は、このリクエストの切断です。それまでに届いた本文は画面に残り、履歴には、ユーザーの発言までが残ります。SSE が溜め込まれるプロキシ（応答をバッファする設定）では、本文が少しずつ届かなくなります。`x-accel-buffering: no` を付けていますが、Cloudflare や Cloud Run の前段に別のプロキシを置くときは確認してください。
