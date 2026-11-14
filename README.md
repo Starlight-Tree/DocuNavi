@@ -5,7 +5,6 @@
 English | [日本語](README.ja.md)
 
 DocuNavi is a RAG chatbot that answers questions from PDF documents and cites its sources (FastAPI, LangGraph, Gemini, Postgres + pgvector, Next.js on Cloudflare Workers).
-It is a personal project built to explore production concerns: guardrails, LLM failure handling, role-based document access, and measured search quality.
 The sample documents (`storage/pdf/`) are fictional.
 
 | Chat (with citations and follow-up suggestions) | Document list (filter by group and type, choose which documents to use) |
@@ -37,9 +36,9 @@ flowchart LR
 
 A question goes through LangGraph: input guard → agent (tool-call loop that searches the documents) → output guard. See [docs/architecture.md](docs/architecture.md). Why things are built this way (including the Go relay, which is there for learning): [docs/decisions/](docs/decisions/README.md).
 
-## Quick start (mock mode, no real keys)
+## Quick start
 
-Without `GEMINI_API_KEY` the app runs in mock mode: no document search, a fixed reply. It is enough to see how the UI and the API connect.
+This runs a keyless mock (fixed replies, no document search), just to try the UI and the API together. Real answers need a Postgres with the documents and a Gemini key: see [docs/development.md](docs/development.md) and [docs/configuration.md](docs/configuration.md).
 
 ```bash
 # API (http://localhost:8000)
@@ -55,15 +54,20 @@ npm run dev
 
 Tests: `pip install -r requirements-dev.txt && pytest` (mock mode, no real API calls) and `cd frontend && npm test`.
 
-A real LLM and real search need `DATABASE_URL` and `GEMINI_API_KEY` ([docs/configuration.md](docs/configuration.md)). Docker, dev container and local Postgres setups: [docs/development.md](docs/development.md). API reference: [docs/api.md](docs/api.md).
-
 ## Documentation
 
-The documents are written in Japanese. Start with [docs/README.md](docs/README.md) (index), [docs/architecture.md](docs/architecture.md), [docs/configuration.md](docs/configuration.md) and [docs/decisions/](docs/decisions/README.md). Evaluation procedures and results: [evals/README.md](evals/README.md).
+The documents are written in Japanese.
+
+- [docs/README.md](docs/README.md): index of all documents
+- [docs/architecture.md](docs/architecture.md): request flow and directory layout
+- [docs/configuration.md](docs/configuration.md): environment variables, handling of LLM latency and failures
+- [docs/api.md](docs/api.md): API reference
+- [docs/decisions/](docs/decisions/README.md): important decisions and their reasons
+- [evals/README.md](evals/README.md): evaluation procedures and results
 
 ## About this repository
 
-A personal project published as a portfolio. It contains no secrets and no production credentials; configuration files and operation records (`docs/deploy.md`) are included to show how deployment works. Pattern-based secret checks are not a complete guarantee.
+A personal project published as a portfolio, built to explore production concerns: guardrails, LLM failure handling, role-based document access, and measured search quality. It contains no secrets and no production credentials; configuration files and operation records (`docs/deploy.md`) are included to show how deployment works. Pattern-based secret checks are not a complete guarantee.
 
 ## License
 

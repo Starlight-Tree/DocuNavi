@@ -5,7 +5,7 @@
 [English](README.md) | 日本語
 
 資料（PDF）を根拠に答える RAG チャットボットです（FastAPI、LangGraph、Gemini、Postgres + pgvector、Cloudflare Workers 上の Next.js）。回答には出典の番号が付き、押すと資料が開きます。
-ガードレール、LLM の失敗への対処、ロール別の資料アクセス、測定した検索品質といった、本番運用の課題を試すための個人開発です。題材の資料（`storage/pdf/`）は架空のものです。
+題材の資料（`storage/pdf/`）は架空のものです。
 
 | チャット（出典と、続けて聞く候補つき） | 資料一覧（対象・資料種別で絞り込み、回答に使う資料を選ぶ） |
 |---|---|
@@ -36,9 +36,9 @@ flowchart LR
 
 質問は、入力ガード → エージェント（資料を検索するツール呼び出しのループ）→ 出力ガードの順に LangGraph で処理します。詳細は [docs/architecture.md](docs/architecture.md)。選んだ理由（学習のために入れた Go の中継を含む）は [docs/decisions/](docs/decisions/README.md)。
 
-## 動かす（モックモード。実キー不要）
+## Quick start
 
-`GEMINI_API_KEY` が未設定なら、資料を検索せず固定の返答を返すモックモードで動きます。画面と API のつなぎ目を確かめられます。
+キーなしのモック（固定の返答、資料の検索なし）で動きます。画面と API をつないで試すだけのものです。本物の回答には、資料を入れた Postgres と Gemini のキーが要ります（[docs/development.md](docs/development.md)、[docs/configuration.md](docs/configuration.md)）。
 
 ```bash
 # API（http://localhost:8000）
@@ -54,15 +54,18 @@ npm run dev
 
 テスト: `pip install -r requirements-dev.txt && pytest`（モックモード固定。実 API は呼ばない）と `cd frontend && npm test`。
 
-本物の LLM と検索には `DATABASE_URL` と `GEMINI_API_KEY` が要ります（[docs/configuration.md](docs/configuration.md)）。Docker・開発コンテナ・ローカルの Postgres は [docs/development.md](docs/development.md)、API の仕様は [docs/api.md](docs/api.md)。
-
 ## ドキュメント
 
-まず [docs/README.md](docs/README.md)（索引）、[docs/architecture.md](docs/architecture.md)、[docs/configuration.md](docs/configuration.md)、[docs/decisions/](docs/decisions/README.md)。評価の手順と結果は [evals/README.md](evals/README.md)。
+- [docs/README.md](docs/README.md): 全文書の索引
+- [docs/architecture.md](docs/architecture.md): 処理の流れとディレクトリ構成
+- [docs/configuration.md](docs/configuration.md): 環境変数、LLM の遅延・失敗への対処
+- [docs/api.md](docs/api.md): API の仕様
+- [docs/decisions/](docs/decisions/README.md): 重要な決定と、その理由
+- [evals/README.md](evals/README.md): 評価の手順と結果
 
 ## このリポジトリについて
 
-ポートフォリオとして公開している個人開発です。秘密情報と本番の資格情報は含みません。デプロイの仕組みを示すため、設定ファイルと運用の記録（`docs/deploy.md`）は含めています。パターンによる秘密の検査は、完全な保証ではありません。
+ポートフォリオとして公開している個人開発で、ガードレール、LLM の失敗への対処、ロール別の資料アクセス、測定した検索品質といった、本番運用の課題を試すために作りました。秘密情報と本番の資格情報は含みません。デプロイの仕組みを示すため、設定ファイルと運用の記録（`docs/deploy.md`）は含めています。パターンによる秘密の検査は、完全な保証ではありません。
 
 ## ライセンス
 
