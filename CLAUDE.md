@@ -148,7 +148,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
 - **GitHub MCP（`github`。Actions の起動と監視だけ）:** user スコープ。トークンは GitHub App（`docunavi-agent-actions`）の installation トークン（このリポジトリだけ、`Actions: write` `Metadata: read`、1 時間）で、
   `headersHelper`（`scripts/github-mcp-header.sh`）が、Infisical（`docunavi-github`）の秘密鍵から作る。App の作成は `scripts/github-app-setup.py`（ホストで 1 回）。機能は `actions` だけに絞る。私が使うのは `actions_run_trigger`（`run_workflow`、`deploy.yml` を `main` で）と、
   `actions_list` `actions_get` `get_job_logs`（監視）。`rerun` `cancel` は、言葉で頼まれたときだけ（「y」だけでは足りない）。ヘルパーは私が実行せず、トークンを表示・保存しない。
-  **`deploy.yml` の起動は、そのたびに、対象のコミットと `workers/` `frontend/` の変更の有無を示して、利用者の明示の承認を得てから行う。前の承認は次に及ばない。** 非公開リポジトリの無料プランでは、Environment の必須レビュアーが効かず、承認なしで本番へ出た（2026-11-09）。この承認は会話の約束だけで、技術的な関門ではない。
+  **`deploy.yml` の起動は、そのたびに、対象のコミットと `workers/` `frontend/` の変更の有無を示して、利用者の明示の承認を得てから行う。前の承認は次に及ばない。** Environment「production」の必須レビュアーは、非公開の無料プランでは効かず、承認なしで本番へ出た（2026-11-09）。2026-11-15 にリポジトリを公開してから設定でき、承認待ちで止まることを確認したが、毎回の画面の承認が煩雑なので外した（許可するブランチは `main` だけ）。この承認は会話の約束だけで、技術的な関門ではない。
 
 ## Git
 
@@ -168,7 +168,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
   （`scripts/check-sensitive-terms.sh origin/main..HEAD`。語は Git の管理外の `.git/sensitive-terms` に置く）。
 - **しないこと:** 強制プッシュと、公開済み履歴の書き換えはしない（必要なら相談する）。`git reset` と `git restore` は、承認を得てから行う。
 - **CI:** `.github/workflows/ci.yml` が、`main` へのプッシュと PR で、テスト、Docker のビルドと起動確認、`frontend`（単体テスト・型検査・ビルド）、Go（中継と疑似の上流の `go vet`・`-race` テスト）、ワークフローの静的検査を行う。**CI 自体にデプロイは含まない。**
-  `.github/workflows/deploy.yml` は**手動の実行だけ**（`workflow_dispatch`。自動では起動しない）。`main` の CI の成功を確かめたうえで、利用者の明示の承認を得て実行し（GitHub MCP で私が起動してもよい。承認は会話で取る。Environment「production」の必須レビュアーは、無料プランの非公開リポジトリでは効かない）、Cloudflare の Worker（`workers/api` = `docunavi-api`〔認証だけ。D1 は無い〕、`frontend` = `docunavi-web`）を本番へデプロイする。
+  `.github/workflows/deploy.yml` は**手動の実行だけ**（`workflow_dispatch`。自動では起動しない）。`main` の CI の成功を確かめたうえで、利用者の明示の承認を得て実行し（GitHub MCP で私が起動してもよい。承認は会話で取る。Environment「production」の必須レビュアーは 2026-11-15 に外した。許可するブランチは `main` だけ）、Cloudflare の Worker（`workers/api` = `docunavi-api`〔認証だけ。D1 は無い〕、`frontend` = `docunavi-web`）を本番へデプロイする。
   Cloudflare の資格情報は GitHub に置かず、OIDC で Infisical（`docunavi-deploy`）から取る（[.claude/rules/secrets.md](.claude/rules/secrets.md)）。
   プッシュの承認を求めるときは、`workers/` `frontend/` の変更が含まれるか（＝ユーザーが `deploy.yml` を実行したときに本番へ出る）を添える。プッシュだけでは Worker は本番に出ない。`deploy.yml` の起動と監視は、GitHub MCP で私がしてよい（起動は、上の承認を得てから）。
   Worker の秘密（`wrangler secret put`）はこの経路に含めない。Cloud Run（FastAPI・中継）は自動デプロイしない。

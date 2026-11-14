@@ -860,7 +860,7 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
 **順序は 画面 → API。** 引用の記法 `[1「語句」]` は画面が解釈する（[api.md](api.md)）。API を先に出すと、古い画面では記法が文字のまま出る（コードからの推測。未確認）。画面を先に出せば、記法を付けない古い API でも害は無い。
 
-1. 画面: `deploy.yml` を `main` で起動する（利用者が GitHub の Actions で行うか、利用者の明示の承認を得て、私が GitHub MCP で行う）。Environment「production」の必須レビュアーは効かず、承認なしで始まる（2026-11-09。無料プランの非公開リポジトリ）。Worker は `docunavi-api`（認証）→ `docunavi-web` の順に出る。
+1. 画面: `deploy.yml` を `main` で起動する（利用者が GitHub の Actions で行うか、利用者の明示の承認を得て、私が GitHub MCP で行う）。Environment「production」の必須レビュアーは外してあり、承認なしで始まる（許可するブランチは `main` だけ。非公開の無料プランでは効かなかった〔2026-11-09〕。公開後の 2026-11-15 に設定して承認待ちで止まることを確認したが、毎回の承認が煩雑なので外した）。Worker は `docunavi-api`（認証）→ `docunavi-web` の順に出る。
 2. API（利用者。コミットは HEAD のままでよい）: `./scripts/preview.sh build` → `./scripts/preview.sh deploy "$(git rev-parse --short HEAD)" citations-20261109`（0%）。
 3. 0% のリビジョンで確かめる（次の 2）。`API_URL` に、タグ付きの URL（`https://citations-20261109---docunavi-xe42miq4da-an.a.run.app`）を渡す。
 4. 通れば `./scripts/preview.sh promote citations-20261109`。戻し先は、いまの本番 `docunavi-00050-wuw`（`./scripts/preview.sh rollback docunavi-00050-wuw`）。
