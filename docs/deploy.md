@@ -693,7 +693,7 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
       `tags add` は `--project` `--location` を受け付けない（URL に含まれる）。
     - 更新のあとに、参照が残っているか確かめる（`gcloud run jobs list` と `gcloud run revisions list` のイメージを、`gcloud artifacts docker images describe` で 1 つずつ）。タグの付け忘れは、これで気づく。
     - `docunavi-` で始まる別パッケージ、`pg-backup`、`r2-key-issuer`、`r2-wire` は、このポリシーの対象外か別枠で、影響を受けない。
-    - **未確認:** `keep-pinned` が実際に削除を防ぐこと（次の削除の実行後、`docunavi` が 5 個 + 枠外のタグ付きになり、`pin-` のイメージが残るかで確かめる）。`r2-verify` の `docunavi:60833f5` は 2026-11-15 時点で消えていて、Job は動かない（未対処。差し替えるかどうかは判断待ち）。
+    - **未確認:** `keep-pinned` が実際に削除を防ぐこと（次の削除の実行後、`docunavi` が 5 個 + 枠外のタグ付きになり、`pin-` のイメージが残るかで確かめる）。`r2-verify` の `docunavi:60833f5` は 2026-11-15 に消えていたので、イメージを本番と同じ `docunavi@sha256:e34b160c…` に差し替えた（`Ready=True`。実行はしておらず、動作は未確認）。`r2-verify` は `pin-` を付けない（ユーザーの決定。イメージは手元から再ビルド・再プッシュできる）。再び消えたら、再ビルドするか差し替える。
   - 設定するとき:
     ```bash
     gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy \
