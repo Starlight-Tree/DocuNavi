@@ -460,7 +460,7 @@ Cloud Run のログで、Vertex AI の埋め込みによる検索が成功し、
 - **GCP の操作は、原則 gcloud CLI で行います。** Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は導入しません（`devcontainer.json` の `extensions` に足さない）。ガードの手順は [.devcontainer/README.md](../.devcontainer/README.md)。
 - **画像生成の Cloud Run Job は、星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理します。** このリポジトリに `job/` は置きません。
 - **星庭ジョブのリポジトリは、開発コンテナに bind mount で載せています**（作業ツリーは読み取り専用、`.git` だけ書き込み可。`.devcontainer/docker-compose.yml`）。
-  このマウントは、ホストの `/Users/YOUR_USER/Projects/hoshiniwa-job` があることが前提です。無い環境では、そのマウント 4 件を外すと、このリポジトリだけで開発コンテナを作れます。
+  このマウントは、このリポジトリの隣のフォルダー `../hoshiniwa-job`（別の場所なら、ホストの `.env` に `HOSHINIWA_JOB_DIR` を書く。`.env.example` を参照）があることが前提です。無い環境では、そのマウント 4 件を外すと、このリポジトリだけで開発コンテナを作れます。
   それ以外の開発コンテナの定義は、このリポジトリのファイルだけで完結します。
 
 ## Docker Compose での起動

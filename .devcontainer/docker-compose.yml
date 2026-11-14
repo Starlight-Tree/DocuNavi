@@ -50,25 +50,27 @@ services:
       # `.git/hooks` と `.git/config` は読み取り専用で重ねる — ホストの git が実行するフックや設定（hooksPath・fsmonitor・alias など）を、コンテナーから仕込めないようにするため。
       # create_host_path: false — ホスト側のパスが無いときは、空のフォルダーを作らずに失敗させる。
       # つまり、このマウントはホストに星庭ジョブのリポジトリがあることが前提（無い環境では、下の 4 件のマウントを外す。README の「開発環境の方針」）。
+      # 場所は環境変数 HOSHINIWA_JOB_DIR で変えられる（ホストの .env に書く。.env.example を参照）。既定の `../hoshiniwa-job` は、このリポジトリの隣のフォルダー
+      # （相対パスはリポジトリ直下が基準。上の注記）。
       # 子のマウントは親より後ろに書く。重ねたマウントが期待どおりに効くかは、再ビルド後に確認する（未確認）。
       - type: bind
-        source: /Users/YOUR_USER/Projects/hoshiniwa-job
+        source: ${HOSHINIWA_JOB_DIR:-../hoshiniwa-job}
         target: /workspaces/hoshiniwa-job
         bind:
           create_host_path: false
       - type: bind
-        source: /Users/YOUR_USER/Projects/hoshiniwa-job/.git
+        source: ${HOSHINIWA_JOB_DIR:-../hoshiniwa-job}/.git
         target: /workspaces/hoshiniwa-job/.git
         bind:
           create_host_path: false
       - type: bind
-        source: /Users/YOUR_USER/Projects/hoshiniwa-job/.git/hooks
+        source: ${HOSHINIWA_JOB_DIR:-../hoshiniwa-job}/.git/hooks
         target: /workspaces/hoshiniwa-job/.git/hooks
         read_only: true
         bind:
           create_host_path: false
       - type: bind
-        source: /Users/YOUR_USER/Projects/hoshiniwa-job/.git/config
+        source: ${HOSHINIWA_JOB_DIR:-../hoshiniwa-job}/.git/config
         target: /workspaces/hoshiniwa-job/.git/config
         read_only: true
         bind:
