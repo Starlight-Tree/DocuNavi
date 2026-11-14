@@ -437,3 +437,23 @@ LangGraph の会話・グラフ・state・ツール呼び出し・レイテン�
 **検証の状況:** ローカル（2026-11-08。`wrangler dev` の Worker + 使い捨ての pgvector DB）で、無効時は 400、有効時はトークン無し・違うトークン・別のメールが 403、正しい組み合わせで登録・ログイン・JWT 取得、
 その JWT をアプリ（`AUTH_MODE=required`、モック）が受理して 200（トークン無しは 401）を確認した。**本番でも確認した（2026-11-09）:** 登録 200、ログイン 200、JWT 発行、`/chat` 200（`hit_count=2`）。
 Cloud Run のログで、Vertex AI の埋め込みによる検索が成功し、403 は無かった。注意: Python 既定の User-Agent は Cloudflare に弾かれる（error code 1010。403 に見える）ので、スクリプトは名前つきの User-Agent を送る。
+
+## 開発環境の方針
+
+- **LiteLLM gateway is removed and no longer used.** LiteLLM Proxy・Bifrost・claude-code-router は採用しません（`.devcontainer/litellm_proxy` は削除済み。経緯は [docs/target-architecture.md](target-architecture.md)）。
+  LLM の遅延・失敗への対処は、アプリの内側（`app/agents/resilience.py`）にあります。
+- **Gemini CLI is not part of the docunavi runtime.** 開発コンテナにも入れません（`devcontainer.json` と `docker-compose.yml` から、導入・ボリューム・`GOOGLE_CLOUD_*`・`GEMINI_MODEL` を外した）。開発時の AI 支援は Claude Code（VS Code 拡張）です。
+- **GCP の操作は、原則 gcloud CLI で行います。** Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は導入しません（`devcontainer.json` の `extensions` に足さない）。ガードの手順は [.devcontainer/README.md](../.devcontainer/README.md)。
+- **画像生成の Cloud Run Job は、星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理します。** このリポジトリに `job/` は置きません。
+- **星庭ジョブのリポジトリは、開発コンテナに bind mount で載せています**（作業ツリーは読み取り専用、`.git` だけ書き込み可。`.devcontainer/docker-compose.yml`）。
+  このマウントは、ホストの `/Users/YOUR_USER/Projects/hoshiniwa-job` があることが前提です。無い環境では、そのマウント 4 件を外すと、このリポジトリだけで開発コンテナを作れます。
+  それ以外の開発コンテナの定義は、このリポジトリのファイルだけで完結します。
+
+## Docker Compose での起動
+
+Docker Compose を使う場合は、ホスト側で `docker compose up --build` を実行します（`.env` が無くても起動し、その場合はモックモードです）。
+画面の開発サーバー（Next.js のホットリロード）は別のコンテナ `frontend` で動き、<http://localhost:3000> で開きます（`api` が healthy になってから起動し、初回は `npm install` で時間がかかります）。
+`api` はポートを公開せず、`frontend` のプロキシ（`next.config.ts` の rewrites）経由で使います。ローカルの `api` は D1 につながず、モックモードで動きます。
+実キーでも、ローカルの `api` は D1 につながらないので、検索は動きません（[docs/development.md](development.md) の「ローカルの構成」）。
+`curl` で API を直接確かめるときは、`docker compose -f docker-compose.yml -f docker-compose.api-port.yml up -d` で 8000 番を `127.0.0.1` に公開します（`/` は 404 です。画面は配信しません）。
+片方だけ再起動するには `docker compose restart frontend`（または `api`）。ログは `docker compose logs -f frontend`。変更通知が届かずホットリロードが効かないときは、`docker-compose.yml` の `WATCHPACK_POLLING` のコメントを外します。
