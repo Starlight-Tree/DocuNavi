@@ -18,7 +18,7 @@
 | `scripts/dev-local.sh start [--llm real\|mock]` / `stop` / `status` | Worker(8787)・API(8000)・画面(3000) の起動・停止・状態。停止は記録した PID だけ。`status` は、LLM のモード（実 API / モック）と、PID・ポートの確認結果も出す |
 | `scripts/dev-local.sh register-gemini` / `gemini-key-info` / `ack-gemini` | 実 API の準備（**ユーザーが自分の端末で実行**。下の「LLM のモードと Gemini キー」） |
 | `scripts/dev-local.sh with-key -- <コマンド>` | 実 API のテスト用。キーを、そのコマンドのプロセスの環境変数にだけ渡す |
-| `scripts/dev-local.sh login` | テスト用ユーザーでログインし、Cookie を保存する（値は表示しない） |
+| `scripts/dev-local.sh login` | テスト用ユーザーでログインし、Cookie を保存する（値は表示しない）。パスワードは保存せず、`TEST_LOGIN_TOKEN`（Infisical）から毎回導く（2026-11-15 から。以前は `/tmp` のランダム値で、コンテナの再起動で消えて 401 になった）。`TEST_LOGIN_TOKEN` を替えると、DB に残るテスト用ユーザーと合わなくなる |
 | `scripts/dev-local.sh cookie` | その Cookie の値を出す（**ユーザーが自分の端末で実行する。エージェントは実行しない**） |
 
 - **ポート:** 3100・3101・8100 は E2E 専用（`frontend/playwright.config.ts`）。使わない。画面は 3000（ローカルの入口はこれ 1 つ）。旧 Compose の `frontend` `api` は、同じ 3000 を使うので、ホストで `docker compose -p docunavi stop frontend api` して止めておく（`devcontainer.json` の `runServices` からも外してある）。

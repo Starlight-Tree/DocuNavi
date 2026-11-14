@@ -580,18 +580,24 @@ cmd_login() { # テスト用ユーザーでサインイン（無ければ登録�
   [ "$(http_code "$WEB_ORIGIN/api/auth/get-session")" = "200" ] || die "画面（$WEB_ORIGIN）につながりません。先に start してください。"
   mkdir -p "$STATE" && chmod 700 "$STATE"
   umask 077
-  local pwf="$STATE/test-login-password" hdr="$STATE/.hdr" jar="$STATE/cookies.txt" email code
-  [ -f "$pwf" ] || head -c 24 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=' >"$pwf"
+  local pw hdr="$STATE/.hdr" jar="$STATE/cookies.txt" email code
+  # パスワードは保存しない。TEST_LOGIN_TOKEN（Infisical が正本）から毎回同じ値を導く（HMAC-SHA256）。
+  # 以前は $STATE（/tmp）にランダム値を置いていて、コンテナの再起動で消え、DB のユーザーと合わなくなった（2026-11-15）。
+  # TEST_LOGIN_TOKEN を替えると、パスワードも変わる（DB に残るテスト用ユーザーとは合わなくなる）。
+  pw="$(python3 -I -c 'import base64,hashlib,hmac,sys; k=sys.stdin.read().strip().encode(); print(base64.urlsafe_b64encode(hmac.new(k,b"docunavi-local-test-login-v1",hashlib.sha256).digest()).decode().rstrip("="))' <<<"$(vars_value TEST_LOGIN_TOKEN)")"
+  [ -n "$pw" ] || die "テスト用パスワードを導けません（TEST_LOGIN_TOKEN が空です）。"
   email="$(vars_value TEST_LOGIN_EMAIL)"
   printf 'origin: %s\ncontent-type: application/json\nx-test-login-token: %s\n' "$WEB_ORIGIN" "$(vars_value TEST_LOGIN_TOKEN)" >"$hdr"
   trap 'rm -f "$hdr"' RETURN
-  body() { printf '{"email":"%s","password":"%s"%s}' "$email" "$(cat "$pwf")" "$1"; }
+  body() { printf '{"email":"%s","password":"%s"%s}' "$email" "$pw" "$1"; }
   code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -c "$jar" -H @"$hdr" -d "$(body '')" "$WEB_ORIGIN/api/auth/sign-in/email")"
   if [ "$code" != "200" ]; then
     curl -s -m 10 -o /dev/null -H @"$hdr" -d "$(body ',"name":"local-dev"')" "$WEB_ORIGIN/api/auth/sign-up/email" || true
     code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -c "$jar" -H @"$hdr" -d "$(body '')" "$WEB_ORIGIN/api/auth/sign-in/email")"
   fi
-  [ "$code" = "200" ] || die "ログインに失敗しました（HTTP $code）。Worker の log: $STATE/worker.log"
+  [ "$code" = "200" ] || die "ログインに失敗しました（HTTP $code）。Worker の log: $STATE/worker.log
+  ローカル DB に、別のパスワードで作られたテスト用ユーザー（TEST_LOGIN_EMAIL）が残っている可能性があります（log に Invalid password）。
+  対処（ユーザーの判断。本番の DB には触れない）: そのユーザーの session・account・user の行をローカル DB から消してから、もう一度 login。そのユーザーの会話は画面に出なくなる。"
   chmod 600 "$jar"
   if [ "$(curl -s -m 10 -o /dev/null -w '%{http_code}' -b "$jar" "$WEB_ORIGIN/api/auth/token")" != "200" ]; then
     say "警告: アクセストークンの発行に失敗しました。DB の jwks の行が、いまの BETTER_AUTH_SECRET と別の秘密で暗号化されている可能性があります（Worker の log: $STATE/worker.log）。"
