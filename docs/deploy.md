@@ -677,7 +677,7 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
 
 ## タグ push で 0% 配備する（Cloud Build トリガー）
 
-**状態: 設定ファイルだけ書いた（2026-10-24）。トリガーも専用のサービスアカウントも未作成で、一度も動かしていない。**
+**状態（2026-11-14）: サービスアカウント `docunavi-build`、GitHub の接続 `docunavi-github`（2nd gen。`asia-northeast1`）、リポジトリの登録、トリガー `docunavi-tag-deploy`（承認必須）を作成し、2 回目のタグ push で 0% の配備まで通った（下の「限界と未確認」）。**
 `deploy/*` のタグを push したときだけ、Cloud Build がビルドして `--no-traffic --tag` で配備する（`cloudbuild-deploy.yaml`）。
 役割の分け方は、`main` への push はテストだけ（2026-11-08 までは Vercel の `frontend` も更新された。いまの画面は手動の `deploy.yml`）、Cloud Run はタグ push だけ。**本番のトラフィックは自動では変えない**（100% への切り替えは `./scripts/preview.sh promote`、戻すのは `rollback`。あなたが実行）。
 
@@ -687,7 +687,7 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
 - タグを切ったコミットがそのまま配備される。`main` にある・CI が通っていることは、トリガーは確かめない（0% なので本番には出ない）。
 - 料金は、タグを push した回数分の Cloud Build だけ。
 
-### 準備（あなた。一度だけ。書き込み）
+### 準備（あなた。一度だけ。書き込み。2026-11-14 に実施済み）
 
 ```bash
 # PROJECT_ID・REGION・SERVICE・RUN_SA・as_me は「準備」で定義したもの。リポジトリは REPO=cloud-run-source-deploy
@@ -707,12 +707,21 @@ as_me gcloud iam service-accounts add-iam-policy-binding "${RUN_SA}@${PROJECT_ID
 as_me gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${BUILD_SA}" --role=roles/logging.logWriter
 
-# 3. GitHub との接続は Console で 1 回（Cloud Build の「トリガー」→「リポジトリを接続」→ GitHub。Starlight-Tree/docunavi）。
-#    そのあと、タグ push のトリガーを作る。置換変数は渡さない（イメージは API だけ）
-as_me gcloud builds triggers create github --project "$PROJECT_ID" --name=docunavi-tag-deploy \
-  --repo-owner=Starlight-Tree --repo-name=docunavi --tag-pattern='^deploy/.*$' \
-  --build-config=cloudbuild-deploy.yaml --service-account="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA}"
-# 誤タグが心配なら、--require-approval を足す（ビルドの開始前に Console で承認する）
+# 3. GitHub の接続（2nd gen）。作成時に Cloud Build のサービスエージェント
+#    （service-<プロジェクト番号>@gcp-sa-cloudbuild）へ roles/secretmanager.admin が要る
+#    （OAuth トークンのシークレットを作るため。接続が済んだら外す。2026-11-14 はそうした）。
+#    PENDING_USER_OAUTH のあと、ブラウザーで GitHub の OAuth とアプリのインストール（Only select repositories で docunavi だけ）。
+as_me gcloud builds connections create github docunavi-github --region "$REGION" --project "$PROJECT_ID"
+as_me gcloud builds connections describe docunavi-github --region "$REGION" --project "$PROJECT_ID"   # installationState.stage が COMPLETE になるまで
+as_me gcloud builds repositories create docunavi --connection docunavi-github --region "$REGION" --project "$PROJECT_ID" \
+  --remote-uri=https://github.com/Starlight-Tree/docunavi.git
+
+# 4. タグ push のトリガー。2nd gen なので --repository（--repo-owner / --repo-name ではない）と --region を使う。
+#    置換変数は渡さない（イメージは API だけ）。--require-approval で、ビルドの開始前に Console で承認する
+as_me gcloud builds triggers create github --project "$PROJECT_ID" --region "$REGION" --name=docunavi-tag-deploy \
+  --repository="projects/${PROJECT_ID}/locations/${REGION}/connections/docunavi-github/repositories/docunavi" \
+  --tag-pattern='^deploy/.*$' --build-config=cloudbuild-deploy.yaml --require-approval \
+  --service-account="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA}"
 ```
 
 ### 使うとき
@@ -728,9 +737,13 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
 - **0% が保証されるのは `cloudbuild-deploy.yaml` の中身による。IAM ではない。** `roles/run.developer` は `update-traffic` も含むので、権限だけでは配備と切り替えを分けられない。ファイルを変えるときは、`--no-traffic` が残ることを確かめる。
 - タグを push できる人（リポジトリの書き込み権限を持つ人）は、トリガーを起動できる。GitHub のタグ保護（ルールセット）は未設定。
-- 未確認（一度も動かしていない）: ビルドとトリガーの実行そのもの / タグの push で `SHORT_SHA` `TAG_NAME` が入ること / 上の最小権限で足りること
-  （足りなければ、エラーに出た権限を足す）/ `--tag` が `run.developer` で通ること / 1st gen のトリガーの作成コマンドが、いまの GitHub 接続の方式（2nd gen）で通るか /
-  イメージ `cloud-sdk:slim` の入手と、`$$` のエスケープ。
+- 未確認: 配備したリビジョンの動作（`/health` など。このビルドの検証は、配備と 0% までで、リビジョンへの直接のリクエストはしていない）/ `h2c` の引き継ぎ / 誤ったタグ名（形が違う）での停止の実機の確認（初回の失敗は、空のタグ名で止まった例）。
+- 確認済み（2026-11-14。証拠等級 A: 実機）:
+  - 2nd gen の接続・リポジトリ・トリガーの作成コマンドが通る（接続は `COMPLETE`、トリガーは `approvalRequired: true`）。
+  - タグの push でトリガーが起動し、`TAG_NAME` `SHORT_SHA` が入る。`cloud-sdk:slim` を入手できる。上の最小権限（4 つ）で、ビルド・push・`--no-traffic --tag` の配備まで通る。
+  - 承認は `gcloud alpha builds approve <ID> --location <リージョン>` でできる（`beta` は地域指定に対応しない）。ただし、エージェントが承認できるので、`--require-approval` は人の目を通す関門ではなく、誤タグへの安全策にとどまる。
+  - **1 回目（`deploy/trigger-check-20261114`、ビルド `36457540`）は `check-tag` で失敗した**（配備には進まず、本番に影響なし）。置換変数はシェルの環境変数にならず、`$${TAG_NAME}` が空だった。`check-tag` に `env: TAG_NAME=${TAG_NAME}` を足して直した（`1508883`）。
+  - 2 回目（`deploy/trigger-check2-20261114`、ビルド `67773db8`）は 4 ステップとも成功した。承認から約 2 分。リビジョン `docunavi-00059-voy` が 0% で配備され、本番の `docunavi-00057-suj` が 100% のままだった。試験のタグ（Cloud Run の `trigger-check2-20261114`、Git の 2 つ）は残してある。
 - `agent-deployer`（この文書の別の節）とは別。ここでは使わない。
 
 ## 実際に通った記録（2026-10-20）
