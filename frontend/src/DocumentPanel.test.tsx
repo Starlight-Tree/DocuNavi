@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { openKnowledge } from './test/navigation';
 import { jsonResponse, replyResponse } from './test/helpers';
@@ -93,11 +93,15 @@ function install({ sources = SOURCES, list = LIST, context = CONTEXT }: { source
   );
 }
 
-beforeEach(() => {
-  urlCount = 0;
+// 偽物は、ファイルの間ずっと入れておく。テストごとに外すと、外してから次のテストが入れ直すまでの隙間に、前の画面の
+// PDF 取得が終わって effect が走り、Node の本物の URL.createObjectURL が jsdom の Blob を受けて落ちる（負荷が高いと出る）
+beforeAll(() => {
   Object.assign(URL, { createObjectURL: () => `blob:test/${++urlCount}`, revokeObjectURL: () => {} });
 });
-afterEach(() => {
+beforeEach(() => {
+  urlCount = 0;
+});
+afterAll(() => {
   Reflect.deleteProperty(URL, 'createObjectURL');
   Reflect.deleteProperty(URL, 'revokeObjectURL');
 });
