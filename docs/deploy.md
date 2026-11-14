@@ -737,13 +737,22 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
 - **0% が保証されるのは `cloudbuild-deploy.yaml` の中身による。IAM ではない。** `roles/run.developer` は `update-traffic` も含むので、権限だけでは配備と切り替えを分けられない。ファイルを変えるときは、`--no-traffic` が残ることを確かめる。
 - タグを push できる人（リポジトリの書き込み権限を持つ人）は、トリガーを起動できる。GitHub のタグ保護（ルールセット）は未設定。
-- 未確認: 配備したリビジョンの動作（`/health` など。このビルドの検証は、配備と 0% までで、リビジョンへの直接のリクエストはしていない）/ `h2c` の引き継ぎ / 誤ったタグ名（形が違う）での停止の実機の確認（初回の失敗は、空のタグ名で止まった例）。
+- 未確認: トリガーで配備したリビジョンへの直接のリクエスト（`docunavi-00059-voy` には送っていない。手動の配備 `docunavi-00061-sir` の `/health` は下に記録）/ 誤ったタグ名（形が違う）での停止の実機の確認（初回の失敗は、空のタグ名で止まった例）。
 - 確認済み（2026-11-14。証拠等級 A: 実機）:
   - 2nd gen の接続・リポジトリ・トリガーの作成コマンドが通る（接続は `COMPLETE`、トリガーは `approvalRequired: true`）。
   - タグの push でトリガーが起動し、`TAG_NAME` `SHORT_SHA` が入る。`cloud-sdk:slim` を入手できる。上の最小権限（4 つ）で、ビルド・push・`--no-traffic --tag` の配備まで通る。
   - 承認は `gcloud alpha builds approve <ID> --location <リージョン>` でできる（`beta` は地域指定に対応しない）。ただし、エージェントが承認できるので、`--require-approval` は人の目を通す関門ではなく、誤タグへの安全策にとどまる。
   - **1 回目（`deploy/trigger-check-20261114`、ビルド `36457540`）は `check-tag` で失敗した**（配備には進まず、本番に影響なし）。置換変数はシェルの環境変数にならず、`$${TAG_NAME}` が空だった。`check-tag` に `env: TAG_NAME=${TAG_NAME}` を足して直した（`1508883`）。
-  - 2 回目（`deploy/trigger-check2-20261114`、ビルド `67773db8`）は 4 ステップとも成功した。承認から約 2 分。リビジョン `docunavi-00059-voy` が 0% で配備され、本番の `docunavi-00057-suj` が 100% のままだった。試験のタグ（Cloud Run の `trigger-check2-20261114`、Git の 2 つ）は残してある。
+  - 2 回目（`deploy/trigger-check2-20261114`、ビルド `67773db8`）は 4 ステップとも成功した。承認から約 2 分。リビジョン `docunavi-00059-voy` が 0% で配備され、本番の `docunavi-00057-suj` が 100% のままだった。試験のタグ（Cloud Run の `trigger-check2-20261114`、Git の 2 つ）は同日に消した。リビジョン `docunavi-00059-voy` も、同日に消した（タグなし、0% だった）。
+  - ポート名 `h2c` は、トリガーの配備でも引き継がれた（`docunavi-00059-voy` のポート名が `h2c`）。
+- HTTP の startup プローブ（2026-11-14。証拠等級 A: 実機、1 回）: 本番のサービスは startup が TCP（ポート 8080）で、liveness は無い。
+  手動で `gcloud run deploy --no-traffic --tag probe-check-20261114 --startup-probe httpGet.path=/health,httpGet.port=8080,periodSeconds=10,timeoutSeconds=5,failureThreshold=24` を実行した（リビジョン `docunavi-00061-sir`）。
+  ポート名が `h2c` のままでも、HTTP/1 の `/health` のプローブは通り、約 10 秒で正常になった。タグ付き URL の `/health` は 200（`mode: gemini`、`history: pg`）。0% で、本番は 100% のまま。
+  Cloud Run には readiness プローブが無い（公式、等級 B）。liveness は入れない（`minScale: 0` で、再起動が必要な固まり方も起きていない。プローブの失敗が続くと再起動を繰り返す恐れだけが残る）。
+  プローブは、`--startup-probe` を付けない以後の配備にも、サービスの最新の設定として引き継がれる見込み（gcloud の挙動からの推測。未確認）。
+  **2026-11-14 に、`--to-tags probe-check-20261114=100` で本番に載せた**（100% が `docunavi-00057-suj` から `docunavi-00061-sir` へ。利用者の承認）。切り替えの前後で、タグ付き URL と本番の URL の `/health` は 200（`mode: gemini`、`history: pg`）。サービスの startup は HTTP の `/health`、ポート名は `h2c` のまま。
+  戻し方: `gcloud run services update-traffic docunavi --project docunavi-app --region asia-northeast1 --to-revisions=docunavi-00057-suj=100`。画面での質問の確認は、していない。
+  タグ `probe-check-20261114` は、同日に外した（`--remove-tags`。100% は `docunavi-00061-sir` のまま、本番の `/health` は 200）。
 - `agent-deployer`（この文書の別の節）とは別。ここでは使わない。
 
 ## 実際に通った記録（2026-10-20）
