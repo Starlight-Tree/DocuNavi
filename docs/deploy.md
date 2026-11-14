@@ -733,7 +733,7 @@ as_me gcloud projects add-iam-policy-binding "$PROJECT_ID" \
 as_me gcloud builds connections create github docunavi-github --region "$REGION" --project "$PROJECT_ID"
 as_me gcloud builds connections describe docunavi-github --region "$REGION" --project "$PROJECT_ID"   # installationState.stage が COMPLETE になるまで
 as_me gcloud builds repositories create docunavi --connection docunavi-github --region "$REGION" --project "$PROJECT_ID" \
-  --remote-uri=https://github.com/Starlight-Tree/docunavi.git
+  --remote-uri=https://github.com/Starlight-Tree/DocuNavi.git
 
 # 4. タグ push のトリガー。2nd gen なので --repository（--repo-owner / --repo-name ではない）と --region を使う。
 #    置換変数は渡さない（イメージは API だけ）。--require-approval で、ビルドの開始前に Console で承認する

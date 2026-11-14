@@ -28,7 +28,7 @@
   （無料プランは復元ができないので、プロジェクトを分けて影響を限る）。`docunavi-devcontainer` は、このプロジェクトに入れない（MCP から届くため）。
 - マシン ID `github-actions-deploy`（OIDC Auth、プロジェクトの Viewer）:
   - Discovery URL・Issuer: `https://token.actions.githubusercontent.com`
-  - Subject: `repo:Starlight-Tree@154563471/docunavi@892933857:environment:production`（数値 ID つき。リポジトリの改名・移管で変わる）
+  - Subject: `repo:Starlight-Tree@154563471/DocuNavi@892933857:environment:production`（数値 ID つき。リポジトリの改名・移管で変わる）
   - Audience: `https://github.com/Starlight-Tree`、Access Token TTL: 600 秒
 - Cloudflare の API トークン: アカウントに限定。権限は Workers Scripts: Edit と D1: Edit から始め、足りなければ足す。有効期限は 90 日。
   期限前に作り直し、Infisical の値を更新する。IP 制限は、GitHub のランナーの IP が不定なので使えない。

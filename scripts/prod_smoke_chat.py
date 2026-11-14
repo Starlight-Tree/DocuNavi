@@ -32,7 +32,7 @@ import urllib.request
 DEFAULT_WEB = "https://docunavi-web.wataru-apps.workers.dev"
 DEFAULT_API = "https://docunavi-xe42miq4da-an.a.run.app"
 TIMEOUT = 60
-USER_AGENT = "docunavi-prod-smoke/1.0 (+https://github.com/Starlight-Tree/docunavi)"
+USER_AGENT = "docunavi-prod-smoke/1.0 (+https://github.com/Starlight-Tree/DocuNavi)"
 
 
 # 回答の文末の引用。[1] か [1「根拠の語句」]（docs/api.md）
