@@ -5,11 +5,11 @@
 
 **目的:** ユーザーロールごとに、表示・検索できる PDF グループ（`documents.collection`）を制御する。見えないグループは、一覧・検索・回答・出典・本文・PDF・関係図・履歴表示のすべてに出さない（全面不可）。
 
-**方針:** 権限の本体は Supabase Postgres と FastAPI。Django は運用者向け管理画面の候補の一つで、導入は必須ではない。
+**方針:** 権限の本体は Postgres と FastAPI。Django は運用者向け管理画面の候補の一つで、導入は必須ではない。
 
 **この項目で、上の 3 番の「資料は全員共通」（2026-10-20）を、グループ単位の絞り込みについて見直す**（利用者のアップロードは作らない点は変わらない）。
 
-**決定済みの設計（2026-10-26）:** ロールは「グループの束」だけで、コード上の `admin` などは持たない／ロールのない利用者は `default` ロール（現行の `zahard` `cafe` `guides` の 3 グループ。既存利用者の挙動を変えない）／ロールの持ち主は Supabase の `sub`（UUID）に紐づく自前の表。外部キーは張らない／権限の解決はキャッシュなしで毎リクエスト（必要になってから 30 秒程度の TTL を検討）／過去の会話は表示するが、現在見えないグループの出典・本文は表示しない／MCP（`docunavi-mcp`）は運用者専用・全グループのまま。利用者には公開しない（docs に明記する）／UI のモックは省略（`GET /collections` の結果に合わせて項目が減るだけで、構成は変えない）。
+**決定済みの設計（2026-10-26）:** ロールは「グループの束」だけで、コード上の `admin` などは持たない／ロールのない利用者は `default` ロール（現行の `zahard` `cafe` `guides` の 3 グループ。既存利用者の挙動を変えない）／ロールの持ち主は認証の `sub`（UUID）に紐づく自前の表。外部キーは張らない／権限の解決はキャッシュなしで毎リクエスト（必要になってから 30 秒程度の TTL を検討）／過去の会話は表示するが、現在見えないグループの出典・本文は表示しない／MCP（`docunavi-mcp`）は運用者専用・全グループのまま。利用者には公開しない（docs に明記する）／UI のモックは省略（`GET /collections` の結果に合わせて項目が減るだけで、構成は変えない）。
 
 **フェーズ 1（DB と migration）:** `chatbot.roles`・`chatbot.user_roles`・`chatbot.role_collection_access`・`chatbot.access_audit`、`default` ロールと現行 3 グループの初期データ、`chatbot_app` への SELECT、`anon` / `authenticated` の revoke。**RLS はこのフェーズでは入れない**（別フェーズで、性能の測定と、取り込み・MCP・起動時の検査・評価への影響を調べてから判断する。`documents` `chunks` の所有者は `chatbot_app` で、`FORCE ROW LEVEL SECURITY` が要る。2026-10-26 に本番の読み取りで、RLS が全表で無効であることと、`anon` / `authenticated` に `chatbot` スキーマの権限が無いことを確認した）。一時 Postgres での検証、migration ファイル（`supabase/migrations/`）の作成、コミット。push は別途承認。
 

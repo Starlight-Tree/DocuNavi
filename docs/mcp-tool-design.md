@@ -5,7 +5,7 @@
 実用上の必要は小さい（資料は 6 件）。主な価値は、リモート MCP サーバーと、Cloud Run の IAM 認証を学ぶこと。
 
 ```text
-Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サービス（新規）──▶ search_vector.search ──▶ データ用 Worker（Vectorize + D1）
+Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サービス（新規）──▶ search_vector.search ──▶ Postgres（pgvector）
                                                                                     └─▶ 質問の埋め込み（Gemini API、無料キー）
 ```
 
@@ -103,7 +103,7 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 ## 配備と確認（2026-10-21）
 
 - **配備:** サービス `docunavi-mcp`（`asia-northeast1`、非公開、最大 1 インスタンス、並行 10。プールの上限は固定の 3 で、`DATABASE_POOL_MAX_SIZE` は未設定。2026-11-09 に Cloud Run の設定で確認）、専用のサービスアカウント `docunavi-mcp`。Secret は `database-url-readonly`（読み取り専用ロールの URL。新規）と `gemini-api-key`（無料キー。アプリと共用）の `secretAccessor` だけ。有料キー（`gemini-api-key-paid`）は渡していない。`run.invoker` は利用者本人だけ。
-- **2026-11-08 の変更（現在の状態）:** データを Supabase から Cloudflare（D1 + Vectorize）へ移したため、`docunavi-mcp` は `D1_API_URL` と `D1_API_TOKEN`（Secret `d1-api-token`）で、データ用 Worker 経由で検索する（リビジョン `docunavi-mcp-00002-mqj`。環境変数は `GEMINI_API_KEY`、`D1_API_URL`、`D1_API_TOKEN` だけ）。`database-url-readonly` と読み取り専用ロールは使わなくなった（Secret は未削除）。Claude Code 側の接続名は `docunavi-search` から `app-docunavi` に変えた。上の「配備」「読み取り専用ロールでの検索」と、以下の記録は、移行前（Supabase 時代）のもの。
+- **現在の状態（2026-11-09 時点）:** データは 2026-11-08 に Prisma Postgres へ移った。`docunavi-mcp` は `DATABASE_URL` で直接つなぎ（architecture.md、roadmap.md の接続数の項による。Secret の名前は未確認）、プールの上限は 1（`DATABASE_POOL_MAX_SIZE=1`。リビジョン `docunavi-mcp-00004-qif`）。読み取り専用ロールと `database-url-readonly` は使っていない。Claude Code 側の接続名は `docunavi-search` から `app-docunavi` に変えた。上の「配備」「読み取り専用ロールでの検索」と、以下の記録は、Supabase 時代のもの。
 - **Docker のビルド:** Cloud Build で `SUCCESS`（1 分 16 秒）。アプリの固定済みの依存と `mcp==1.30.0` は、競合なく入った。
 - **実際の検索（1 回、無料キー）:** プロキシ（`gcloud run services proxy docunavi-mcp --port 3001`）経由で `search_documents` を呼び、質問「糸くずフィルターの掃除」に対して、洗濯機の説明書の該当箇所が 1 位（類似度 0.80）で返った。Cloud Run のログでは、Gemini の埋め込みの呼び出しは 1 回（200）、質問の本文はログに出ていない。
 - **読み取り専用ロールでの検索:** 同じ検索の SQL が `readonly` ロールで動くこと、書き込みは `read-only transaction` で拒否されること、会話履歴の表は読めないことを、配備の前に確かめた。

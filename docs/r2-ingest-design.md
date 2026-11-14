@@ -252,7 +252,7 @@ Job の SA は、まず `docunavi-run`（サービスと同じ）を使う案に
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/docunavi-ingest:$(git rev-parse --short HEAD)"
 
 as_me gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
-  --substitutions "_IMAGE=${IMAGE},_SUPABASE_URL=${SUPABASE_URL},_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+  --substitutions "_IMAGE=${IMAGE}"
 
 as_me gcloud run jobs create docunavi-ingest-sync \
   --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
@@ -265,7 +265,7 @@ as_me gcloud run jobs create docunavi-ingest-sync \
 as_me gcloud run jobs execute docunavi-ingest-sync --project "$PROJECT_ID" --region "$REGION" --wait
 ```
 
-- コメントは付けていない（zsh に貼ると壊れるため）。`REGION=asia-northeast1`、`PROJECT_ID=docunavi-app`、`SUPABASE_URL` と `SUPABASE_PUBLISHABLE_KEY` は画面用の公開値で、[deploy.md](deploy.md) の F と同じ。
+- コメントは付けていない（zsh に貼ると壊れるため）。`REGION=asia-northeast1`、`PROJECT_ID=docunavi-app`。
 - Job は **`--apply` を付けずに** 作る。最初の実行は確認だけ（取り込みは何も保存せず、埋め込みは件数と費用の見積りだけ）。ログで、6 件が「変わらない」で、埋め込みの対象が 0 件なことを見る。
 - 確認の結果が想定どおりなら、`as_me gcloud run jobs update docunavi-ingest-sync … --args=-m,app.ingestion.sync,--apply,--max-chunks,60` で `--apply` を足す。まだ Scheduler は作らない（段 4）。
 - 埋め込みが使うのは無料のキー `GEMINI_API_KEY` だけ（有料キーは渡さない）。無料枠の範囲なので課金は出ないが、枠が尽きると 429 で止まり、埋め込みは終了コード 1 で終わる（次の実行が続きから進む）。
