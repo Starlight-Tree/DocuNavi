@@ -42,10 +42,10 @@ _pool_lock = asyncio.Lock()
 
 
 async def _open_pool() -> None:
-    """D1_API_URL のデータ用 Worker に接続し、`app.history` の置き場所に入れる。"""
+    """`DB_BACKEND` に合わせた DB（本番は pg の `DATABASE_URL`）に接続し、`app.history` の置き場所に入れる。"""
     url = history.database_url()
     if not url:
-        raise search_vector.VectorSearchError("資料の検索には D1_API_URL が要ります")
+        raise search_vector.VectorSearchError("資料の検索には DATABASE_URL（DB_BACKEND=pg）が要ります")
     pool = history.new_pool(url)
     try:
         await pool.open()
