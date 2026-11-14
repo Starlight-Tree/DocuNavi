@@ -8,7 +8,7 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 - LiteLLM gateway is removed and no longer used. LiteLLM Proxy・Bifrost・claude-code-router は採用しない。LLM の遅延・失敗への対処は `app/agents/resilience.py`
 - Gemini CLI is not part of the docunavi runtime. 開発コンテナにも入れない（`devcontainer.json` の `postCreateCommand`・`docker-compose.yml` の `.gemini` ボリューム・`GOOGLE_CLOUD_*` / `GEMINI_MODEL` を戻さない）
 - Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は、`devcontainer.json` の `extensions` に足さない。GCP の操作は原則 gcloud CLI（ガードは CLAUDE.md の「gcloud」の節）
-- 画像生成の Cloud Run Job は星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理する。`job/` をこのリポジトリに置かない
+- 画像生成の Cloud Run Job は星庭ジョブ（`HoshiniwaJob`）のリポジトリで管理する。`job/` をこのリポジトリに置かない
 
 ## 実 API の経路（2026-11-09）
 
@@ -19,7 +19,7 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 
 ## 再ビルドの可能性
 
-- 開発コンテナの定義は、このリポジトリのファイルだけで完結させる。例外は星庭ジョブの bind mount（このリポジトリの隣の `../hoshiniwa-job` が前提で、場所は環境変数 `HOSHINIWA_JOB_DIR` で変えられる。作業ツリーは 2026-11-01 から書き込み可能で、`.git/hooks` と `.git/config` だけ `:ro`）で、残す。
+- 開発コンテナの定義は、このリポジトリのファイルだけで完結させる。星庭ジョブなど他のプロジェクトのフォルダーは、載せない（権限と資格情報をプロジェクトごとに分けるため。docs/access-separation.md）。
 - `devcontainer.json`・`.devcontainer/docker-compose.yml`・`.devcontainer/Dockerfile` に、ホストの絶対パス・別プロジェクトのファイル・外部のアカウント（GCP プロジェクト ID など）を足す変更は、事前にユーザーに確認する
 - 再ビルドはホスト側の作業。承認なしに実行しない
 

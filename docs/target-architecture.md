@@ -144,7 +144,7 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 - アプリ本体側で、ヘッジ付き再試行・フォールバック（`gemini-3.5-flash-lite`）・有料キー切り替え（`app/agents/resilience.py`）を内製・完結しており、外部ゲートウェイを挟むオーバーヘッドや障害点を排除する。
 - 開発環境でも、中間ルーティングプロキシは使わない。開発時の AI 支援は Claude Code（VS Code 拡張）で、Gemini CLI is not part of the docunavi runtime（開発コンテナにも入れない）。
 - Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は導入しない。GCP の操作は原則 gcloud CLI で行う（[README.md](../README.md) の「開発環境の方針」）。
-- 画像生成の Cloud Run Job は、星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理する。このリポジトリに `job/` は置かない。
+- 画像生成の Cloud Run Job は、星庭ジョブ（`HoshiniwaJob`）のリポジトリで管理する。このリポジトリに `job/` は置かない。
 
 ## やらないこと
 

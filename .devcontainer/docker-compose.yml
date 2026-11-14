@@ -39,42 +39,8 @@ services:
       # 消し方と再設定は .devcontainer/README.md の「開発環境の Infisical」。
       - infisical-config:/home/vscode/.infisical
       - playwright-browsers:/home/vscode/.cache/ms-playwright
-      # Project Manager の projects.json（docunavi と hoshiniwa-job で共有。資格情報は入れない）。
+      # Project Manager の projects.json（docunavi と hoshiniwajob で共有。資格情報は入れない）。
       - shared-project-manager:/home/vscode/.project-manager
-      # 星庭ジョブ（別プロジェクト）のリポジトリ（2026-10-28 に追加。ユーザーの承認済み）。
-      # 作業ツリーは書き込み可能（2026-11-01 に `:ro` を外した。ユーザーの承認済み。星庭ジョブのリポジトリ整備のため）。
-      # 以前は読み取り専用だった。星庭ジョブの api は --reload なので、ファイルを書き換えると、ホストで動いている環境がすぐ変わる。
-      # 書き込めるので、`.devcontainer/` や `docker-compose.yml` など、ホストが実行・読み込むファイルを書き換えると、ホスト側の動作を変えうる
-      # （星庭ジョブの開発コンテナの `initializeCommand` はホストで動く）。そのため、星庭ジョブでの変更は差分を確かめてから、ユーザーがホストで取り込む。
-      # `.git` も書き込み可能にして、ステージ・コミット・プッシュを Docunavi と同じやり方でできるようにする（2026-10-28 追加。ユーザーの承認済み）。
-      # `.git/hooks` と `.git/config` は読み取り専用で重ねる — ホストの git が実行するフックや設定（hooksPath・fsmonitor・alias など）を、コンテナーから仕込めないようにするため。
-      # create_host_path: false — ホスト側のパスが無いときは、空のフォルダーを作らずに失敗させる。
-      # つまり、このマウントはホストに星庭ジョブのリポジトリがあることが前提（無い環境では、下の 4 件のマウントを外す。README の「開発環境の方針」）。
-      # 場所は環境変数 HOSHINIWA_JOB_DIR で変えられる（ホストの .env に書く。.env.example を参照）。既定の `../hoshiniwa-job` は、このリポジトリの隣のフォルダー
-      # （相対パスはリポジトリ直下が基準。上の注記）。
-      # 子のマウントは親より後ろに書く。重ねたマウントが期待どおりに効くかは、再ビルド後に確認する（未確認）。
-      - type: bind
-        source: ${HOSHINIWA_JOB_DIR:-../hoshiniwa-job}
-        target: /workspaces/hoshiniwa-job
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${HOSHINIWA_JOB_DIR:-../hoshiniwa-job}/.git
-        target: /workspaces/hoshiniwa-job/.git
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${HOSHINIWA_JOB_DIR:-../hoshiniwa-job}/.git/hooks
-        target: /workspaces/hoshiniwa-job/.git/hooks
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${HOSHINIWA_JOB_DIR:-../hoshiniwa-job}/.git/config
-        target: /workspaces/hoshiniwa-job/.git/config
-        read_only: true
-        bind:
-          create_host_path: false
     # devcontainer.json の containerEnv と同じ値（Compose ベースで containerEnv が効くかは未確認なので、両方に置く。変えるときは両方を直す）。
     # GH_CONFIG_DIR: ~/.config/gh ではなく専用の場所にする。~/.config がイメージに無いと、マウントの親ディレクトリが
     # root 所有で作られ、他のツールが ~/.config に書けなくなるため。gcloud は、ガードのフックと拒否ルールが
@@ -127,7 +93,7 @@ volumes:
     name: infisical-config-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
   playwright-browsers:
     name: playwright-browsers-166oi5198v23umj7mu1l48p8d00au5920c8hog97rp6gbuvfuoe4
-  # 新規。docunavi と hoshiniwa-job の両方が、同じ名前で参照する（Project Manager の projects.json だけ）。
+  # 新規。docunavi と hoshiniwajob の両方が、同じ名前で参照する（Project Manager の projects.json だけ）。
   # external: ホストで 1 回 `docker volume create devcontainer-shared-project-manager` を実行してから起動する（無いと起動に失敗する）。
   shared-project-manager:
     name: devcontainer-shared-project-manager

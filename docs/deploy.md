@@ -5,7 +5,7 @@
 
 - **本物の LLM のデプロイに要るもの:** `DB_BACKEND=pg` と `DATABASE_URL`（C）、`GEMINI_API_KEY`（B。質問の埋め込みは API キーで呼ぶので、Vertex AI の LLM でも要る。`EMBEDDING_USE_VERTEXAI=true` にすれば、埋め込みも Vertex AI でキーは不要。[configuration.md](configuration.md) の「埋め込みを Vertex AI で呼ぶ」。本番は未切り替え）。
   本番の Cloud Run には `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認）、LLM は B（キー）の経路です。
-- **方針:** GCP の操作は原則 gcloud CLI で行います（Cloud Code など GCP 用の VS Code 拡張は入れない）。画像生成の Cloud Run Job は星庭ジョブ（`hoshiniwa-job`）のリポジトリで管理し、このリポジトリには置きません。
+- **方針:** GCP の操作は原則 gcloud CLI で行います（Cloud Code など GCP 用の VS Code 拡張は入れない）。画像生成の Cloud Run Job は星庭ジョブ（`HoshiniwaJob`）のリポジトリで管理し、このリポジトリには置きません。
 
 ## 誰の権限で実行するか
 
