@@ -19,7 +19,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-OWNER = "Starlight-Grove"
+OWNER = "Starlight-Tree"
 REPO_URL = f"https://github.com/{OWNER}/docunavi"
 APP_NAME = "docunavi-agent-actions"
 PORT = int(

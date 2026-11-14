@@ -707,10 +707,10 @@ as_me gcloud iam service-accounts add-iam-policy-binding "${RUN_SA}@${PROJECT_ID
 as_me gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${BUILD_SA}" --role=roles/logging.logWriter
 
-# 3. GitHub との接続は Console で 1 回（Cloud Build の「トリガー」→「リポジトリを接続」→ GitHub。Starlight-Grove/docunavi）。
+# 3. GitHub との接続は Console で 1 回（Cloud Build の「トリガー」→「リポジトリを接続」→ GitHub。Starlight-Tree/docunavi）。
 #    そのあと、タグ push のトリガーを作る。置換変数は渡さない（イメージは API だけ）
 as_me gcloud builds triggers create github --project "$PROJECT_ID" --name=docunavi-tag-deploy \
-  --repo-owner=Starlight-Grove --repo-name=docunavi --tag-pattern='^deploy/.*$' \
+  --repo-owner=Starlight-Tree --repo-name=docunavi --tag-pattern='^deploy/.*$' \
   --build-config=cloudbuild-deploy.yaml --service-account="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA}"
 # 誤タグが心配なら、--require-approval を足す（ビルドの開始前に Console で承認する）
 ```

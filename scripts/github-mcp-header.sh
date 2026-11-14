@@ -18,7 +18,7 @@ set -uo pipefail
 DIAGNOSE=0
 [ "${1:-}" = "--diagnose" ] && DIAGNOSE=1
 
-OWNER=Starlight-Grove
+OWNER=Starlight-Tree
 REPO=docunavi
 API=https://api.github.com
 
