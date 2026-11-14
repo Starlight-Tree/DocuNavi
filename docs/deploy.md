@@ -675,6 +675,25 @@ as_me gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --re
 
 確認用の会話（21:37 と 21:41 の 2 件）は、画面から削除する（SQL では消さない。チェックポイントのテーブルが相互に関わるため）。
 
+## 古いリビジョンとイメージの整理（2026-11-14 に実施）
+
+- **リビジョン**: 戻し先として、本番と、その前の 2 つ（2026-11-14 時点で `docunavi-00061-sir` `00057-suj` `00056-pal`）だけを残す。0% のリビジョンに料金はかからないが、古いものは DB・認証・環境変数が変わっていて戻し先にならず、一覧が長くなる。
+  配備のたびに増えるので、タグを外す（上の「9. タグを外す」）ときに、不要なものを `gcloud run revisions delete` で消す（元に戻せないので、一覧と名前を確かめてから）。
+  2026-11-14 に、タグ 21 個を外し、リビジョン 31 個を消した。消した後も、本番の `/health` は 200、100% は `00061-sir` のまま（証拠等級 A）。
+- **イメージ（Artifact Registry）**: 保管料がかかるので、クリーンアップポリシーで自動で消す。定義は [ops/artifact-registry/cleanup-policy.json](../ops/artifact-registry/cleanup-policy.json)。
+  - `docunavi` のイメージは最新 5 個を残し、それより古いものを消す。5 個にしたのは、戻し先の 3 つのイメージを、配備が増えても守る余裕のため。
+  - `docunavi-admin` `docunavi-ingest` `docunavi-mcp` など、`docunavi-` で始まる別のパッケージは触らない。パッケージ名の指定は前方一致で、`docunavi` だけでは、これらにも消す条件が当たるため。
+  - 設定するとき:
+    ```bash
+    gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy \
+      --project docunavi-app --location asia-northeast1 \
+      --policy=ops/artifact-registry/cleanup-policy.json --no-dry-run
+    ```
+    `--dry-run` は、設定の書き込みで、削除はしない。結果は Data Access ログに出るが、このプロジェクトでは有効にしていない（`auditConfigs` が空。2026-11-14）ので、結果は見られない。
+  - 2026-11-14 に、`--dry-run` を設定してから、実際のポリシー（`--no-dry-run`）に切り替えた。消えるのは、`docunavi` の古い 20 個（25 個のうち、最新 5 個の外）の見込み。
+  - **未確認:** 反映は約 1 日後（公式の説明。等級 B）。反映後に、`docunavi` のイメージが 5 個になっていることと、他のサービスのイメージが残っていることを確かめる。
+  - 消えたイメージは戻せない。必要なら、そのコミットから再ビルドする。リビジョンが使っているイメージを消すと、そのリビジョンは新しいインスタンスを起動できなくなる（戻し先は、最新 5 個の中に収まるように保つ）。
+
 ## タグ push で 0% 配備する（Cloud Build トリガー）
 
 **状態（2026-11-14）: サービスアカウント `docunavi-build`、GitHub の接続 `docunavi-github`（2nd gen。`asia-northeast1`）、リポジトリの登録、トリガー `docunavi-tag-deploy`（承認必須）を作成し、2 回目のタグ push で 0% の配備まで通った（下の「限界と未確認」）。**
@@ -732,6 +751,12 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
 私は読み取りで確かめる: `gcloud builds list --billing-project=docunavi-app --project docunavi-app`（ビルドの成否）と、
 `gcloud run services describe docunavi … --format='yaml(status.traffic)'`（新しいリビジョンが 0% で、本番が 100% のまま）。
+
+配備のあと、最後のステップ `prune-old-revisions` が古いリビジョンを消す（2026-11-14 に追加）。
+新しい順に 3 つと、トラフィックが向いている・タグが付いたリビジョンは残す（タグが付いた古いものは、タグを外すまで残る）。それ以外を `gcloud run revisions delete` で消す。
+消せなくても警告だけで、ビルドは成功のまま。**この削除は、まだ実際のビルドで動かしていない（未確認）**。
+手元で、削除を `echo` に置き換え、実際のサービスの情報で保護の判定だけを試した（残す数 1 で、`00057-suj` `00056-pal` が「トラフィックまたはタグあり」として残った。等級 A、読み取りのみ）。
+ビルド用のサービスアカウントが、リビジョンの削除を許されるかは、実際に動かすまで分からない（リビジョンが 4 個以上になる配備で確かめる）。
 
 ### 限界と未確認
 

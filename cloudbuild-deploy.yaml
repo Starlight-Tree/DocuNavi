@@ -6,6 +6,8 @@
 #   - --set-env-vars / --set-secrets / --use-http2 は付けない（付けると、いまの設定や有料キーの Secret が変わる・消える）。
 #     設定はサービスの最新の設定を引き継ぐ
 #   - タグ名は deploy/<Cloud Run のタグ名>。<…> は小文字・数字・ハイフンで、先頭は英字（deploy/h2c-20261024 → タグ h2c-20261024）
+#   - 最後の prune-old-revisions は、配備の後始末だけ。新しい順に 3 つと、トラフィックが向いている・タグが付いたリビジョンは消さない。
+#     失敗しても配備の結果は変えない。KEEP を減らす・保護の条件を外す変更は、戻し先を消す恐れがあるので、事前に確認する
 #
 # 置換変数: ユーザー定義（_ で始まる）は下の既定のままでよく、トリガーで渡すものは無い。画面は Cloudflare の Worker `docunavi-web`（frontend）が配信するので、
 # このイメージは API だけ（ビルド引数は無い）。
@@ -62,6 +64,33 @@ steps:
         echo "--- 配備後のトラフィック（新しいリビジョンが 0%、本番が 100% のままであること）"
         gcloud run services describe "${_SERVICE}" --project "${PROJECT_ID}" --region "${_REGION}" \
           --format='yaml(status.traffic)'
+
+  # 古いリビジョンの掃除。配備が成功したあとの後始末なので、失敗しても配備の結果は変えない（警告を出すだけ）。
+  # 残すもの: 新しい順に 3 つ（本番・戻し先 2 つ）、トラフィックが向いている・タグが付いているリビジョン。つまり、タグが付いたものは消さない
+  - id: prune-old-revisions
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -uo pipefail
+        KEEP=3
+        protected="$$(gcloud run services describe "${_SERVICE}" --project "${PROJECT_ID}" --region "${_REGION}" \
+          --format='value(status.traffic[].revisionName)' | tr ';' '\n')"
+        n=0
+        for rev in $$(gcloud run revisions list --service "${_SERVICE}" --project "${PROJECT_ID}" --region "${_REGION}" \
+            --sort-by='~metadata.creationTimestamp' --format='value(metadata.name)'); do
+          n=$$((n + 1))
+          [ "$$n" -le "$$KEEP" ] && continue
+          if printf '%s\n' "$$protected" | grep -qx "$$rev"; then
+            echo "残す（トラフィックまたはタグあり）: $$rev"
+            continue
+          fi
+          echo "消す: $$rev"
+          gcloud run revisions delete "$$rev" --project "${PROJECT_ID}" --region "${_REGION}" --quiet \
+            || echo "警告: $$rev を消せませんでした（配備は成功しています）" >&2
+        done
+        exit 0
 
 options:
   logging: CLOUD_LOGGING_ONLY

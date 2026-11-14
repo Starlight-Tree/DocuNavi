@@ -1,0 +1,17 @@
+[
+  {
+    "name": "keep-docunavi-latest-5",
+    "action": {"type": "Keep"},
+    "mostRecentVersions": {"packageNamePrefixes": ["docunavi"], "keepCount": 5}
+  },
+  {
+    "name": "keep-docunavi-siblings",
+    "action": {"type": "Keep"},
+    "mostRecentVersions": {"packageNamePrefixes": ["docunavi-"], "keepCount": 1000}
+  },
+  {
+    "name": "delete-docunavi-older",
+    "action": {"type": "Delete"},
+    "condition": {"tagState": "any", "packageNamePrefixes": ["docunavi"]}
+  }
+]
