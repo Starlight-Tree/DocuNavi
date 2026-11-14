@@ -42,7 +42,7 @@ jobs:
           node-version: "24"
       # CLOUDFLARE_API_TOKEN と CLOUDFLARE_ACCOUNT_ID を、このジョブの環境変数に入れる（値は伏せ字になる）
       - name: Fetch the Cloudflare credentials from Infisical (OIDC)
-        uses: Infisical/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1.0.7
+        uses: Infisical/secrets-action@d2e351f16c6ca20d17c85e6c992e04bdeb64e87d # v1.0.18
         with:
           method: oidc
           identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
