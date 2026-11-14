@@ -1,6 +1,6 @@
 # SSE 中継のイメージ（ops/sse-relay/README.md）。標準ライブラリだけなので、静的にビルドして distroless に置く。
 # ビルドの文脈は ops/sse-relay/（cloudbuild.yaml が指す）。
-FROM golang:1.27.2 AS build
+FROM golang:1.27.3 AS build
 WORKDIR /src
 COPY go.mod ./
 COPY main.go ./
