@@ -762,7 +762,10 @@ git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024   # push は�
 
 - **0% が保証されるのは `cloudbuild-deploy.yaml` の中身による。IAM ではない。** `roles/run.developer` は `update-traffic` も含むので、権限だけでは配備と切り替えを分けられない。ファイルを変えるときは、`--no-traffic` が残ることを確かめる。
 - タグを push できる人（リポジトリの書き込み権限を持つ人）は、トリガーを起動できる。GitHub のタグ保護（ルールセット）は未設定。
-- 未確認: トリガーで配備したリビジョンへの直接のリクエスト（`docunavi-00059-voy` には送っていない。手動の配備 `docunavi-00061-sir` の `/health` は下に記録）/ 誤ったタグ名（形が違う）での停止の実機の確認（初回の失敗は、空のタグ名で止まった例）。
+- 確認済み（2026-11-15。証拠等級 A: 実機）:
+  - 誤ったタグ名での停止: `deploy/Bad_Check`（大文字と `_`）を push すると、トリガーは起動して承認待ちになり、承認すると `check-tag` が「タグ名は deploy/<…> にしてください」で失敗した（ビルド `b20df98d`）。`build` 以降は QUEUED のまま動かず、リビジョンは増えなかった。タグは同日に消した。
+  - トリガーで配備したリビジョンへの直接のリクエスト: `docunavi-00068-lab`（0%）に Cloud Run のタグ `direct-check` を付けたタグ付き URL の `/health` が 200（`mode: gemini`、`history: pg`。初回は約 10.6 秒で、`minScale: 0` のコールドスタート）。本番は 100% `docunavi-00061-sir` のまま。タグは同日に外した。
+  - 承認待ちのビルドの取り消し: `gcloud alpha builds reject` は地域指定のビルドを扱えない（`--location` が無く、フル名も受け付けない）。承認待ちを取り消すなら `gcloud builds cancel <ID> --region <リージョン>`（未試行）。
 - 確認済み（2026-11-14。証拠等級 A: 実機）:
   - 2nd gen の接続・リポジトリ・トリガーの作成コマンドが通る（接続は `COMPLETE`、トリガーは `approvalRequired: true`）。
   - タグの push でトリガーが起動し、`TAG_NAME` `SHORT_SHA` が入る。`cloud-sdk:slim` を入手できる。上の最小権限（4 つ）で、ビルド・push・`--no-traffic --tag` の配備まで通る。
