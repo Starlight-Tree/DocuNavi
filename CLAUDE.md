@@ -154,7 +154,7 @@ README の「開発環境の GitHub CLI（gh）」を参照。
 
 - **作者名:** `git config user.name` は `Starlight-Tree`（GitHub の登録名。メールは変えない）。2026-11-14 に、全履歴の作者・コミッターを `Starlight-Tree` に書き換えた（[docs/history-rewrite.md](docs/history-rewrite.md)）。
 - **コミットメッセージ:** Conventional Commits（`type(scope): 英語の命令形の要約`）。type は `feat` `fix` `docs` `refactor` `test` `chore` `build` `ci` `perf`。
-  件名は 72 文字以内・小文字始まり・末尾ピリオドなし。本文に「なぜ」と検証結果（限界も）を書く。1 コミット 1 論理変更。
+  件名は英語（日本語は本文に）・72 文字以内・小文字始まり・末尾ピリオドなし。本文に「なぜ」と検証結果（限界も）を書く。1 コミット 1 論理変更。`scripts/check_commit_messages.py` が検査し、CI（`commit-messages`）と Claude のフック（`guard-git-write.py`）が使う（過去の履歴は対象外）。
 - **運用:** `main` に直接コミットし、`origin/main` へ通常のプッシュ。
 - **コミット:** 変更が完結し、触れた範囲のテストが通ったら（文書だけの変更はテスト不要）、意味のある単位でコミットしてよい。
   タスクで「コミットしない」と指定されたら、それに従う。ステージはパスを指定する（作業ツリーを並行セッションと共有しているので、`git add -A` と `git add .` は使わない）。

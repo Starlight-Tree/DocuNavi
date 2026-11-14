@@ -3,6 +3,8 @@
 
   - git commit / git push の --no-verify（commit の -n も）→ 拒否
   - git commit: ステージ済みの差分（-a のときは追跡中の未ステージ分も）の追加行、またはコマンド文字列に、秘密のパターン → 拒否
+  - git commit: 件名が英語の Conventional Commits（72 文字以内）でない → 拒否（検査は scripts/check_commit_messages.py。
+    -m と標準入力のヒアドキュメントの件名だけを見る。-F ファイルや --amend だけのときは見ない）
   - gh pr comment / pr review / issue comment / api（コメント・レビューの書き込み）→ 確認。本文に秘密のパターンがあれば拒否
 拒否の理由には、パターン名とファイル名・行番号だけを出す（値は出さない）。
 
@@ -10,6 +12,7 @@
 完全な防御ではない（権限の deny と併用する）。gcloud・gh の書き込み全般のガードは guard-cloud-cli.py の役割で、ここは重ねない。
 """
 
+import importlib.util
 import json
 import os
 import re
@@ -17,6 +20,7 @@ import shlex
 import subprocess
 import sys
 from collections.abc import Callable
+from pathlib import Path
 
 SECRET_PATTERNS = {
     "Google API キー": re.compile(r"AIza[0-9A-Za-z_-]{35}"),
@@ -94,6 +98,62 @@ def scan_diff(diff: str) -> list[str]:
     return found
 
 
+COMMIT_ANCHOR = re.compile(r"\bgit\b[^\n;&|]*?\bcommit\b")
+HEREDOC = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?[ \t]*\n(?P<body>.*)", re.DOTALL)
+CHECKER = Path(__file__).resolve().parents[2] / "scripts" / "check_commit_messages.py"
+
+
+def first_line(text: str) -> str | None:
+    for line in text.splitlines():
+        if line.strip():
+            return line.strip()
+    return None
+
+
+def commit_subject(command: str) -> str | None:
+    """git commit の件名。-m の最初の値、または標準入力のヒアドキュメントの最初の行。取れなければ None。"""
+    anchor = COMMIT_ANCHOR.search(command)
+    if not anchor:
+        return None
+    rest = command[anchor.end() :]
+    heredoc = HEREDOC.search(rest)
+    if heredoc and re.search(r"(^|\s)(-F|--file)(\s|=)", rest[: heredoc.start()]):
+        return first_line(heredoc.group("body"))
+    try:
+        tokens = shlex.split(rest, posix=True)
+    except ValueError:
+        return None
+    value: str | None = None
+    for i, token in enumerate(tokens):
+        if token in {"&&", "||", ";", "|"}:
+            break
+        if token.startswith("--message="):
+            value = token.split("=", 1)[1]
+        elif token == "--message" or re.fullmatch(r"-[a-zA-Z]*m", token):
+            value = tokens[i + 1] if i + 1 < len(tokens) else None
+        else:
+            continue
+        break
+    if value is None:
+        return None
+    inner = HEREDOC.search(value)  # -m "$(cat <<'EOF' ... EOF)"
+    return first_line(inner.group("body")) if inner else first_line(value)
+
+
+def subject_problems(command: str) -> list[str]:
+    """件名の違反。検査のスクリプトが読めない・件名が取れないときは空（判断しない）。"""
+    subject = commit_subject(command)
+    if subject is None or not CHECKER.is_file():
+        return []
+    try:
+        spec = importlib.util.spec_from_file_location("check_commit_messages", CHECKER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return [f"「{subject}」: {problem}" for problem in module.check_subject(subject)]
+    except Exception:  # noqa: BLE001 - 検査の失敗でコミットを止めない（ガードは補助）
+        return []
+
+
 def git_diff(cwd: str, *args: str) -> str:
     try:
         return subprocess.run(
@@ -131,15 +191,21 @@ def decide(command: str, cwd: str = ".", diff_for: Callable[..., str] = git_diff
     leaked = secrets_in(command)
     parts = segments(command)
     decision: Decision | None = None
+    has_commit = False
     for tokens in parts:
         found = check_segment(tokens, cwd, diff_for)
         if found and (decision is None or found[0] == "deny"):
             decision = found
         program = os.path.basename(tokens[0])
         is_commit = program == "git" and git_subcommand(tokens)[0] == "commit"
+        has_commit = has_commit or is_commit
         is_comment = program == "gh" and tuple(tokens[1:3]) in GH_COMMENT_COMMANDS
         if leaked and (is_commit or is_comment):
             return "deny", "コマンドの本文に秘密のパターンがあります: " + ", ".join(leaked)
+    if has_commit and not (decision and decision[0] == "deny"):
+        problems = subject_problems(command)
+        if problems:
+            return "deny", "コミットの件名が規約に合いません（scripts/check_commit_messages.py）: " + "; ".join(problems)
     return decision
 
 
