@@ -45,7 +45,7 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 | Hono | 候補 | 不明 | Worker のルートが増えたとき。今のプローブは素の Worker |
 | Go の SSE 中継 | **本番に配備済み**（2026-10-25） | 開発コンテナ内の疑似 SSE 測定（A）を経て、Cloud Run（`docunavi-sse-relay`、h2c）へ配備。`/chat/stream` を中継 | 画面の `NEXT_PUBLIC_STREAM_BASE_URL` 経由で稼働中 |
 | gRPC のサーバーストリーミング | 条件付き | 未測定 | 下記 |
-| Django（組織・課金・管理画面） | **管理画面は 2026-10-26 に配備し、2026-11-08 に廃止した** | 学習用の試作（`ops/django-saas/`）を経て、運用者向けロール割り当て画面（`ops/access_admin/`）を非公開 Cloud Run（`docunavi-admin`）に配備 | 本番の SaaS 組織・課金管理機能としては未着手・条件待ち。運用者用管理画面は廃止済み（ロールの割り当ては D1 の SQL） |
+| Django（組織・課金・管理画面） | **管理画面は 2026-10-26 に配備し、2026-11-08 に廃止した** | 学習用の試作（`ops/django-saas/`）を経て、運用者向けロール割り当て画面（`ops/access_admin/`）を非公開 Cloud Run（`docunavi-admin`）に配備 | 本番の SaaS 組織・課金管理機能としては未着手・条件待ち。運用者用管理画面は廃止済み（ロールの割り当ては CLI `python -m app.access_admin`） |
 | Celery + Redis | 条件付き | 不明 | 下記。今の取り込みは Cloud Run の Job + Scheduler で足りている（A、本番で稼働） |
 | LLM ゲートウェイ（LiteLLM Proxy、Bifrost、claude-code-router / CCR） | 非推奨・廃止（削除済み）。LiteLLM gateway is removed and no longer used. | アプリ内実装（ヘッジ・フォールバック・有料キー）で充足。開発時の AI 支援は Claude Code（VS Code 拡張）。Gemini CLI is not part of the docunavi runtime | 採用しない。外部プロキシやルーティング層は置かず、必要な耐障害性はアプリ（`app/agents/resilience.py`）で担保する |
 
@@ -83,67 +83,22 @@ Go は `.devcontainer/Dockerfile` のイメージに入れてある（公式の 
 
 ## Django の測定（学習用。2026-10-25。証拠等級 A）
 
-製品には入れていない。「SaaS 管理の土台（組織・メンバー・役割・プラン）」を Django で作ると何が楽で何が変わらないかを、開発コンテナの中だけで測った。
-コードと再現手順は `ops/django-saas/`（README）。依存は専用の仮想環境 `.venv-django/` だけで、`requirements*.txt` は変えていない。`.venv-django` は `.dockerignore` に入れた（`1807839`。ローカルの `docker build` でビルドコンテキストに送られないようにするため）。CI の Docker ビルドと起動確認は、この変更の後も通った（2026-10-25、証拠等級 A）。ただし CI の checkout には `.venv-django/` が無いので、除外が効くことの確認にはなっていない（ビルドが壊れていないことだけ）。
+製品には入れていない。組織・メンバー・役割・プランの管理の土台を Django で作ると何が楽で何が変わらないかを、開発コンテナの中だけで測った。コードと再現手順は `ops/django-saas/`（README）。
+条件: Django 5.2.18（LTS）、PyJWT 2.15.1、psycopg 3.3.6、一時の Postgres 17。JWT は使い捨ての鍵で署名した疑似のもので（当時の認証は Supabase。実鍵・実ログイン・外部通信なし）、`chatbot` スキーマは本番を簡略にした身代わり。1 台・ループバック・各 1 回（JWT の検証だけ 3 回）。
 
-**条件:** Django 5.2.18（LTS）、PyJWT 2.15.1（アプリと同じ版）、psycopg 3.3.6。一時の Postgres 17（`scripts/test-postgres-up.sh`、ポート 55432）。
-JWT は使い捨ての鍵で署名した疑似のもの（Supabase の実鍵・実ログイン・外部通信なし）。`chatbot` スキーマは、本番の形を簡略にした身代わり（外部キー・索引・CHECK 制約つきの 2 表。実物の pgvector / pgroonga は一時 Postgres に無い）。
-各測定は 1 台・ループバック・プロセス内か開発サーバー。
+| 測ったこと | 結果 |
+|---|---|
+| 作る手間 | API の層は、Django と FastAPI + 手書き SQL でほとんど変わらない（FastAPI 側は**見積もりで、実装していない。証拠等級 C**）。差が出るのは、**管理画面（`admin.py` 20 行で一式）とマイグレーションの自動生成**。管理画面が要らなければ、Django を足す理由は薄い |
+| マイグレーションの境界 | `saas` スキーマだけの所有者で `migrate` すると、`chatbot` の列・制約・索引・権限・行数は完全に不変。`chatbot` と `public` への操作は権限エラー（42501）で拒否された |
+| JWT の検証 | 2 つとも約 70 µs（Django 69.0〜69.4 µs、`app/auth.py` 72.8〜74.1 µs。p50）。ほとんど ES256 の署名検証で、差は実質ない。拒否の 8 種は同じ |
+| `sub` から Membership を引く 1 リクエスト | プロセス内で 0.41〜0.65 ms（p50）。検証はその 2 割弱で、残りは DB とフレームワーク |
 
-### 1. 作る手間（Django で実際に書いた行数と、FastAPI + 手書き SQL の見積もり）
+見つけたこと:
+- **Django の標準のユーザー表は消せない。** 管理画面は `django.contrib.auth` に依存するので、運用者のログインは利用者の認証と別になる。
+- **Django のテストは `public` 以外のスキーマを知らない。** テスト用 DB の作成にテンプレート DB と DB を作れるロールが要り、権限が `saas` だけの本番用ロールではテストが動かない。
+- 入っていない組織は、存在を漏らさないため 403 ではなく 404 にした。
 
-| 部品 | Django（実装した。空行・コメントだけの行を除く） | FastAPI + 手書き SQL（**見積もり。実装していない。証拠等級 C**） |
-|---|---|---|
-| 3 表の定義 | `models.py` 32 行 + 自動生成のマイグレーション 98 行 | SQL 約 25 行（`db/migrations/` に手書き。差分は自分で書く） |
-| 3 表の管理画面（一覧・絞り込み・検索・組織の中のメンバー編集） | `admin.py` 20 行（標準の管理画面。ログイン・履歴つき） | 同等のものは**無い**（画面を自作するか、Supabase Studio の表エディターを使う） |
-| API 4 本（自分の組織・概要・メンバー一覧・追加）と役割の権限 | `views.py` 110 行 + `urls.py` 7 行 + `permissions.py` 5 行 | ルート約 90 行 + リポジトリ関数約 70 行 + スキーマ約 25 行 |
-| JWT の検証 | `jwt_auth.py` 76 行（`app/auth.py` と同じ規則の写し。JWKS の取得は無し） | 0 行（`app/auth.py` をそのまま使う） |
-| テスト | 27 件、約 210 行 | 同程度 |
-
-読み取り: 手で書く量は、API の層ではほとんど変わらない（Django の `views.py` は FastAPI のルートとほぼ同じ量）。差が出るのは、**管理画面（20 行で一式）とマイグレーションの自動生成**。
-管理画面が要らなければ、Django を足す理由は薄い。
-
-### 2. マイグレーションの境界
-
-`saas_app`（`saas` スキーマだけの所有者。スーパーユーザーでも DB の作成者でもなく、`chatbot` と `public` に権限が無い）で `manage.py migrate` を実行した（0.27 秒）。
-
-- `saas` に 13 表ができた。うち 3 表が自作（`saas_plan` `saas_organization` `saas_membership`）、10 表が Django の標準（`auth_*` `django_admin_log` `django_content_type` `django_migrations` `django_session`）。`django_migrations` も `saas` に入る（`search_path` の先頭が `saas`）。
-- 実行の前後で、`chatbot` の列・制約・索引・所有者と権限・行数と、`saas` 以外の全リレーションの一覧は**完全に一致**した（6 項目とも不変）。
-- `saas_app` で `SELECT chatbot.documents`、`CREATE TABLE chatbot.x`、`CREATE TABLE public.x`、`CREATE DATABASE` は、すべて権限エラー（42501）で拒否された。つまり、Django は `saas` 以外の権限が無くても動く。
-
-### 3. JWT の `sub` の受け渡しの遅延
-
-| 項目 | Django（`saas/jwt_auth.py`） | 今の `app/auth.py` |
-|---|---|---|
-| 有効なトークンの検証（20000 回、p50 / p99） | 69.0〜69.4 µs / 76〜81 µs | 72.8〜74.1 µs / 81〜88 µs |
-| 拒否の理由（期限切れ・aud・iss・署名違い・未知の kid・sub 不正・匿名・alg=none の 8 種） | 8 種とも拒否。理由の分類も一致 | 同じ |
-
-検証の時間は 2 つとも約 70 µs で、ほとんどが ES256 の署名検証（PyJWT）。差（約 4 µs、約 5%）は、`app/auth.py` が async で、JWKS の置き場を引くぶん。実質同じ。
-（Django 側・app 側とも 3 回ずつ繰り返して、順位は変わらなかった。）
-
-`sub` から Membership を引く 1 リクエスト:
-
-| 経路 | プロセス内（テスト用クライアント。p50 / p99） | 開発サーバー経由の HTTP（接続を毎回開く。p50 / p99） |
-|---|---|---|
-| `GET /api/me/orgs/`（JWT 検証 + 1 クエリ） | 0.41 ms / 0.66 ms | 1.60 ms / 2.45 ms |
-| `GET /api/orgs/<id>/`（JWT 検証 + 役割の確認 + 人数） | 0.65 ms / 0.90 ms | 2.01 ms / 3.32 ms |
-| トークン無しの 401（DB に行かない） | 0.08 ms / 0.27 ms | 0.29 ms / 0.52 ms |
-
-JWT の検証（約 0.07 ms）は、プロセス内の 1 リクエストの 2 割弱。残りはほとんど DB の問い合わせとフレームワーク。
-HTTP の列は、開発サーバー（本番用ではない）とクライアントがどちらも接続を毎回開くので、「最も素朴な構成の、接続を含む遅延」で、本番の目安ではない。
-
-### 見つけたこと
-
-- **Django の標準のユーザー表は消せない。** 管理画面は `django.contrib.auth` に依存し、運用者のログインに `auth_user` が要る。利用者（`sub`）は `Membership` の外部 ID で、Django のユーザー表は使っていないが、**運用者のログインは Supabase Auth と別になる**（管理画面を Supabase のログインに繋ぐ方法は試していない）。「Supabase Auth と並べて Django の認証を入れない」（下の「やらないこと」）は、利用者については守れるが、運用者向けの管理画面には Django の認証が入る。
-- **Django のテストは `public` 以外のスキーマを知らない。** テスト用 DB を作るには、`saas` スキーマだけが入ったテンプレートの DB（`TEST: {"TEMPLATE": ...}`）と、DB を作れるロールが要った。本番用のロール（権限が `saas` だけ）では、テストが動かない。
-- **入っていない組織は 403 ではなく 404 にした。** 組織の存在を漏らさないため（テストで固定）。
-
-### 限界
-
-開発コンテナの 1 台・ループバック・疑似データ・各 1 回（JWT の検証だけ複数回）。測っていないこと:
-Supabase の実鍵と JWKS の取得・更新、管理画面を Supabase のログインに繋ぐこと、課金（Stripe など）、マルチテナントの分け方の比較（`tenant_id` の行・スキーマ・DB）、
-`chatbot` の実物のスキーマ（pgvector / pgroonga）との同居、本番の Cloud Run・コンテナ・WSGI/ASGI サーバー（gunicorn / uvicorn）での性能、大量のデータ、長期の運用（アップグレード・セキュリティ更新）の負担。
-行数の「見積もり」は私の見積もりで、FastAPI 側は実装していない。
+測っていないこと: 実際の認証基盤の鍵（JWKS）の取得・更新、課金、マルチテナントの分け方の比較、`chatbot` の実物のスキーマ（pgvector / pgroonga）との同居、本番の Cloud Run・WSGI/ASGI サーバーでの性能、大量のデータ、長期の運用の負担。
 
 ## 採用条件
 
@@ -166,17 +121,17 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 
 （学習用の測定の結果は、上の「Django の測定」。）
 
-次のどれかが実際の要件になったとき。組織、課金・有料プラン、役割ごとの権限、運用の管理画面（Supabase Studio で足りなくなったとき）。
+次のどれかが実際の要件になったとき。組織、課金・有料プラン、役割ごとの権限、運用の管理画面（SQL と DB の標準ツールで足りなくなったとき）。
 
 入れるときの前提:
-- 認証の窓口は Supabase Auth のまま。Django は JWT の `sub` を外部 ID として扱い、自前のユーザー表・セッション認証は使わない（二重管理になる）。
+- 認証の窓口は Better Auth（Worker `docunavi-api`）のまま。Django は JWT の `sub` を外部 ID として扱い、自前のユーザー表・セッション認証は使わない（二重管理になる）。
 - 同じ Postgres を共有するときは、スキーマごとにマイグレーションの持ち主を分ける（`chatbot` は今のリポジトリ、新しい `saas` などは Django 側）。
 
 例外（2026-10-26 に決定）: **運用者 1 人専用の管理画面に限り、Django 自身の運用者ログイン（`django.contrib.auth`）を使う。**
-- Supabase Auth との連携はしない（管理画面を Supabase のログインに繋がない）。運用者のログインは Supabase Auth と別になることを承知の上での例外。
-- 利用者向けの画面・チャット・検索は、Django に依存させない。利用者は今までどおり Supabase Auth だけで入る。
+- 認証基盤との連携はしない（管理画面を利用者のログインに繋がない）。運用者のログインは利用者の認証と別になることを承知の上での例外。
+- 利用者向けの画面・チャット・検索は、Django に依存させない。利用者は今までどおり Better Auth だけで入る。
 - Django が止まっても、利用者向けの機能は動き続ける。
-- 運用者が 2 人以上になる、または利用者が管理画面に入る場合は、この例外の対象外。そのときは、上の前提（認証の窓口は Supabase Auth）に戻って決め直す。
+- 運用者が 2 人以上になる、または利用者が管理画面に入る場合は、この例外の対象外。そのときは、上の前提（認証の窓口は Better Auth）に戻って決め直す。
 
 ### Celery + Redis（または Pub/Sub）
 
@@ -195,5 +150,5 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 
 - 新しいというだけで、gRPC・Celery・Redis・LiteLLM / Bifrost / CCR を入れない（LiteLLM Proxy・Bifrost・claude-code-router などの外部 LLM ゲートウェイは廃止・非推奨）。入れるのは、製品の必要か、利用者が決めた学習の目的があるときだけ。
 - 測定・要件・学習の目的のどれも無いまま、サービスを分けない。
-- Supabase Auth と並べて、Django の認証を入れない（運用者 1 人専用の管理画面だけが例外。上の「Django」の「例外」）。
+- Better Auth と並べて、Django の認証を入れない（運用者 1 人専用の管理画面だけが例外。上の「Django」の「例外」）。
 - `chatbot` スキーマのマイグレーションの持ち主を二重にしない。
