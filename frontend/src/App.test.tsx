@@ -13,6 +13,7 @@ import {
   replyResponse,
   sseResponse,
 } from './test/helpers';
+import { openSources } from './test/sources';
 
 const NOT_FOUND = '該当する設定資料は見つかりませんでした。別のキーワードで再検索してください。';
 
@@ -359,7 +360,7 @@ describe('チャット UI: エラー', () => {
 });
 
 describe('チャット UI: 参照した設定資料', () => {
-  it('出典の見出しがある context だけ、回答の下の「参照資料」に資料名で出す（抜粋はチップの説明）', async () => {
+  it('出典の見出しがある context だけ、「参照資料 N 件」を開いた一覧に資料名で出す（抜粋は項目の説明）', async () => {
     installFetch(() =>
       replyResponse({
         context: '[ザーハード1.txt]\n大気の主成分は二酸化炭素。\n\n[ザーハード2.txt]\n探査団は三名。',
@@ -369,7 +370,7 @@ describe('チャット UI: 参照した設定資料', () => {
 
     await sendMessage(user, '大気は？');
 
-    const region = await screen.findByRole('region', { name: '参照資料' });
+    const region = await openSources();
     const chips = within(region).getAllByRole('button');
     expect(chips.map((chip) => chip.textContent)).toEqual(['1ザーハード1.txt↗', '2ザーハード2.txt↗']);
     expect(chips[0]).toHaveAccessibleDescription('大気の主成分は二酸化炭素。');
@@ -385,7 +386,7 @@ describe('チャット UI: 参照した設定資料', () => {
     await sendMessage(user, '無関係な質問');
 
     await screen.findByText(DEFAULT_REPLY);
-    expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^参照資料 \d+ 件/ })).not.toBeInTheDocument();
     expect(screen.queryByText(NOT_FOUND)).not.toBeInTheDocument();
   });
 
@@ -403,11 +404,11 @@ describe('チャット UI: 参照した設定資料', () => {
     await sendMessage(user, '二つ目');
     await screen.findByText('返答2');
 
-    expect(screen.getAllByRole('region', { name: '参照資料' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /^参照資料 \d+ 件/ })).toHaveLength(1);
     const first = screen.getByText('返答1').closest('article') as HTMLElement;
     const second = screen.getByText('返答2').closest('article') as HTMLElement;
-    expect(within(first).getByRole('region', { name: '参照資料' })).toBeInTheDocument();
-    expect(within(second).queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
+    expect(within(first).getByRole('button', { name: /^参照資料 1 件/ })).toBeInTheDocument();
+    expect(within(second).queryByRole('button', { name: /^参照資料 \d+ 件/ })).not.toBeInTheDocument();
   });
 });
 
@@ -557,7 +558,7 @@ describe('チャット UI: ストリーミング', () => {
     stream.finish();
 
     // 完了すると、出典とコピーが付き、停止ボタンは消える
-    expect(await screen.findByRole('region', { name: '参照資料' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^参照資料 1 件/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'この回答をコピー' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument();
     expect(log).toHaveAttribute('aria-busy', 'false');

@@ -192,47 +192,54 @@ export function MessageList({
             </span>
             {/* 本文は必ずテキストとして描画する（HTML として解釈しない）。回答だけ Markdown を整形し、利用者の発言はそのまま見せる */}
             {message.role === 'assistant' ? (
-              <AssistantAnswer text={message.text} context={message.context} sources={message.sources} generating={generating} />
+              <AssistantAnswer
+                text={message.text}
+                context={message.context}
+                sources={message.sources}
+                generating={generating}
+                actions={
+                  !generating && (
+                    <>
+                      <button
+                        type="button"
+                        className="icon-action"
+                        onClick={() => void copyText(message)}
+                        aria-label="この回答をコピー"
+                        title="この回答をコピー"
+                      >
+                        {copied?.ok ? <CheckIcon /> : <CopyIcon />}
+                      </button>
+                      {/* 結果は、アイコンの形だけに頼らず、読み上げにも伝える（見える文字は出さない） */}
+                      <span role="status" className={copied?.ok === false ? 'icon-action-failed' : 'visually-hidden'}>
+                        {copied ? (copied.ok ? 'コピーしました' : 'コピーできませんでした') : ''}
+                      </span>
+                    </>
+                  )
+                }
+              >
+                {/* 質問対象（対象か旧グループ）の指定があって、検索で 0 件だった最新の回答だけ。検索していない（hit_count が無い・null）ときは出さない */}
+                {!busy &&
+                  message.id === lastId &&
+                  (typeof message.target === 'string' || typeof message.collection === 'string') &&
+                  message.hitCount === 0 && (
+                    <div className="scope-empty" role="status">
+                      <p>
+                        「
+                        {typeof message.target === 'string'
+                          ? classificationLabel(message.target, targetItems)
+                          : `旧グループ: ${collectionLabel(message.collection as string, groups)}`}
+                        」の中には、該当する資料がありませんでした。
+                      </p>
+                      {onAskAll && (
+                        <button type="button" className="btn btn-secondary btn-small" onClick={onAskAll}>
+                          すべての資料で聞き直す
+                        </button>
+                      )}
+                    </div>
+                  )}
+              </AssistantAnswer>
             ) : (
               <p className="message-text message-question">{message.text}</p>
-            )}
-            {/* 質問対象（対象か旧グループ）の指定があって、検索で 0 件だった最新の回答だけ。検索していない（hit_count が無い・null）ときは出さない */}
-            {message.role === 'assistant' &&
-              !busy &&
-              message.id === lastId &&
-              (typeof message.target === 'string' || typeof message.collection === 'string') &&
-              message.hitCount === 0 && (
-                <div className="scope-empty" role="status">
-                  <p>
-                    「
-                    {typeof message.target === 'string'
-                      ? classificationLabel(message.target, targetItems)
-                      : `旧グループ: ${collectionLabel(message.collection as string, groups)}`}
-                    」の中には、該当する資料がありませんでした。
-                  </p>
-                  {onAskAll && (
-                    <button type="button" className="btn btn-secondary btn-small" onClick={onAskAll}>
-                      すべての資料で聞き直す
-                    </button>
-                  )}
-                </div>
-              )}
-            {message.role === 'assistant' && !generating && (
-              <div className="message-actions">
-                <button
-                  type="button"
-                  className="icon-action"
-                  onClick={() => void copyText(message)}
-                  aria-label="この回答をコピー"
-                  title="この回答をコピー"
-                >
-                  {copied?.ok ? <CheckIcon /> : <CopyIcon />}
-                </button>
-                {/* 結果は、アイコンの形だけに頼らず、読み上げにも伝える（見える文字は出さない） */}
-                <span role="status" className={copied?.ok === false ? 'icon-action-failed' : 'visually-hidden'}>
-                  {copied ? (copied.ok ? 'コピーしました' : 'コピーできませんでした') : ''}
-                </span>
-              </div>
             )}
           </article>
         );
@@ -240,7 +247,6 @@ export function MessageList({
 
       {followUps.length > 0 && onExample && (
         <div className="follow-ups" role="group" aria-label="続けて聞く">
-          <span className="follow-ups-label">続けて聞く</span>
           {followUps.map((question) => (
             <button key={question} type="button" className="follow-up" onClick={() => onExample(question)}>
               {question}

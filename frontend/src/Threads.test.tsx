@@ -9,6 +9,7 @@ import { fakeAuth } from './test/auth';
 import type { FakeAuth } from './test/auth';
 import { MSG_HISTORY_FAILED } from './hooks/useChat';
 import { DEFAULT_REPLY, deferred, errorResponse, installFetch, jsonResponse, replyResponse } from './test/helpers';
+import { openSources } from './test/sources';
 
 const UPDATED = '2026-10-19T05:30:00+00:00';
 
@@ -214,10 +215,10 @@ describe('会話の一覧', () => {
 
     await user.click(await screen.findByTitle('最初の質問'));
 
-    const regions = await screen.findAllByRole('region', { name: '参照資料' });
-    expect(regions).toHaveLength(1);
-    expect(within(regions[0] as HTMLElement).getByText(/ザーハード1\.pdf/)).toBeInTheDocument();
-    expect(within(regions[0] as HTMLElement).getByText(/p\.2/)).toBeInTheDocument();
+    expect(await screen.findAllByRole('button', { name: /^参照資料 \d+ 件/ })).toHaveLength(1);
+    const region = await openSources();
+    expect(within(region).getByText(/ザーハード1\.pdf/)).toBeInTheDocument();
+    expect(within(region).getByText(/p\.2/)).toBeInTheDocument();
   });
 
   it('取得している間は読み込み中を出し、届いたら消える', async () => {

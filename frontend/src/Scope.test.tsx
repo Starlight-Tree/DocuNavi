@@ -16,6 +16,7 @@ import {
   jsonResponse,
   replyResponse,
 } from './test/helpers';
+import { openSources } from './test/sources';
 
 const UPDATED = '2026-10-19T05:30:00+00:00';
 
@@ -788,7 +789,7 @@ describe('回答対象: 出典', () => {
     const { user } = setup();
     await ask(user, '質問');
 
-    const region = await screen.findByRole('region', { name: '参照資料' });
+    const region = await openSources();
     const [zahard, cafe] = within(region).getAllByRole('button');
     expect(zahard).toHaveTextContent('ザーハード1.pdfp.1');
     expect(cafe).toHaveTextContent('cafe_store_guide.pdfp.2');

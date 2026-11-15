@@ -14,7 +14,8 @@ test('質問を送ると、偽の検索の出典つきの回答が画面に出�
 
   // 偽の LLM の返答（tests/fakes.py の SearchingMockLLM）
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
-  // 回答の下の「参照資料」（FakeSearch が返した資料名とページ）
+  // コピーの隣の「参照資料 N 件」を開くと、一覧に資料名とページが出る（FakeSearch が返した値）
+  await page.getByRole('button', { name: /^参照資料 \d+ 件/ }).click();
   await expect(page.getByRole('region', { name: '参照資料' }).getByRole('button', { name: /ザーハード1\.pdf/ })).toBeVisible();
   // 回答が終わり、送信できる状態に戻る
   await expect(input).toBeEnabled();
@@ -51,7 +52,8 @@ test('対象を選んで質問すると、その対象の出典が出る。会�
   await page.getByRole('button', { name: '送信' }).click();
 
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
-  // 回答の下の「参照資料」に、資料名のチップが出る（対象名はチップに出さない）
+  // 「参照資料 N 件」を開くと、資料名の一覧が出る（対象名は出さない）
+  await page.getByRole('button', { name: /^参照資料 \d+ 件/ }).click();
   const references = page.getByRole('region', { name: '参照資料' });
   await expect(references.getByRole('button', { name: /ザーハード1\.pdf/ })).toBeVisible();
   await expect(input).toBeEnabled();
@@ -359,12 +361,13 @@ test('ログインを使わない構成では、サイドバーの「会話の�
   await expect(history.getByText('ログインを使わない構成では、会話の一覧を表示できません。')).toBeVisible();
 });
 
-test('参照資料の出典を押すと、チャットのまま右のパネルが開く（URL は抽出テキスト）。Esc で閉じると、パネルの列は残らず、フォーカスは出典へ戻る', async ({ page }) => {
+test('参照資料の出典を押すと、チャットのまま右のパネルが開く（URL は抽出テキスト）。Esc で閉じると、パネルの列は残らず、フォーカスは「参照資料 N 件」のボタンへ戻る', async ({ page }) => {
   await page.goto('/?tab=chat');
   await page.getByRole('textbox', { name: 'メッセージ' }).fill('ザーハードの大気について教えて');
   await page.getByRole('button', { name: '送信' }).click();
-  const source = page.getByRole('region', { name: '参照資料' }).getByRole('button', { name: /ザーハード1\.pdf/ });
-  await source.click();
+  const toggle = page.getByRole('button', { name: /^参照資料 \d+ 件/ });
+  await toggle.click();
+  await page.getByRole('region', { name: '参照資料' }).getByRole('button', { name: /ザーハード1\.pdf/ }).click();
 
   const panel = page.getByRole('complementary', { name: /^資料:/ });
   await expect(panel).toBeVisible();
@@ -376,5 +379,5 @@ test('参照資料の出典を押すと、チャットのまま右のパネル�
   await page.keyboard.press('Escape'); // パネルにフォーカスがあるとき、通常表示の Esc は閉じる
   await expect(panel).toBeHidden();
   expect(await shellColumns()).toBe(2); // 閉じたら、パネルのための空白列を残さない
-  await expect(source).toBeFocused();
+  await expect(toggle).toBeFocused();
 });

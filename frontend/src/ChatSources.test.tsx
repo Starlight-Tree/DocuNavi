@@ -6,6 +6,7 @@ import { EXAMPLE_QUESTIONS } from './components/MessageList';
 import { followUpQuestions } from './lib/followUps';
 import { findSourceChunk, findSourcePage } from './lib/sources';
 import { installFetch, jsonResponse, replyResponse, sseResponse, replyChunks } from './test/helpers';
+import { openSources } from './test/sources';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -56,6 +57,11 @@ async function ask(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: '送信' }));
 }
 
+/** 「参照資料 N 件」を開いて、一覧の項目（資料名とページのボタン）を返す。 */
+async function sourceChips() {
+  return within(await openSources()).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+}
+
 describe('findSourcePage', () => {
   const chunks = DETAIL.chunks.map((c) => ({ content: c.content, page: c.page }));
 
@@ -101,7 +107,7 @@ describe('出典チップ', () => {
     render(<App />);
     await ask(user);
 
-    const chips = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+    const chips = await sourceChips();
     expect(chips).toHaveLength(2);
 
     await user.click(chips[1]!);
@@ -136,7 +142,7 @@ describe('出典チップ', () => {
     render(<App />);
     await ask(user);
 
-    await user.click((await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ }))[0]!);
+    await user.click((await sourceChips())[0]!);
 
     const panel = await screen.findByRole('complementary', { name: '資料: tsubasa_dorm_rules.pdf' });
     expect(window.location.search).toBe('?tab=chat&doc=7&view=text');
@@ -151,7 +157,7 @@ describe('出典チップ', () => {
     render(<App />);
     await ask(user);
 
-    await user.click((await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ }))[0]!);
+    await user.click((await sourceChips())[0]!);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('資料一覧に見つかりませんでした');
     expect(window.location.search).toBe('?tab=chat');
@@ -163,7 +169,7 @@ describe('出典チップ', () => {
     render(<App />);
     await ask(user);
 
-    const chips = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+    const chips = await sourceChips();
     // ヒントは、チップの説明（aria-describedby）として読み上げられる
     expect(chips[1]).toHaveAccessibleDescription('第5条 入寮の申込みは、2 月 28 日までに行う。');
     expect(screen.getAllByRole('tooltip', { hidden: true })).toHaveLength(2);
@@ -204,7 +210,7 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     render(<App />);
     await ask(userEvent.setup());
 
-    const cards = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+    const cards = await sourceChips();
     expect(within(cards[0]!).getByText('p.2–3')).toBeInTheDocument();
     expect(within(cards[1]!).getByText('p.1')).toBeInTheDocument();
   });
@@ -218,7 +224,8 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     render(<App />);
     await ask(user);
 
-    const titled = await screen.findByRole('button', { name: 'つばさ大学学生寮 入寮規程 p.2–3を右のパネルで開く' });
+    await openSources();
+    const titled = screen.getByRole('button', { name: 'つばさ大学学生寮 入寮規程 p.2–3を右のパネルで開く' });
     expect(within(titled).getByText('つばさ大学学生寮 入寮規程')).toBeInTheDocument();
     expect(within(titled).queryByText('tsubasa_dorm_rules.pdf')).toBeNull();
     expect(screen.getByRole('button', { name: 'tsubasa_dorm_rules.pdf p.1を右のパネルで開く' })).toBeInTheDocument();
@@ -233,7 +240,7 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     render(<App />);
     await ask(user);
 
-    await user.click((await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ }))[1]!);
+    await user.click((await sourceChips())[1]!);
 
     // 抜粋の突き合わせなら 3 ページ（chunks 側の値）になる。サーバーの値（1）が使われる
     await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=1&chunk=1'));
@@ -245,7 +252,7 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     render(<App />);
     await ask(user);
 
-    const cards = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+    const cards = await sourceChips();
     expect(within(cards[0]!).queryByText(/^p\./)).not.toBeInTheDocument();
     await user.click(cards[1]!);
 
@@ -257,7 +264,7 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     render(<App />);
     await ask(userEvent.setup());
 
-    const cards = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+    const cards = await sourceChips();
     cards.forEach((card) => expect(within(card).queryByText(/^p\./)).not.toBeInTheDocument());
   });
 
@@ -269,10 +276,10 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     render(<App />);
     await ask(userEvent.setup());
 
-    const cards = await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+    const cards = await sourceChips();
     expect(cards).toHaveLength(1);
     expect(within(cards[0]!).getByText('p.2–3')).toBeInTheDocument();
-    expect(screen.getByText('1 件')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^参照資料 1 件/ })).toBeInTheDocument();
   });
 
   it('sources と出典が合わないときは、weak でも絞らない（ずれた判定を使わない）', async () => {
@@ -280,11 +287,11 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     render(<App />);
     await ask(userEvent.setup());
 
-    expect(await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })).toHaveLength(2);
+    expect(await sourceChips()).toHaveLength(2);
   });
 });
 
-describe('参照資料（回答の下のコンパクトな一覧）', () => {
+describe('参照資料（コピーの隣のボタンから開く一覧）', () => {
   const CONTEXT4 = [1, 2, 3, 4].map((n) => `[tsubasa_dorm_rules.pdf]\n第${n}条 本文${n}`).join('\n\n');
   const SOURCES4 = [1, 2, 3, 4].map((page) => ({ name: 'tsubasa_dorm_rules.pdf', page, page_end: null, weak: false }));
   const CONTEXT7 = [1, 2, 3, 4, 5, 6, 7].map((n) => `[tsubasa_dorm_rules.pdf]\n第${n}条 本文${n}`).join('\n\n');
@@ -302,13 +309,13 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     vi.stubGlobal('fetch', fetchMock);
   }
 
-  it('「参照資料」の見出しと件数の下に、資料名とページのチップを並べる。大きなカード・サムネイル・更新日は出さない', async () => {
+  it('「参照資料 N 件」のボタンを押すと、資料名とページの一覧が開く。大きなカード・サムネイル・更新日は出さない', async () => {
     installRefs(CONTEXT4, SOURCES4);
     const { container } = render(<App />);
     await ask(userEvent.setup());
 
-    const region = await screen.findByRole('region', { name: '参照資料' });
-    expect(within(region).getByRole('heading', { name: /参照資料/ })).toHaveTextContent('4 件');
+    const region = await openSources();
+    expect(screen.getByRole('button', { name: /^参照資料 4 件/ })).toBeInTheDocument();
     const chips = within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
     expect(chips).toHaveLength(4);
     expect(within(chips[0]!).getByText('tsubasa_dorm_rules.pdf')).toBeInTheDocument();
@@ -318,15 +325,46 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     expect(region).not.toHaveTextContent('更新');
   });
 
+  it('一覧は最初は閉じていて、ボタンの押し直し・Esc・外を押すと閉じる。Esc ではボタンへフォーカスが戻る', async () => {
+    installRefs(CONTEXT4, SOURCES4);
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    const toggle = await screen.findByRole('button', { name: /^参照資料 4 件/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('region', { name: '参照資料' })).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    const first = within(screen.getByRole('region', { name: '参照資料' })).getAllByRole('button')[0]!;
+    first.focus();
+    await user.keyboard('{Escape}'); // 最初の Esc は抜粋のヒントを閉じるだけ（一覧は残る）
+    expect(screen.getByRole('region', { name: '参照資料' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
+    expect(toggle).toHaveFocus();
+
+    await user.click(toggle);
+    await user.click(screen.getByRole('log', { name: '会話' }));
+    expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
+  });
+
   it('最初は 5 件まで。残りは「ほか n 件を表示」で開き、「折りたたむ」で戻る', async () => {
     installRefs(CONTEXT7, SOURCES7);
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
 
-    const region = await screen.findByRole('region', { name: '参照資料' });
+    const region = await openSources();
     expect(within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })).toHaveLength(5);
-    expect(within(region).getByRole('heading', { name: /参照資料/ })).toHaveTextContent('7 件');
+    expect(screen.getByRole('button', { name: /^参照資料 7 件/ })).toBeInTheDocument();
 
     await user.click(within(region).getByRole('button', { name: 'ほか 2 件を表示' }));
     expect(within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })).toHaveLength(7);
@@ -340,7 +378,7 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     render(<App />);
     await ask(userEvent.setup());
 
-    await screen.findByRole('region', { name: '参照資料' });
+    await openSources();
     expect(screen.queryByRole('button', { name: /参照資料をすべて見る/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('main', { name: '参照資料' })).not.toBeInTheDocument();
   });
@@ -358,7 +396,7 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     render(<App />);
     await ask(userEvent.setup());
 
-    const region = await screen.findByRole('region', { name: '参照資料' });
+    const region = await openSources();
     const chips = within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
     expect(chips.map((chip) => chip.textContent)).toEqual([
       expect.stringContaining('p.1'), // 第5条（p.1）
@@ -367,7 +405,7 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     ]);
     expect(chips[0]).toHaveAccessibleDescription('第5条 入寮の申込みは、2 月 28 日までに行う。');
     expect(chips[2]).toHaveAccessibleDescription('第6条 退寮の届出は、前月末までに行う。');
-    expect(within(region).getByRole('heading', { name: /参照資料/ })).toHaveTextContent('3 件');
+    expect(screen.getByRole('button', { name: /^参照資料 3 件/ })).toBeInTheDocument();
   });
 
   describe('回答の文末の引用', () => {
@@ -444,7 +482,7 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
       render(<App />);
       await ask(userEvent.setup());
 
-      const region = await screen.findByRole('region', { name: '参照資料' });
+      const region = await openSources();
       const chips = within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
       expect(chips[0]).toHaveTextContent(/^1/);
       expect(chips[1]).toHaveTextContent(/^2/);
@@ -457,7 +495,7 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     render(<App />);
     await ask(user);
 
-    const region = await screen.findByRole('region', { name: '参照資料' });
+    const region = await openSources();
     await user.click(within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })[3]!);
 
     await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=4'));
@@ -469,8 +507,8 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     render(<App />);
     await ask(userEvent.setup());
 
-    const region = await screen.findByRole('region', { name: '参照資料' });
-    expect(within(region).getByRole('heading', { name: /参照資料/ })).toHaveTextContent('2 件');
+    const region = await openSources();
+    expect(screen.getByRole('button', { name: /^参照資料 2 件/ })).toBeInTheDocument();
     expect(within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })).toHaveLength(2);
   });
 
@@ -480,7 +518,7 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     render(<App />);
     await ask(user);
 
-    await user.click(await screen.findByRole('button', { name: /unknown\.pdf/ }));
+    await user.click(within(await openSources()).getByRole('button', { name: /unknown\.pdf/ }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('資料一覧に見つかりませんでした');
   });
@@ -497,7 +535,7 @@ describe('参照資料（回答の下のコンパクトな一覧）', () => {
     render(<App />);
     await ask(user);
 
-    await user.click((await screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ }))[0]!);
+    await user.click((await sourceChips())[0]!);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('資料を開けませんでした');
     expect(window.location.search).toBe('?tab=chat');

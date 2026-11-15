@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import App from './App';
 import { openKnowledge } from './test/navigation';
 import { jsonResponse, replyResponse } from './test/helpers';
+import { openSources } from './test/sources';
 
 // 出典を押して右のパネルを開く流れ（A 案）: 抽出テキストで根拠を強調し、「元のPDF」へ切り替えたら出典のページを開く。
 // パネルの開閉・拡大・状態の保持・履歴・フォーカスを確かめる。
@@ -114,7 +115,8 @@ async function ask(user: User) {
   await screen.findByText('2 月 28 日までです。');
 }
 
-const chips = () => screen.findAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
+/** 「参照資料 N 件」を開いて、一覧の項目を返す。 */
+const chips = async () => within(await openSources()).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
 const findPanel = () => screen.findByRole('complementary', { name: /^資料:/ });
 const pdfFrame = () => screen.getByTitle('tsubasa_dorm_rules.pdf の元PDF') as HTMLIFrameElement;
 
@@ -370,14 +372,14 @@ describe('パネルと履歴', () => {
 });
 
 describe('パネルのフォーカス', () => {
-  it('出典を押して開いたらパネルへフォーカスを移し、Esc で閉じたら押したカードへ戻す', async () => {
+  it('出典を押して開いたらパネルへフォーカスを移し、Esc で閉じたら「参照資料 N 件」のボタンへ戻す（一覧は閉じている）', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
-    const chip = (await chips())[1]!;
+    const toggle = await screen.findByRole('button', { name: /^参照資料 \d+ 件/ });
 
-    await user.click(chip);
+    await user.click((await chips())[1]!);
 
     const panel = await findPanel();
     await waitFor(() => expect(panel).toHaveFocus());
@@ -385,7 +387,8 @@ describe('パネルのフォーカス', () => {
     await user.keyboard('{Escape}');
 
     await waitFor(() => expect(screen.queryByRole('complementary', { name: /^資料:/ })).not.toBeInTheDocument());
-    expect(chip).toHaveFocus();
+    expect(toggle).toHaveFocus();
+    expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
     expect(window.location.search).toBe('?tab=chat');
   });
 
