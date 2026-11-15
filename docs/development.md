@@ -24,7 +24,7 @@
 - **ポート:** 3100・3101・8100 は E2E 専用（`frontend/playwright.config.ts`）。使いません。画面は 3000 の 1 つだけです。
   3000 は `.devcontainer/docker-compose.yml` の `ports: 127.0.0.1:3000:3000` でホストに公開します（VS Code の転送ではない。`forwardPorts` に 3000 は入れない。入れると 3001 などにずれる）。
 - **DB:** 既定は `docunavi`（ローカルの Postgres、`host.docker.internal:5433`）。別の DB は `LOCAL_DB_NAME`。
-  **スキーマの適用・DB の作成・削除は、スクリプトがしません。** 新しい DB は `db/migrations/0001_schema.sql` を手で 1 回適用します。
+  **スキーマの適用・DB の作成・削除は、スクリプトがしません。** 新しい DB は `db/migrations/` の SQL を、`0001_schema.sql` から番号順に、手で 1 回ずつ適用します（`0002` 以降は、既存の DB にも足す）。
   資料を取り込んだあとに、`db/seeds/classification.sql` も手で 1 回流します（対象・資料種別の語彙と初期 6 資料の分類。何度流しても安全）。流さないと `/targets` が空になり、入力欄の回答対象のチップが押せなくなります（2026-11-15 に発生）。
 - **`workers/api/.dev.vars`**（Git 管理外）は手で書きません。正本は Infisical の `docunavi-local`（環境 `dev`、パス `/`）で、`start`（または `vars`）が、ログイン済みのユーザーの権限で取り、権限 600 で作り直します（取れないときは理由を出して止まる）。
   キーは 6 つ: `BETTER_AUTH_SECRET` `BETTER_AUTH_URL`（`http://localhost:3000`） `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` `TEST_LOGIN_EMAIL` `TEST_LOGIN_TOKEN`（ランダム 32 文字以上）。
