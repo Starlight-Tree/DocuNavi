@@ -119,3 +119,107 @@ tests:
           must_include: [["罠"]]
           must_not_include: ["洗濯"]
           max_chars: 400
+
+  # ---- 「分かる範囲を添える」型（2026-11-16 追加。pf09-pf17）----
+  # 目標の挙動: 同じ話題で資料に書かれていることがあるのに、聞かれた詳細だけが資料に無いとき、書かれていることを先に短く述べ、
+  # 聞かれた点は「資料には記載がありません」の言い換えで述べる（推測は足さない）。「資料には記載がありません。」だけの返答は、不合格。
+  # must_include の 2 つの要素（言い換えの一覧 + 既知の事実）を、どちらも満たすこと。期待は、プロンプトを変える前に書いた。
+  # 資料: 酸素・昼夜の温度差 = ザーハード1、防衛機構 = ザーハード2、寮の外泊 = 第 20 条（届け出の方法は資料に無い）。
+
+  # 画面で見つかった会話（酸素濃度 → 昼夜の気温差 → 夕方）。夕方の記述は資料に無い
+  - description: 分かる範囲を添える（夕方）
+    vars:
+      name: partial-evening
+      cases:
+        - id: pf09
+          category: 通常
+          thread: pfE
+          question: "ザーハードの大気の酸素濃度はどれくらい？"
+          expect_sources: ["ザーハード1.pdf"]
+          must_include: [["1/10", "十分の一", "10分の1"]]
+          must_not_include: ["洗濯"]
+        - id: pf10
+          category: マルチターン
+          thread: pfE
+          question: "昼と夜の気温差について教えて"
+          expect_sources: ["ザーハード1.pdf"]
+          must_include: [["高温"], ["極寒"]]
+          must_not_include: ["洗濯", "℃"]
+          max_chars: 500
+        - id: pf11
+          category: マルチターン
+          thread: pfE
+          question: "夕方はどう？"
+          trajectory: [llm, search_documents, llm]
+          expect_sources: ["ザーハード1.pdf"]
+          must_include: [["$not_found"], ["高温", "極寒"]]
+          must_not_include: ["洗濯", "℃", "過ごしやすい", "穏やか", "暖か", "涼し"]
+          max_chars: 300
+
+  # 防衛システムの止め方（gc12 と同じ話題）。止め方は資料に無いが、防衛システムが侵入者を攻撃することは書いてある
+  - description: 分かる範囲を添える（止め方）
+    vars:
+      name: partial-stop-defense
+      cases:
+        - id: pf12
+          category: 通常
+          thread: pfF
+          question: "遺跡の防衛システムについて教えて"
+          expect_sources: ["ザーハード2.pdf"]
+          must_include: [["防衛システム", "防衛機構"], ["侵入者", "攻撃"]]
+          must_not_include: ["洗濯"]
+          max_chars: 600
+        - id: pf13
+          category: マルチターン
+          thread: pfF
+          question: "それはどうやって止められますか"
+          trajectory: [llm, search_documents, llm]
+          expect_sources: ["ザーハード2.pdf", "ザーハード3.pdf"]
+          must_include: [["$not_found"], ["侵入者", "攻撃", "防衛システム", "防衛機構"]]
+          must_not_include: ["洗濯"]
+          max_chars: 300
+
+  # 崩壊の時期（gc15 と同じ話題）。崩壊の時期は資料に無いが、繁栄が数千年以上前とは書いてある
+  - description: 分かる範囲を添える（崩壊の時期）
+    vars:
+      name: partial-collapse-time
+      cases:
+        - id: pf14
+          category: 通常
+          thread: pfG
+          question: "ザーハリアン文明が崩壊した原因は？"
+          expect_sources: ["ザーハード2.pdf"]
+          must_include: [["明記", "明らか", "判明", "特定", "解明", "記載", "不明", "何らかの原因"]]
+          must_not_include: ["隕石", "疫病", "戦争が原因", "気候変動"]
+          max_chars: 500
+        - id: pf15
+          category: マルチターン
+          thread: pfG
+          question: "それはいつ頃のことですか"
+          trajectory: [llm, search_documents, llm]
+          expect_sources: ["ザーハード2.pdf"]
+          must_include: [["$not_found"], ["数千年", "何らかの原因"]]
+          must_not_include: ["洗濯"]
+          max_chars: 300
+
+  # 寮の外泊（別の資料）。届け出が要ることは第 20 条にあるが、届け出の方法（書式・窓口など）は資料に無い
+  - description: 分かる範囲を添える（外泊の届け出方法）
+    vars:
+      name: partial-dorm-notice
+      cases:
+        - id: pf16
+          category: 通常
+          thread: pfH
+          question: "つばさ大学の学生寮の外泊の決まりを教えて"
+          expect_sources: ["tsubasa_dorm_rules.pdf"]
+          must_include: [["前日"], ["寮監"]]
+          max_chars: 600
+        - id: pf17
+          category: マルチターン
+          thread: pfH
+          question: "それはどうやって届け出ますか"
+          trajectory: [llm, search_documents, llm]
+          expect_sources: ["tsubasa_dorm_rules.pdf"]
+          must_include: [["$not_found"], ["前日", "寮監"]]
+          must_not_include: ["メール", "電話", "用紙", "窓口", "アプリ"]
+          max_chars: 300

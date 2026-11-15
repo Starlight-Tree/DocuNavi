@@ -42,7 +42,7 @@
 | `gx` | `fixtures/graph_rules_ext`（`gx001`-`gx062`。遠い参照・3 条またぎを増やした GraphRAG の評価専用。`python -m scripts.eval_graph --set graph_rules_ext`。最初のセット `graph_rules` の質問・計画・結果は変えない） |
 | `n` | `answers/questions_research.yaml` |
 | `gc` | `golden/chat_golden.yaml`（グラフ全体の golden set。`gc01`-`gc15`。検索の評価セットではなく、`--app` は読まない。`evals/golden/README.md`） |
-| `pf` | `promptfoo/promptfooconfig.yaml`（Promptfoo の試験導入の会話。`pf01`-`pf08`。`--app` は読まない。`evals/promptfoo/README.md`） |
+| `pf` | `promptfoo/promptfooconfig.yaml`（Promptfoo の試験導入の会話。`pf01`-`pf17`。`--app` は読まない。`evals/promptfoo/README.md`） |
 
 `fixtures/menu` の `x001`-`x004` があるので、`x` 始まりの新しい ID は使わない（`exact` が `x001`-`x050` だった時代に衝突した）。
 

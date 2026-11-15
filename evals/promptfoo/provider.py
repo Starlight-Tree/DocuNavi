@@ -15,6 +15,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 DEFAULT_MAX_LLM_CALLS = 30
+DEFAULT_PACE_S = 15.0  # 1 ターンごとの待ち（秒）。1 ターンは LLM 1〜3 回 + 埋め込み 1 回なので、毎分およそ 12 回以下になる
 _used_llm_calls = 0  # このプロセス（= 1 回の `promptfoo eval`）で使った LLM 呼び出しの合計
 
 
@@ -52,7 +54,9 @@ def report_of(cases: list[dict[str, Any]], turns: list[Any]) -> dict[str, Any]:
     by_id = {c["id"]: c for c in cases}
     rows = []
     for t in turns:
-        row = {k: v for k, v in t.__dict__.items() if k != "context"}  # 検索結果の本文は出力に載せない（長い）
+        row = {k: v for k, v in t.__dict__.items() if k != "context"}  # 検索結果の本文は、既定では出力に載せない（長い）
+        if os.environ.get("PROMPTFOO_GOLDEN_KEEP_CONTEXT") == "1":  # 原因調べ用: 検索結果の本文（資料の抜粋）を載せる
+            row["context"] = t.context
         row["evals"] = evaluate_all(by_id[t.id], t)
         rows.append(row)
     return {"turns": rows}
@@ -67,6 +71,9 @@ def call_api(prompt: str, options: dict[str, Any], context: dict[str, Any]) -> d
     load_dotenv(ROOT / ".env")  # アプリ・runner と同じ。既存の環境変数は上書きしない
     os.environ["LANGSMITH_TRACING"] = "false"
     os.environ.pop("GEMINI_API_KEY_PAID", None)
+    # 別モデルへのフォールバックを切る（.env で有効だと、遅い回だけ別モデルが答えて、プロンプトの比較が崩れる。
+    # 2026-11-16 の段階 A で 3 回混ざった）。主モデルだけで測る。ヘッジ（同じモデルへの追加の試行）は本番と同じまま
+    os.environ["GEMINI_FALLBACK_MODEL"] = ""
 
     from evals.golden.runner import LLMCallLimitError, check_environment, run_golden
 
@@ -79,9 +86,20 @@ def call_api(prompt: str, options: dict[str, Any], context: dict[str, Any]) -> d
         return {"error": f"LLM 呼び出しの全体の上限（{limit} 回）に達したため流しません"}
 
     cases = resolve_cases(context["vars"]["cases"])
+    pace_s = float(os.environ.get("PROMPTFOO_GOLDEN_PACE_S", DEFAULT_PACE_S))
+
+    def pace(_case: dict[str, Any], _turn: Any) -> None:
+        time.sleep(pace_s)  # 各ターンの後に待つ（429 を避ける。会話の間も、最後のターンの後の待ちで空く）
+
     try:
         turns = asyncio.run(
-            run_golden(cases, repeat=1, label=str(context["vars"].get("name", "pf")), max_llm_calls=remaining)
+            run_golden(
+                cases,
+                repeat=1,
+                label=str(context["vars"].get("name", "pf")),
+                max_llm_calls=remaining,
+                on_turn=pace,
+            )
         )
     except LLMCallLimitError as exc:
         _used_llm_calls = limit
