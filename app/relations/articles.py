@@ -75,8 +75,18 @@ class Regulation:
     supplementary: str
 
 
+def _without_front_matter(pages: Sequence[Page]) -> Sequence[Page]:
+    """PDF のページラベルが数字でないページ（表紙・ローマ数字の目次など）を除く。目次の「第1章 …」を、章の見出しと取り違えないため。
+
+    ラベルが無い PDF は、そのまま。全ページが除かれるときも、そのまま（読み取れる本文を失わない）。
+    """
+    body = [page for page in pages if page.label is None or page.label.isdecimal()]
+    return body or pages
+
+
 def _body_lines(pages: Sequence[Page]) -> tuple[str | None, list[tuple[int, str]]]:
-    """ページ番号・全ページに繰り返される脚の行を除いた (ページ, 行) の並びと、1 ページ目の先頭行（題名）。"""
+    """ページ番号・全ページに繰り返される脚の行を除いた (ページ, 行) の並びと、本文の 1 ページ目の先頭行（題名）。"""
+    pages = _without_front_matter(pages)
     per_page = [[ln.rstrip() for ln in page.text.splitlines() if ln.strip()] for page in pages]
     footers: set[str] = set()
     if len(per_page) >= 2:
