@@ -948,19 +948,6 @@ textarea {
   font-size: 0.85rem;
 }
 
-.chunk-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  margin-bottom: 1rem;
-}
-
-.chunk-toolbar .documents-summary {
-  margin: 0;
-}
-
 .btn-small {
   padding: 0.25rem 0.6rem;
   font-size: 0.8rem;
@@ -1068,11 +1055,6 @@ textarea {
   gap: 0.25rem 0.75rem;
   color: var(--text-muted);
   font-size: 0.8rem;
-}
-
-.chunk-index {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 .chunk-text {

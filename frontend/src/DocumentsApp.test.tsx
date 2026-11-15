@@ -262,24 +262,19 @@ describe('資料一覧: チャンク', () => {
 
     const items = await (await panel()).findAllByRole('listitem');
     expect(items).toHaveLength(3);
-    // チャンク番号・埋め込みの状態は、開発者向けなので、既定では隠す
+    // チャンク番号・埋め込みの状態（開発者向け）は出さない
     expect(items[0]).not.toHaveTextContent('#0');
     expect(items[0]).not.toHaveTextContent('埋め込み');
     expect(screen.queryByText(/チャンク（埋め込み済み/)).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '開発者向けの情報' }));
-    expect(screen.getByRole('button', { name: '開発者向けの情報' })).toHaveAttribute('aria-pressed', 'true');
-    expect(items[0]).toHaveTextContent('#0');
+    expect(screen.queryByRole('button', { name: '開発者向けの情報' })).not.toBeInTheDocument();
     expect(items[0]).toHaveTextContent('p.1');
     expect(items[0]).toHaveTextContent('第1章 総則');
-    expect(items[0]).toHaveTextContent('埋め込み済み（gemini-embedding-2）');
     expect(items[0]!.querySelector('pre')!.textContent).toBe(
       '第1条 この規程は、つばさ大学学生寮の運営を定める。\n第2条 寮は3棟で構成する。',
     );
     expect(items[1]).toHaveTextContent('p.2–3');
     expect(items[1]).toHaveTextContent('つばさ大学 学生寮 入寮規程');
     expect(items[2]).toHaveTextContent('（見出しなし）');
-    expect(items[2]).toHaveTextContent('埋め込みなし');
-    expect(screen.getByText('3 チャンク（埋め込み済み 2 / 3）')).toBeInTheDocument();
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
   });
 

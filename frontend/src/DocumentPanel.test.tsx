@@ -137,7 +137,9 @@ describe('出典を押して右のパネルを開く', () => {
 
     expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=3&chunk=1');
     expect(panel.getByRole('button', { name: '抽出テキスト' })).toHaveAttribute('aria-pressed', 'true');
-    expect(panel.getByText('PDFから抽出したテキストです。レイアウトや図は含まれません。')).toBeVisible();
+    // 「PDF から抽出したテキスト」の断り書きは、常時は出さず、タブのホバーの説明（title）にする
+    expect(panel.getByRole('button', { name: '抽出テキスト' })).toHaveAccessibleDescription('PDFから抽出したテキストです。レイアウトや図は含まれません。');
+    expect(panel.queryByText('PDFから抽出したテキストです。レイアウトや図は含まれません。')).not.toBeInTheDocument();
     // 根拠の箇所が見つかったときは、「特定できなかった」とは出さない
     expect(panel.queryByText(/箇所を特定できなかった/)).not.toBeInTheDocument();
     const marked = document.querySelectorAll('[data-focus="true"]');

@@ -56,8 +56,6 @@ interface DocumentPanelProps {
  */
 export function DocumentPanel({ document, view, page, chunk, expanded, onToggleExpand, onViewChange, onClose }: DocumentPanelProps) {
   const [state, reload] = useDocumentChunks(document.id);
-  // チャンクの番号・埋め込みの状態は、開発者向けの情報。既定では隠す
-  const [showDev, setShowDev] = useState(false);
   const ref = useRef<HTMLElement>(null);
   const openSeq = usePanelOpenSeq();
   const cite = usePanelCiteSeq();
@@ -101,7 +99,6 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
   };
 
   const name = displayName(document);
-  const extractedLabel = originalPdf ? MSG_EXTRACTED : MSG_EXTRACTED_OTHER;
 
   return (
     <aside
@@ -139,7 +136,8 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
         <>
           {originalPdf ? (
             <div className="view-switch" role="group" aria-label="表示の切り替え">
-              <button type="button" className="btn btn-secondary" aria-pressed={mode === 'text'} onClick={() => onViewChange('text')}>
+              {/* 「PDF から抽出したテキスト」という断り書きは、常時は出さず、このタブのホバーの説明（title）にする */}
+              <button type="button" className="btn btn-secondary" aria-pressed={mode === 'text'} title={MSG_EXTRACTED} onClick={() => onViewChange('text')}>
                 抽出テキスト
               </button>
               <button type="button" className="btn btn-secondary" aria-pressed={mode === 'pdf'} onClick={() => onViewChange('pdf')}>
@@ -172,16 +170,7 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
                   {MSG_CITE_MISS}
                 </p>
               )}
-              <div className="chunk-toolbar">
-                <p className="documents-summary">
-                  {showDev
-                    ? `${state.data.document.chunkCount} チャンク（埋め込み済み ${state.data.document.embeddedCount} / ${state.data.document.chunkCount}）`
-                    : extractedLabel}
-                </p>
-                <button type="button" className="btn btn-secondary btn-small" aria-pressed={showDev} onClick={() => setShowDev((v) => !v)}>
-                  開発者向けの情報
-                </button>
-              </div>
+              {!originalPdf && <p className="documents-summary">{MSG_EXTRACTED_OTHER}</p>}
               <ol className="chunk-list">
                 {state.data.chunks.map((item) => {
                   const focused = chunk !== null && item.chunkIndex === chunk;
@@ -189,14 +178,8 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
                     <li key={item.chunkIndex} className={focused ? 'chunk chunk-focus' : 'chunk'} data-focus={focused ? 'true' : undefined}>
                       <div className="chunk-meta">
                         {focused && <span className="chunk-cite">根拠の箇所</span>}
-                        {showDev && <span className="chunk-index">{`#${item.chunkIndex}`}</span>}
                         {pageLabel(item) && <span>{pageLabel(item)}</span>}
                         <span className="chunk-heading">{item.heading ?? '（見出しなし）'}</span>
-                        {showDev && (
-                          <span>
-                            {item.embedded ? `埋め込み済み${item.embeddingModel ? `（${item.embeddingModel}）` : ''}` : '埋め込みなし'}
-                          </span>
-                        )}
                       </div>
                       <pre className="chunk-text">{focused ? <FocusedText content={item.content} span={span} /> : item.content}</pre>
                     </li>
