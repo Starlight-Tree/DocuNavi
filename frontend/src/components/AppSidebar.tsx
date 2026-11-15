@@ -26,8 +26,8 @@ interface AppSidebarProps {
   /** 閉じた状態を、アイコンだけの細いレールで見せる（PC）。履歴・文字は隠す。渡さない（スマホ・UI モック）と、閉じたら完全に隠す。 */
   rail?: boolean | undefined;
   /**
-   * レールの空き部分の下敷きの「サイドバーを開く」ボタン（レールの中。閉じたときにフォーカスを移す先）。
-   * ロゴは開くボタンではない（チャットへ移るリンク）。レールの項目・アイコンは、自分のクリックだけを受ける。
+   * レールの先頭（ロゴの位置）の「サイドバーを開く」ボタン。閉じたときにフォーカスを移す先。
+   * 閉じたレールの空き部分のクリックでも開く。レールの項目・アイコンは、自分のクリックだけを受ける。
    */
   railToggleRef?: Ref<HTMLButtonElement>;
   onExpand?: (() => void) | undefined;
@@ -99,7 +99,7 @@ function inApp(action: () => void) {
 }
 
 /**
- * 共通の左サイドバー。新しい会話、会話の履歴、アカウントのメニュー（ナレッジ・ログアウト）を持つ。閉じるボタンで畳める。閉じたレールは、空き部分のクリックで開く。
+ * 共通の左サイドバー。新しい会話、会話の履歴、アカウントのメニュー（ナレッジ・ログアウト）を持つ。閉じるボタンで畳める。閉じたレールは、ロゴの位置のボタンと、空き部分のクリックで開く。
  * `knowledgeInMenu` でないとき（UI モック）は、上部に画面の切り替え（チャット / 資料）を出す。
  */
 export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation, onCollapse, collapseRef, onGoChat, onGoDocuments, knowledgeInMenu, history, documentCount, rail, railToggleRef, onExpand }: AppSidebarProps) {
@@ -108,11 +108,16 @@ export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation
     <div className="ws-sidebar">
       {rail && onExpand && (
         <nav className="ws-rail" aria-label="サイドバー（縮小表示）">
-          {/* 空き部分の下敷き。レールの項目・アイコンは、この上に載り、自分のクリックだけを受ける（shell.css の pointer-events） */}
-          <button ref={railToggleRef} type="button" className="ws-rail-open" aria-label="サイドバーを開く" title="サイドバーを開く" onClick={onExpand} />
-          <a href="?tab=chat" className="ws-rail-btn" aria-label="DocuNavi" data-tip="DocuNavi" onClick={inApp(onGoChat)}>
+          {/* 空き部分の下敷き（マウス用。読み上げ・Tab の対象にはしない。キーボードと読み上げは、下のロゴの位置のボタンが受ける）。
+              レールの項目・アイコンは、この上に載り、自分のクリックだけを受ける（shell.css の pointer-events） */}
+          <button type="button" className="ws-rail-open" aria-hidden="true" tabIndex={-1} onClick={onExpand} />
+          {/* 閉じているときのロゴの位置は、開くボタン。カーソル・フォーカスで、ロゴが展開の絵に変わる（開いているときのロゴは、チャットへ移るリンクのまま） */}
+          <button ref={railToggleRef} type="button" className="ws-rail-btn ws-rail-logo" aria-label="サイドバーを開く" data-tip="サイドバーを開く" onClick={onExpand}>
             <BrandIcon />
-          </a>
+            <span className="ws-rail-logo-open">
+              <SidebarIcon />
+            </span>
+          </button>
           <a href="?tab=chat" className="ws-rail-btn" aria-label="チャット" data-tip="チャット" aria-current={view === 'chat' ? 'page' : undefined} onClick={inApp(onGoChat)}>
             <ChatIcon />
           </a>

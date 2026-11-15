@@ -314,20 +314,25 @@ test('PC: 左サイドバーを閉じると、アイコンだけの細いレー�
   await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
 
-  // ロゴは、チャットへ移るだけで、開かない
-  await rail.getByRole('link', { name: 'DocuNavi' }).click();
-  await expect(rail).toBeVisible();
+  // 閉じているときのロゴの位置は、開くボタン。カーソルで展開の絵に変わり、ツールチップは「サイドバーを開く」
+  const logoButton = rail.getByRole('button', { name: 'サイドバーを開く' });
+  await logoButton.hover();
+  await expect(logoButton.locator('.ws-rail-logo-open')).toBeVisible();
+  await expect(logoButton.locator('.ws-brand-icon')).toBeHidden();
+  await expect.poll(() => logoButton.evaluate((el) => getComputedStyle(el, '::after').content)).toBe('"サイドバーを開く"');
 
-  // 開くのは、レールの空き部分のクリックだけ（左の余白。項目・アイコンの外）。ボタンの見た目は無い
-  const logoCenter = async () => {
-    const box = (await page.locator('.ws-brand-icon:visible').first().boundingBox())!;
+  // 開くのは、ロゴの位置のボタンと、レールの空き部分のクリック（左の余白。項目・アイコンの外）。項目のクリックは開閉しない
+  await rail.getByRole('link', { name: 'チャット' }).click();
+  await expect(rail).toBeVisible();
+  const centerOf = async (selector: string) => {
+    const box = (await page.locator(selector).first().boundingBox())!;
     return [Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2)];
   };
-  const logoClosed = await logoCenter();
+  const logoClosed = await centerOf('.ws-rail-logo');
   await sidebar.click({ position: { x: 3, y: 300 } });
   await expect(rail).toBeHidden();
   // 開閉でロゴの位置は動かない
-  expect(await logoCenter()).toEqual(logoClosed);
+  expect(await centerOf('.ws-brand-icon:visible')).toEqual(logoClosed);
   await expect(page.getByRole('heading', { name: '会話の履歴' })).toBeVisible();
   expect((await sidebar.boundingBox())!.width).toBeGreaterThan(railWidth);
   await expect(input).toHaveValue('書きかけ');

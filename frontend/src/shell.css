@@ -1846,7 +1846,7 @@
 /* ---- 閉じたレールの空き部分で開く ----
    下敷きのボタンがサイドバー全体を覆い、レールの項目・アイコンは、その上に載って自分のクリックだけを受ける
    （ページ遷移・新しい会話・メニュー。開閉はしない）。レールの入れ物は pointer-events: none で素通しにし、中身だけ auto に戻す。
-   → 空き部分のクリックだけが下敷きに届いて開く。キーボードでは、下敷きのボタンが 1 つのボタンとして押せる。
+   → 空き部分のクリックだけが下敷きに届いて開く（下敷きはマウス用。キーボードは、先頭のロゴの位置のボタン）。
    閉じる操作は、これまでどおり、開いた状態の右上のボタンだけ */
 .ws-rail-open {
   position: absolute;
@@ -1858,9 +1858,20 @@
   cursor: e-resize;
 }
 
-.ws-rail-open:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: -3px;
+/* 閉じているときのロゴ（開くボタン）: カーソル・フォーカスで、ロゴが展開の絵に変わる */
+.ws-rail-logo-open {
+  display: none;
+}
+
+.ws-rail-logo:hover .ws-brand-icon,
+.ws-rail-logo:focus-visible .ws-brand-icon {
+  display: none;
+}
+
+.ws-rail-logo:hover .ws-rail-logo-open,
+.ws-rail-logo:focus-visible .ws-rail-logo-open {
+  display: grid;
+  place-items: center;
 }
 
 .ws-rail,

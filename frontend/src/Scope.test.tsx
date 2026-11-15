@@ -1157,7 +1157,7 @@ describe('左サイドバーの開閉', () => {
     expect(screen.queryByRole('button', { name: 'サイドバーを開く' })).not.toBeInTheDocument();
   });
 
-  it('PC 幅では、閉じるとアイコンだけのレールが残り、各アイコンに名前と選択中の表示がある。開くボタンはレールの空き部分の下敷き（メインの左上には出ない）。ロゴは開くボタンではない', async () => {
+  it('PC 幅では、閉じるとアイコンだけのレールが残り、各アイコンに名前と選択中の表示がある。開くボタンはレールの先頭のロゴの位置（メインの左上には出ない）。開いているときのロゴは、チャットへ移るリンクのまま', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(min-width: 1024px)', media: query, addEventListener: () => {}, removeEventListener: () => {} }));
     try {
       install();
@@ -1179,8 +1179,9 @@ describe('左サイドバーの開閉', () => {
       expect(within(rail).getByRole('link', { name: 'ナレッジ' })).toHaveAttribute('aria-current', 'page');
       expect(within(rail).getByRole('link', { name: 'チャット' })).not.toHaveAttribute('aria-current');
 
-      // ロゴは、チャットへ移るだけ（開かない）。項目のクリックも、開閉はしない
-      await user.click(within(rail).getByRole('link', { name: 'DocuNavi' }));
+      // 閉じているときのロゴの位置は、開くボタン（レールに「DocuNavi」のリンクは無い）。項目のクリックは、開閉しない
+      expect(within(rail).queryByRole('link', { name: 'DocuNavi' })).not.toBeInTheDocument();
+      await user.click(within(rail).getByRole('link', { name: 'チャット' }));
       expect(screen.getByRole('navigation', { name: 'サイドバー（縮小表示）' })).toBeInTheDocument();
       expect(within(rail).getByRole('link', { name: 'チャット' })).toHaveAttribute('aria-current', 'page');
 
