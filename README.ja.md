@@ -59,6 +59,7 @@ npm run dev
 | 文書 | 内容 |
 |---|---|
 | [docs/README.md](docs/README.md) | 全文書の索引 |
+| [docs/features.md](docs/features.md) | 機能一覧（条件・制限つき） |
 | [docs/architecture.md](docs/architecture.md) | 処理の流れとディレクトリ構成 |
 | [docs/configuration.md](docs/configuration.md) | 環境変数、LLM の遅延・失敗への対処 |
 | [docs/api.md](docs/api.md) | API の仕様 |

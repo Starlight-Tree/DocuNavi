@@ -61,6 +61,7 @@ The documents are written in Japanese.
 | Document | Contents |
 |---|---|
 | [docs/README.md](docs/README.md) | Index of all documents |
+| [docs/features.md](docs/features.md) | Feature list with conditions and limits |
 | [docs/architecture.md](docs/architecture.md) | Request flow and directory layout |
 | [docs/configuration.md](docs/configuration.md) | Environment variables; handling of LLM latency and failures |
 | [docs/api.md](docs/api.md) | API reference |

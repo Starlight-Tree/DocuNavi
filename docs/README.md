@@ -7,6 +7,7 @@
 
 | 文書 | 状態 | 内容 |
 |---|---|---|
+| [features.md](features.md) | 現状 | 利用者の操作ごとの機能一覧と、条件・制限・提供の状態 |
 | [architecture.md](architecture.md) | 現状 | 質問の処理の流れ（LangGraph）、ディレクトリ構成、本番とローカルの環境構成（図）、ログインと画面の配信 |
 | [search-design.md](search-design.md) | 現状 | 検索の設計（PDF のチャンク化、pgvector、ハイブリッド・リランク・GraphRAG）と、測定の結果、見直す条件 |
 | [guardrails.md](guardrails.md) | 現状 | 入出力ガードレール（拒否の条件、ストリーミング中の逐次検査）と限界 |
