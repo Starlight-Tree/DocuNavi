@@ -65,7 +65,7 @@ The documents are written in Japanese.
 | [docs/architecture.md](docs/architecture.md) | Request flow and directory layout |
 | [docs/configuration.md](docs/configuration.md) | Environment variables; handling of LLM latency and failures |
 | [docs/api.md](docs/api.md) | API reference |
-| [Testing](docs/development.md#テスト) | How to run the tests, main scenarios, what is unverified |
+| [docs/development.md#テスト](docs/development.md#テスト) | How to run the tests, main scenarios, what is unverified |
 | [docs/decisions/](docs/decisions/README.md) | Important decisions and their reasons |
 | [evals/README.md](evals/README.md) | Evaluation procedures and results |
 
