@@ -37,7 +37,8 @@ flowchart LR
 | `app/agents/tools.py` | 資料の検索ツール（`search_documents`）。実体は `app/search/vector.py`（Postgres + pgvector の検索。失敗しても別の経路に戻らない） |
 | `app/access.py`・`app/scope.py` | ロール別の資料グループ制御（`ACCESS_MODE`。[configuration.md](configuration.md) の「資料グループのアクセス制御」）。`Scope` は検索できるグループの範囲で、検索は渡し忘れを許さない |
 | `app/search/` | 資料の検索。`pipeline.py`（入口。フラグでハイブリッド・リランカー・GraphRAG を重ねる）、`vector.py`（質問の埋め込みと pgvector のコサイン類似度検索、起動時の DB の検査。設計: [search-design.md](search-design.md)）、`keyword.py`（BM25）、`rerank.py`、`graph.py`、`types.py`（`Hit` と `VectorSearchError`） |
-| `app/ingestion/` | PDF の取り込み（`python -m app.ingestion`）と埋め込み（`python -m app.ingestion.embed`）。`corpus.py` は評価の BM25 基準線用 |
+| `app/ingestion/` | PDF の取り込み（`python -m app.ingestion`）と埋め込み（`python -m app.ingestion.embed`）。`corpus.py` は評価の BM25 基準線用。ページは通し番号（`page`）と PDF のページラベル（`page_label`）を分けて持つ（下の「ページの番号とラベル」） |
+| `db/` | `migrations/`（SQL を番号順に。`migrate.py` が適用する。`0002` は `chunks.page_label` `page_end_label`）、`seeds/`、`local-init/` |
 | `frontend/` | チャット画面（Next.js + React + TypeScript）。Cloudflare の Worker `docunavi-web`（OpenNext）が配信する（FastAPI は配信しない）。E2E もここ |
 | `storage/pdf/<名前>/` | PDF の資料（取り込みの元。検索は Postgres を読む。ディレクトリ名は整理用。いまは zahard・cafe・guides） |
 | `scripts/` | 評価の道具。`bm25_baseline.py` は、以前アプリが使った BM25（評価の基準線。アプリは使わない） |
@@ -48,6 +49,20 @@ flowchart LR
 会話履歴は `thread_id` ごとに保持します。DB を設定しない（`DATABASE_URL` が空）ときはプロセス内メモリ（`MemorySaver`）で、再起動で消え、複数ワーカー間では
 共有されません。`DB_BACKEND=pg` と `DATABASE_URL` を設定すると Postgres に保存します（`app/history.py`、`app/pg_saver.py`。起動時に接続を開き、終了時に閉じる。
 開けないときは、メモリへ切り替えず起動を失敗させる。[configuration.md](configuration.md) の「会話履歴の保存先」）。
+
+## ページの番号とラベル
+
+表紙・目次のある PDF では、何枚目か（通し番号）と、紙面の番号（ラベル）が違うので、チャンクは両方を持ちます（決定: [decisions/0010](decisions/0010-physical-page-number-and-display-label.md)）。
+
+| | 列・項目 | 使い道 |
+|---|---|---|
+| 通し番号 | `chunks.page`・`page_end`（1 始まり） | 元の PDF を開くリンク（`#page=N`）、評価の根拠ページの照合 |
+| 表示ラベル | `chunks.page_label`・`page_end_label`（PDF の `/PageLabels`。「表紙」「i」「1」「A-1」など） | 画面の出典・チャンクの表示だけ |
+
+- 取り込み（`pdf_parser._page_labels`）がラベルを読み、`chunker` がチャンクに付けます。ラベルが無い・壊れた PDF は `NULL`（表示は通し番号）で、取り込みは止まりません。
+- 内容のハッシュにラベルは含めません。再取り込みすると、同じハッシュのチャンクも `UPDATE` でラベルが入ります（再埋め込みはしません）。
+- 列は `NULL` 可の追加です。**配備は、マイグレーション（`db/migrate.py --apply`）を先に、Cloud Run と取り込みを後に。** 逆だと検索の SQL が列を名指しして 503 になります。2026-11-15 時点で、本番には未適用です。
+- 関係図（`app/relations/`）は、ラベルが数字でないページ（表紙・目次）を読みません。
 
 ## どこで動くか
 

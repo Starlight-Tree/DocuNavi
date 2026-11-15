@@ -14,6 +14,7 @@
 | [0007](0007-graph-rag-default-on.md) | 検索の GraphRAG を既定 ON にする（`SEARCH_GRAPH_MAX_EXTRA`=1 のまま） | 実装済み（未プッシュ・未配備） |
 | [0008](0008-document-target-and-type.md) | 資料の分類「対象」「資料種別」を足し、`collection` は保存・認可の単位のまま | 実装済み（ローカルのみ。画面は承認待ち） |
 | [0009](0009-drop-custom-domain-and-worker-front.md) | 独自ドメインと、Cloudflare Worker の前段（段階 3・③）を廃止する | 決定（文書のみ） |
+| [0010](0010-physical-page-number-and-display-label.md) | PDF のページを「通し番号」（リンク・照合）と「表示ラベル」（画面の表示）に分ける | 実装済み（`main`。本番へは未配備） |
 
 ## 書き方
 

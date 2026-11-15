@@ -23,6 +23,19 @@
 | 「ツール呼び出し → 回答」の流れ | 偽の LLM `SearchingMockLLM`（`tests/fakes.py`。画面側は `searching_llm` フィクスチャ） |
 | 本物の検索（`app/search/vector.py`） | `@pytest.mark.real_search` で差し替えを外し、DB と埋め込みはテスト側で偽物にする |
 
+**ページラベルのテスト**（[decisions/0010](decisions/0010-physical-page-number-and-display-label.md)。2026-11-15）:
+
+| 層 | 場所 | 確かめること |
+|---|---|---|
+| 読み取り・チャンク | `tests/test_ingestion.py`、`tests/pdf_fixtures.py`（`build_pdf(page_labels=…)`） | 表紙・目次・本文・付録のラベル、ラベル無し、壊れたラベルでも取り込みが止まらない、通し番号は変わらない |
+| 保存 | `tests/test_d1.py` | 同じハッシュのチャンクにもラベルが入る（再埋め込みなし）。D1 は旧経路で、偽の Worker で確かめる |
+| 検索・API | `tests/test_search_vector.py`、`tests/test_documents.py`、`tests/test_chat_stream.py` | 出典・チャンクの `page_label`、空白だけ・長すぎるラベルは `null`、列の無い古い行は `null` |
+| 画面 | `frontend/src/lib/sources.test.ts`、`frontend/src/DocumentPanel.test.tsx` | 「p.i」「p.A-1」「表紙」の表記、ラベル無しは通し番号、不正な値は無視 |
+| 関係図 | `tests/test_graph_api.py` | 表紙・目次の付いた入寮規程の PDF（実物）から、関係図が従来どおり作れる。表紙・目次を読み飛ばす処理（`_without_front_matter`）の**専用のテストは無い** |
+
+- 本物の Postgres（`PG_TEST_URL`）のテストは、`db/migrations/` の全ファイルを番号順に適用した使い捨ての DB で動きます（`0002` を含む）。この開発コンテナには Postgres が無く、**ローカルでは動かしていません**。CI では動いて成功しました（2026-11-15）。
+- **確かめていないこと:** 表紙・目次の PDF の見た目（描画器が無い）、画面の実ブラウザーでの表示、本番の DB へのマイグレーション。
+
 RAG の精度は `tests/rag_eval_cases.py`（関連 21 件・無関係 8 件）で回帰テストしています。2-gram 照合では拾えない言い換え（「気温差」→「温度差」など）は既知の取りこぼしです。
 
 ## CI
