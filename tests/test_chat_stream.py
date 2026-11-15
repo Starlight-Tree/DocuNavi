@@ -245,6 +245,7 @@ def test_stream_final_text_and_context_match_chat(client, searching_llm):
             "collection": None,
             "target": None,
             "document_id": None,
+            "title": None,
         }
         for name in names
     ]
@@ -337,6 +338,7 @@ def test_tool_turn_then_answer_streams_only_the_answer_as_the_last_part(client, 
             "collection": None,
             "target": None,
             "document_id": None,
+            "title": None,
         }
     ]
 

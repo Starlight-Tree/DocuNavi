@@ -522,3 +522,25 @@ def test_an_outside_cancellation_cancels_both_and_stays_a_cancellation(monkeypat
 
     asyncio.run(main())
     assert sorted(log["cancelled"]) == ["corpus", "vector"]
+
+
+def test_the_document_title_survives_the_corpus_copy_and_reaches_the_sources():
+    chunk = Chunk("tsubasa_dorm_rules.pdf", "第5条 入寮の申込み", 1, None, "guides", None, 7, "つばさ大学学生寮 入寮規程")
+    hit = search_pipeline._to_hit(search_pipeline._Cand(chunk, 0, sim=0.9), "vector")
+
+    assert hit.title == "つばさ大学学生寮 入寮規程"
+    assert _sources([hit])[0]["title"] == "つばさ大学学生寮 入寮規程"
+    assert _sources([hit])[0]["name"] == "tsubasa_dorm_rules.pdf"
+    assert "d.title AS title" in search_pipeline._CORPUS_SQL
+
+
+@pytest.mark.parametrize("flags", [{}, {"SEARCH_HYBRID": "on"}])
+def test_the_title_of_a_vector_hit_is_kept_through_the_pipeline(monkeypatch, flags):
+    # ベクトル検索の Hit を候補（Chunk）に直すときに、題名を落とさない（落とすと、画面の出典がファイル名のままになる）
+    c = Chunk("tsubasa_dorm_rules.pdf", "第19条 門限は、午後 11 時とする。", 2, None, "guides", None, 3, "つばさ大学学生寮 入寮規程")
+    vector = [Hit(c.source, c.text, c.page, c.page_end, 0.9, c.collection, None, None, 3, c.title)]
+    install(monkeypatch, [c], vector, **flags)
+
+    hits = run("門限は何時ですか")
+
+    assert [h.title for h in hits] == ["つばさ大学学生寮 入寮規程"]

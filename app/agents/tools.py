@@ -97,6 +97,7 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
 
     `page` は 1 以上の整数だけ、`page_end` は `page` より大きいときだけ入れる（不正な値は None にして、画面が表示しない）。
     `collection` は資料のグループ（未設定なら None）。画面の出典に、どのグループの資料かを添えるためのもの。
+    `title` は資料の題名（空白だけ・未設定なら None）。画面の出典の表示用で、キーはファイル名（`name`）のまま。
     `target` は、回答を作った時点の資料の対象（未分類なら None）。あとで資料の分類が変わっても、過去の出典の表示は変えない（記録として残す）。
     `weak` は、1 位との類似度の差が `WEAK_GAP` を超える 2 件目以降と、GraphRAG で加えた参照先（`origin="graph"`）。画面の出典カードに出さない。
     類似度が無ければ（キーワードだけで拾った箇所など）差では判断せず False。
@@ -118,6 +119,7 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
                 "collection": hit.collection,
                 "target": hit.target,
                 "document_id": hit.document_id,
+                "title": hit.title.strip() if isinstance(hit.title, str) and hit.title.strip() else None,
             }
         )
     return sources

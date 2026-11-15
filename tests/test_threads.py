@@ -251,6 +251,27 @@ def test_visible_messages_attach_the_last_search_sources_to_the_answer():
     assert threads.visible_messages(messages, with_sources=False)[1].sources is None
 
 
+def test_visible_messages_return_the_title_when_saved_and_none_for_old_artifacts():
+    titled = _search_result("c1", "ザーハード1.pdf", 2, "窒素が主成分です。")
+    titled.artifact[0]["title"] = "ザーハード設定資料 1"
+    old = _search_result("c2", "ザーハード2.pdf", 1, "古い保存形式です。")  # title の項目が無い（保存済みの古い会話）
+    messages = [
+        HumanMessage(content="新しい会話"),
+        _call("c1"),
+        titled,
+        AIMessage(content="答え。"),
+        HumanMessage(content="古い会話"),
+        _call("c2"),
+        old,
+        AIMessage(content="答え。"),
+    ]
+
+    shown = threads.visible_messages(messages)
+
+    assert [s.title for s in shown[1].sources] == ["ザーハード設定資料 1"]
+    assert [s.title for s in shown[3].sources] == [None]
+
+
 def test_visible_messages_keep_only_the_last_search_of_a_turn_and_do_not_leak_into_the_next():
     messages = [
         HumanMessage(content="1 問目"),

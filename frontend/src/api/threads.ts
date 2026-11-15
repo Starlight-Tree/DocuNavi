@@ -46,7 +46,7 @@ export interface ThreadMessage {
   text: string;
   /** assistant のみ。その回答の検索結果（`/chat/stream` の `messageMetadata.context` と同じ形）。出典が無い回答・古い API では無い。 */
   context?: string;
-  /** assistant のみ。`context` の出典と同じ順の {name, page, page_end, weak, collection, document_id}。サーバーの値なので、使う前に `parseSourceRefs` で確かめる。 */
+  /** assistant のみ。`context` の出典と同じ順の {name, page, page_end, weak, collection, document_id, title}。サーバーの値なので、使う前に `parseSourceRefs` で確かめる。 */
   sources?: unknown;
 }
 

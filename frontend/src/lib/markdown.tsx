@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { hideOpenCitation, splitCitations } from './citations';
 import type { CitationRef } from './citations';
+import { sourceLabel } from './sources';
 import type { SourceDoc } from './sources';
 
 /**
@@ -120,7 +121,7 @@ const INLINE = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|\*[^*\s][^*\n]*?\*)/g;
 function citationLabel(ref: CitationRef, sources: SourceDoc[]): string {
   const source = sources[ref.index];
   const pages = source?.page === undefined ? '' : source.pageEnd === undefined ? ` p.${source.page}` : ` p.${source.page}–${source.pageEnd}`;
-  return `参照資料 ${ref.number}${source ? `: ${source.name}${pages}` : ''}を右のパネルで開く${ref.span ? '（根拠の語句を強調）' : ''}`;
+  return `参照資料 ${ref.number}${source ? `: ${sourceLabel(source)}${pages}` : ''}を右のパネルで開く${ref.span ? '（根拠の語句を強調）' : ''}`;
 }
 
 function renderCitations(text: string, cite: CitationOptions, keyBase: string): ReactNode[] {

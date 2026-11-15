@@ -209,6 +209,24 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     expect(within(cards[1]!).getByText('p.1')).toBeInTheDocument();
   });
 
+  it('題名があれば、カードと読み上げ名は題名を出す。題名が無い出典はファイル名のまま。押すとファイル名の資料を開く', async () => {
+    installSourcesFetch([
+      { name: 'tsubasa_dorm_rules.pdf', page: 2, page_end: 3, title: 'つばさ大学学生寮 入寮規程' },
+      { name: 'tsubasa_dorm_rules.pdf', page: 1, page_end: null },
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    const titled = await screen.findByRole('button', { name: 'つばさ大学学生寮 入寮規程 p.2–3を右のパネルで開く' });
+    expect(within(titled).getByText('つばさ大学学生寮 入寮規程')).toBeInTheDocument();
+    expect(within(titled).queryByText('tsubasa_dorm_rules.pdf')).toBeNull();
+    expect(screen.getByRole('button', { name: 'tsubasa_dorm_rules.pdf p.1を右のパネルで開く' })).toBeInTheDocument();
+
+    await user.click(titled);
+    await waitFor(() => expect(window.location.search).toContain('doc=7'));
+  });
+
   it('押すと、サーバーが返したページで開く（抜粋の突き合わせなら 3 ページになる出典でも）', async () => {
     installSourcesFetch(SOURCES);
     const user = userEvent.setup();

@@ -40,7 +40,7 @@ _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
 
 # Vectorize が返したチャンク ID を、本文・メタデータに引き直す（範囲・対象・資料の条件は、Vectorize のフィルターに加えてここでも確かめる）
 _CHUNKS_SQL = (
-    "SELECT c.id AS chunk_id, d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, "
+    "SELECT c.id AS chunk_id, d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, d.title AS title, "
     "c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end, c.chunk_index AS chunk_index "
     "FROM chunks c JOIN documents d ON d.id = c.document_id "
     "WHERE c.id IN (SELECT value FROM json_each(%(ids)s)) AND d.status = 'ready' "
@@ -229,6 +229,7 @@ async def search(
             None,
             row.get("target"),
             row.get("document_id"),
+            row.get("title"),
         )
         for row in rows
         if float(row["sim"]) >= MIN_SIMILARITY

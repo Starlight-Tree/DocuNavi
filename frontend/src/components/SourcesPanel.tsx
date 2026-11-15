@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { useOpenReference } from '../hooks/useOpenReference';
-import { formatPages, referenceItems, REFERENCE_LIST_LIMIT } from '../lib/sources';
+import { formatPages, referenceItems, REFERENCE_LIST_LIMIT, sourceLabel } from '../lib/sources';
 import type { SourceDoc } from '../lib/sources';
 
 interface SourcesPanelProps {
@@ -61,7 +61,7 @@ export function SourcesPanel({ sources, reference }: SourcesPanelProps) {
               <button
                 type="button"
                 className="ref-link"
-                aria-label={`${source.name}${pages ? ` ${pages}` : ''}を右のパネルで開く`}
+                aria-label={`${sourceLabel(source)}${pages ? ` ${pages}` : ''}を右のパネルで開く`}
                 aria-describedby={hint ? tipId : undefined}
                 disabled={opening !== null}
                 onClick={() => void open(index)}
@@ -76,7 +76,7 @@ export function SourcesPanel({ sources, reference }: SourcesPanelProps) {
                   <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
                   <path d="M14 3v5h5" />
                 </svg>
-                <span className="ref-name">{source.name}</span>
+                <span className="ref-name">{sourceLabel(source)}</span>
                 {pages && <span className="ref-page">{pages}</span>}
                 <span className="ref-open" aria-hidden="true">
                   {opening === index ? '…' : '↗'}

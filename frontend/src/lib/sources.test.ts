@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatPages, isVerifiedSpan, locateSpan, parseSourceRefs, parseSources, referenceCards, referenceItems, withPages } from './sources';
+import { formatPages, isVerifiedSpan, locateSpan, parseSourceRefs, parseSources, referenceCards, referenceItems, sourceLabel, withPages } from './sources';
 import type { SourceDoc } from './sources';
 
 describe('parseSources', () => {
@@ -66,12 +66,12 @@ describe('parseSourceRefs', () => {
         { name: 'f.pdf', page: 1.5, page_end: null },
       ]),
     ).toEqual([
-      { name: 'a.pdf', page: 2, pageEnd: 3, weak: false, collection: null, documentId: null },
-      { name: 'b.pdf', page: 1, pageEnd: null, weak: false, collection: null, documentId: null },
-      { name: 'c.pdf', page: null, pageEnd: null, weak: false, collection: null, documentId: null },
-      { name: 'd.pdf', page: null, pageEnd: null, weak: false, collection: null, documentId: null },
-      { name: 'e.pdf', page: 2, pageEnd: null, weak: false, collection: null, documentId: null },
-      { name: 'f.pdf', page: null, pageEnd: null, weak: false, collection: null, documentId: null },
+      { name: 'a.pdf', page: 2, pageEnd: 3, weak: false, collection: null, documentId: null, title: null },
+      { name: 'b.pdf', page: 1, pageEnd: null, weak: false, collection: null, documentId: null, title: null },
+      { name: 'c.pdf', page: null, pageEnd: null, weak: false, collection: null, documentId: null, title: null },
+      { name: 'd.pdf', page: null, pageEnd: null, weak: false, collection: null, documentId: null, title: null },
+      { name: 'e.pdf', page: 2, pageEnd: null, weak: false, collection: null, documentId: null, title: null },
+      { name: 'f.pdf', page: null, pageEnd: null, weak: false, collection: null, documentId: null, title: null },
     ]);
   });
 
@@ -85,6 +85,19 @@ describe('parseSourceRefs', () => {
         { name: 'e.pdf', page: 1, page_end: null, collection: 3 },
       ])?.map((ref) => ref.collection),
     ).toEqual(['zahard', null, null, null, null]);
+  });
+
+  it('title は、空白でない文字列のときだけ読む（前後の空白は除く）。それ以外・無いときは null', () => {
+    expect(
+      parseSourceRefs([
+        { name: 'a.pdf', page: 1, page_end: null, title: '  つばさ大学学生寮 入寮規程 ' },
+        { name: 'b.pdf', page: 1, page_end: null, title: '   ' },
+        { name: 'c.pdf', page: 1, page_end: null, title: null },
+        { name: 'd.pdf', page: 1, page_end: null },
+        { name: 'e.pdf', page: 1, page_end: null, title: 3 },
+        { name: 'f.pdf', page: 1, page_end: null, title: 'x'.repeat(201) },
+      ])?.map((ref) => ref.title),
+    ).toEqual(['つばさ大学学生寮 入寮規程', null, null, null, null, null]);
   });
 
   it('weak は true のときだけ弱い（文字列の "true" などは弱くしない）', () => {
@@ -119,6 +132,15 @@ describe('withPages', () => {
     ];
     expect(withPages(docs, weakRefs)).toEqual([docs[0], { ...docs[1], weak: true }]);
     expect(withPages(docs, weakRefs.slice(1))).toEqual(docs);
+  });
+
+  it('出典に題名があれば付ける（無ければ付けない）。表示名は題名、無ければファイル名', () => {
+    const withTitles = withPages(docs, [
+      { name: 'a.pdf', page: null, pageEnd: null, weak: false, collection: null, title: 'A の題名' },
+      { name: 'b.pdf', page: null, pageEnd: null, weak: false, collection: null, title: null },
+    ]);
+    expect(withTitles).toEqual([{ ...docs[0], title: 'A の題名' }, docs[1]]);
+    expect(withTitles.map(sourceLabel)).toEqual(['A の題名', 'b.pdf']);
   });
 
   it('出典に資料グループがあれば、その名前も付ける（無ければ付けない）', () => {
@@ -234,7 +256,7 @@ describe('引用のための出典（資料の ID・番号つきの見出し・�
       ],
       [
         { name: 'a.pdf', page: null, pageEnd: null, weak: false, collection: null, documentId: 7 },
-        { name: 'b.pdf', page: null, pageEnd: null, weak: false, collection: null, documentId: null },
+        { name: 'b.pdf', page: null, pageEnd: null, weak: false, collection: null, documentId: null, title: null },
       ],
     );
     expect(docs.map((doc) => doc.documentId)).toEqual([7, undefined]);

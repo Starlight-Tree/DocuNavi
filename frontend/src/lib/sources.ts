@@ -15,6 +15,8 @@ export interface SourceDoc {
   collection?: string;
   /** その資料の ID（`documents.id`）。サーバーが送ってこなかった（古い応答）ときは無い。あれば、資料一覧を引かずに開ける。 */
   documentId?: number;
+  /** 資料の題名（`documents.title`）。画面の表示用で、キーはファイル名（`name`）のまま。送ってこなかった（古い応答・保存前の古い会話）・題名が無いときは無い。 */
+  title?: string;
 }
 
 /** サーバーが `messageMetadata.sources` で送る、出典ごとのページ（context の出典と同じ順）。 */
@@ -27,6 +29,13 @@ export interface SourceRef {
   collection: string | null;
   /** その資料の ID。古いサーバー（送ってこない）・不正な値は null（省略もよい）。 */
   documentId?: number | null;
+  /** 資料の題名。古いサーバー（送ってこない）・題名が無い・不正な値は null（省略もよい）。 */
+  title?: string | null;
+}
+
+/** 画面に出す資料の名前。題名があれば題名、無ければファイル名。 */
+export function sourceLabel(source: Pick<SourceDoc, 'name' | 'title'>): string {
+  return source.title ?? source.name;
 }
 
 // バックエンドは検索結果を "[番号] ファイル名.pdf\n本文"（.txt もある）を空行で連ねた形で返す。旧形式の "[ファイル名.pdf]\n本文" も読む（保存済みの会話）。
@@ -96,6 +105,13 @@ export function findSourceChunk(
 const isPage = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 1;
 const MAX_DOCUMENT_ID = 2_147_483_647;
 const isDocumentId = (value: unknown): value is number => isPage(value) && value <= MAX_DOCUMENT_ID;
+const MAX_TITLE_LENGTH = 200;
+/** 題名（信用しない入力）。空白だけ・長すぎる・文字列でないものは、使わない（ファイル名にフォールバックする）。 */
+const parseTitle = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const title = value.trim();
+  return title !== '' && title.length <= MAX_TITLE_LENGTH ? title : null;
+};
 
 /**
  * サーバーの `sources`（信用しない入力）を読む。配列でなければ undefined（古い応答。画面は突き合わせにフォールバックする）。
@@ -106,7 +122,7 @@ export function parseSourceRefs(value: unknown): SourceRef[] | undefined {
   const refs: SourceRef[] = [];
   for (const item of value) {
     if (typeof item !== 'object' || item === null) return undefined;
-    const { name, page, page_end: pageEnd, weak, collection, document_id: documentId } = item as Record<string, unknown>;
+    const { name, page, page_end: pageEnd, weak, collection, document_id: documentId, title } = item as Record<string, unknown>;
     if (typeof name !== 'string') return undefined;
     const validPage = isPage(page) ? page : null;
     refs.push({
@@ -116,6 +132,7 @@ export function parseSourceRefs(value: unknown): SourceRef[] | undefined {
       weak: weak === true,
       collection: typeof collection === 'string' && COLLECTION_NAME_PATTERN.test(collection) ? collection : null,
       documentId: isDocumentId(documentId) ? documentId : null,
+      title: parseTitle(title),
     });
   }
   return refs;
@@ -131,7 +148,8 @@ export function withPages(docs: SourceDoc[], refs: SourceRef[] | undefined): Sou
     const ref = refs[i];
     if (!ref) return doc;
     const withId = ref.documentId == null ? doc : { ...doc, documentId: ref.documentId };
-    const withGroup = ref.collection === null ? withId : { ...withId, collection: ref.collection };
+    const withTitle = ref.title == null ? withId : { ...withId, title: ref.title };
+    const withGroup = ref.collection === null ? withTitle : { ...withTitle, collection: ref.collection };
     const withWeak = ref.weak ? { ...withGroup, weak: true } : withGroup;
     if (ref.page === null) return withWeak;
     return ref.pageEnd === null ? { ...withWeak, page: ref.page } : { ...withWeak, page: ref.page, pageEnd: ref.pageEnd };
