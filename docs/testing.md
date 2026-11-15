@@ -1,18 +1,26 @@
 # テスト
 
-```bash
-pip install -r requirements-dev.txt
-pytest
-```
+| 種類 | 実行 | 確かめること | 実 API | CI |
+|---|---|---|---|---|
+| バックエンド | `pip install -r requirements-dev.txt` のあと `pytest` | 質問の流れ・API・ガード・認証・検索（偽の LLM・偽の検索） | 使わない | 入っている |
+| フロントエンド | `cd frontend && npm test`（型検査は `npm run typecheck`） | 画面の部品と処理（Vitest） | 使わない | 入っている |
+| E2E | `cd frontend && npm run test:e2e` | ブラウザー・CORS・ストリームのつなぎ目（4 シナリオ） | 使わない | 入っていない |
+| 実 API の E2E | `npm run test:e2e:real-api`（承認制） | 主モデルが落ちたときのフォールバック | 本物の Gemini（課金） | 入っていない |
+| 本番の `/chat` | `scripts/prod_smoke_chat.py --send`（有効化が先） | 本番の認証つき `/chat` | 本番の LLM（課金） | 入っていない |
 
-フロントエンド（`frontend/`）は Vitest です（`cd frontend && npm test`。型検査は `npm run typecheck`）。
+検索・回答の品質の評価は、このテストとは別で、[evals/README.md](../evals/README.md)。最新の結果は CI の実行履歴で見ます（件数はこの文書に書きません）。
+確認できていないことは、各節に書いてあります（本物の Better Auth での更新と期限切れ、予算を入れた後の実 API での実行、`docker compose up` の CI での確認）。
+
+## バックエンドとフロントエンド（pytest・Vitest）
 
 `tests/conftest.py` が `GEMINI_API_KEY` を空にしてからアプリを読み込むので、`.env` に実キーがあってもテストは常にモックモードで動き、Gemini API を呼びません。テストは DB も埋め込みの API も使いません。
 資料の検索（`app/agents/tools.py` の `search_chunks_async`）は、`tests/conftest.py` が偽の検索（`scripts/bm25_baseline.py`。`storage/pdf/` の PDF を BM25 で引く）に差し替えます。
 グラフの「ツール呼び出し → 回答」の流れを通すテストは、偽の LLM（`tests/fakes.py` の `SearchingMockLLM`、画面側は `searching_llm` フィクスチャ）を使います。本物の検索（`app/search/vector.py`）を確かめるテストは、`@pytest.mark.real_search` で差し替えを外し、DB と埋め込みを自分で偽物にします。
 RAG の精度は `tests/rag_eval_cases.py`（関連 21 件・無関係 8 件）で回帰テストしています。2-gram 照合では拾えない言い換え（「気温差」→「温度差」など）は既知の取りこぼしです。
 
-CI（`.github/workflows/ci.yml`）は、`main` へのプッシュと PR で、バックエンドのテスト（Python 3.12）、フロントエンドの単体テスト・型検査・ビルド、Go のテスト、認証 Worker の型検査、ワークフローの静的検査、Docker イメージのビルドと起動確認（`/health`・画面・`/chat`）、コミット件名の検査を行います。デプロイは含みません。
+## CI
+
+`.github/workflows/ci.yml` は、`main` へのプッシュと PR で、バックエンドのテスト（Python 3.12）、フロントエンドの単体テスト・型検査・ビルド、Go のテスト、認証 Worker の型検査、ワークフローの静的検査、Docker イメージのビルドと起動確認（`/health`・画面・`/chat`）、コミット件名の検査を行います。デプロイは含みません。
 **`docker compose up` は CI では確かめていません**（CI は `docker build` したイメージを `docker run` するだけ）。
 
 ## E2E（Playwright）
