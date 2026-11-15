@@ -309,3 +309,35 @@ def test_a_short_question_that_is_not_smalltalk_is_still_completed(llm: Recordin
 def test_the_default_completion_timeout_is_three_seconds(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LLM_QUERY_REWRITE_TIMEOUT_SECONDS", raising=False)
     assert graph_module.query_rewrite_timeout_seconds() == 3.0
+
+
+def test_a_follow_up_adds_the_previous_results_to_the_evidence_set_even_when_its_own_search_misses(
+    llm: RecordingLLM, queries: list[str]
+) -> None:
+    graph = build_graph(llm, retrieval="direct")
+    first, _ = ask(graph, "ザーハードの大気について教えてください", thread="e")
+    llm.calls.clear()
+    llm.rewrite = "どの資料にも無い語"  # 追質問の検索は外れる（検索結果なし）
+
+    final, _ = ask(graph, "それは何でできている？", thread="e")
+
+    seen = llm.answer_calls[0][-1]
+    assert isinstance(seen, ToolMessage)
+    assert "該当する設定資料は見つかりませんでした" in seen.content
+    assert seen.content.endswith(
+        first["messages"][2].content.replace("[1] ", "[1] ", 1)
+    )  # 前の結果が、今回の番号 [1] で続く
+    assert [s["name"] for s in final["sources"]] == ["ザーハード1.pdf"]
+    assert final["hit_count"] == 0  # 「該当する資料がありません」の判定は、今回の検索だけで行う
+
+
+def test_a_topic_change_does_not_carry_the_previous_results(llm: RecordingLLM, queries: list[str]) -> None:
+    graph = build_graph(llm, retrieval="direct")
+    ask(graph, "ザーハードの大気について教えてください", thread="c")
+    llm.calls.clear()
+
+    final, _ = ask(graph, "どの資料にも無い、まったく別の話題について説明してください", thread="c")
+
+    seen = llm.answer_calls[0][-1]
+    assert isinstance(seen, ToolMessage) and "ザーハード1.pdf" not in seen.content
+    assert final["sources"] == []

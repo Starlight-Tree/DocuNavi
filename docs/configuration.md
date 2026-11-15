@@ -32,7 +32,7 @@
 | `WORKERS_AI_DAILY_NEURON_BUDGET` | `8000` | Workers AI の 1 日の予算（Neurons。UTC の日ごと・このプロセスの分だけ）。Free の無料枠 10,000 を超える値は 10,000 にする。達したら Cloudflare へ送らず止める |
 | `WORKERS_AI_MAX_TOKENS` | `1500` | Workers AI の 1 回の回答の最大トークン数 |
 | `WORKERS_AI_THINKING` | `default` | `off` で `chat_template_kwargs.enable_thinking=false` を送る（このモデルが受け付けるかは未確認）。それ以外は何も送らない |
-| `GEMINI_THINKING_LEVEL` | （空） | 主モデルの `thinking_level`（`minimal`・`low`・`medium`・`high`）。空ならモデルの既定（送らない）。対応するモデルと値は未確認。不正値は無視する |
+| `GEMINI_THINKING_LEVEL` | （空） | 主モデルの `thinking_level`（`minimal`・`low`・`medium`・`high`）。空ならモデルの既定（送らない）。追質問の検索語の補完（待つ上限が短い）には渡さない。対応するモデルと値は未確認。不正値は無視する |
 | `GEMINI_FALLBACK_THINKING_LEVEL` | （空） | フォールバックのモデルの `thinking_level`。主モデルとは別の変数 |
 | `DB_BACKEND` | `d1` | DB の置き場。`pg`（Postgres。`app/pg.py`、検索は pgvector。**本番は 2026-11-08 から `pg`**）か、`d1`（廃止した旧経路。コードの既定とテストの偽 Worker のために残してあり、本番の D1 は無い）。`pg` のときは `DATABASE_URL` を使う。スキーマは `db/migrations/` |
 | `DATABASE_URL` | （空） | `DB_BACKEND=pg` のときの Postgres の接続文字列（アプリはプール側、取り込みの CLI は直接のホスト）。**秘密情報**なので、コミットせず、ログにも出さない |

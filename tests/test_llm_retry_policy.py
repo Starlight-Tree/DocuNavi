@@ -182,6 +182,18 @@ def test_thinking_level_is_sent_to_the_primary_and_the_fallback_separately(monke
     assert graph.create_fallback_llm().kwargs["thinking_level"] == "low"
 
 
+def test_the_query_rewrite_llm_does_not_get_the_thinking_level(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setenv("GEMINI_THINKING_LEVEL", "high")
+
+    assert create_llm().kwargs["thinking_level"] == "high"
+    assert "thinking_level" not in graph.create_rewrite_llm(create_llm()).kwargs  # 補完は待つ上限が短い（既定 3 秒）
+
+    monkeypatch.delenv("GEMINI_THINKING_LEVEL")
+    answer = create_llm()
+    assert graph.create_rewrite_llm(answer) is answer  # 思考の指定が無ければ、回答と同じ LLM
+
+
 def test_an_invalid_thinking_level_is_ignored(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "k")
     monkeypatch.setenv("GEMINI_THINKING_LEVEL", "max")
