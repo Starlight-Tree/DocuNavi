@@ -378,23 +378,25 @@ class SyncPg:
             return 0
         self.statements += 1
         try:
-            cur = self._db().execute(
-                "UPDATE chunks c SET embedding = v.emb::vector, embedding_model = %s, embedding_dimensions = %s, "
-                "embedding_input_hash = v.ih "
-                "FROM (SELECT unnest(%s::bigint[]) AS id, unnest(%s::text[]) AS ch, unnest(%s::text[]) AS h, "
-                "unnest(%s::text[]) AS ih, unnest(%s::text[]) AS emb) v "
-                "WHERE c.id = v.id AND c.content_hash = v.ch AND c.heading IS NOT DISTINCT FROM v.h",
-                [
-                    model,
-                    dimensions,
-                    [int(r[0]) for r in rows],
-                    [r[1] for r in rows],
-                    [r[2] for r in rows],
-                    [r[3] for r in rows],
-                    [_vector_literal(r[4]) for r in rows],
-                ],
-            )
-            return cur.rowcount
+            # transaction() で囲む（commit する）。囲まないと、接続は commit されないまま閉じて、書いた行が取り消される
+            with self._db().transaction():
+                cur = self._db().execute(
+                    "UPDATE chunks c SET embedding = v.emb::vector, embedding_model = %s, embedding_dimensions = %s, "
+                    "embedding_input_hash = v.ih "
+                    "FROM (SELECT unnest(%s::bigint[]) AS id, unnest(%s::text[]) AS ch, unnest(%s::text[]) AS h, "
+                    "unnest(%s::text[]) AS ih, unnest(%s::text[]) AS emb) v "
+                    "WHERE c.id = v.id AND c.content_hash = v.ch AND c.heading IS NOT DISTINCT FROM v.h",
+                    [
+                        model,
+                        dimensions,
+                        [int(r[0]) for r in rows],
+                        [r[1] for r in rows],
+                        [r[2] for r in rows],
+                        [r[3] for r in rows],
+                        [_vector_literal(r[4]) for r in rows],
+                    ],
+                )
+                return cur.rowcount
         except psycopg.Error as exc:
             raise _fail(exc) from None
 

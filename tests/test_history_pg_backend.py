@@ -388,6 +388,34 @@ def test_embedding_sync_statements_run_on_postgres(pg_url):
 
 
 @needs_pg
+def test_saved_embeddings_survive_closing_the_connection(pg_url):
+    """`write_embeddings` が commit しないと、行数は返るのに、接続を閉じたあと保存が消える（2026-11-15 に本番で発生）。別の接続から読み直す。"""
+    from app.ingestion import embedding
+
+    _seed(pg_url)
+    with SyncPg(pg_url) as db:
+        db.execute(
+            "INSERT INTO chunks (document_id, chunk_index, page, kind, heading, content, content_hash) "
+            "VALUES ((SELECT id FROM documents WHERE source = 'd1.pdf'), 1, 1, 'table', 'toc', 'contents', 'c-new')"
+        )
+        new_id = db.execute("SELECT id FROM chunks WHERE content_hash = 'c-new'")[0]["id"]
+        saved = db.write_embeddings(
+            [(new_id, "c-new", "toc", embedding.input_hash("toc", "contents"), _vec(0.5, 0.5))],
+            embedding.MODEL,
+            embedding.DIMENSIONS,
+        )
+    assert saved == 1
+    with SyncPg(pg_url) as db:
+        row = db.execute(
+            "SELECT embedding_model, embedding_input_hash, embedding IS NOT NULL AS has FROM chunks WHERE id = ?",
+            (new_id,),
+        )[0]
+    assert row["embedding_model"] == embedding.MODEL
+    assert row["embedding_input_hash"] == embedding.input_hash("toc", "contents")
+    assert row["has"] is True
+
+
+@needs_pg
 def test_pg_saver_keeps_a_conversation_and_deletes_it(pg_url):
     from langchain_core.messages import AIMessage, HumanMessage
     from langgraph.graph import END, START, MessagesState, StateGraph
