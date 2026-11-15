@@ -1,0 +1,121 @@
+# Promptfoo の試験導入（2026-11-16）。複数ターンの会話を、golden set の runner と評価器で採点する。読み方と実行は README.md。
+#
+# 1 つのテスト = 1 つの会話。cases は chat_golden.yaml と同じ形（既定値はそちらから足される）。
+# 期待は、結果を見る前に、資料（evals/fixtures/zahard_txt/、storage/pdf/）と追質問の仕様（app/agents/followup.py）から決めた。
+# **結果を見て期待値を緩めない**（直すときは、理由をコミットに書く）。
+#   - 追質問の補完（trajectory が [llm, search_documents, llm]）は、質問が 12 文字未満か指示語を含むとき
+#   - 「$not_found」は、chat_golden.yaml の「資料に無い」の言い換えの一覧
+
+description: DocuNavi 複数ターンの会話（試験導入）
+
+prompts:
+  - "会話: {{name}}"
+
+providers:
+  - id: file://provider.py
+    label: docunavi-golden-runner
+    config:
+      timeout: 180000 # ミリ秒。会話 1 本（2 ターン）の上限
+
+# 実 API の費用と上限を守るため、会話は 1 本ずつ流す（上限は PROMPTFOO_GOLDEN_MAX_LLM_CALLS）
+evaluateOptions:
+  maxConcurrency: 1
+  cache: false
+
+defaultTest:
+  assert:
+    - type: python
+      value: file://assert_golden.py
+
+tests:
+  # 追質問: 大気 → 探査団に必要なもの
+  - description: 追質問（指示語）
+    vars:
+      name: atmosphere-followup
+      cases:
+        - id: pf01
+          category: 通常
+          thread: pfA
+          question: "ザーハードの大気について教えて"
+          expect_sources: ["ザーハード1.pdf"]
+          must_include: [["酸素"], ["薄い", "1/10", "十分の一", "10分の1"]]
+          must_not_include: ["洗濯"]
+          max_chars: 600
+        - id: pf02
+          category: マルチターン
+          thread: pfA
+          question: "それで探査団は何が必要になりますか"
+          trajectory: [llm, search_documents, llm]
+          expect_sources: ["ザーハード1.pdf"]
+          must_include: [["生命維持装置", "酸素供給装置"]]
+          must_not_include: ["洗濯"]
+          max_chars: 600
+
+  # 話題の変更: ザーハードのエネルギー源 → 寮の門限（長い質問で、補完は走らない）
+  - description: 話題の変更（補完なし）
+    vars:
+      name: topic-change
+      cases:
+        - id: pf03
+          category: 通常
+          thread: pfB
+          question: "エネルギー源はどんなものですか"
+          expect_sources: ["ザーハード3.pdf"]
+          must_include: [["人工", "放射線", "磁場"]]
+          must_not_include: ["洗濯"]
+          max_chars: 600
+        - id: pf04
+          category: マルチターン
+          thread: pfB
+          question: "つばさ大学の学生寮の門限は何時ですか"
+          expect_sources: ["tsubasa_dorm_rules.pdf"]
+          must_include: [["午後11時", "23時", "11時"]]
+          # 前の話題（エネルギー源）を引きずらない
+          must_not_include: ["エネルギー", "放射線"]
+
+  # 資料に無いことへの追質問: 文明 → その人口（資料に無い）
+  - description: 資料にない追質問
+    vars:
+      name: not-in-docs-followup
+      cases:
+        - id: pf05
+          category: 通常
+          thread: pfC
+          question: "ザーハリアン文明について教えて"
+          expect_sources: ["ザーハード2.pdf"]
+          must_include: [["ザーハリアン"]]
+          must_not_include: ["洗濯"]
+          max_chars: 600
+        - id: pf06
+          category: マルチターン
+          thread: pfC
+          question: "その人口は何人でしたか"
+          trajectory: [llm, search_documents, llm]
+          expect_sources: ["ザーハード2.pdf"]
+          must_include: [["$not_found"]]
+          # 資料に人口の記述は無い。数を作らない
+          must_not_include: ["万人", "億人", "千人"]
+          max_chars: 300
+
+  # 追質問: 遺跡の構造 → 罠
+  - description: 追質問（短い質問）
+    vars:
+      name: ruins-followup
+      cases:
+        - id: pf07
+          category: 通常
+          thread: pfD
+          question: "遺跡の構造について教えて"
+          expect_sources: ["ザーハード2.pdf"]
+          must_include: [["複雑", "多層"]]
+          must_not_include: ["洗濯"]
+          max_chars: 600
+        - id: pf08
+          category: マルチターン
+          thread: pfD
+          question: "罠はありますか"
+          trajectory: [llm, search_documents, llm]
+          expect_sources: ["ザーハード2.pdf"]
+          must_include: [["罠"]]
+          must_not_include: ["洗濯"]
+          max_chars: 400

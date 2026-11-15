@@ -1,0 +1,8 @@
+{
+  "name": "docunavi-evals-promptfoo",
+  "private": true,
+  "description": "Promptfoo の試験導入（複数ターンの会話の評価）。本番・frontend には入れない。README.md を参照",
+  "devDependencies": {
+    "promptfoo": "0.125.1"
+  }
+}
