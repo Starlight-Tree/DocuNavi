@@ -53,7 +53,7 @@ export function SourcesPanel({ sources, reference }: SourcesPanelProps) {
       </h3>
       <ul className="refs-list">
         {shown.map(({ source, index }) => {
-          const pages = formatPages(source.page, source.pageEnd);
+          const pages = formatPages(source.page, source.pageEnd, source.pageLabel, source.pageEndLabel);
           const tipId = `${base}-tip-${index}`;
           const hint = excerptHint(source.text);
           return (

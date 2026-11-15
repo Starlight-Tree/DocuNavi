@@ -182,6 +182,47 @@ describe('formatPages', () => {
     expect(formatPages(2, 3)).toBe('p.2–3');
     expect(formatPages(undefined, undefined)).toBeNull();
   });
+
+  it('ページラベルがあれば通し番号ではなくラベルを出す。英数字には「p.」、文字のラベルはそのまま', () => {
+    expect(formatPages(3, undefined, '1')).toBe('p.1');
+    expect(formatPages(2, undefined, 'i')).toBe('p.i');
+    expect(formatPages(6, undefined, 'A-1')).toBe('p.A-1');
+    expect(formatPages(1, undefined, '表紙')).toBe('表紙');
+    expect(formatPages(3, 4, '1', '2')).toBe('p.1–2');
+  });
+
+  it('ラベルがあるのに終わりのラベルが無いときは、番号を混ぜず、始まりだけを出す', () => {
+    expect(formatPages(3, 4, '1')).toBe('p.1');
+    expect(formatPages(3, 4, undefined, '2')).toBe('p.3–4');
+  });
+});
+
+describe('ページラベルの出典', () => {
+  it('parseSourceRefs はラベルを読み、空白だけ・長すぎる・ページが無い出典の値は捨てる。ラベルが無い出典は、キーを増やさない', () => {
+    const refs = parseSourceRefs([
+      { name: 'a.pdf', page: 3, page_end: 4, page_label: ' 1 ', page_end_label: '2', weak: false },
+      { name: 'b.pdf', page: 3, page_label: '   ', weak: false },
+      { name: 'c.pdf', page: 3, page_label: 'x'.repeat(33), weak: false },
+      { name: 'd.pdf', page: null, page_label: '1', weak: false },
+      { name: 'e.pdf', page: 3, page_end: null, page_end_label: '2', weak: false },
+      { name: 'f.pdf', page: 3, weak: false },
+    ]);
+    expect(refs?.map((r) => [r.pageLabel, r.pageEndLabel])).toEqual([
+      ['1', '2'],
+      [undefined, undefined],
+      [undefined, undefined],
+      [undefined, undefined],
+      [undefined, undefined],
+      [undefined, undefined],
+    ]);
+    expect(Object.keys(refs?.[5] ?? {})).not.toContain('pageLabel');
+  });
+
+  it('withPages は、ラベルをページといっしょに付ける（リンクに使う page は通し番号のまま）', () => {
+    const docs: SourceDoc[] = [{ name: 'a.pdf', text: '本文' }];
+    const refs = parseSourceRefs([{ name: 'a.pdf', page: 3, page_label: '1', weak: false }]);
+    expect(withPages(docs, refs)).toEqual([{ name: 'a.pdf', text: '本文', page: 3, pageLabel: '1' }]);
+  });
 });
 
 describe('referenceCards', () => {

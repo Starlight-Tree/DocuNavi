@@ -38,6 +38,9 @@ export interface ChunkItem {
   chunkIndex: number;
   page: number | null;
   pageEnd: number | null;
+  /** PDF のページラベル（表紙・i・1 など。表示用）。無い PDF・古いサーバーは null。 */
+  pageLabel: string | null;
+  pageEndLabel: string | null;
   kind: string | null;
   heading: string | null;
   content: string;
@@ -114,6 +117,8 @@ function parseChunk(value: unknown): ChunkItem | null {
   if (!isRecord(value)) return null;
   const page = nullableNumber(value.page);
   const pageEnd = nullableNumber(value.page_end);
+  const pageLabel = nullableString(value.page_label);
+  const pageEndLabel = nullableString(value.page_end_label);
   const kind = nullableString(value.kind);
   const heading = nullableString(value.heading);
   const embeddingModel = nullableString(value.embedding_model);
@@ -123,6 +128,8 @@ function parseChunk(value: unknown): ChunkItem | null {
     typeof value.embedded !== 'boolean' ||
     page === undefined ||
     pageEnd === undefined ||
+    pageLabel === undefined ||
+    pageEndLabel === undefined ||
     kind === undefined ||
     heading === undefined ||
     embeddingModel === undefined
@@ -133,6 +140,8 @@ function parseChunk(value: unknown): ChunkItem | null {
     chunkIndex: value.chunk_index,
     page,
     pageEnd,
+    pageLabel,
+    pageEndLabel,
     kind,
     heading,
     content: value.content,

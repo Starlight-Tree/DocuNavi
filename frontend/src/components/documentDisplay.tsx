@@ -1,4 +1,5 @@
 import type { ChunkItem, DocumentSummary } from '../api/documents';
+import { formatPages } from '../lib/sources';
 
 const STATUS_LABELS: Record<string, string> = { ready: '取り込み済み', failed: '取り込み失敗' };
 
@@ -65,5 +66,6 @@ export function UpdatedAt({ value, withTime = false }: { value: string | null; w
 
 export function pageLabel(chunk: ChunkItem): string | null {
   if (chunk.page === null) return null;
-  return chunk.pageEnd !== null && chunk.pageEnd !== chunk.page ? `p.${chunk.page}–${chunk.pageEnd}` : `p.${chunk.page}`;
+  const end = chunk.pageEnd !== null && chunk.pageEnd !== chunk.page ? chunk.pageEnd : undefined;
+  return formatPages(chunk.page, end, chunk.pageLabel ?? undefined, chunk.pageEndLabel ?? undefined);
 }

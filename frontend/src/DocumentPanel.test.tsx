@@ -482,4 +482,30 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
     await cafe.findByTitle('cafe_store_guide.pdf の元PDF');
     expect(cafe.queryByRole('status')).not.toBeInTheDocument();
   });
+
+  it('チャンクの先頭に、PDF のページラベル（表紙・目次・本文の番号）を出す。ラベルが無い資料は、通し番号のまま', async () => {
+    const original = DETAIL['/documents/7/chunks'];
+    DETAIL['/documents/7/chunks'] = {
+      ...(original as object),
+      chunks: [
+        { ...chunk(0, 2, '目次の本文です。'), page_label: 'i', page_end_label: null },
+        { ...chunk(1, 3, '第1条 この規程は、入寮を定める。'), page_label: '1', page_end_label: null },
+        chunk(2, 5, 'ラベルが無いチャンクです。'),
+      ],
+    };
+    try {
+      install();
+      const user = userEvent.setup();
+      render(<App />);
+      await ask(user);
+      const panel = await openCitation(user, 0);
+      expect(await panel.findByText('p.i')).toBeInTheDocument();
+      expect(panel.getByText('p.1')).toBeInTheDocument();
+      expect(panel.getByText('p.5')).toBeInTheDocument();
+      expect(panel.queryByText('p.2')).not.toBeInTheDocument(); // 通し番号は出さない
+      expect(panel.queryByText('p.3')).not.toBeInTheDocument();
+    } finally {
+      DETAIL['/documents/7/chunks'] = original;
+    }
+  });
 });

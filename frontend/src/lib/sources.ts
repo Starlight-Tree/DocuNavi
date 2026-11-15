@@ -9,6 +9,10 @@ export interface SourceDoc {
   page?: number;
   /** ページをまたぐ表の最終ページ。 */
   pageEnd?: number;
+  /** PDF のページラベル（表紙・i・1・A-1 など。表示用）。リンクと照合は `page`（通し番号）を使う。無い PDF・古い応答では無い。 */
+  pageLabel?: string;
+  /** `pageEnd` のページラベル。 */
+  pageEndLabel?: string;
   /** 1 位との類似度の差が大きい 2 件目以降。出典カードには出さない（抜粋の一覧には残す）。サーバーが送らなければ無い。 */
   weak?: boolean;
   /** その資料の資料グループ（検索範囲に渡す名前）。サーバーが送ってこなかった・未設定のときは無い。 */
@@ -24,6 +28,9 @@ export interface SourceRef {
   name: string;
   page: number | null;
   pageEnd: number | null;
+  /** PDF のページラベル。古いサーバー・ラベルが無い PDF・不正な値は無い（省略）。 */
+  pageLabel?: string;
+  pageEndLabel?: string;
   weak: boolean;
   /** その資料の資料グループ。未設定、または古いサーバー（送ってこない）は null。 */
   collection: string | null;
@@ -106,6 +113,14 @@ const isPage = (value: unknown): value is number => typeof value === 'number' &&
 const MAX_DOCUMENT_ID = 2_147_483_647;
 const isDocumentId = (value: unknown): value is number => isPage(value) && value <= MAX_DOCUMENT_ID;
 const MAX_TITLE_LENGTH = 200;
+const MAX_PAGE_LABEL_LENGTH = 32;
+
+/** ページラベル（表示用）。空白だけ・長すぎる・文字列でないときは無し。 */
+const parsePageLabel = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const label = value.trim();
+  return label !== '' && label.length <= MAX_PAGE_LABEL_LENGTH ? label : undefined;
+};
 /** 題名（信用しない入力）。空白だけ・長すぎる・文字列でないものは、使わない（ファイル名にフォールバックする）。 */
 const parseTitle = (value: unknown): string | null => {
   if (typeof value !== 'string') return null;
@@ -122,13 +137,28 @@ export function parseSourceRefs(value: unknown): SourceRef[] | undefined {
   const refs: SourceRef[] = [];
   for (const item of value) {
     if (typeof item !== 'object' || item === null) return undefined;
-    const { name, page, page_end: pageEnd, weak, collection, document_id: documentId, title } = item as Record<string, unknown>;
+    const {
+      name,
+      page,
+      page_end: pageEnd,
+      page_label: pageLabel,
+      page_end_label: pageEndLabel,
+      weak,
+      collection,
+      document_id: documentId,
+      title,
+    } = item as Record<string, unknown>;
     if (typeof name !== 'string') return undefined;
     const validPage = isPage(page) ? page : null;
+    const validEnd = validPage !== null && isPage(pageEnd) && pageEnd > validPage ? pageEnd : null;
+    const label = validPage === null ? undefined : parsePageLabel(pageLabel);
+    const endLabel = validEnd === null ? undefined : parsePageLabel(pageEndLabel);
     refs.push({
       name,
       page: validPage,
-      pageEnd: validPage !== null && isPage(pageEnd) && pageEnd > validPage ? pageEnd : null,
+      pageEnd: validEnd,
+      ...(label === undefined ? {} : { pageLabel: label }),
+      ...(endLabel === undefined ? {} : { pageEndLabel: endLabel }),
       weak: weak === true,
       collection: typeof collection === 'string' && COLLECTION_NAME_PATTERN.test(collection) ? collection : null,
       documentId: isDocumentId(documentId) ? documentId : null,
@@ -152,14 +182,32 @@ export function withPages(docs: SourceDoc[], refs: SourceRef[] | undefined): Sou
     const withGroup = ref.collection === null ? withTitle : { ...withTitle, collection: ref.collection };
     const withWeak = ref.weak ? { ...withGroup, weak: true } : withGroup;
     if (ref.page === null) return withWeak;
-    return ref.pageEnd === null ? { ...withWeak, page: ref.page } : { ...withWeak, page: ref.page, pageEnd: ref.pageEnd };
+    return {
+      ...withWeak,
+      page: ref.page,
+      ...(ref.pageEnd === null ? {} : { pageEnd: ref.pageEnd }),
+      ...(ref.pageLabel === undefined ? {} : { pageLabel: ref.pageLabel }),
+      ...(ref.pageEndLabel === undefined ? {} : { pageEndLabel: ref.pageEndLabel }),
+    };
   });
 }
 
-/** 出典カードに出すページの表記。ページが無ければ null。「p.2」、ページをまたぐなら「p.2–3」。 */
-export function formatPages(page: number | undefined, pageEnd: number | undefined): string | null {
+/**
+ * 出典カードに出すページの表記。ページが無ければ null。「p.2」、ページをまたぐなら「p.2–3」。
+ * PDF にページラベルがあれば、通し番号ではなくラベルを出す（表紙・目次を数えない PDF の「p.1」が、本文の 1 ページ目になる）:
+ * 「p.i」「p.A-1」。英数字だけのラベルには「p.」を付け、「表紙」のような文字のラベルはそのまま出す。
+ * ラベルがあるのに終わりのラベルが無いときは、番号を混ぜず、始まりだけを出す。
+ */
+export function formatPages(
+  page: number | undefined,
+  pageEnd: number | undefined,
+  pageLabel?: string,
+  pageEndLabel?: string,
+): string | null {
   if (page === undefined) return null;
-  return pageEnd === undefined ? `p.${page}` : `p.${page}–${pageEnd}`;
+  if (pageLabel === undefined) return pageEnd === undefined ? `p.${page}` : `p.${page}–${pageEnd}`;
+  const start = /^[\x21-\x7e]+$/.test(pageLabel) ? `p.${pageLabel}` : pageLabel;
+  return pageEnd === undefined || pageEndLabel === undefined ? start : `${start}–${pageEndLabel}`;
 }
 
 /** 回答の下の「参照資料」に、最初から並べる数。残りは「ほか n 件」で開く。 */
