@@ -377,7 +377,9 @@ async def search(
 
     cands: dict[tuple[str, str], _Cand] = {}
     for rank, hit in enumerate(vector_hits, start=1):
-        chunk = Chunk(hit.source, hit.text, hit.page, hit.page_end, hit.collection, hit.target, hit.document_id, hit.title)
+        chunk = Chunk(
+            hit.source, hit.text, hit.page, hit.page_end, hit.collection, hit.target, hit.document_id, hit.title
+        )
         cands[chunk.key] = _Cand(chunk, corpus.position.get(chunk.key), sim=hit.similarity, vec_rank=rank)
     vector_count = len(cands)
 

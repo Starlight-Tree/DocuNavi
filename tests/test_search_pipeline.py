@@ -525,7 +525,9 @@ def test_an_outside_cancellation_cancels_both_and_stays_a_cancellation(monkeypat
 
 
 def test_the_document_title_survives_the_corpus_copy_and_reaches_the_sources():
-    chunk = Chunk("tsubasa_dorm_rules.pdf", "第5条 入寮の申込み", 1, None, "guides", None, 7, "つばさ大学学生寮 入寮規程")
+    chunk = Chunk(
+        "tsubasa_dorm_rules.pdf", "第5条 入寮の申込み", 1, None, "guides", None, 7, "つばさ大学学生寮 入寮規程"
+    )
     hit = search_pipeline._to_hit(search_pipeline._Cand(chunk, 0, sim=0.9), "vector")
 
     assert hit.title == "つばさ大学学生寮 入寮規程"
@@ -537,7 +539,16 @@ def test_the_document_title_survives_the_corpus_copy_and_reaches_the_sources():
 @pytest.mark.parametrize("flags", [{}, {"SEARCH_HYBRID": "on"}])
 def test_the_title_of_a_vector_hit_is_kept_through_the_pipeline(monkeypatch, flags):
     # ベクトル検索の Hit を候補（Chunk）に直すときに、題名を落とさない（落とすと、画面の出典がファイル名のままになる）
-    c = Chunk("tsubasa_dorm_rules.pdf", "第19条 門限は、午後 11 時とする。", 2, None, "guides", None, 3, "つばさ大学学生寮 入寮規程")
+    c = Chunk(
+        "tsubasa_dorm_rules.pdf",
+        "第19条 門限は、午後 11 時とする。",
+        2,
+        None,
+        "guides",
+        None,
+        3,
+        "つばさ大学学生寮 入寮規程",
+    )
     vector = [Hit(c.source, c.text, c.page, c.page_end, 0.9, c.collection, None, None, 3, c.title)]
     install(monkeypatch, [c], vector, **flags)
 
