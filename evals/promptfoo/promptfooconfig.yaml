@@ -152,7 +152,7 @@ tests:
           question: "夕方はどう？"
           trajectory: [llm, search_documents, llm]
           expect_sources: ["ザーハード1.pdf"]
-          must_include: [["$not_found"], ["高温", "極寒"]]
+          must_include: [["$not_found"], ["温度差", "高温", "極寒"]]
           must_not_include: ["洗濯", "℃", "過ごしやすい", "穏やか", "暖か", "涼し"]
           max_chars: 300
 
