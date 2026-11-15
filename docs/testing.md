@@ -1,12 +1,14 @@
 # テスト
 
-| 種類 | 実行 | 確かめること | 実 API | CI |
+| 種類 | 実行 | 確かめること | 課金 | CI |
 |---|---|---|---|---|
-| バックエンド | `pip install -r requirements-dev.txt` のあと `pytest` | 質問の流れ・API・ガード・認証・検索（偽の LLM・偽の検索） | 使わない | 入っている |
-| フロントエンド | `cd frontend && npm test`（型検査は `npm run typecheck`） | 画面の部品と処理（Vitest） | 使わない | 入っている |
-| E2E | `cd frontend && npm run test:e2e` | ブラウザー・CORS・ストリームのつなぎ目（4 シナリオ） | 使わない | 入っていない |
-| 実 API の E2E | `npm run test:e2e:real-api`（承認制） | 主モデルが落ちたときのフォールバック | 本物の Gemini（課金） | 入っていない |
-| 本番の `/chat` | `scripts/prod_smoke_chat.py --send`（有効化が先） | 本番の認証つき `/chat` | 本番の LLM（課金） | 入っていない |
+| バックエンド | `pytest` | 質問の流れ・API・ガード・認証・検索 | なし | あり |
+| フロントエンド | `npm test` | 画面の部品と処理（Vitest） | なし | あり |
+| E2E | `npm run test:e2e` | ブラウザー・CORS・ストリームのつなぎ目 | なし | なし |
+| 実 API の E2E | `npm run test:e2e:real-api` | 主モデルが落ちたときのフォールバック | あり | なし |
+| 本番の `/chat` | `prod_smoke_chat.py --send` | 本番の認証つき `/chat` | あり | なし |
+
+`npm` は `frontend/` で実行します（型検査は `npm run typecheck`）。初回は `pip install -r requirements-dev.txt`。課金は、本物の Gemini（実 API の E2E）か本番の LLM（本番の `/chat`）を呼ぶ試験です。実 API の E2E は承認制、本番の `/chat` は先に有効化が要ります（下の節）。
 
 検索・回答の品質の評価は、このテストとは別で、[evals/README.md](../evals/README.md)。最新の結果は CI の実行履歴で見ます（件数はこの文書に書きません）。
 確認できていないことは、各節に書いてあります（本物の Better Auth での更新と期限切れ、予算を入れた後の実 API での実行、`docker compose up` の CI での確認）。
