@@ -115,7 +115,7 @@ async function ask(user: User) {
   await screen.findByText('2 月 28 日までです。');
 }
 
-/** 「参照資料 N 件」を開いて、一覧の項目を返す。 */
+/** 「N 件のソース」を開いて、一覧の項目を返す。 */
 const chips = async () => within(await openSources()).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
 const findPanel = () => screen.findByRole('complementary', { name: /^資料:/ });
 const pdfFrame = () => screen.getByTitle('tsubasa_dorm_rules.pdf の元PDF') as HTMLIFrameElement;
@@ -374,12 +374,12 @@ describe('パネルと履歴', () => {
 });
 
 describe('パネルのフォーカス', () => {
-  it('出典を押して開いたらパネルへフォーカスを移し、Esc で閉じたら「参照資料 N 件」のボタンへ戻す（一覧は閉じている）', async () => {
+  it('出典を押して開いたらパネルへフォーカスを移し、Esc で閉じたら「N 件のソース」のボタンへ戻す（一覧は閉じている）', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
-    const toggle = await screen.findByRole('button', { name: /^参照資料 \d+ 件/ });
+    const toggle = await screen.findByRole('button', { name: /^\d+ 件のソース/ });
 
     await user.click((await chips())[1]!);
 

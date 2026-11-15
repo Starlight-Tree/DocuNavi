@@ -215,7 +215,7 @@ describe('会話の一覧', () => {
 
     await user.click(await screen.findByTitle('最初の質問'));
 
-    expect(await screen.findAllByRole('button', { name: /^参照資料 \d+ 件/ })).toHaveLength(1);
+    expect(await screen.findAllByRole('button', { name: /^\d+ 件のソース/ })).toHaveLength(1);
     const region = await openSources();
     expect(within(region).getByText(/ザーハード1\.pdf/)).toBeInTheDocument();
     expect(within(region).getByText(/p\.2/)).toBeInTheDocument();

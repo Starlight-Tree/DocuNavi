@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -57,7 +57,7 @@ async function ask(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: '送信' }));
 }
 
-/** 「参照資料 N 件」を開いて、一覧の項目（資料名とページのボタン）を返す。 */
+/** 「N 件のソース」を開いて、一覧の項目（資料名とページのボタン）を返す。 */
 async function sourceChips() {
   return within(await openSources()).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
 }
@@ -163,26 +163,17 @@ describe('出典チップ', () => {
     expect(window.location.search).toBe('?tab=chat');
   });
 
-  it('抜粋は、チップの説明（ヒント）になる。フォーカスで読め、Esc で閉じる。折りたたみの抜粋一覧は出さない', async () => {
+  it('抜粋は、一覧の項目に最初から見える（押さなくても中身が読める）。項目の説明としても読み上げられる。折りたたみの抜粋一覧は出さない', async () => {
     installAnswerFetch();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
 
     const chips = await sourceChips();
-    // ヒントは、チップの説明（aria-describedby）として読み上げられる
     expect(chips[1]).toHaveAccessibleDescription('第5条 入寮の申込みは、2 月 28 日までに行う。');
-    expect(screen.getAllByRole('tooltip', { hidden: true })).toHaveLength(2);
+    expect(within(chips[1]!).getByText('第5条 入寮の申込みは、2 月 28 日までに行う。')).toBeInTheDocument();
+    expect(screen.queryByRole('tooltip', { hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByText(/参照した設定資料の抜粋/)).not.toBeInTheDocument();
-
-    // キーボードで来たとき、Esc でヒントだけを閉じる（パネルは開かない）
-    await act(async () => chips[1]!.focus());
-    await user.keyboard('{Escape}');
-    expect(chips[1]!.closest('li')).toHaveAttribute('data-dismissed', 'true');
-    expect(window.location.search).toBe('?tab=chat');
-    // フォーカスが外れたら、また出せる
-    await act(async () => chips[1]!.blur());
-    expect(chips[1]!.closest('li')).not.toHaveAttribute('data-dismissed');
   });
 });
 
@@ -279,7 +270,7 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     const cards = await sourceChips();
     expect(cards).toHaveLength(1);
     expect(within(cards[0]!).getByText('p.2–3')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^参照資料 1 件/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^1 件のソース/ })).toBeInTheDocument();
   });
 
   it('sources と出典が合わないときは、weak でも絞らない（ずれた判定を使わない）', async () => {
@@ -309,13 +300,13 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
     vi.stubGlobal('fetch', fetchMock);
   }
 
-  it('「参照資料 N 件」のボタンを押すと、資料名とページの一覧が開く。大きなカード・サムネイル・更新日は出さない', async () => {
+  it('「N 件のソース」のボタンを押すと、資料名とページの一覧が開く。大きなカード・サムネイル・更新日は出さない', async () => {
     installRefs(CONTEXT4, SOURCES4);
     const { container } = render(<App />);
     await ask(userEvent.setup());
 
     const region = await openSources();
-    expect(screen.getByRole('button', { name: /^参照資料 4 件/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^4 件のソース/ })).toBeInTheDocument();
     const chips = within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
     expect(chips).toHaveLength(4);
     expect(within(chips[0]!).getByText('tsubasa_dorm_rules.pdf')).toBeInTheDocument();
@@ -331,7 +322,7 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
     render(<App />);
     await ask(user);
 
-    const toggle = await screen.findByRole('button', { name: /^参照資料 4 件/ });
+    const toggle = await screen.findByRole('button', { name: /^4 件のソース/ });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
 
@@ -343,11 +334,14 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
     expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
 
     await user.click(toggle);
-    const first = within(screen.getByRole('region', { name: '参照資料' })).getAllByRole('button')[0]!;
-    first.focus();
-    await user.keyboard('{Escape}'); // 最初の Esc は抜粋のヒントを閉じるだけ（一覧は残る）
-    expect(screen.getByRole('region', { name: '参照資料' })).toBeInTheDocument();
+    within(screen.getByRole('region', { name: '参照資料' })).getAllByRole('button', { name: /を右のパネルで開く/ })[0]!.focus();
     await user.keyboard('{Escape}');
+    expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
+    expect(toggle).toHaveFocus();
+
+    // 一覧の閉じるボタン（見出しの右の ⌄）でも閉じて、フォーカスはボタンへ戻る
+    await user.click(toggle);
+    await user.click(screen.getByRole('button', { name: 'ソースの一覧を閉じる' }));
     expect(screen.queryByRole('region', { name: '参照資料' })).not.toBeInTheDocument();
     expect(toggle).toHaveFocus();
 
@@ -364,7 +358,7 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
 
     const region = await openSources();
     expect(within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })).toHaveLength(5);
-    expect(screen.getByRole('button', { name: /^参照資料 7 件/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^7 件のソース/ })).toBeInTheDocument();
 
     await user.click(within(region).getByRole('button', { name: 'ほか 2 件を表示' }));
     expect(within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })).toHaveLength(7);
@@ -405,7 +399,7 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
     ]);
     expect(chips[0]).toHaveAccessibleDescription('第5条 入寮の申込みは、2 月 28 日までに行う。');
     expect(chips[2]).toHaveAccessibleDescription('第6条 退寮の届出は、前月末までに行う。');
-    expect(screen.getByRole('button', { name: /^参照資料 3 件/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^3 件のソース/ })).toBeInTheDocument();
   });
 
   describe('回答の文末の引用', () => {
@@ -508,7 +502,7 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
     await ask(userEvent.setup());
 
     const region = await openSources();
-    expect(screen.getByRole('button', { name: /^参照資料 2 件/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^2 件のソース/ })).toBeInTheDocument();
     expect(within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })).toHaveLength(2);
   });
 

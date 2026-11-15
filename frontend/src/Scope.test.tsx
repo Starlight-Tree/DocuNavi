@@ -790,7 +790,7 @@ describe('回答対象: 出典', () => {
     await ask(user, '質問');
 
     const region = await openSources();
-    const [zahard, cafe] = within(region).getAllByRole('button');
+    const [zahard, cafe] = within(region).getAllByRole('button', { name: /を右のパネルで開く/ });
     expect(zahard).toHaveTextContent('ザーハード1.pdfp.1');
     expect(cafe).toHaveTextContent('cafe_store_guide.pdfp.2');
     expect(region).not.toHaveTextContent('設定資料');

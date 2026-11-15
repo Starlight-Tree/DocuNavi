@@ -14,8 +14,8 @@ test('質問を送ると、偽の検索の出典つきの回答が画面に出�
 
   // 偽の LLM の返答（tests/fakes.py の SearchingMockLLM）
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
-  // コピーの隣の「参照資料 N 件」を開くと、一覧に資料名とページが出る（FakeSearch が返した値）
-  await page.getByRole('button', { name: /^参照資料 \d+ 件/ }).click();
+  // コピーの隣の「N 件のソース」を開くと、一覧に資料名とページが出る（FakeSearch が返した値）
+  await page.getByRole('button', { name: /^\d+ 件のソース/ }).click();
   await expect(page.getByRole('region', { name: '参照資料' }).getByRole('button', { name: /ザーハード1\.pdf/ })).toBeVisible();
   // 回答が終わり、送信できる状態に戻る
   await expect(input).toBeEnabled();
@@ -52,8 +52,8 @@ test('対象を選んで質問すると、その対象の出典が出る。会�
   await page.getByRole('button', { name: '送信' }).click();
 
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
-  // 「参照資料 N 件」を開くと、資料名の一覧が出る（対象名は出さない）
-  await page.getByRole('button', { name: /^参照資料 \d+ 件/ }).click();
+  // 「N 件のソース」を開くと、資料名の一覧が出る（対象名は出さない）
+  await page.getByRole('button', { name: /^\d+ 件のソース/ }).click();
   const references = page.getByRole('region', { name: '参照資料' });
   await expect(references.getByRole('button', { name: /ザーハード1\.pdf/ })).toBeVisible();
   await expect(input).toBeEnabled();
@@ -361,11 +361,11 @@ test('ログインを使わない構成では、サイドバーの「会話の�
   await expect(history.getByText('ログインを使わない構成では、会話の一覧を表示できません。')).toBeVisible();
 });
 
-test('参照資料の出典を押すと、チャットのまま右のパネルが開く（URL は抽出テキスト）。Esc で閉じると、パネルの列は残らず、フォーカスは「参照資料 N 件」のボタンへ戻る', async ({ page }) => {
+test('参照資料の出典を押すと、チャットのまま右のパネルが開く（URL は抽出テキスト）。Esc で閉じると、パネルの列は残らず、フォーカスは「N 件のソース」のボタンへ戻る', async ({ page }) => {
   await page.goto('/?tab=chat');
   await page.getByRole('textbox', { name: 'メッセージ' }).fill('ザーハードの大気について教えて');
   await page.getByRole('button', { name: '送信' }).click();
-  const toggle = page.getByRole('button', { name: /^参照資料 \d+ 件/ });
+  const toggle = page.getByRole('button', { name: /^\d+ 件のソース/ });
   await toggle.click();
   await page.getByRole('region', { name: '参照資料' }).getByRole('button', { name: /ザーハード1\.pdf/ }).click();
 

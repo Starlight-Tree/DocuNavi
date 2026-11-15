@@ -479,17 +479,52 @@ textarea {
 }
 
 .refs-pop {
-  position: absolute;
-  z-index: 3;
-  top: calc(100% + 0.35rem);
-  left: 0;
-  width: min(30rem, 80vw);
+  position: fixed;
+  z-index: 20;
+  width: min(21rem, calc(100vw - 1rem));
+  max-height: min(26rem, calc(100vh - 1rem));
+  overflow-y: auto;
   box-sizing: border-box;
-  padding: 0.35rem;
+  padding: 0 0.5rem 0.6rem;
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: 1rem;
   background: var(--surface);
   box-shadow: var(--ws-shadow);
+}
+
+.refs-pop-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 0.4rem 0.5rem;
+  background: var(--surface);
+}
+
+.refs-pop-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.refs-pop-close {
+  display: inline-grid;
+  width: 1.8rem;
+  height: 1.8rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.refs-pop-close:hover {
+  background: var(--surface-muted);
+  color: var(--text);
 }
 
 .refs-list {
@@ -509,9 +544,9 @@ textarea {
   display: flex;
   width: 100%;
   box-sizing: border-box;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.6rem;
-  padding: 0.5rem 0.6rem;
+  padding: 0.55rem 0.6rem;
   border: 0;
   border-radius: 0.5rem;
   background: none;
@@ -520,6 +555,36 @@ textarea {
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
+}
+
+/* 項目の中身: 1 行目に資料名・ページ・↗、その下に根拠の抜粋（3 行まで）。最初の 1 回で中身まで読める */
+.ref-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ref-head {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.ref-head .ref-open {
+  margin-left: auto;
+}
+
+.ref-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
 }
 
 .ref-link:hover:not(:disabled),
@@ -591,35 +656,6 @@ textarea {
   font-size: 0.75rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-/* 抜粋のヒント。位置は .refs が基準（押した項目の下の行に、本文の幅で出す）。Esc で閉じる */
-.ref-tip {
-  position: absolute;
-  z-index: 3;
-  display: none;
-  left: 0;
-  right: 0;
-  max-width: 30rem;
-  margin-top: 0.3rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--surface);
-  box-shadow: var(--ws-shadow);
-  color: var(--text);
-  font-size: 0.8rem;
-  line-height: 1.6;
-  pointer-events: none;
-}
-
-.ref-link:hover + .ref-tip,
-.ref-link:focus-visible + .ref-tip {
-  display: block;
-}
-
-.ref-item[data-dismissed='true'] .ref-tip {
-  display: none !important;
 }
 
 .refs-more {
@@ -753,6 +789,24 @@ textarea {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
+}
+
+/* 最新の回答以外は、コピーと参照資料の行を隠し、回答にカーソルを載せたとき・キーボードで届いたとき・開けなかった旨が出ているときだけ出す（場所は空けておく） */
+.message-assistant:not(.message-latest) .message-actions {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.message-assistant:not(.message-latest):hover .message-actions,
+.message-assistant:not(.message-latest):focus-within .message-actions,
+.message-assistant:not(.message-latest) .message-actions:has(.source-failure) {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-assistant:not(.message-latest) .message-actions {
+    transition: none;
+  }
 }
 .btn-icon {
   display: inline-grid;

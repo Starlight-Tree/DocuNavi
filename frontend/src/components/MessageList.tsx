@@ -186,7 +186,7 @@ export function MessageList({
         const generating = busy && message.role === 'assistant' && message.id === lastId;
         const copied = copy?.id === message.id ? copy : null;
         return (
-          <article key={message.id} className={`message message-${message.role}`}>
+          <article key={message.id} className={`message message-${message.role}${message.id === lastId ? ' message-latest' : ''}`}>
             <span className="visually-hidden">
               {message.role === 'user' ? 'あなた' : 'アシスタント'}:{' '}
             </span>
