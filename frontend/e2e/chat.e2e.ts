@@ -314,9 +314,20 @@ test('PC: 左サイドバーを閉じると、アイコンだけの細いレー�
   await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
 
-  // 開くと、いつものサイドバーに戻る
-  await page.getByRole('button', { name: 'サイドバーを開く' }).click();
+  // ロゴは、チャットへ移るだけで、開かない
+  await rail.getByRole('link', { name: 'DocuNavi' }).click();
+  await expect(rail).toBeVisible();
+
+  // 開くのは、レールの空き部分のクリックだけ（左の余白。項目・アイコンの外）。ボタンの見た目は無い
+  const logoCenter = async () => {
+    const box = (await page.locator('.ws-brand-icon:visible').first().boundingBox())!;
+    return [Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2)];
+  };
+  const logoClosed = await logoCenter();
+  await sidebar.click({ position: { x: 3, y: 300 } });
   await expect(rail).toBeHidden();
+  // 開閉でロゴの位置は動かない
+  expect(await logoCenter()).toEqual(logoClosed);
   await expect(page.getByRole('heading', { name: '会話の履歴' })).toBeVisible();
   expect((await sidebar.boundingBox())!.width).toBeGreaterThan(railWidth);
   await expect(input).toHaveValue('書きかけ');

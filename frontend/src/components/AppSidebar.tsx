@@ -25,7 +25,10 @@ interface AppSidebarProps {
   documentCount?: number | undefined;
   /** 閉じた状態を、アイコンだけの細いレールで見せる（PC）。履歴・文字は隠す。渡さない（スマホ・UI モック）と、閉じたら完全に隠す。 */
   rail?: boolean | undefined;
-  /** レールの「サイドバーを開く」ボタン。開いたあとにフォーカスを戻す先ではなく、閉じたときにフォーカスを移す先。 */
+  /**
+   * レールの空き部分の下敷きの「サイドバーを開く」ボタン（レールの中。閉じたときにフォーカスを移す先）。
+   * ロゴは開くボタンではない（チャットへ移るリンク）。レールの項目・アイコンは、自分のクリックだけを受ける。
+   */
   railToggleRef?: Ref<HTMLButtonElement>;
   onExpand?: (() => void) | undefined;
 }
@@ -45,13 +48,14 @@ export function SidebarIcon() {
   );
 }
 
-/** サイドバー上部のロゴの絵（書類と矢印を 1 つにした単色の線画）。色は文字に合わせる。 */
+/** サイドバー上部のロゴの絵（コンパス）。ファビコン（`app/icon.svg`）と同じ絵・同じ色で、文字の色には合わせない。 */
 export function BrandIcon() {
   return (
-    <svg className="ws-brand-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-      <path d="M14 3v5h5" />
-      <path d="M9 15h6M12.5 12.5 15 15l-2.5 2.5" />
+    <svg className="ws-brand-icon" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="7" fill="#2c4fcf" />
+      <circle cx="16" cy="16" r="10" fill="none" stroke="#fff" strokeWidth="2.4" />
+      <path d="M21.5 10.5l-3.3 7.7-7.7 3.3 3.3-7.7z" fill="#f2a65a" />
+      <circle cx="16" cy="16" r="1.6" fill="#fff" />
     </svg>
   );
 }
@@ -95,7 +99,7 @@ function inApp(action: () => void) {
 }
 
 /**
- * 共通の左サイドバー。新しい会話、会話の履歴、アカウントのメニュー（ナレッジ・ログアウト）を持つ。閉じるボタンで畳める。
+ * 共通の左サイドバー。新しい会話、会話の履歴、アカウントのメニュー（ナレッジ・ログアウト）を持つ。閉じるボタンで畳める。閉じたレールは、空き部分のクリックで開く。
  * `knowledgeInMenu` でないとき（UI モック）は、上部に画面の切り替え（チャット / 資料）を出す。
  */
 export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation, onCollapse, collapseRef, onGoChat, onGoDocuments, knowledgeInMenu, history, documentCount, rail, railToggleRef, onExpand }: AppSidebarProps) {
@@ -104,9 +108,11 @@ export function AppSidebar({ view, mode, userLabel, onSignOut, onNewConversation
     <div className="ws-sidebar">
       {rail && onExpand && (
         <nav className="ws-rail" aria-label="サイドバー（縮小表示）">
-          <button ref={railToggleRef} type="button" className="ws-rail-btn" aria-label="サイドバーを開く" data-tip="サイドバーを開く" onClick={onExpand}>
+          {/* 空き部分の下敷き。レールの項目・アイコンは、この上に載り、自分のクリックだけを受ける（shell.css の pointer-events） */}
+          <button ref={railToggleRef} type="button" className="ws-rail-open" aria-label="サイドバーを開く" title="サイドバーを開く" onClick={onExpand} />
+          <a href="?tab=chat" className="ws-rail-btn" aria-label="DocuNavi" data-tip="DocuNavi" onClick={inApp(onGoChat)}>
             <BrandIcon />
-          </button>
+          </a>
           <a href="?tab=chat" className="ws-rail-btn" aria-label="チャット" data-tip="チャット" aria-current={view === 'chat' ? 'page' : undefined} onClick={inApp(onGoChat)}>
             <ChatIcon />
           </a>

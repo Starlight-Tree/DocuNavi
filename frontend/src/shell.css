@@ -199,14 +199,19 @@
   min-height: 0;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 1rem 0.75rem 0.75rem;
+  padding: 0.75rem 0.75rem 0.75rem;
   overflow-y: auto;
+  position: relative;
+  isolation: isolate;
   border-right: 1px solid var(--border);
   background: var(--surface);
 }
 
+/* ロゴの絵は、閉じたレールの先頭のボタン（.ws-rail-btn。幅・高さ 2.5rem、左 0.5rem、上 0.75rem）と、
+   同じ位置（左 1rem・中心の高さ 2rem）に置く。開閉で、絵が動かない */
 .ws-brand {
-  padding: 0 0.5rem 0.5rem;
+  margin: 0;
+  padding: 0 0.5rem 0 0.25rem;
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: 0.01em;
@@ -1384,6 +1389,7 @@
 /* ロゴの絵は、文字と同じ色の線画。文字との間を詰め、中央をそろえる */
 .ws-brand a {
   display: inline-flex;
+  min-height: 2.5rem;
   align-items: center;
   gap: 0.45rem;
 }
@@ -1699,9 +1705,10 @@
 
 .ws-brand-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.25rem;
+  padding-bottom: 0.5rem;
 }
 
 /* 閉じると、列の幅を 0 にする。隠すだけで、会話の一覧・履歴のスクロール位置は残る（操作と読み上げからは外れる） */
@@ -1834,6 +1841,38 @@
     max-height: 0;
     border-bottom: 0;
   }
+}
+
+/* ---- 閉じたレールの空き部分で開く ----
+   下敷きのボタンがサイドバー全体を覆い、レールの項目・アイコンは、その上に載って自分のクリックだけを受ける
+   （ページ遷移・新しい会話・メニュー。開閉はしない）。レールの入れ物は pointer-events: none で素通しにし、中身だけ auto に戻す。
+   → 空き部分のクリックだけが下敷きに届いて開く。キーボードでは、下敷きのボタンが 1 つのボタンとして押せる。
+   閉じる操作は、これまでどおり、開いた状態の右上のボタンだけ */
+.ws-rail-open {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: e-resize;
+}
+
+.ws-rail-open:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.ws-rail,
+.ws-rail-foot {
+  pointer-events: none;
+}
+
+/* pointer-events は子に引き継がれるので、下敷きのボタンにも auto を戻す */
+.ws-rail-open,
+.ws-rail-btn,
+.ws-rail-foot .ws-account {
+  pointer-events: auto;
 }
 
 /* ---- 閉じたサイドバーのレール（PC 幅だけ）。アイコンだけを細い列に残し、履歴と文字は隠す ---- */
