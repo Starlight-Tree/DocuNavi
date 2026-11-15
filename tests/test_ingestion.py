@@ -51,6 +51,44 @@ def test_extract_pages_keeps_japanese_text_and_page_numbers(tmp_path):
     assert pages[2].text.strip() == "三ページ目です。"
 
 
+def _labelled(tmp_path, page_labels, count=6):
+    pages = [paragraphs(f"{i}番目のページの本文です。") for i in range(1, count + 1)]
+    path = tmp_path / "labelled.pdf"
+    path.write_bytes(build_pdf(pages, page_labels=page_labels))
+    return path
+
+
+def test_page_labels_are_read_separately_from_the_page_number(tmp_path):
+    # 表紙（番号なし）・目次（i）・本文（1〜3）・付録（A-1）
+    pdf = _labelled(tmp_path, [(0, None, "表紙"), (1, "/r"), (2, "/D"), (5, "/D", "A-")])
+    pages = extract_pages(pdf)
+    assert [p.number for p in pages] == [1, 2, 3, 4, 5, 6]
+    assert [p.label for p in pages] == ["表紙", "i", "1", "2", "3", "A-1"]
+
+
+def test_a_pdf_without_page_labels_has_no_labels(tmp_path):
+    # pypdf は /PageLabels が無いと "1", "2" … を作る。PDF が決めたものではないので、None にする
+    pages = extract_pages(_write(tmp_path / "a.pdf", [["一ページ目です。"], ["二ページ目です。"]]))
+    assert [p.label for p in pages] == [None, None]
+
+
+def test_broken_page_labels_do_not_stop_the_ingestion(tmp_path):
+    pdf = _labelled(tmp_path, [(0, "/Q")], count=2)  # 未定義のスタイル
+    pages = extract_pages(pdf)
+    assert [p.number for p in pages] == [1, 2]
+    assert len(pages) == 2
+
+
+def test_chunks_carry_the_label_of_their_page_but_the_hash_ignores_it():
+    labelled = [Page(1, "表紙です。", label="表紙"), Page(2, "目次です。", label="i"), Page(3, "本文です。", label="1")]
+    plain = [Page(1, "表紙です。"), Page(2, "目次です。"), Page(3, "本文です。")]
+    chunks = chunk_pages(labelled)
+    assert [(c.page, c.page_label) for c in chunks] == [(1, "表紙"), (2, "i"), (3, "1")]
+    assert [c.page_label for c in chunk_pages(plain)] == [None, None, None]
+    # ラベルだけが違う資料は、同じチャンクとして扱う（再取り込みで埋め込みを作り直さない）
+    assert [c.content_hash for c in chunks] == [c.content_hash for c in chunk_pages(plain)]
+
+
 def test_a_pdf_without_text_is_reported_as_empty(tmp_path):
     pdf = _write(tmp_path / "blank.pdf", [[], []])
     with pytest.raises(IngestionError) as exc:

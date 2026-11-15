@@ -66,8 +66,21 @@ def _content(lines: list) -> bytes:
     return "\n".join(ops).encode("ascii")
 
 
-def build_pdf(pages: list[list], title: str | None = None) -> bytes:
+def _label_range(start: int, style: str | None = None, prefix: str | None = None, first: int | None = None) -> bytes:
+    body = ""
+    if style:
+        body += f"/S {style} "
+    if prefix is not None:
+        body += "/P <FEFF%s> " % prefix.encode("utf-16-be").hex().upper()  # 日本語は UTF-16BE（BOM つき）で書く
+    if first is not None:
+        body += f"/St {first} "
+    return b"%d << %s>>" % (start, body.encode("ascii"))
+
+
+def build_pdf(pages: list[list], title: str | None = None, page_labels: list[tuple] | None = None) -> bytes:
     """pages: ページごとの行のリスト。空のリストは、文字の無いページになる。title: メタデータ /Title（None なら Info 辞書を付けない）。
+    page_labels: /PageLabels の範囲。（先頭ページの位置〔0 始まり〕, スタイル, 接頭辞, 開始番号）。スタイルは `/D`（1, 2, …）・`/r`（i, ii, …）・None（番号なし）。
+    接頭辞と開始番号は省略できる。例: `(0, None, "表紙")`、`(1, "/r")`、`(5, "/D", "A-")`。None なら付けない。
 
     行は str（1 行）・Big（見出し）・tuple（表の 1 行。セルを横に並べる）・""（1 行分の空き）。
     """
@@ -77,7 +90,11 @@ def build_pdf(pages: list[list], title: str | None = None) -> bytes:
         objects.append(body)
         return len(objects)
 
-    add(b"<< /Type /Catalog /Pages 2 0 R >>")
+    labels = b""
+    if page_labels:
+        nums = b" ".join(_label_range(*spec) for spec in page_labels)
+        labels = b" /PageLabels << /Nums [%s] >>" % nums
+    add(b"<< /Type /Catalog /Pages 2 0 R%s >>" % labels)
     add(b"")  # 2 = Pages。ページを足し終えてから埋める
     font = add(
         b"<< /Type /Font /Subtype /Type0 /BaseFont /TestFont /Encoding /Identity-H "

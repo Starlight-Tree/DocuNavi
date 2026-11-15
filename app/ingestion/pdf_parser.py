@@ -58,6 +58,8 @@ class Page:
     number: int  # 1 始まり
     text: str  # pypdf の通常の抽出（空・文字化けの判定と、語順の正しい全文として使う）
     lines: tuple[Line, ...] = ()  # 座標から組み直した行（上から下へ）。無ければ text の行を使う
+    # PDF の /PageLabels が決める表示用の番号（"i"・"1"・"A-1"・"表紙" など）。PDF に無ければ None（表示は number）
+    label: str | None = None
 
 
 def _is_unreadable_char(ch: str) -> bool:
@@ -253,6 +255,23 @@ def extract_title(path: Path) -> str | None:
         return None
 
 
+def _page_labels(reader) -> list[str | None]:
+    """ページごとの表示ラベル。PDF に /PageLabels が無い・読めないときは、すべて None（例外は出さない）。
+
+    pypdf は /PageLabels が無いと "1", "2", … を作って返すので、辞書があるときだけ採る。空のラベル（""）も None にする。
+    """
+    count = len(reader.pages)
+    try:
+        if "/PageLabels" not in reader.trailer["/Root"]:
+            return [None] * count
+        labels = list(reader.page_labels)
+    except Exception:  # noqa: BLE001 - ラベルは付随情報。壊れていても取り込み全体は止めない
+        return [None] * count
+    if len(labels) != count:
+        return [None] * count
+    return [label.strip() or None if isinstance(label, str) else None for label in labels]
+
+
 def extract_pages(path: Path | BinaryIO) -> list[Page]:
     """全ページのテキストを返す（文字の無いページは空文字のまま残す）。`path` はファイルか、読み込み済みのバイト列（`io.BytesIO`）。
 
@@ -266,6 +285,7 @@ def extract_pages(path: Path | BinaryIO) -> list[Page]:
             raise IngestionError("encrypted")
         texts = [(page.extract_text() or "") for page in reader.pages]
         structure = [_layout_lines(page) for page in reader.pages]
+        labels = _page_labels(reader)
     except IngestionError:
         raise
     except Exception as exc:  # pypdf は壊れた入力でさまざまな例外を出す。境界で理由コードに変える
@@ -276,6 +296,6 @@ def extract_pages(path: Path | BinaryIO) -> list[Page]:
     if _looks_garbled(texts):
         raise IngestionError("garbled")
     return [
-        Page(number=i, text=text, lines=lines)
-        for i, (text, lines) in enumerate(zip(texts, structure, strict=True), start=1)
+        Page(number=i, text=text, lines=lines, label=label)
+        for i, (text, lines, label) in enumerate(zip(texts, structure, labels, strict=True), start=1)
     ]

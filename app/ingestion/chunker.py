@@ -74,6 +74,8 @@ class Chunk:
     content_hash: str
     page_end: int | None = None  # 表がページをまたぐときの最終ページ（またがなければ None）
     kind: str = "text"  # text（段落）または table（表。1 行 1 行を改行で区切る）
+    page_label: str | None = None  # `page` の表示用ラベル（PDF の /PageLabels。無ければ None）
+    page_end_label: str | None = None  # `page_end` の表示用ラベル
 
 
 def normalize_for_hash(text: str) -> str:
@@ -366,8 +368,10 @@ def chunk_pages(pages: list[Page]) -> list[Chunk]:
     chunks: list[Chunk] = []
     heading: str | None = None
     pending: _PendingTable | None = None
+    labels = {page.number: page.label for page in pages}
 
     def add(page: int, text: str, *, page_end: int | None = None, kind: str = "text", under: str | None = None):
+        end = page_end if page_end and page_end != page else None
         chunks.append(
             Chunk(
                 index=len(chunks),
@@ -375,8 +379,10 @@ def chunk_pages(pages: list[Page]) -> list[Chunk]:
                 heading=under if kind == "table" else heading,
                 text=text,
                 content_hash=content_hash(text),
-                page_end=page_end if page_end and page_end != page else None,
+                page_end=end,
                 kind=kind,
+                page_label=labels.get(page),
+                page_end_label=labels.get(end) if end else None,
             )
         )
 
