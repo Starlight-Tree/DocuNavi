@@ -1,22 +1,22 @@
 {
   "mode": "bm25",
   "k": 5,
-  "generated_at": "2026-10-15T13:00:26+09:00",
+  "generated_at": "2026-11-15T21:55:34+09:00",
   "corpus": {
     "files": [
       "aoba_aw820_manual.pdf",
       "tsubasa_dorm_rules.pdf"
     ],
-    "sha256": "8d115e623d166b9d6c52c5e741586cec098f3ba26f7a5fccbbe825c93a03ca13",
+    "sha256": "491b5b0ddfefa75b65929716611c153fb3ca47dbc1125c5f7826d9a1e0c2c123",
     "source": "pdf:guides",
     "passages": "parent",
     "pages": {
       "aoba_aw820_manual.pdf": 4,
-      "tsubasa_dorm_rules.pdf": 3
+      "tsubasa_dorm_rules.pdf": 5
     },
     "pdf_sha256": {
       "aoba_aw820_manual.pdf": "1f86610c9eafcc0d27cca324d301ae26d9c047719c8f4185bc7c75f655940936",
-      "tsubasa_dorm_rules.pdf": "555e07b7848042a6b97f88e8746d6b2f21a5f1d55c4be969ee1be2ba0fa3d37b"
+      "tsubasa_dorm_rules.pdf": "cb911489f7a4dde42904b64eb6ea6d69c0523a497b5ffbd267bcfe7ef6d27bcc"
     }
   },
   "search_params": {
@@ -624,46 +624,46 @@
     },
     "t001": {
       "入寮の申込みは、入寮を希望する年度の 2 月 28 日までに、学生支援課へ申込書を提出して行う。": [
-        1
+        3
       ]
     },
     "t002": {
       "入寮する者は、入寮時に保証金 50,000 円を納める。": [
-        2
+        4
       ]
     },
     "t003": {
       "門限は、午後 11 時とする。": [
-        2
+        4
       ]
     },
     "t004": {
       "入寮期間は、1 年とする。": [
-        1
+        3
       ],
       "更新は、2 回までとする。": [
-        1
+        3
       ]
     },
     "t005": {
       "来訪者を居室に入れてはならない。": [
-        2
+        4
       ]
     },
     "t006": {
       "退寮するときは、退寮予定日の 30 日前までに、退寮届を学生支援課へ提出する。": [
-        3
+        5
       ]
     },
     "t007": {
       "ひばり棟の個室は 38,000 円とする。": [
-        2
+        4
       ],
       "つばめ棟の二人部屋は、1 人につき 24,000 円とする。": [
-        2
+        4
       ],
       "かもめ棟の個室は、45,000 円とする。": [
-        2
+        4
       ]
     }
   }
