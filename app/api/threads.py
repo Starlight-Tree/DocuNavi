@@ -2,7 +2,8 @@
 
 - `GET /threads`: ログイン中の利用者の会話を、新しい順に返す。`AUTH_MODE=required` のときだけ使える。匿名（off）の会話には
   持ち主がなく、一覧にすると他人の会話が見えてしまうので、404 を返す
-- `GET /threads/{thread_id}/messages`: 会話の発言を古い順に返す（ユーザーと最終回答だけ。ツールの結果は含めない）。
+- `GET /threads/{thread_id}/messages`: 会話の発言を古い順に返す（ユーザーと最終回答だけ。ツールの結果は含めないが、最終回答には、
+  その質問の最後の検索から取り出した出典〔`context` と `sources`〕を付ける）。
   required では本人の会話だけ（他人の ID は存在しないのと同じ 404）。off では `thread_id` を知っていることが権限
 - `DELETE /threads/{thread_id}`: 会話を 1 件消す。required では本人の会話だけ（他人の ID は存在しないのと同じ 404）。
   off では `/chat` と同じく、`thread_id` を知っていることが権限
@@ -20,9 +21,9 @@ from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Response
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.access import Access, request_access, target_is_visible
 from app.api import routes
@@ -72,9 +73,28 @@ class ThreadList(BaseModel):
     threads: list[ThreadSummary]
 
 
+class ThreadSource(BaseModel):
+    """回答の出典 1 件。`/chat/stream` の `message-metadata.sources` の項目から、`target` を除いたもの（保存済みの検索結果の artifact から取り出す。画面は `target` を使わず、見えない対象の名前を返さないため）。"""
+
+    name: str
+    page: int | None = None
+    page_end: int | None = None
+    weak: bool = False
+    collection: str | None = None
+    document_id: int | None = None
+
+
 class ThreadMessage(BaseModel):
     role: Literal["user", "assistant"]
     text: str
+    context: str | None = Field(
+        default=None,
+        description="assistant のみ。その回答の検索結果（`/chat/stream` の `message-metadata.context` と同じ形）。出典が無い回答・伏せた回答では項目が無い",
+    )
+    sources: list[ThreadSource] | None = Field(
+        default=None,
+        description="assistant のみ。`context` の出典と同じ順のページなど。出典が無い回答・伏せた回答・保存されていない古い会話では項目が無い",
+    )
 
 
 class MessageList(BaseModel):
@@ -102,22 +122,57 @@ class MessageList(BaseModel):
     )
 
 
-def visible_messages(messages: list[Any]) -> list[ThreadMessage]:
+def _turn_references(group: list[ToolMessage]) -> tuple[str, list[ThreadSource]] | None:
+    """検索結果（ToolMessage の連なり 1 組）から、回答の出典（context と sources）を取り出す。出典が無ければ None。
+
+    `graph.py` の `tools` ノードが、1 回の検索（連なる ToolMessage）の本文を空行で連ねて context にし、artifact の並びを sources にしている。
+    ここでは、それと同じ作り方で組み直す。伏せた検索結果（artifact が空）は出典にならない。
+    """
+    items: list[Any] = []
+    for message in group:
+        artifact = getattr(message, "artifact", None)
+        if isinstance(artifact, list):
+            items.extend(artifact)
+    if not items or not all(isinstance(item, dict) for item in items):
+        return None
+    try:
+        sources = [ThreadSource.model_validate(item) for item in items]
+    except ValidationError:
+        return None
+    return "\n\n".join(str(message.content) for message in group), sources
+
+
+def visible_messages(messages: list[Any], *, with_sources: bool = True) -> list[ThreadMessage]:
     """画面に出す発言だけ（古い順）。ユーザーの発言と、ツール呼び出しの無い（最終回答の）AI の発言で、本文が空のものは除く。
 
-    ツールの結果（検索で引いた資料の本文）と、ツールを呼ぶだけの発話は、画面に出さない。
+    ツールの結果（検索で引いた資料の本文）と、ツールを呼ぶだけの発話は、画面に出さない。ただし、最終回答には、その質問の最後の検索
+    （直前に連なる ToolMessage の 1 組。画面の「参照資料」と同じ範囲）から取り出した出典（`context` と `sources`）を付ける。
+    `with_sources=False`（保存された検索範囲がいま見えないとき）は、出典の資料名・グループを返さないため、付けない。
     """
     shown: list[ThreadMessage] = []
+    group: list[ToolMessage] = []  # この質問の、最後の検索結果の連なり
+    after_tool = False
     for message in messages:
+        if isinstance(message, ToolMessage):
+            group = group + [message] if after_tool else [message]
+            after_tool = True
+            continue
+        after_tool = False
         if isinstance(message, HumanMessage):
+            group = []
             role = "user"
         elif isinstance(message, AIMessage) and not message.tool_calls:
             role = "assistant"
         else:
             continue
         text = message.text.strip()
-        if text:
+        if not text:
+            continue
+        references = _turn_references(group) if role == "assistant" and with_sources else None
+        if references is None:
             shown.append(ThreadMessage(role=role, text=text))
+        else:
+            shown.append(ThreadMessage(role=role, text=text, context=references[0], sources=references[1]))
     return shown
 
 
@@ -240,7 +295,7 @@ async def list_threads(user_id: Annotated[str | None, Depends(current_user)]) ->
     return ThreadList(threads=threads)
 
 
-@router.get("/{thread_id}/messages", response_model=MessageList)
+@router.get("/{thread_id}/messages", response_model=MessageList, response_model_exclude_unset=True)
 async def get_thread_messages(
     thread_id: Annotated[str, Path(max_length=routes.MAX_THREAD_ID_LENGTH, pattern=r"^[A-Za-z0-9_-]+$")],
     user_id: Annotated[str | None, Depends(current_user)],
@@ -267,7 +322,10 @@ async def get_thread_messages(
             raise _unavailable(exc) from None
     unavailable = (saved is not None and collection is None) or (saved_target is not None and target is None)
     return MessageList(
-        messages=visible_messages(shown), collection=collection, target=target, scope_unavailable=unavailable
+        messages=visible_messages(shown, with_sources=not unavailable),
+        collection=collection,
+        target=target,
+        scope_unavailable=unavailable,
     )
 
 

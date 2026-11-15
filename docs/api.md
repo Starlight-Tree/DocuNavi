@@ -184,7 +184,7 @@ data: [DONE]
   `thread_id` は `/chat` に送ると会話が続く値（利用者 ID の接頭辞は付かない）。`title` は最初のユーザー発言の先頭（空白をまとめて 40 文字まで。
   超えたら末尾が `…`）で、新しい列も LLM 呼び出しも使わない。`created_at` / `updated_at` は最初と最後のチェックポイントの時刻で、無ければ `null`。
 - **`GET /threads/{thread_id}/messages`:** 会話の発言を古い順に返す。ユーザーの発言と、ツール呼び出しの無い最終回答だけで、検索で引いた資料の本文（ツールの結果）は含めない。
-  本文が空のものは除く。履歴に無い会話は 404（required では他人の会話も同じ 404）。
+  ただし、最終回答には、その質問の**最後の検索**（直前に連なる検索結果の 1 組）から取り出した出典を `context` と `sources` で付ける（2026-11-15 から）。本文が空のものは除く。履歴に無い会話は 404（required では他人の会話も同じ 404）。
 
   ```json
   {"messages": [{"role": "user", "text": "ザーハードの大気は？"}, {"role": "assistant", "text": "…"}], "collection": null, "target": "zahard", "scope_unavailable": false}
@@ -193,7 +193,10 @@ data: [DONE]
   `collection` は旧方式の検索対象、`target` は質問の対象（どちらも `null` は絞らない。項目が無い古い会話も `null`）。続きの会話で `/chat` に送る値は、これと同じか省略にする（違うと 409）。
   保存された範囲が、いま見えない・資料が無いときは、その名前を返さず（`null`）、`scope_unavailable` を `true` にする（「絞らない」と区別するため）。続きを送ると、サーバーは保存された範囲のまま探す。
 
-  回答の出典（`sources`）は、会話の状態に直近の 1 回分しか無い（毎ターン作り直す）ので返さない。
+  `context` と `sources` は `/chat/stream` の `message-metadata` と同じ形（`sources` は `{name, page, page_end, weak, collection, document_id}`。`target` は、見えない対象の名前を返さないため含めない）。
+  会話に保存された検索結果（`ToolMessage` の `artifact`）から読み直すので、新しい保存の項目は無い。**出典が付かない回答:** 検索しなかった回、いま見えないグループに基づいて伏せた回答（`ACCESS_MODE=enforce`）、
+  `artifact` を持たない古い会話、保存された検索範囲がいま見えないとき（`scope_unavailable` が `true` の会話は、どの回答にも付けない）。付かない項目は、キーごと省く。
+  **未確認:** 本番の DB の過去の会話に `artifact` が残っているか（テストはメモリの checkpointer と手で作った会話で確かめた）。
 - **`DELETE /threads/{thread_id}`:** 会話を 1 件消す。成功は 204（本文なし）。`thread_id` の形式は `/chat` と同じ（`:` を含むと 422）。
 - **認証:**
 

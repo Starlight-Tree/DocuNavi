@@ -209,6 +209,142 @@ def test_visible_messages_skip_tool_traffic_and_empty_text():
     ]
 
 
+def _search_result(call_id: str, name: str, page: int, text: str, number: int = 1) -> ToolMessage:
+    """graph.py の tools ノードが保存する検索結果の形（番号つきの本文と、出典の artifact）。"""
+    return ToolMessage(
+        content=f"[{number}] {name}\n{text}",
+        tool_call_id=call_id,
+        artifact=[
+            {
+                "name": name,
+                "page": page,
+                "page_end": None,
+                "weak": False,
+                "collection": "zahard",
+                "target": "zahard",
+                "document_id": 7,
+            }
+        ],
+    )
+
+
+def _call(call_id: str) -> AIMessage:
+    return AIMessage(content="", tool_calls=[{"name": "search_documents", "args": {"query": "q"}, "id": call_id}])
+
+
+def test_visible_messages_attach_the_last_search_sources_to_the_answer():
+    messages = [
+        HumanMessage(content="大気は？"),
+        _call("c1"),
+        _search_result("c1", "ザーハード1.pdf", 2, "窒素が主成分です。"),
+        AIMessage(content="窒素が主成分です。[1]"),
+    ]
+
+    answer = threads.visible_messages(messages)[1]
+
+    assert answer.context == "[1] ザーハード1.pdf\n窒素が主成分です。"
+    assert [(s.name, s.page, s.document_id, s.collection) for s in answer.sources] == [
+        ("ザーハード1.pdf", 2, 7, "zahard")
+    ]
+    assert threads.visible_messages(messages)[0].sources is None
+    assert "target" not in answer.model_dump()["sources"][0]  # 見えない対象の名前を返さないため、対象は返さない
+    assert threads.visible_messages(messages, with_sources=False)[1].sources is None
+
+
+def test_visible_messages_keep_only_the_last_search_of_a_turn_and_do_not_leak_into_the_next():
+    messages = [
+        HumanMessage(content="1 問目"),
+        _call("c1"),
+        _search_result("c1", "古い検索.pdf", 1, "最初の検索"),
+        _call("c2"),
+        _search_result("c2", "最後の検索.pdf", 3, "二度目の検索"),
+        AIMessage(content="答えです。"),
+        HumanMessage(content="2 問目（検索しない）"),
+        AIMessage(content="検索せずに答えます。"),
+    ]
+
+    shown = threads.visible_messages(messages)
+
+    assert [s.name for s in shown[1].sources] == ["最後の検索.pdf"]
+    assert shown[3].sources is None and shown[3].context is None
+
+
+def test_visible_messages_join_parallel_searches_of_one_call_group():
+    messages = [
+        HumanMessage(content="質問"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "search_documents", "args": {"query": "a"}, "id": "c1"},
+                {"name": "search_documents", "args": {"query": "b"}, "id": "c2"},
+            ],
+        ),
+        _search_result("c1", "A.pdf", 1, "本文A", 1),
+        _search_result("c2", "B.pdf", 4, "本文B", 2),
+        AIMessage(content="答え。"),
+    ]
+
+    answer = threads.visible_messages(messages)[1]
+
+    assert [s.name for s in answer.sources] == ["A.pdf", "B.pdf"]
+    assert answer.context == "[1] A.pdf\n本文A\n\n[2] B.pdf\n本文B"
+
+
+def test_visible_messages_omit_sources_for_masked_or_missing_artifacts():
+    masked = ToolMessage(content="（伏せた検索結果）", tool_call_id="c1", artifact=[])
+    legacy = ToolMessage(content="[資料.pdf]\n古い形式の本文", tool_call_id="c2")  # artifact を持たない古い会話
+    messages = [
+        HumanMessage(content="Q1"),
+        _call("c1"),
+        masked,
+        AIMessage(content="伏せた回答"),
+        HumanMessage(content="Q2"),
+        _call("c2"),
+        legacy,
+        AIMessage(content="古い回答"),
+    ]
+
+    shown = threads.visible_messages(messages)
+
+    assert shown[1].sources is None and shown[3].sources is None
+    assert shown[1].model_dump(exclude_unset=True) == {"role": "assistant", "text": "伏せた回答"}
+
+
+def test_thread_messages_endpoint_returns_sources_only_where_present(client):
+    from langgraph.checkpoint.memory import MemorySaver
+
+    thread_id = f"t{uuid.uuid4().hex}"
+    saver = MemorySaver()
+    messages = [
+        HumanMessage(content="大気は？"),
+        _call("c1"),
+        _search_result("c1", "ザーハード1.pdf", 2, "窒素が主成分です。"),
+        AIMessage(content="窒素が主成分です。[1]"),
+    ]
+    cfg = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
+    import asyncio as _asyncio
+
+    from langgraph.checkpoint.base import empty_checkpoint
+
+    checkpoint = empty_checkpoint()
+    checkpoint["channel_values"] = {"messages": messages}
+    checkpoint["channel_versions"] = {"messages": 1}
+    _asyncio.run(saver.aput(cfg, checkpoint, {"source": "loop", "step": 0, "parents": {}}, {"messages": 1}))
+    from app import history
+
+    history._checkpointer = saver
+    try:
+        body = client.get(f"/threads/{thread_id}/messages").json()
+    finally:
+        history._checkpointer = None
+
+    user, answer = body["messages"]
+    assert user == {"role": "user", "text": "大気は？"}
+    assert answer["sources"][0]["name"] == "ザーハード1.pdf"
+    assert answer["sources"][0]["page"] == 2
+    assert answer["context"].startswith("[1] ザーハード1.pdf")
+
+
 # --- 削除 --------------------------------------------------------------------
 
 

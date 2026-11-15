@@ -44,6 +44,10 @@ export async function fetchThreads(fetcher: Fetcher, signal?: AbortSignal): Prom
 export interface ThreadMessage {
   role: 'user' | 'assistant';
   text: string;
+  /** assistant のみ。その回答の検索結果（`/chat/stream` の `messageMetadata.context` と同じ形）。出典が無い回答・古い API では無い。 */
+  context?: string;
+  /** assistant のみ。`context` の出典と同じ順の {name, page, page_end, weak, collection, document_id}。サーバーの値なので、使う前に `parseSourceRefs` で確かめる。 */
+  sources?: unknown;
 }
 
 export interface ThreadHistory {
@@ -72,7 +76,13 @@ export async function fetchThreadMessages(
     if (!isRecord(item) || (item.role !== 'user' && item.role !== 'assistant') || typeof item.text !== 'string') {
       throw new ChatApiError(response.status, MSG_BAD_BODY);
     }
-    messages.push({ role: item.role, text: item.text });
+    const message: ThreadMessage = { role: item.role, text: item.text };
+    // 出典は、検索結果の本文（context）と、その出典の一覧（sources）が揃っているときだけ受け取る（片方だけでは「参照資料」を組めない）
+    if (item.role === 'assistant' && typeof item.context === 'string' && Array.isArray(item.sources)) {
+      message.context = item.context;
+      message.sources = item.sources;
+    }
+    messages.push(message);
   }
   // 範囲の形が合わない値は、主張しない（null）。送るときは省略になり、サーバーが会話の範囲を使う
   const { collection, target } = body;

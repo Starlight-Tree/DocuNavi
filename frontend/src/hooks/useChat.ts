@@ -500,6 +500,8 @@ export function useChat(): UseChat {
               id: `history-${id}-${index}`,
               role: item.role,
               parts: [{ type: 'text', text: item.text }],
+              // 回答の出典（保存された検索結果から、サーバーが取り出したもの）。回答の直後と同じ「参照資料」を出す
+              ...(item.context !== undefined ? { metadata: { context: item.context, sources: item.sources } } : {}),
             })),
           );
           setHistory('idle');

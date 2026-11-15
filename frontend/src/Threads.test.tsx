@@ -26,7 +26,7 @@ function setup(auth: FakeAuth | null) {
   return { user };
 }
 
-type HistoryItem = { role: 'user' | 'assistant'; text: string };
+type HistoryItem = { role: 'user' | 'assistant'; text: string; context?: string; sources?: unknown };
 
 /**
  * 会話の一覧の状態を持つ偽のサーバー。DELETE は一覧から外す。
@@ -191,6 +191,33 @@ describe('会話の一覧', () => {
     await screen.findByText(DEFAULT_REPLY);
     expect(chatBodies()).toEqual([{ message: '続きの質問', thread_id: 't1' }]);
     expect(within(log).getByText('ザーハードの大気は？')).toBeInTheDocument();
+  });
+
+  it('開き直した会話の回答にも、保存された出典から「参照資料」を出す（出典が無い回答には出さない）', async () => {
+    const server = threadsServer([thread('t1', '最初の質問')], {
+      messages: {
+        t1: [
+          { role: 'user', text: 'ザーハードの大気は？' },
+          {
+            role: 'assistant',
+            text: '主に窒素です。',
+            context: '[1] ザーハード1.pdf\n大気は主に窒素です。',
+            sources: [{ name: 'ザーハード1.pdf', page: 2, page_end: null, weak: false, collection: 'zahard', document_id: 7 }],
+          },
+          { role: 'user', text: '雑談' },
+          { role: 'assistant', text: 'こんにちは。' },
+        ],
+      },
+    });
+    installFetch(() => replyResponse({ thread_id: 't1' }), server.handler);
+    const { user } = setup(fakeAuth());
+
+    await user.click(await screen.findByTitle('最初の質問'));
+
+    const regions = await screen.findAllByRole('region', { name: '参照資料' });
+    expect(regions).toHaveLength(1);
+    expect(within(regions[0] as HTMLElement).getByText(/ザーハード1\.pdf/)).toBeInTheDocument();
+    expect(within(regions[0] as HTMLElement).getByText(/p\.2/)).toBeInTheDocument();
   });
 
   it('取得している間は読み込み中を出し、届いたら消える', async () => {
