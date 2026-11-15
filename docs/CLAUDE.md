@@ -12,7 +12,7 @@
 | 重要な決定と、その理由 | [decisions/](decisions/README.md)（1 件 1 ファイル） |
 | API の仕様 | [api.md](api.md)。環境変数と LLM の挙動は [configuration.md](configuration.md) |
 | 検索の設計 | [search-design.md](search-design.md)。ガードレールは [guardrails.md](guardrails.md) |
-| 開発・テスト・CI | [development.md](development.md)。配備と本番運用は [deploy.md](deploy.md) |
+| 開発・環境 | [development.md](development.md)。テスト・CI は [testing.md](testing.md)。配備と本番運用は [deploy.md](deploy.md) |
 | 領域ごとの設計・手順 | `access-control-plan.md` `ingestion-stage4-design.md` `r2-*.md` `go-architecture-plan.md` `mcp-tool-design.md` |
 | 画面のバックログ・UX の調査 | [backlog.md](backlog.md)、[ux-research.md](ux-research.md) |
 

@@ -1,6 +1,6 @@
 # tests/（バックエンドのテスト）
 
-全体の方針・禁止事項は、ルートの [CLAUDE.md](../CLAUDE.md)。実行の手順と CI は [docs/development.md](../docs/development.md)。`app/` のテストの注意は [app/CLAUDE.md](../app/CLAUDE.md) の「テスト」。
+全体の方針・禁止事項は、ルートの [CLAUDE.md](../CLAUDE.md)。実行の手順と CI は [docs/testing.md](../docs/testing.md)。`app/` のテストの注意は [app/CLAUDE.md](../app/CLAUDE.md) の「テスト」。
 
 `pytest`（`pyproject.toml`: `testpaths = ["tests"]`、`pythonpath = ["."]`）。**実 API・本物の DB・Supabase を呼ばない。** 画面側のテストは `frontend/`（Vitest・Playwright）。Django の試作のテストは `ops/django-saas/saas/tests/`（別の venv。製品の `pytest` には含まれない）。
 

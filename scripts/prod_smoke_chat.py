@@ -1,7 +1,7 @@
 """本番の /chat を、テスト専用ユーザーで 1 回だけ叩く（自動テスト用。Better Auth のメール + パスワード → JWT → /chat）。
 
 前提: Worker `docunavi-api` で、自動テスト用ログインが有効（Secret `TEST_LOGIN_TOKEN` が設定されている間だけ。既定は無効）。
-手順は docs/development.md の「本番の /chat の自動テスト」。秘密は環境変数で渡す（Infisical の `infisical sm run` など）。値は表示しない。
+手順は docs/testing.md の「本番の /chat の自動テスト」。秘密は環境変数で渡す（Infisical の `infisical sm run` など）。値は表示しない。
 
     TEST_LOGIN_EMAIL / TEST_LOGIN_PASSWORD / TEST_LOGIN_TOKEN   必須（パスワードは 24 文字以上）
     AUTH_WEB_ORIGIN   既定 https://docunavi-web.wataru-apps.workers.dev（Better Auth の公開オリジン）

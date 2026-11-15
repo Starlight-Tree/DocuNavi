@@ -63,7 +63,7 @@ npm run dev
 | [docs/architecture.md](docs/architecture.md) | 処理の流れとディレクトリ構成 |
 | [docs/configuration.md](docs/configuration.md) | 環境変数、LLM の遅延・失敗への対処 |
 | [docs/api.md](docs/api.md) | API の仕様 |
-| [docs/development.md#テスト](docs/development.md#テスト) | テストの実行方法、主要シナリオ、未検証事項 |
+| [docs/testing.md](docs/testing.md) | テストの実行方法、主要シナリオ、未検証事項 |
 | [docs/decisions/](docs/decisions/README.md) | 重要な決定と、その理由 |
 | [evals/README.md](evals/README.md) | 評価の手順と結果 |
 

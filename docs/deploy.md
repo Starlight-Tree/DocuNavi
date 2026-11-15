@@ -475,7 +475,7 @@ for f in ops/monitoring/alert-chat-failures.yaml ops/monitoring/alert-cloudrun-5
 done
 ```
 
-指標の値が増えることの確認は、`scripts/prod_smoke_chat.py --stream`（[development.md](development.md) の「本番の /chat の自動テスト」。1 回送るごとに `chat_requests_total` が 1 増える）で行います（未確認）。失敗時の `status` が本番のログで文字列になることは、本番で失敗が起きるまで受動確認です（コードとテストでは文字列）。
+指標の値が増えることの確認は、`scripts/prod_smoke_chat.py --stream`（[testing.md](testing.md) の「本番の /chat の自動テスト」。1 回送るごとに `chat_requests_total` が 1 増える）で行います（未確認）。失敗時の `status` が本番のログで文字列になることは、本番で失敗が起きるまで受動確認です（コードとテストでは文字列）。
 
 ## 続き
 

@@ -89,7 +89,7 @@ UI_MOCK=1 npm run dev        # http://localhost:3000/mock（?view=documents で�
 - 画面: `npm run build:e2e` / `build:e2e:auth` のビルドを `next start` で立てます（`3100` = ログインなし、`3101` = ログインを有効にして偽の認証サーバーの URL を入れたビルド）
 - シナリオ: `e2e/chat.e2e.ts`（質問 → 出典つきの回答）、`e2e/auth.e2e.ts`（偽の Better Auth でのログイン、トークンの取り直し。`e2e/support/auth-mock.ts`）
 - 初回だけ、Chromium を入れます: `npx playwright install chromium`
-- 失敗時の成果物（`test-results/`・`playwright-report/`）は Git 管理外です。経緯は [docs/development.md](../docs/development.md)
+- 失敗時の成果物（`test-results/`・`playwright-report/`）は Git 管理外です。経緯は [docs/testing.md](../docs/testing.md)
 
 ## ディレクトリ構成
 

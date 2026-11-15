@@ -14,7 +14,7 @@ export interface Env {
   JWT_AUDIENCE?: string;
   // 本番の自動テスト用ログイン（メール + パスワード）。**既定は無効**。TEST_LOGIN_TOKEN（Secret。32 文字以上）が設定されたときだけ有効になり、
   // 外すと無効に戻る。有効な間も、TEST_LOGIN_EMAIL の 1 アドレスだけが、ヘッダー x-test-login-token が TEST_LOGIN_TOKEN と一致するときだけ
-  // 登録・ログインできる（一般の登録は開かない）。使い方は docs/development.md の「本番の /chat の自動テスト」。
+  // 登録・ログインできる（一般の登録は開かない）。使い方は docs/testing.md の「本番の /chat の自動テスト」。
   TEST_LOGIN_TOKEN?: string;
   TEST_LOGIN_EMAIL?: string;
 }

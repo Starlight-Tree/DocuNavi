@@ -11,8 +11,8 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 | バックエンド起動 | `uvicorn app.main:app --reload`（`.env` が無い・キー未設定ならモックモード） |
 | バックエンドのテスト | `pytest`（`tests/conftest.py` がモックモードに固定し、検索も偽物に差し替える。実 API・DB は呼ばない） |
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
-| E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/development.md](docs/development.md) |
-| 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「テスト」節）で `.txt` を再生成する。`.txt` は直接編集しない |
+| E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/testing.md](docs/testing.md) |
+| 依存の更新 | `requirements*.in` を編集し、`uv pip compile`（[docs/development.md](docs/development.md) の「依存の更新」節）で `.txt` を再生成する。`.txt` は直接編集しない |
 | Docker | 開発コンテナは Compose ベースで、開いても `api` `frontend` は起動しない（2026-11-11 から。ローカルの入口は `scripts/dev-local.sh` の画面 3000 に一本化）。開発コンテナ内には Docker エンジンが無く、起動・停止はホストの `docker compose`（プロジェクト名 `docunavi`）。ローカルの `api` は本番の DB につながない。**未確認の点・構成の詳細・確認の日付は [docs/development.md](docs/development.md)。** 標準のローカル構成（ローカル Postgres + 認証。**LLM は実 API が既定、モックは `--llm mock` と明示したときだけ**）は `scripts/dev-local.sh`。本番 DB には接続しない。エージェントは、テストのために通常の 3000 番をモックへ切り替え・再起動しない |
 
 ## 構成（全体は [docs/architecture.md](docs/architecture.md)）

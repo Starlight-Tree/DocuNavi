@@ -7,7 +7,7 @@
 #
 # 値の原本は Infisical（プロジェクトの ID は INFISICAL_PROJECT_ID_DEV。環境 dev）。ここから標準入力で wrangler に渡すので、画面にもシェル履歴にも出ない。
 # 有効にするのは、scripts/prod_smoke_chat.py を実行する間だけ。終わったら必ず off。
-# 使い方と限界は docs/development.md の「本番の /chat の自動テスト」。
+# 使い方と限界は docs/testing.md の「本番の /chat の自動テスト」。
 set -euo pipefail
 cd "$(dirname "$0")"
 
