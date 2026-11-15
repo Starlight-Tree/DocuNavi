@@ -23,7 +23,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 DEFAULT_MAX_LLM_CALLS = 30
-DEFAULT_PACE_S = 15.0  # 1 ターンごとの待ち（秒）。1 ターンは LLM 1〜3 回 + 埋め込み 1 回なので、毎分およそ 12 回以下になる
+DEFAULT_PACE_S = (
+    15.0  # 1 ターンごとの待ち（秒）。1 ターンは LLM 1〜3 回 + 埋め込み 1 回なので、毎分およそ 12 回以下になる
+)
 _used_llm_calls = 0  # このプロセス（= 1 回の `promptfoo eval`）で使った LLM 呼び出しの合計
 
 
@@ -54,7 +56,9 @@ def report_of(cases: list[dict[str, Any]], turns: list[Any]) -> dict[str, Any]:
     by_id = {c["id"]: c for c in cases}
     rows = []
     for t in turns:
-        row = {k: v for k, v in t.__dict__.items() if k != "context"}  # 検索結果の本文は、既定では出力に載せない（長い）
+        row = {
+            k: v for k, v in t.__dict__.items() if k != "context"
+        }  # 検索結果の本文は、既定では出力に載せない（長い）
         if os.environ.get("PROMPTFOO_GOLDEN_KEEP_CONTEXT") == "1":  # 原因調べ用: 検索結果の本文（資料の抜粋）を載せる
             row["context"] = t.context
         row["evals"] = evaluate_all(by_id[t.id], t)
