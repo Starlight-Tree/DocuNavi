@@ -165,3 +165,27 @@
 - **わからなかったこと:** 「モデル名を回答の隅に小さく出す」ことが、RAG 製品の標準かどうか（根拠は見つからなかった）。NN/g・Smashing の記事は見つからなかった。
 - **見なかったもの:** 製品の実画面（画像は見ていない）。ChatGPT・Gemini・Claude の公式ヘルプの本文。
 - **結論（私の見立て。決定ではない）:** 無料・有料キーの切り替えは、費用の事情なのでユーザーに見せない（429 での自動切り替えが既にある）。モデルの選択も、今は置かない。見せるなら、フォールバックが実際に使われた回だけ、小さく示す案が候補。実装は、利用者の指示を待つ。
+
+## 2026-11-15 文字のフォントとサイズ（Perplexity のような書体にするか）
+
+- **今の設定（等級 A。コードを読んだ）:** `frontend/src/styles.css` の `--font` は `system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', Meiryo, sans-serif`。本文は 16px、行間 1.6（回答の本文などは 1.8 の箇所もある）。Web フォントは読み込んでいない。
+- **見たもの（検索結果の要約のみ。本文は開いていない。画面は見ていない）:**
+  - Perplexity: ブランドの代理店 Smith & Diction の事例は、ブランドに FK Grotesk、本文に FK Grotesk Neue を使ったと書く（[Medium の事例](https://medium.com/smith-diction/branding-perplexity-ai-70eb2cb2ef48)、検索結果の要約。開けていない）。ワードマークは FK Display、またはカスタムの文字、という食い違う記述もある（[madegooddesigns](https://madegooddesigns.com/perplexity-font/)）。製品の画面の本文が同じ書体かは未確認。等級 C。
+  - 2026 年の書体の動向: 可変フォントが標準になっている、見出しを大きく自信のある書体で、という記事が複数（[Creative Bloq](https://www.creativebloq.com/design/fonts-typography/breaking-rules-and-bringing-joy-top-typography-trends-for-2026) など）。SEO 系の記事が多く、調査ではなく意見。UI の本文のサイズや行間の根拠は見つからなかった。等級 C。
+  - 日本語の Web: 本文 16px、スタックは Hiragino・Noto Sans JP を含む、という例（[Serendie デザインシステム](https://serendie.design/en/foundations/typography)）。日本語の行間は欧文より少し大きく（1.7 前後が出発点という程度）、確定した値はない。等級 B（1 つのデザインシステムの選択）/ C。
+- **わかったこと:** 「Perplexity のような書体」は、FK Grotesk 系の有償の書体で、Web 用のライセンスが要る（私は価格・条件を調べていない）。無料の代替として、Inter（欧文）+ Noto Sans JP（日本語）の可変フォントが一般的、という記事はある。
+- **わからなかったこと:** Perplexity の画面の本文の書体の確定情報、チャット UI の本文サイズ・行間の標準値、日本語の可変フォントを配信したときの表示速度への影響（測っていない）。
+- **結論（私の見立て。決定ではない）:** 今のスタック（OS の標準書体）は、読み込みが速く、日本語で崩れにくい。変えるなら、無料の Inter + Noto Sans JP の可変フォントが現実的。ただし、表示速度とライセンス（SIL OFL）の確認が要る。実装は、利用者の指示を待つ。
+
+### 追加（同日）無料の書体の動向（検索結果の要約のみ。等級 C。読んでいないページが大半）
+
+- 欧文: Inter が製品 UI の定番（SIL OFL）。Geist（Vercel 製。SIL OFL。[公式リポジトリ](https://github.com/vercel/geist-font)の記述は確認）が開発者向けの製品で挙がる。Plus Jakarta Sans・DM Sans・Manrope も候補。出典は SEO 系のまとめ記事（[muz.li](https://muz.li/blog/best-free-variable-fonts-for-ui-and-web-design-2026/) ほか）で、実際の採用数は示されていない。
+- 日本語: Noto Sans JP が本文の定番、BIZ UDPGothic は小さい文字・UI 向け、LINE Seed JP が Google Fonts で提供開始（[aipicks](https://aipicks.jp/mag/google-fonts-usage-guide-2026) ほか）。IBM Plex Sans JP は特徴を確認できなかった。日本語の Web フォントは容量が大きく、書体は 1、ウェイトは 2 から始めるのが安全、という指摘がある。
+- 見なかったもの: 実際の製品の画面、表示速度の測定、Google Sans Flex の評価（記事が見つからなかった）。
+
+### 追加（同日）日本語の無料書体の比較（ユーザーが貼った文面の検証）
+
+- 貼られた比較表（出典の番号つき。出典は示されていない）の「M PLUS 1p は可変あり」は、**誤り**。Google Fonts の配布元（[google/fonts の ofl/mplus1p](https://github.com/google/fonts/tree/main/ofl/mplus1p)）に、静的な 7 ウェイト（Thin〜Black）のファイルだけがあり、可変のファイルは無い（等級 A に近い。リポジトリの一覧を読んだ。一覧が完全かは未確認）。
+- Noto Sans JP は可変（`NotoSansJP[wght].ttf` 1 ファイル。[ofl/notosansjp](https://github.com/google/fonts/tree/main/ofl/notosansjp)）。Zen Kaku Gothic New は静的（5 ウェイト。[ofl/zenkakugothicnew](https://github.com/google/fonts/tree/main/ofl/zenkakugothicnew)）。
+- 印象・適合・トレンドの表は、出典の確認ができていないので採用しない。ライセンスが SIL OFL という点は、各ディレクトリの `OFL.txt` の存在で裏付けた。
+- 結論（私の見立て）: Inter + Noto Sans JP（可変で 1 ファイル、定番）。M PLUS 1p は静的 7 ファイルになるので、使うなら必要なウェイトだけを読み込む。
