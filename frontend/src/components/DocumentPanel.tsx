@@ -15,7 +15,6 @@ import { Status } from './Status';
 
 export const PANEL_ID = 'ws-panel';
 export const MSG_EXTRACTED = 'PDFから抽出したテキストです。レイアウトや図は含まれません。';
-export const MSG_ORIGINAL_PDF = '元のPDFをそのまま表示しています。';
 export const MSG_CITE_MISS = '出典の箇所を特定できなかったため、強調は付けていません。資料全体を読めます。';
 export const MSG_EXTRACTED_OTHER = '資料から抽出したテキストです。';
 
@@ -158,7 +157,6 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
 
           {originalPdf && seen.has('pdf') && (
             <div className="ws-view-body" hidden={mode !== 'pdf'}>
-              <p className="documents-summary">{page === null ? MSG_ORIGINAL_PDF : `${MSG_ORIGINAL_PDF} 出典のページ（p.${page}）を開いています。`}</p>
               <OriginalPdf document={document} page={page} cite={cite} />
             </div>
           )}

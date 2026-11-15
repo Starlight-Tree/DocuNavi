@@ -482,15 +482,4 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
     await cafe.findByTitle('cafe_store_guide.pdf の元PDF');
     expect(cafe.queryByRole('status')).not.toBeInTheDocument();
   });
-
-  it('「元のPDF」には、元のPDFをそのまま表示していることと、出典のページを書く。ページが無い出典では、ページを書かない', async () => {
-    install();
-    const user = userEvent.setup();
-    render(<App />);
-    await ask(user);
-    const panel = await openCitation(user, 1);
-
-    await user.click(panel.getByRole('button', { name: '元のPDF' }));
-    expect(await panel.findByText('元のPDFをそのまま表示しています。 出典のページ（p.3）を開いています。')).toBeInTheDocument();
-  });
 });
