@@ -52,7 +52,7 @@ FastAPI + LangGraph → 検索 → 回答 + 参照元（source から署名付�
 
 **段階 1（会話履歴の DB 保存）の確認の状況（2026-10-14）。**
 
-- 確認した（開発コンテナ内のローカル Postgres 17、Debian パッケージ。`docs/development.md`）: 履歴が再起動後も続く（実際の uvicorn の再起動も）、スレッドが混ざらない、初回の同時起動（8 並列）が再試行で収まる（再試行なしでは 8 件中 7 件前後が競合のエラーになる。大半は `UniqueViolation` で、`DuplicateObject` と `DuplicateTable` も出る。CI で `DuplicateTable` が再試行の対象外だったために落ちた）、
+- 確認した（当時の構成: 開発コンテナ内のローカル Postgres 17、Debian パッケージ。現在のローカルの DB は `docs/development.md` の「ローカルの標準構成」）: 履歴が再起動後も続く（実際の uvicorn の再起動も）、スレッドが混ざらない、初回の同時起動（8 並列）が再試行で収まる（再試行なしでは 8 件中 7 件前後が競合のエラーになる。大半は `UniqueViolation` で、`DuplicateObject` と `DuplicateTable` も出る。CI で `DuplicateTable` が再試行の対象外だったために落ちた）、
   DB 側から接続を切られても次のリクエストが成功する、取り消しで接続が取り残されない、届かない DB は 10 秒で起動に失敗する（終了コード 3）、
   専用ロール（自分のスキーマの所有者）で動き他のテーブルは読めない。接続の確認を外す・再試行を外すと、対応するテストが落ちることも確かめた。
 - 確認した（Supabase の Shared pooler の transaction mode（6543）、開発コンテナから、2026-10-14。LLM はモック）: 専用ロール（スキーマの所有者）の接続で起動して
@@ -64,4 +64,4 @@ FastAPI + LangGraph → 検索 → 回答 + 参照元（source から署名付�
   Supabase の Exposed schemas にアプリのスキーマが入っていないこと（画面の確認）、`--older-than-days --apply` の Supabase での実行（古い会話がまだ無い）、
   Docker イメージのビルドと `docker compose up`（開発コンテナに Docker が無い）、履歴が増え続けたときのサイズ。
   保存期間の方針は 90 日で、定期実行は 2026-10-20 に Cloud Run Job + Cloud Scheduler で設定した（最初は 7 日。この段落の他の項目は 2026-10-14 時点の記録）。削除の手段は `python -m app.history_admin`（`docs/configuration.md`）。
-  CI の `backend` ジョブには Postgres 17 のサービスコンテナを足した（`docs/development.md`）。
+  CI の `backend` ジョブには Postgres 17 のサービスコンテナを足した（`.github/workflows/ci.yml`）。
