@@ -23,6 +23,12 @@
 **ザーハードが .txt だった時代の実測**（`results/baseline_bm25.json`・`_k2`・`_app`・`_app_k2`）は、比較の記録として残してあります（コードは読みません。
 上書きしないよう、`--app` には `--out` を付けます）。ザーハードを PDF にした後の実測（`baseline_bm25_zahard*.json`・`baseline_bm25_app_pdf*.json`）は、
 質問ごとに返るファイルと本文、指標とも、ファイル名の拡張子を除いて同じです（`tests/test_eval_retrieval.py` が確かめる）。
+2026-11-15 に、ザーハード・カフェ・取扱説明書の PDF にも、入寮規程と同じ表紙・目次・ページラベル（ザーハードは各まとまりの見出しも）を足しました。
+その後の実測は `results/baseline_bm25_*_frontmatter*.json`（`app_pdf` `zahard` `cafe` `guides`、k=5 と k=2。上の PDF 版は、足す前の記録として残してあります）。
+質問 68 件・k=5 と k=2 で、返るファイルは全問で同じです。違いは、BM25 のキーワード一致（`keyword_hit_rate`）だけで、ザーハードの 1 問（q017「ザーハリアンって何者？」）が外れました
+（k=5 は 0.8750 → 0.8333、k=2 は 0.8333 → 0.7917。ザーハードの 24 問中の 1 問。`app_pdf` の全体は 36 → 35 件、k=2 は 35 → 34 件）。
+目次の行（「遺跡とザーハリアンの技術 1」など）が 1 つの単位として採点され、同じ語を含む本文の文より上に来たためです。質問・正解は直していません。
+実 API の評価（ベクトル検索・チャット）は、この変更の後で測り直していません。
 今の `--corpus` なしの実行（`storage/chunk/` の .txt を読む）は、.txt が無いので何も採点できません。
 
 | 引数 | 意味 |
@@ -47,6 +53,7 @@
 | `questions.yaml` | 質問と正解。項目の意味はファイル先頭のコメント |
 | `results/baseline_bm25_zahard.json` / `_zahard_k2.json` | ザーハード（`storage/pdf/zahard/` の PDF）を、`questions.yaml` の 36 問で採点した BM25 の実測。k=5 / k=2。質問ごとの返した本文と失敗の種類を含む。**アプリが LLM に渡す件数（`TOP_K`）は k=2** |
 | `results/baseline_bm25_app_pdf.json` / `_app_pdf_k2.json` | アプリが検索する全資料（ザーハード + カフェ + guides の PDF）を、全部の質問（68 件）で採点した実測。k=5 / k=2 |
+| `results/baseline_bm25_{app_pdf,zahard,cafe,guides}_frontmatter.json` / `_frontmatter_k2.json` | **表紙・目次・ページラベルを足した後（2026-11-15）の BM25 の実測。** 質問・指標の取り方は上の PDF 版と同じ。差は、ザーハードのキーワード一致が 1 問（q017）減ったこと（本文の下の注記） |
 | `results/baseline_bm25.json` / `_k2.json` / `_app.json` / `_app_k2.json` | **ザーハードが .txt だった時代の実測（記録）。** 上の PDF 版と同じ結果（ファイル名の拡張子を除く）。`_app` 系は 68 件 |
 | `fixtures/zahard_txt/` | ザーハードの元の .txt（3 本）。原本として残す。アプリは読まない |
 | `fixtures/zahard_pdf/` | ザーハードの PDF（`storage/pdf/zahard/`）の作り方（`make_pdf.py`、段落の分け方 `layout.json`、`README.md`） |
@@ -137,7 +144,7 @@ LLM が「資料に無い」と答えられるかは、この評価では測れ�
 
 ## カフェの PDF の baseline（2026-10-15）
 
-`--corpus evals/corpora/cafe`。PDF 1 冊・4 ページ・30 チャンク（表は 1 チャンク、3〜4 ページ）、質問 10 件（回答可能 8、資料に無い 2）。
+`--corpus evals/corpora/cafe`。PDF 1 冊・4 ページ・30 チャンク（表は 1 チャンク、3〜4 ページ。2026-11-15 から、先頭に表紙と目次が付き、通し番号は 5〜6 ページ。紙面の番号は 3〜4）、質問 10 件（回答可能 8、資料に無い 2）。
 
 | | k=5 | k=2 |
 |---|---|---|
@@ -173,7 +180,7 @@ LLM が「資料に無い」と答えられるかは、この評価では測れ�
 うち `on_topic_absent` 6）。資料と質問は、検索の実装を知らない分離したサブエージェントが書いた（`corpora/guides/questions.yaml` の先頭に経緯）。
 **質問は user が確認した**（2026-10-15。agent が作った確認表への返答で、21 問は OK、t004 は直す。返答の文面は、user が貼り付けた
 別の AI のレビュー。user が PDF を直接読んだかは記録していない）。PDF は Word や Docs の書き出しではなく、
-reportlab で Markdown から組んだ（`source/make_pdfs.py`。2 冊とも 1 段。入寮規程は全ページに同じ見出しとページ番号が付く）。
+reportlab で Markdown から組んだ（`source/make_pdfs.py`。2 冊とも 1 段。入寮規程は全ページに同じ見出しとページ番号が付く。取扱説明書にも、2026-11-15 から、表紙・目次・ページラベルが付く）。
 入寮規程（2026-11-15 から）は、表紙・目次（i）・本文（1〜3）の PDF のページラベルを持つ（通し番号 1〜5 と表示番号が違う）。根拠のページ（`evidence_pages`）は通し番号（本文の最初の条は 3）。
 この変更の前後で、BM25 の結果（質問 68 件、k=5 と k=2）は、返るファイルも件数も同じだった（`baseline_bm25_app_pdf*.json` `baseline_bm25_guides*.json` は、資料のハッシュとページを更新するため取り直した）。
 実 API の評価（ベクトル検索・チャット）は、この変更の後で測り直していない。

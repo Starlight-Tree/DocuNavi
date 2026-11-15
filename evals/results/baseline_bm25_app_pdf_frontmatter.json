@@ -1,0 +1,1846 @@
+{
+  "mode": "bm25",
+  "k": 5,
+  "generated_at": "2026-11-15T23:28:35+09:00",
+  "corpus": {
+    "files": [
+      "aoba_aw820_manual.pdf",
+      "cafe_store_guide.pdf",
+      "tsubasa_dorm_rules.pdf",
+      "ザーハード1.pdf",
+      "ザーハード2.pdf",
+      "ザーハード3.pdf"
+    ],
+    "sha256": "5f1259d831d29b0a0ec6332359107b03230d3f7489b375bd60d14ac09f05fec8",
+    "collections": {
+      "cafe": {
+        "files": [
+          "cafe_store_guide.pdf"
+        ],
+        "sha256": "7bf0db31b118fd572d3b16b79425cc8fe3a53fe7b0ac55bdb5abf85ebf39cca1"
+      },
+      "guides": {
+        "files": [
+          "aoba_aw820_manual.pdf",
+          "tsubasa_dorm_rules.pdf"
+        ],
+        "sha256": "761d982bca30343733fe29dc6db460abaa140f5779592e9ca862aedb40b98d5c"
+      },
+      "zahard": {
+        "files": [
+          "ザーハード1.pdf",
+          "ザーハード2.pdf",
+          "ザーハード3.pdf"
+        ],
+        "sha256": "9589983cd23f07d4e593d576bafa85f58fe6caca7a94b68f136eb2bfbba02b61"
+      }
+    },
+    "source": "app",
+    "passages": "parent",
+    "pdf_sha256": {
+      "cafe/cafe_store_guide.pdf": "3e67ddb4065ce7d57acbdb235f58f89c8d7dcd4641382604cb0711b665de496f",
+      "guides/aoba_aw820_manual.pdf": "2aa46dc97a5228ad155e3410e80e870bede844d6ff8f0493a748d516df3a6c3d",
+      "guides/tsubasa_dorm_rules.pdf": "cb911489f7a4dde42904b64eb6ea6d69c0523a497b5ffbd267bcfe7ef6d27bcc",
+      "zahard/ザーハード1.pdf": "6d8490c2ffd9763e51c01bee50457ad9855d1e0446b3483c695f53119e57b54e",
+      "zahard/ザーハード2.pdf": "62baaabb3154c1d952f95ab160cb684f2969c529409e56c4c075df73ecea53fa",
+      "zahard/ザーハード3.pdf": "a9ea0854d297dcbf5bc9c5edab41873692a4e557f31567e6cea17c9f4e18a770"
+    }
+  },
+  "search_params": {
+    "TOP_K": 2,
+    "MAX_PASSAGES_PER_FILE": 3,
+    "CONTEXT_WINDOW": 1,
+    "RELATIVE_SCORE_CUTOFF": 0.4,
+    "GENERIC_TERM_RATIO": 0.25,
+    "MIN_SHARED_TERMS": 2
+  },
+  "summary": {
+    "total_questions": 68,
+    "answerable_questions": 46,
+    "out_of_scope_questions": 22,
+    "doc_recall_at_5": 0.8696,
+    "keyword_hit_rate_at_5": 0.7609,
+    "mrr": 0.8804,
+    "empty_answer_accuracy": 0.6364,
+    "counts": {
+      "doc_hit": 40,
+      "keyword_hit": 35,
+      "answered_empty": 14
+    },
+    "empty_answer_by_scope_kind": {
+      "off_topic": {
+        "n": 11,
+        "empty": 11,
+        "accuracy": 1.0
+      },
+      "on_topic_absent": {
+        "n": 11,
+        "empty": 3,
+        "accuracy": 0.2727
+      }
+    },
+    "by_category": {
+      "factual": {
+        "n": 30,
+        "doc_hits": 29,
+        "keyword_hits": 26,
+        "doc_recall": 0.9667,
+        "keyword_hit_rate": 0.8667,
+        "mrr": 0.9667
+      },
+      "paraphrase": {
+        "n": 12,
+        "doc_hits": 8,
+        "keyword_hits": 6,
+        "doc_recall": 0.6667,
+        "keyword_hit_rate": 0.5,
+        "mrr": 0.625
+      },
+      "multi_hop": {
+        "n": 4,
+        "doc_hits": 3,
+        "keyword_hits": 3,
+        "doc_recall": 0.75,
+        "keyword_hit_rate": 0.75,
+        "mrr": 1.0
+      }
+    },
+    "failure_counts": {
+      "keyword_miss": 3,
+      "no_hit": 1,
+      "paraphrase_miss": 6,
+      "unexpected_result": 8,
+      "wrong_file": 1,
+      "wrong_rank": 1
+    }
+  },
+  "results": [
+    {
+      "id": "q001",
+      "question": "ザーハードの大気の酸素濃度はどれくらい？",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード1.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード1.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "地球の1/10以下"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.pdf",
+          "text": "大気と環境\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・温度変化：日中と夜間の温度差が激しく、昼間は高温、夜間は極寒となります。"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "question": "遺跡の防衛システムについて教えて",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード2.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード2.pdf",
+        "ザーハード3.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "高度な防衛システム"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.pdf",
+          "text": "・遺跡の構造：遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されています。\n・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。\n探査と遺産"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.pdf",
+          "text": "・エネルギーの種類：このエネルギー源は、異常に高い出力を持つ放射線を放出しており、その周囲に強力な磁場を形成しています。\n・エネルギー供給のメカニズム：エネルギー源は、惑星の内部からエネルギーを引き出し、それを外部に供給するシステムが存在しています。\n・エネルギー源の動力：未知のエネルギー粒子が生成され、その粒子が惑星の核心部から放出されています。\n守護機構と探査\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。"
+        }
+      ]
+    },
+    {
+      "id": "q003",
+      "question": "遺跡の構造はどうなっていますか",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード2.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード2.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "多層的な構造"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.pdf",
+          "text": "目次\n遺跡とザーハリアンの技術 1\n文明の崩壊 1\n遺跡の構造と防衛 1\n探査と遺産 1\n遺跡とザーハリアンの技術\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\n遺跡の構造と防衛\n・遺跡の構造：遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されています。\n・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。"
+        }
+      ]
+    },
+    {
+      "id": "q004",
+      "question": "エネルギー源が暴走するとどうなる？",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード3.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード3.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "惑星を破壊する可能性"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.pdf",
+          "text": "そのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\n守護機構と探査"
+        }
+      ]
+    },
+    {
+      "id": "q005",
+      "question": "ザーハードの最大の魅力は何ですか",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード3.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード3.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "最大の魅力"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.pdf",
+          "text": "エネルギー源の概要\nザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。"
+        }
+      ]
+    },
+    {
+      "id": "q006",
+      "question": "守護機構は侵入者に対してどう働く？",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード3.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード3.pdf",
+        "ザーハード2.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "侵入者に対して攻撃的"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.pdf",
+          "text": "目次\nエネルギー源の概要 1\nエネルギー源の仕組み 1\n利用と危険 1\n守護機構と探査 1\nエネルギー源の概要\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\n守護機構と探査\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード2.pdf",
+          "text": "・遺跡の構造：遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されています。\n・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。\n探査と遺産"
+        }
+      ]
+    },
+    {
+      "id": "q007",
+      "question": "ザーハリアン文明が崩壊した原因は？",
+      "category": "factual",
+      "kind": "direct",
+      "expected_doc_ids": [
+        "ザーハード2.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード2.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "文明が崩壊",
+        "滅亡と関係"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.pdf",
+          "text": "目次\n遺跡とザーハリアンの技術 1\n文明の崩壊 1\n遺跡の構造と防衛 1\n探査と遺産 1\n遺跡とザーハリアンの技術\nザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\nザーハリアンは、惑星全体のエネルギー源を利用する技術を持っており、その力を使って自らの文明を築いてきました。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "question": "硫化水素",
+      "category": "factual",
+      "kind": "keyword",
+      "expected_doc_ids": [
+        "ザーハード1.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード1.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "硫化水素や二酸化炭素"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.pdf",
+          "text": "・温度変化：日中と夜間の温度差が激しく、昼間は高温、夜間は極寒となります。\n・有害なガス：硫化水素や二酸化炭素が含まれており、呼吸すると中毒症状を引き起こす恐れがあります。\n地形"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "question": "放射線",
+      "category": "factual",
+      "kind": "keyword",
+      "expected_doc_ids": [
+        "ザーハード3.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード3.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "放射線を放出"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.pdf",
+          "text": "エネルギー源の仕組み\n・エネルギーの種類：このエネルギー源は、異常に高い出力を持つ放射線を放出しており、その周囲に強力な磁場を形成しています。\n・エネルギー供給のメカニズム：エネルギー源は、惑星の内部からエネルギーを引き出し、それを外部に供給するシステムが存在しています。"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "question": "象形文字",
+      "category": "factual",
+      "kind": "keyword",
+      "expected_doc_ids": [
+        "ザーハード1.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード1.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "未解読の象形文字"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.pdf",
+          "text": "この惑星には、非常に古い文明が存在した形跡があり、その文明の遺跡が砂漠の中に埋もれていることが確認されています。\n探査機によって発見された遺跡の中には、未解読の象形文字や高度な機械が数多く発見されており、その技術は現代のものと比較しても非常に先進的です。\nこれらの遺跡を解明することで、ザーハードのエネルギー源を制御する技術を理解し、他の文明に転用することができる可能性があります。"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "question": "磁場",
+      "category": "factual",
+      "kind": "keyword",
+      "expected_doc_ids": [
+        "ザーハード3.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード3.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "強力な磁場"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.pdf",
+          "text": "エネルギー源の仕組み\n・エネルギーの種類：このエネルギー源は、異常に高い出力を持つ放射線を放出しており、その周囲に強力な磁場を形成しています。\n・エネルギー供給のメカニズム：エネルギー源は、惑星の内部からエネルギーを引き出し、それを外部に供給するシステムが存在しています。"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "question": "昼と夜の気温差について教えて",
+      "category": "paraphrase",
+      "kind": "paraphrase",
+      "expected_doc_ids": [
+        "ザーハード1.pdf"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": []
+    },
+    {
+      "id": "q013",
+      "question": "毒ガスは含まれていますか",
+      "category": "paraphrase",
+      "kind": "paraphrase",
+      "expected_doc_ids": [
+        "ザーハード1.pdf"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": []
+    },
+    {
+      "id": "q014",
+      "question": "砂漠を移動するには何が必要？",
+      "category": "paraphrase",
+      "kind": "paraphrase",
+      "expected_doc_ids": [
+        "ザーハード1.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード1.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "高機動の車両"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.pdf",
+          "text": "これらの岩山の内部には、未知の鉱物やエネルギー源が埋蔵されている可能性があります。\n・砂漠地帯の地形：広大な砂丘が続き、移動が困難であるため、探査には高機動の車両が必要です。\n・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "question": "エネルギー源は自然にできたものなの？",
+      "category": "paraphrase",
+      "kind": "paraphrase",
+      "expected_doc_ids": [
+        "ザーハード3.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード3.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "自然に発生したものではなく"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード3.pdf",
+          "text": "このエネルギー源は、非常に強力であり、惑星全体にエネルギーを供給するだけでなく、周囲の星系にも影響を与えていると言われています。\n探査団による調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置である可能性が高いとされています。\nエネルギー源の仕組み"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "question": "エネルギーを制御できたらどうなる",
+      "category": "paraphrase",
+      "kind": "paraphrase",
+      "expected_doc_ids": [
+        "ザーハード3.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード1.pdf",
+        "ザーハード3.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 2,
+      "keyword_hits": [
+        "無限のエネルギー供給"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": "wrong_rank",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.pdf",
+          "text": "探査機によって発見された遺跡の中には、未解読の象形文字や高度な機械が数多く発見されており、その技術は現代のものと比較しても非常に先進的です。\nこれらの遺跡を解明することで、ザーハードのエネルギー源を制御する技術を理解し、他の文明に転用することができる可能性があります。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.pdf",
+          "text": "利用と危険\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\n守護機構と探査"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "question": "ザーハリアンって何者？",
+      "category": "factual",
+      "kind": "colloquial",
+      "expected_doc_ids": [
+        "ザーハード2.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード2.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.pdf",
+          "text": "目次\n遺跡とザーハリアンの技術 1\n文明の崩壊 1\n遺跡の構造と防衛 1\n探査と遺産 1\n遺跡とザーハリアンの技術\nザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\n遺跡の構造と防衛"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "question": "探査団は何を装備して挑むの",
+      "category": "factual",
+      "kind": "colloquial",
+      "expected_doc_ids": [
+        "ザーハード1.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード1.pdf",
+        "ザーハード3.pdf",
+        "ザーハード2.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "生命維持装置"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.pdf",
+          "text": "惑星の概要\n未知の惑星ザーハードは、遥か彼方の銀河の端に位置しており、その存在自体が数世代にわたる探査団によっても解明されていません。\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.pdf",
+          "text": "このエネルギー源は、非常に強力であり、惑星全体にエネルギーを供給するだけでなく、周囲の星系にも影響を与えていると言われています。\n探査団による調査結果によると、このエネルギー源は自然に発生したものではなく、異星人によって作られた人工の装置である可能性が高いとされています。\nエネルギー源の仕組み\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード2.pdf",
+          "text": "これらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。\nそのため、ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられています。"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "question": "メタンガスって入ってる？",
+      "category": "factual",
+      "kind": "colloquial",
+      "expected_doc_ids": [
+        "ザーハード1.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード1.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "メタンガス"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.pdf",
+          "text": "このため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・温度変化：日中と夜間の温度差が激しく、昼間は高温、夜間は極寒となります。"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "question": "冒険者が集まるのはなぜですか",
+      "category": "factual",
+      "kind": "colloquial",
+      "expected_doc_ids": [
+        "ザーハード2.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード2.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "冒険者たちが集まり"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.pdf",
+          "text": "探査と遺産\nこの惑星には、ザーハリアンの遺産を巡る冒険者たちが集まり、遺跡を探索し、未知の技術を解明しようとしています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。"
+        }
+      ]
+    },
+    {
+      "id": "q021",
+      "question": "古い文明の遺跡はどこに埋もれているの",
+      "category": "factual",
+      "kind": "colloquial",
+      "expected_doc_ids": [
+        "ザーハード1.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード1.pdf",
+        "ザーハード2.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "砂漠の中に埋もれている"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.pdf",
+          "text": "目次\n惑星の概要 1\n大気と環境 1\n地形 1\n文明と遺跡 1\n惑星の概要\n・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。\n文明と遺跡\nこの惑星には、非常に古い文明が存在した形跡があり、その文明の遺跡が砂漠の中に埋もれていることが確認されています。\n探査機によって発見された遺跡の中には、未解読の象形文字や高度な機械が数多く発見されており、その技術は現代のものと比較しても非常に先進的です。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード2.pdf",
+          "text": "ザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\nザーハリアンは、惑星全体のエネルギー源を利用する技術を持っており、その力を使って自らの文明を築いてきました。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。"
+        }
+      ]
+    },
+    {
+      "id": "q022",
+      "question": "今日の東京の天気を教えてください",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q023",
+      "question": "おすすめのカレーのレシピは？",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q024",
+      "question": "Pythonでリストをソートする方法",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q025",
+      "question": "サッカーのワールドカップで優勝したのはどこ？",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q026",
+      "question": "こんにちは、元気ですか？",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q027",
+      "question": "木星の大きさはどのくらいですか",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q028",
+      "question": "火星には生命がいますか",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q029",
+      "question": "地球の人口は何人ですか",
+      "category": "out_of_scope",
+      "kind": "unrelated",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "q030",
+      "question": "ザーハリアンはエネルギー源を作った存在なのですか",
+      "category": "multi_hop",
+      "expected_doc_ids": [
+        "ザーハード2.pdf",
+        "ザーハード3.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード2.pdf"
+      ],
+      "doc_hit": false,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "wrong_file",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.pdf",
+          "text": "目次\n遺跡とザーハリアンの技術 1\n文明の崩壊 1\n遺跡の構造と防衛 1\n探査と遺産 1\n遺跡とザーハリアンの技術\nザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\n遺跡の構造と防衛"
+        }
+      ]
+    },
+    {
+      "id": "q031",
+      "question": "遺跡の防衛システムとエネルギー源の守護機構は、どちらも侵入者を攻撃しますか",
+      "category": "multi_hop",
+      "expected_doc_ids": [
+        "ザーハード2.pdf",
+        "ザーハード3.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード2.pdf",
+        "ザーハード3.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "激しい攻撃を仕掛ける",
+        "侵入者に対して攻撃的に働き"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.pdf",
+          "text": "・遺跡の構造：遺跡は非常に複雑で、多層的な構造をしており、その内部にはさまざまな罠や障害物が設置されています。\n・防衛機構：ザーハリアンは、遺跡を守るために高度な防衛システムを備えており、侵入者には激しい攻撃を仕掛けることができる装置が動作します。\n探査と遺産"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.pdf",
+          "text": "目次\nエネルギー源の概要 1\nエネルギー源の仕組み 1\n利用と危険 1\n守護機構と探査 1\nエネルギー源の概要\n守護機構と探査\nまた、ザーハードには、エネルギー源を守るために設置された守護機構が存在しており、その内部には様々な罠や防御システムが組み込まれています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        }
+      ]
+    },
+    {
+      "id": "q032",
+      "question": "遺跡を解明すると、エネルギー源の制御にどう役立ちますか",
+      "category": "multi_hop",
+      "expected_doc_ids": [
+        "ザーハード1.pdf",
+        "ザーハード3.pdf"
+      ],
+      "retrieved_files": [
+        "ザーハード1.pdf",
+        "ザーハード2.pdf",
+        "ザーハード3.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "エネルギー源を制御する技術",
+        "無限のエネルギー供給"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.pdf",
+          "text": "探査機によって発見された遺跡の中には、未解読の象形文字や高度な機械が数多く発見されており、その技術は現代のものと比較しても非常に先進的です。\nこれらの遺跡を解明することで、ザーハードのエネルギー源を制御する技術を理解し、他の文明に転用することができる可能性があります。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード2.pdf",
+          "text": "探査と遺産\nこの惑星には、ザーハリアンの遺産を巡る冒険者たちが集まり、遺跡を探索し、未知の技術を解明しようとしています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード3.pdf",
+          "text": "利用と危険\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\n守護機構と探査"
+        }
+      ]
+    },
+    {
+      "id": "q033",
+      "question": "ザーハードの人口は何人ですか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "ザーハード2.pdf",
+        "ザーハード3.pdf",
+        "ザーハード1.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.pdf",
+          "text": "遺跡とザーハリアンの技術\nザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。\nそのため、ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.pdf",
+          "text": "エネルギー源の概要\nザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード1.pdf",
+          "text": "惑星の概要\n未知の惑星ザーハードは、遥か彼方の銀河の端に位置しており、その存在自体が数世代にわたる探査団によっても解明されていません。\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・砂漠地帯の地形：広大な砂丘が続き、移動が困難であるため、探査には高機動の車両が必要です。\n・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。\n文明と遺跡"
+        }
+      ]
+    },
+    {
+      "id": "q034",
+      "question": "ザーハードの首都はどこにありますか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "ザーハード2.pdf",
+        "ザーハード3.pdf",
+        "ザーハード1.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.pdf",
+          "text": "遺跡とザーハリアンの技術\nザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。\nそのため、ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.pdf",
+          "text": "エネルギー源の概要\nザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード1.pdf",
+          "text": "惑星の概要\n未知の惑星ザーハードは、遥か彼方の銀河の端に位置しており、その存在自体が数世代にわたる探査団によっても解明されていません。\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・砂漠地帯の地形：広大な砂丘が続き、移動が困難であるため、探査には高機動の車両が必要です。\n・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。\n文明と遺跡"
+        }
+      ]
+    },
+    {
+      "id": "q035",
+      "question": "ザーハードの公転周期は何日ですか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "ザーハード2.pdf",
+        "ザーハード3.pdf",
+        "ザーハード1.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード2.pdf",
+          "text": "遺跡とザーハリアンの技術\nザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。\nそのため、ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられています。"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード3.pdf",
+          "text": "エネルギー源の概要\nザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード1.pdf",
+          "text": "惑星の概要\n未知の惑星ザーハードは、遥か彼方の銀河の端に位置しており、その存在自体が数世代にわたる探査団によっても解明されていません。\nこの惑星は、非常に特殊な物理的・化学的特性を持っており、エネルギーの放出量が異常で、周辺の惑星にも影響を与えています。\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・砂漠地帯の地形：広大な砂丘が続き、移動が困難であるため、探査には高機動の車両が必要です。\n・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。\n文明と遺跡"
+        }
+      ]
+    },
+    {
+      "id": "q036",
+      "question": "ザーハードの重力は地球の何倍ですか",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "ザーハード1.pdf",
+        "ザーハード2.pdf",
+        "ザーハード3.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "ザーハード1.pdf",
+          "text": "大気と環境\nザーハードの大気は非常に薄く、酸素濃度が地球の1/10以下であるため、酸素供給装置を持たなければ生存することができません。\nこのため、探査団は必ず高度な生命維持装置を装備して、ザーハードの過酷な環境に挑みます。\n・大気の成分：酸素濃度は極端に低く、二酸化炭素や硫黄化合物、メタンガスが高濃度で含まれています。\n・砂漠地帯の地形：広大な砂丘が続き、移動が困難であるため、探査には高機動の車両が必要です。\n・岩山の内部：鉱物資源やエネルギー源が眠っており、ザーハードの探査隊によって絶えず探索されています。\n文明と遺跡"
+        },
+        {
+          "rank": 2,
+          "file": "ザーハード2.pdf",
+          "text": "遺跡とザーハリアンの技術\nザーハードの地表には、数多くの遺跡が存在しており、そのほとんどは異星人によって築かれたものと考えられています。\nその中でも最も注目されているのは「ザーハリアン文明」と呼ばれる異星人種族の遺跡です。\n彼らの文明は、非常に高度であり、数千年以上前にその繁栄を誇っていたと言われています。\nしかし、何らかの原因で文明が崩壊し、その後はザーハードに残された遺跡のみが証拠として残されています。\n遺跡の中には、恐るべき機械や兵器が発見されており、これらがザーハリアンの滅亡と関係があると考えられています。\nこれらの遺産を手に入れることで、地球や他の文明が得られる知識や技術の量は計り知れません。\nそのため、ザーハードには常に多くの探査団が派遣され、エネルギー源や遺跡を巡る競争が繰り広げられています。"
+        },
+        {
+          "rank": 3,
+          "file": "ザーハード3.pdf",
+          "text": "エネルギー源の概要\nザーハードの最大の魅力は、その未知のエネルギー源です。\n惑星の中心部には、異常なエネルギーが放出されており、その源を探し求める者が絶えません。\nこのエネルギー源を制御することができれば、無限のエネルギー供給が可能となり、宇宙規模でのエネルギー供給が実現するかもしれません。\nそのため、多くの探査団がザーハードを訪れ、このエネルギー源を探し続けています。\nしかし、このエネルギー源には非常に危険な一面もあり、適切に制御しないと、その強力なエネルギーが暴走し、惑星を破壊する可能性があると警告されています。\nこれらの守護機構は非常に高度で、侵入者に対して攻撃的に働きます。\nこのような理由から、ザーハードの探査には非常に高い技術と準備が求められ、危険が伴うものとなっています。"
+        }
+      ]
+    },
+    {
+      "id": "c001",
+      "question": "みなとコーヒーはいつ創業しましたか。",
+      "category": "factual",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "店舗一覧 3\nみなとコーヒー 店舗案内\nみなとコーヒーは、みなと市を中心にカフェを展開するチェーンです。\n会社の概要\nみなとコーヒーは、みなと市とその周辺で12店舗を運営しています。\n店舗は港町・駅前・丘の上・湖畔の4つのエリアに分かれています。\nどの店舗も、最寄りの駅やバス停から徒歩5分以内です。\nみなとコーヒーの理念は「港のように、人が集まる場所をつくる」ことです。\n社名のみなとは、この理念に由来しています。"
+        }
+      ]
+    },
+    {
+      "id": "c002",
+      "question": "湖畔ボート小屋店では、閉店の何分前に注文の受け付けが終わりますか。",
+      "category": "factual",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ただし、湖畔ボート小屋店は閉店の15分前に受け付けを終えます。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2021年8月には、湖畔エリアの1号店として湖畔テラス店を開きました。\n2024年3月に12店舗目となる湖畔ボート小屋店を開業し、現在の12店舗になりました。\n以降、新しい店舗は増えていません。\nラストオーダーは原則として閉店の30分前に受け付けを終えます。\nただし、湖畔ボート小屋店は閉店の15分前に受け付けを終えます。\nモバイルオーダー（略称 MO）は、公式アプリから事前に注文と支払いができる仕組みです。\nただし、一覧表で「なし」とある店舗は、年中無休で営業します。\n店舗名 エリア 住所 営業時間 定休日 座席数\n港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席\n港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席\n港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席\n港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席\n駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席\n駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席\n駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席\n丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席\n丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席\n丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席\n湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席\n湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席\n脚注1 配送は、金曜日と土曜日の午前中に行います。"
+        }
+      ]
+    },
+    {
+      "id": "c003",
+      "question": "みなとクラブでは、いくら買い物をするごとに1ポイントもらえますか。",
+      "category": "factual",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "会計100円（税込）ごとに1ポイントがたまります。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2014年10月には駅前エリアに進出し、駅前中央店を開きました。\n2016年9月に、ポイント会員制度「みなとクラブ」を始めました。\n2022年4月には、公式アプリとモバイルオーダーを始めました。\nポイント会員制度\nポイント会員制度「みなとクラブ」（略称 MC）は、入会費も年会費も無料です。\n会計100円（税込）ごとに1ポイントがたまります。\nポイントは、モバイルオーダーの会計でも同じようにたまります。"
+        }
+      ]
+    },
+    {
+      "id": "c004",
+      "question": "来店する前にスマートフォンで注文を済ませられる機能が使えないのは、どの店舗ですか。",
+      "category": "paraphrase",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2021年8月には、湖畔エリアの1号店として湖畔テラス店を開きました。\n2024年3月に12店舗目となる湖畔ボート小屋店を開業し、現在の12店舗になりました。\n以降、新しい店舗は増えていません。"
+        }
+      ]
+    },
+    {
+      "id": "c005",
+      "question": "ためたポイントを長いあいだ使わずにいると、どのくらいで失効してしまいますか。",
+      "category": "paraphrase",
+      "kind": "factual",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ポイントの有効期限は、最後に利用した日から12か月です。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "目次\n会社の概要 1\n沿革 1\n豆と品質への取り組み 2\nご利用案内 2\nポイント会員制度 2\n季節のイベント 3\n店舗運営と研修 3\n店舗一覧 3\nみなとコーヒー 店舗案内\nテイクアウト（略称 TO）は、全店でご利用いただけます。\nポイント会員制度\nポイント会員制度「みなとクラブ」（略称 MC）は、入会費も年会費も無料です。\nポイントの有効期限は、最後に利用した日から12か月です。\nたまったポイントは、100ポイントごとにドリンク1杯の無料券と交換できます。\n無料券は、会員証を店頭で提示すると使えます。"
+        }
+      ]
+    },
+    {
+      "id": "c006",
+      "question": "座席がいちばん多いのは、どの店舗ですか。",
+      "category": "factual",
+      "kind": "aggregate",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席",
+        "港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席",
+        "港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席",
+        "港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席",
+        "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席",
+        "駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席",
+        "駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席",
+        "丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席",
+        "丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席",
+        "丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席",
+        "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席",
+        "湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "ただし、一覧表で「なし」とある店舗は、年中無休で営業します。\n店舗名 エリア 住所 営業時間 定休日 座席数\n港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席\n港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席\n港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席\n港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席\n駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席\n駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席\n駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席\n丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席\n丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席\n丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席\n湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席\n湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席\n脚注1 配送は、金曜日と土曜日の午前中に行います。"
+        }
+      ]
+    },
+    {
+      "id": "c007",
+      "question": "日曜日が定休日になっている店舗を教えてください。",
+      "category": "factual",
+      "kind": "filter",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf",
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席",
+        "港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席",
+        "港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席",
+        "港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席",
+        "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席",
+        "駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席",
+        "駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席",
+        "丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席",
+        "丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席",
+        "丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席",
+        "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席",
+        "湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "内容は2026年4月1日時点のものです。\n店舗の営業時間や定休日の最新情報は、各店の掲示でも確認できます。\n会社の概要\n朝の開店が最も早いのは港町市場前店で、6時30分に開きます。\n定休日は、原則として店舗ごとに週に1日です。\nただし、一覧表で「なし」とある店舗は、年中無休で営業します。\n店舗名 エリア 住所 営業時間 定休日 座席数\n港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席\n港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席\n港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席\n港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席\n駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席\n駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席\n駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席\n丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席\n丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席\n丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席\n湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席\n湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席\n脚注1 配送は、金曜日と土曜日の午前中に行います。"
+        },
+        {
+          "rank": 2,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "修理のご相談は、あおばサポートセンターで受け付けます。\n受付時間は、月曜日から金曜日の午前 9 時から午後 6 時までで、土曜日、日曜日、祝日はお休みです。\n出張修理の費用は、保証期間内は無料です。"
+        }
+      ]
+    },
+    {
+      "id": "c008",
+      "question": "駅前中央店と湖畔テラス店では、どちらのほうが営業時間が長いですか。",
+      "category": "factual",
+      "kind": "comparison",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "cafe_store_guide.pdf"
+      ],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席",
+        "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "2018年6月に、丘の上エリアの1号店となる丘の上公園店を開業しました。\n2021年8月には、湖畔エリアの1号店として湖畔テラス店を開きました。\n2024年3月に12店舗目となる湖畔ボート小屋店を開業し、現在の12店舗になりました。\n駐車場は原則として設けていません。\nただし、湖畔テラス店には10台分の専用駐車場があります。\n車でお越しの場合、ほかの店舗では近隣の有料駐車場をご利用ください。\nただし、一覧表で「なし」とある店舗は、年中無休で営業します。\n店舗名 エリア 住所 営業時間 定休日 座席数\n港町本店 港町 みなと市港町1-4-2 7:00〜21:00 なし 68席\n港町ベイ店 港町 みなと市港町3-8-11 8:00〜20:00 水曜 42席\n港町市場前店 港町 みなと市港町5-2-6 6:30〜18:00 日曜 30席\n港町灯台店 港町 みなと市港町7-1-9 9:00〜19:00 火曜 24席\n駅前中央店 駅前 みなと市駅前2-1-5 7:00〜22:00 なし 54席\n駅前西口店 駅前 みなと市駅前4-6-3 7:30〜21:00 なし 36席\n駅前東口店 駅前 みなと市駅前6-3-8 8:00〜21:00 月曜 40席\n丘の上公園店 丘の上 みなと市丘の上2-5-1 9:00〜18:00 木曜 48席\n丘の上学園前店 丘の上 みなと市丘の上5-7-4 8:00〜19:00 日曜 32席\n丘の上展望店 丘の上 みなと市丘の上8-2-10 10:00〜18:00 水曜 28席\n湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席\n湖畔ボート小屋店 湖畔 みなと市湖畔3-9-2 10:00〜17:00 火曜 20席\n脚注1 配送は、金曜日と土曜日の午前中に行います。"
+        }
+      ]
+    },
+    {
+      "id": "c009",
+      "question": "地球から月までの距離は、どのくらいですか。",
+      "category": "out_of_scope",
+      "kind": "out_of_scope",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "c010",
+      "question": "みなとブレンドは1杯いくらですか。",
+      "category": "out_of_scope",
+      "kind": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "最初の店は、港町に開いた現在の港町本店です。\n看板商品は、深煎りの豆を3種類ブレンドした「みなとブレンド」（略称 MB）です。\n豆は港町の自社工房で焙煎し、週に2回、各店へ届けています1。\n工房では毎日、味と香りの確認を行い、その記録を1年間保管しています。\nみなとブレンドのほかに、季節ごとに入れ替わる「季節のブレンド」があります。\n季節のブレンドは、3か月ごとに年4回切り替わります。\nご利用案内"
+        }
+      ]
+    },
+    {
+      "id": "a001",
+      "question": "糸くずフィルターの掃除は、洗濯何回ごとにすればよいですか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "糸くずフィルターは、洗濯 10 回ごとに取り出して水洗いしてください。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "ただし、ふんわり乾燥コースでは 2.0kg までです。\n乾燥のたびに、乾燥フィルターのごみを捨ててください。\n予約運転は、1 時間後から 24 時間後まで、1 時間単位で設定できます。\nお手入れ\n糸くずフィルターは、洗濯 10 回ごとに取り出して水洗いしてください。\n乾燥フィルターは、乾燥のたびに、ごみを取り除きます。\n洗濯槽の洗浄は、月に 1 回、「槽洗浄」コースで行います。"
+        }
+      ]
+    },
+    {
+      "id": "a002",
+      "question": "槽洗浄をするとき、洗濯槽クリーナーは何 mL 入れますか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "塩素系の洗濯槽クリーナーを 250mL 入れ、約 40℃のぬるま湯をためて運転します。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "乾燥フィルターは、乾燥のたびに、ごみを取り除きます。\n洗濯槽の洗浄は、月に 1 回、「槽洗浄」コースで行います。\n塩素系の洗濯槽クリーナーを250mL 入れ、約 40℃のぬるま湯をためて運転します。\n槽洗浄コースは、約3時間かかります。"
+        }
+      ]
+    },
+    {
+      "id": "a003",
+      "question": "保証期間が過ぎたあとに出張修理を頼むと、出張料はいくらかかりますか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "保証期間を過ぎた場合は、出張料が 3,300 円かかります。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "保証とアフターサービス\n保証期間は、お買い上げの日から 1 年間です。\nただし、モーターは、お買い上げの日から 5年間保証します。\n受付時間は、月曜日から金曜日の午前 9 時から午後 6 時までで、土曜日、日曜日、祝日はお休みです。\n出張修理の費用は、保証期間内は無料です。\n保証期間を過ぎた場合は、出張料が 3,300 円かかります。\nご不要になったとき"
+        }
+      ]
+    },
+    {
+      "id": "a004",
+      "question": "洗っている途中で、ふたを開けたくなりました。どうすれば開きますか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "製造番号は、本体背面の銘板に書かれています。\n停電のあとは、運転が途中から再開されないことがあります。\nその場合は、電源を入れ直し、もう一度スタートボタンを押してください。"
+        }
+      ]
+    },
+    {
+      "id": "a005",
+      "question": "毛布を洗うとき、一度にどのくらいの重さまで入れてよいですか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": []
+    },
+    {
+      "id": "a006",
+      "question": "この機種が作られなくなったあと、修理用の部品は何年間とっておいてもらえますか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "補修用の部品は、製造を打ち切ってから 8 年間保有します。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "運転が止まって表示窓にエラーコードが出たときは、次の表を見て対処してください。\nコード 名称 主な原因 対処の目安時間\nE01 ふたエラー ふたの閉め忘れ 約1分\nE02 給水エラー 蛇口の閉め忘れ 約5分\nE03 水位エラー 衣類の片寄り 約10分\nE04 排水エラー 排水ホースのつまり 約30分\nE05 乾燥エラー 乾燥フィルターのつまり 約20分\nE06 温度エラー 周囲温度が35℃を超えた 約60分\nE07 モーターエラー 過負荷や部品の故障 修理が必要\nE04 のときは、ホースを外す前に、水を受ける容器を用意します。\n1\n補修用の部品は、製造を打ち切ってから 8 年間保有します。\n修理のご相談は、あおばサポートセンターで受け付けます。"
+        }
+      ]
+    },
+    {
+      "id": "a007",
+      "question": "エラーコードのうち、対処の目安時間が約20分以上のものはどれですか？ 修理が必要なものは除きます。",
+      "category": "factual",
+      "kind": "filter",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "E01 ふたエラー ふたの閉め忘れ 約1分",
+        "E02 給水エラー 蛇口の閉め忘れ 約5分",
+        "E03 水位エラー 衣類の片寄り 約10分",
+        "E04 排水エラー 排水ホースのつまり 約30分",
+        "E05 乾燥エラー 乾燥フィルターのつまり 約20分",
+        "E06 温度エラー 周囲温度が35℃を超えた 約60分",
+        "E07 モーターエラー 過負荷や部品の故障 修理が必要"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "故障のときの対処\n運転が止まって表示窓にエラーコードが出たときは、次の表を見て対処してください。\nコード 名称 主な原因 対処の目安時間\nE01 ふたエラー ふたの閉め忘れ 約1分\nE02 給水エラー 蛇口の閉め忘れ 約5分\nE03 水位エラー 衣類の片寄り 約10分\nE04 排水エラー 排水ホースのつまり 約30分\nE05 乾燥エラー 乾燥フィルターのつまり 約20分\nE06 温度エラー 周囲温度が35℃を超えた 約60分\nE07 モーターエラー 過負荷や部品の故障 修理が必要\nE04 のときは、ホースを外す前に、水を受ける容器を用意します。"
+        }
+      ]
+    },
+    {
+      "id": "a008",
+      "question": "この洗濯乾燥機の電源コードは、何メートルありますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "はじめに\nこのたびは、あおば電機の全自動洗濯乾燥機 AW-820 をお買い上げいただき、ありがとうございます。\nご使用の前にこの取扱説明書をよくお読みのうえ、正しくお使いください。\n運転が止まって表示窓にエラーコードが出たときは、次の表を見て対処してください。\nコード 名称 主な原因 対処の目安時間\nE01 ふたエラー ふたの閉め忘れ 約1分\nE02 給水エラー 蛇口の閉め忘れ 約5分\nE03 水位エラー 衣類の片寄り 約10分\nE04 排水エラー 排水ホースのつまり 約30分\nE05 乾燥エラー 乾燥フィルターのつまり 約20分\nE06 温度エラー 周囲温度が35℃を超えた 約60分\nE07 モーターエラー 過負荷や部品の故障 修理が必要\nE04 のときは、ホースを外す前に、水を受ける容器を用意します。\n仕様\n項目 洗濯 乾燥\n容量 8kg 4.5kg\n標準コースの所要時間 約98分 約165分\n消費電力 約280W 約1350W\n使用水量 約95L 約20L\n運転音 約38dB 約52dB\n外形寸法は、幅600mm、奥行き640mm、高さ1020mmです。"
+        }
+      ]
+    },
+    {
+      "id": "a009",
+      "question": "延長保証に加入するには、いくらかかりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "a010",
+      "question": "乾燥運転をしているとき、庫内の温度は何度になりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "a011",
+      "question": "富士山の標高は何メートルですか？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "t001",
+      "question": "入寮の申込みは、いつまでにすればよいですか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "入寮の申込みは、入寮を希望する年度の 2 月 28 日までに、学生支援課へ申込書を提出して行う。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "2 前項の定めにかかわらず、大学院生は、通学時間にかかわらず入寮を申し込める。\n第5条 入寮の申込みは、入寮を希望する年度の 2 月 28 日までに、学生支援課へ申込書を提出して行う。\n2 前項の期限を過ぎた申込みは、空きがある場合に限り、4 月 10 日まで受け付ける。"
+        }
+      ]
+    },
+    {
+      "id": "t002",
+      "question": "入寮するときに納める保証金は、いくらですか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "入寮する者は、入寮時に保証金 50,000 円を納める。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "2 納入が 2 か月続けて遅れたときは、退寮を命じることがある。\n第16条 入寮する者は、入寮時に保証金 50,000 円を納める。\n2 保証金は、退寮時に返還する。\nただし、居室の修繕や清掃に要した費用は、差し引く。"
+        }
+      ]
+    },
+    {
+      "id": "t003",
+      "question": "寮の門限は、何時ですか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "no_hit",
+      "retrieved": []
+    },
+    {
+      "id": "t004",
+      "question": "寮の入寮期間と、更新できる回数は？",
+      "category": "multi_hop",
+      "kind": "multi_hop",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "入寮期間は、1 年とする。",
+        "更新は、2 回までとする。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "2 前項の定めにかかわらず、遠方からの入学者は、3 月 28 日から入寮できる。\n第10条 入寮期間は、1 年とする。\n第11条 入寮期間は、更新できる。\n更新は、2 回までとする。\n2 更新を希望する者は、入寮期間が満了する年の 12 月 20 日までに申請する。\n第12条 休学する者は、休学の開始日までに退寮する。"
+        }
+      ]
+    },
+    {
+      "id": "t005",
+      "question": "友達が遊びに来たとき、自分の部屋に入れてもよいですか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": []
+    },
+    {
+      "id": "t006",
+      "question": "病気などの特別な事情がないとき、寮を出るには、いつまでに届けを出す必要がありますか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "退寮するときは、退寮予定日の 30 日前までに、退寮届を学生支援課へ提出する。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "第5章 退寮第26条 退寮するときは、退寮予定日の 30 日前までに、退寮届を学生支援課へ提出する。\n2 前項の定めにかかわらず、病気や災害など、やむを得ない事情があるときは、退寮予定日の7 日前までに提出すればよい。\n第27条 退寮する者は、退寮日の午前 10 時までに、居室を清掃して寮監に明け渡す。"
+        }
+      ]
+    },
+    {
+      "id": "t007",
+      "question": "3 つの棟のうち、1 人あたりの月額の寮費が最も安いのは、どの棟ですか？",
+      "category": "factual",
+      "kind": "comparison",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ひばり棟の個室は 38,000 円とする。"
+      ],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "2 前項の定めにかかわらず、病気のため休学する者は、学生支援課長の許可を受けて、入寮を続けることができる。\n1第3章 費用第13条 寮費は、月額とし、次のとおりとする。\nひばり棟の個室は 38,000 円とする。"
+        }
+      ]
+    },
+    {
+      "id": "t008",
+      "question": "寮の共用洗濯室を使うには、1 回いくらかかりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "2 火気を使う調理器具は、居室に持ち込んではならない。\n第23条 共用の洗濯室は、午前 7 時から午後 10 時まで使える。\n2 午後 10 時以降は、居室や廊下でも静かにする。"
+        }
+      ]
+    },
+    {
+      "id": "t009",
+      "question": "寮で朝食や夕食を食べる場合の料金は、いくらですか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "t010",
+      "question": "寮で小型のペットを飼うことはできますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "cafe_store_guide.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "cafe_store_guide.pdf",
+          "text": "車でお越しの場合、ほかの店舗では近隣の有料駐車場をご利用ください。\nペットの同伴は、原則としてテラス席に限ります。\nただし、身体障害者補助犬は店内の席にも同伴できます。"
+        }
+      ]
+    },
+    {
+      "id": "t011",
+      "question": "17 に 13 を掛けると、いくつになりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    }
+  ],
+  "question_sets": [
+    "evals/questions.yaml",
+    "evals/corpora/cafe/questions.yaml",
+    "evals/corpora/guides/questions.yaml"
+  ]
+}

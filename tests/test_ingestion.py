@@ -562,8 +562,14 @@ def test_the_cafe_pdf_keeps_its_table_as_one_chunk_across_the_page_break(monkeyp
     pages = extract_pages(CAFE_PDF)
     chunks = chunk_pages(pages)
 
-    (table,) = [c for c in chunks if c.kind == "table"]
-    assert (table.page, table.page_end) == (3, 4)  # 表は 2 ページにまたがる
+    # 表は 2 つ: 先頭の目次（1 ページ）と、店舗一覧（ページをまたぐ）。2026-11-15 から、先頭に表紙と目次がある
+    contents, table = [c for c in chunks if c.kind == "table"]
+    assert (contents.page, contents.page_label, contents.heading) == (2, "i", "目次")
+    assert (table.page, table.page_end) == (
+        5,
+        6,
+    )  # 表は 2 ページにまたがる（通し番号。表紙・目次の 2 ページぶんずれる）
+    assert (table.page_label, table.page_end_label) == ("3", "4")  # 紙面の番号
     rows = table.text.split("\n")
     assert rows[0] == "店舗名 エリア 住所 営業時間 定休日 座席数"
     assert len(rows) == 13  # 見出し行は 1 つ、店舗は 12 行

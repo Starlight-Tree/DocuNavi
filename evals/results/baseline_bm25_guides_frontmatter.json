@@ -1,0 +1,670 @@
+{
+  "mode": "bm25",
+  "k": 5,
+  "generated_at": "2026-11-15T23:28:36+09:00",
+  "corpus": {
+    "files": [
+      "aoba_aw820_manual.pdf",
+      "tsubasa_dorm_rules.pdf"
+    ],
+    "sha256": "761d982bca30343733fe29dc6db460abaa140f5779592e9ca862aedb40b98d5c",
+    "source": "pdf:guides",
+    "passages": "parent",
+    "pages": {
+      "aoba_aw820_manual.pdf": 6,
+      "tsubasa_dorm_rules.pdf": 5
+    },
+    "pdf_sha256": {
+      "aoba_aw820_manual.pdf": "2aa46dc97a5228ad155e3410e80e870bede844d6ff8f0493a748d516df3a6c3d",
+      "tsubasa_dorm_rules.pdf": "cb911489f7a4dde42904b64eb6ea6d69c0523a497b5ffbd267bcfe7ef6d27bcc"
+    }
+  },
+  "search_params": {
+    "TOP_K": 2,
+    "MAX_PASSAGES_PER_FILE": 3,
+    "CONTEXT_WINDOW": 1,
+    "RELATIVE_SCORE_CUTOFF": 0.4,
+    "GENERIC_TERM_RATIO": 0.25,
+    "MIN_SHARED_TERMS": 2
+  },
+  "summary": {
+    "total_questions": 22,
+    "answerable_questions": 14,
+    "out_of_scope_questions": 8,
+    "doc_recall_at_5": 0.7857,
+    "keyword_hit_rate_at_5": 0.6429,
+    "mrr": 0.7857,
+    "empty_answer_accuracy": 0.75,
+    "counts": {
+      "doc_hit": 11,
+      "keyword_hit": 9,
+      "answered_empty": 6
+    },
+    "empty_answer_by_scope_kind": {
+      "off_topic": {
+        "n": 2,
+        "empty": 2,
+        "accuracy": 1.0
+      },
+      "on_topic_absent": {
+        "n": 6,
+        "empty": 4,
+        "accuracy": 0.6667
+      }
+    },
+    "by_category": {
+      "factual": {
+        "n": 8,
+        "doc_hits": 7,
+        "keyword_hits": 6,
+        "doc_recall": 0.875,
+        "keyword_hit_rate": 0.75,
+        "mrr": 0.875
+      },
+      "paraphrase": {
+        "n": 5,
+        "doc_hits": 3,
+        "keyword_hits": 2,
+        "doc_recall": 0.6,
+        "keyword_hit_rate": 0.4,
+        "mrr": 0.6
+      },
+      "multi_hop": {
+        "n": 1,
+        "doc_hits": 1,
+        "keyword_hits": 1,
+        "doc_recall": 1.0,
+        "keyword_hit_rate": 1.0,
+        "mrr": 1.0
+      }
+    },
+    "failure_counts": {
+      "keyword_miss": 1,
+      "no_hit": 1,
+      "paraphrase_miss": 3,
+      "unexpected_result": 2
+    }
+  },
+  "results": [
+    {
+      "id": "a001",
+      "question": "糸くずフィルターの掃除は、洗濯何回ごとにすればよいですか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "糸くずフィルターは、洗濯 10 回ごとに取り出して水洗いしてください。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "ただし、ふんわり乾燥コースでは 2.0kg までです。\n乾燥のたびに、乾燥フィルターのごみを捨ててください。\n予約運転は、1 時間後から 24 時間後まで、1 時間単位で設定できます。\nお手入れ\n糸くずフィルターは、洗濯 10 回ごとに取り出して水洗いしてください。\n乾燥フィルターは、乾燥のたびに、ごみを取り除きます。\n洗濯槽の洗浄は、月に 1 回、「槽洗浄」コースで行います。"
+        }
+      ]
+    },
+    {
+      "id": "a002",
+      "question": "槽洗浄をするとき、洗濯槽クリーナーは何 mL 入れますか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "塩素系の洗濯槽クリーナーを 250mL 入れ、約 40℃のぬるま湯をためて運転します。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "乾燥フィルターは、乾燥のたびに、ごみを取り除きます。\n洗濯槽の洗浄は、月に 1 回、「槽洗浄」コースで行います。\n塩素系の洗濯槽クリーナーを250mL 入れ、約 40℃のぬるま湯をためて運転します。\n槽洗浄コースは、約3時間かかります。"
+        }
+      ]
+    },
+    {
+      "id": "a003",
+      "question": "保証期間が過ぎたあとに出張修理を頼むと、出張料はいくらかかりますか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "保証期間を過ぎた場合は、出張料が 3,300 円かかります。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "保証とアフターサービス\n保証期間は、お買い上げの日から 1 年間です。\nただし、モーターは、お買い上げの日から 5年間保証します。\n受付時間は、月曜日から金曜日の午前 9 時から午後 6 時までで、土曜日、日曜日、祝日はお休みです。\n出張修理の費用は、保証期間内は無料です。\n保証期間を過ぎた場合は、出張料が 3,300 円かかります。\nご不要になったとき"
+        }
+      ]
+    },
+    {
+      "id": "a004",
+      "question": "洗っている途中で、ふたを開けたくなりました。どうすれば開きますか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "製造番号は、本体背面の銘板に書かれています。\n停電のあとは、運転が途中から再開されないことがあります。\nその場合は、電源を入れ直し、もう一度スタートボタンを押してください。"
+        }
+      ]
+    },
+    {
+      "id": "a005",
+      "question": "毛布を洗うとき、一度にどのくらいの重さまで入れてよいですか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": []
+    },
+    {
+      "id": "a006",
+      "question": "この機種が作られなくなったあと、修理用の部品は何年間とっておいてもらえますか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "補修用の部品は、製造を打ち切ってから 8 年間保有します。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "運転が止まって表示窓にエラーコードが出たときは、次の表を見て対処してください。\nコード 名称 主な原因 対処の目安時間\nE01 ふたエラー ふたの閉め忘れ 約1分\nE02 給水エラー 蛇口の閉め忘れ 約5分\nE03 水位エラー 衣類の片寄り 約10分\nE04 排水エラー 排水ホースのつまり 約30分\nE05 乾燥エラー 乾燥フィルターのつまり 約20分\nE06 温度エラー 周囲温度が35℃を超えた 約60分\nE07 モーターエラー 過負荷や部品の故障 修理が必要\nE04 のときは、ホースを外す前に、水を受ける容器を用意します。\n1\n補修用の部品は、製造を打ち切ってから 8 年間保有します。\n修理のご相談は、あおばサポートセンターで受け付けます。"
+        }
+      ]
+    },
+    {
+      "id": "a007",
+      "question": "エラーコードのうち、対処の目安時間が約20分以上のものはどれですか？ 修理が必要なものは除きます。",
+      "category": "factual",
+      "kind": "filter",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "E01 ふたエラー ふたの閉め忘れ 約1分",
+        "E02 給水エラー 蛇口の閉め忘れ 約5分",
+        "E03 水位エラー 衣類の片寄り 約10分",
+        "E04 排水エラー 排水ホースのつまり 約30分",
+        "E05 乾燥エラー 乾燥フィルターのつまり 約20分",
+        "E06 温度エラー 周囲温度が35℃を超えた 約60分",
+        "E07 モーターエラー 過負荷や部品の故障 修理が必要"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "故障のときの対処\n運転が止まって表示窓にエラーコードが出たときは、次の表を見て対処してください。\nコード 名称 主な原因 対処の目安時間\nE01 ふたエラー ふたの閉め忘れ 約1分\nE02 給水エラー 蛇口の閉め忘れ 約5分\nE03 水位エラー 衣類の片寄り 約10分\nE04 排水エラー 排水ホースのつまり 約30分\nE05 乾燥エラー 乾燥フィルターのつまり 約20分\nE06 温度エラー 周囲温度が35℃を超えた 約60分\nE07 モーターエラー 過負荷や部品の故障 修理が必要\nE04 のときは、ホースを外す前に、水を受ける容器を用意します。"
+        }
+      ]
+    },
+    {
+      "id": "a008",
+      "question": "この洗濯乾燥機の電源コードは、何メートルありますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "aoba_aw820_manual.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "aoba_aw820_manual.pdf",
+          "text": "はじめに\nこのたびは、あおば電機の全自動洗濯乾燥機 AW-820 をお買い上げいただき、ありがとうございます。\nご使用の前にこの取扱説明書をよくお読みのうえ、正しくお使いください。\n運転が止まって表示窓にエラーコードが出たときは、次の表を見て対処してください。\nコード 名称 主な原因 対処の目安時間\nE01 ふたエラー ふたの閉め忘れ 約1分\nE02 給水エラー 蛇口の閉め忘れ 約5分\nE03 水位エラー 衣類の片寄り 約10分\nE04 排水エラー 排水ホースのつまり 約30分\nE05 乾燥エラー 乾燥フィルターのつまり 約20分\nE06 温度エラー 周囲温度が35℃を超えた 約60分\nE07 モーターエラー 過負荷や部品の故障 修理が必要\nE04 のときは、ホースを外す前に、水を受ける容器を用意します。\n仕様\n項目 洗濯 乾燥\n容量 8kg 4.5kg\n標準コースの所要時間 約98分 約165分\n消費電力 約280W 約1350W\n使用水量 約95L 約20L\n運転音 約38dB 約52dB\n外形寸法は、幅600mm、奥行き640mm、高さ1020mmです。"
+        }
+      ]
+    },
+    {
+      "id": "a009",
+      "question": "延長保証に加入するには、いくらかかりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "a010",
+      "question": "乾燥運転をしているとき、庫内の温度は何度になりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "a011",
+      "question": "富士山の標高は何メートルですか？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "t001",
+      "question": "入寮の申込みは、いつまでにすればよいですか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "入寮の申込みは、入寮を希望する年度の 2 月 28 日までに、学生支援課へ申込書を提出して行う。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "2 前項の定めにかかわらず、大学院生は、通学時間にかかわらず入寮を申し込める。\n第5条 入寮の申込みは、入寮を希望する年度の 2 月 28 日までに、学生支援課へ申込書を提出して行う。\n2 前項の期限を過ぎた申込みは、空きがある場合に限り、4 月 10 日まで受け付ける。"
+        }
+      ]
+    },
+    {
+      "id": "t002",
+      "question": "入寮するときに納める保証金は、いくらですか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "入寮する者は、入寮時に保証金 50,000 円を納める。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "2 納入が 2 か月続けて遅れたときは、退寮を命じることがある。\n第16条 入寮する者は、入寮時に保証金 50,000 円を納める。\n2 保証金は、退寮時に返還する。\nただし、居室の修繕や清掃に要した費用は、差し引く。"
+        }
+      ]
+    },
+    {
+      "id": "t003",
+      "question": "寮の門限は、何時ですか？",
+      "category": "factual",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "no_hit",
+      "retrieved": []
+    },
+    {
+      "id": "t004",
+      "question": "寮の入寮期間と、更新できる回数は？",
+      "category": "multi_hop",
+      "kind": "multi_hop",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "入寮期間は、1 年とする。",
+        "更新は、2 回までとする。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "2 前項の定めにかかわらず、遠方からの入学者は、3 月 28 日から入寮できる。\n第10条 入寮期間は、1 年とする。\n第11条 入寮期間は、更新できる。\n更新は、2 回までとする。\n2 更新を希望する者は、入寮期間が満了する年の 12 月 20 日までに申請する。\n第12条 休学する者は、休学の開始日までに退寮する。"
+        }
+      ]
+    },
+    {
+      "id": "t005",
+      "question": "友達が遊びに来たとき、自分の部屋に入れてもよいですか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [],
+      "doc_hit": false,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "paraphrase_miss",
+      "retrieved": []
+    },
+    {
+      "id": "t006",
+      "question": "病気などの特別な事情がないとき、寮を出るには、いつまでに届けを出す必要がありますか？",
+      "category": "paraphrase",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "退寮するときは、退寮予定日の 30 日前までに、退寮届を学生支援課へ提出する。"
+      ],
+      "keyword_hit": true,
+      "answered_empty": null,
+      "failure_category": null,
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "第5章 退寮第26条 退寮するときは、退寮予定日の 30 日前までに、退寮届を学生支援課へ提出する。\n2 前項の定めにかかわらず、病気や災害など、やむを得ない事情があるときは、退寮予定日の7 日前までに提出すればよい。\n第27条 退寮する者は、退寮日の午前 10 時までに、居室を清掃して寮監に明け渡す。"
+        }
+      ]
+    },
+    {
+      "id": "t007",
+      "question": "3 つの棟のうち、1 人あたりの月額の寮費が最も安いのは、どの棟ですか？",
+      "category": "factual",
+      "kind": "comparison",
+      "evidence_mode": "all",
+      "expected_doc_ids": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": true,
+      "first_hit_rank": 1,
+      "keyword_hits": [
+        "ひばり棟の個室は 38,000 円とする。"
+      ],
+      "keyword_hit": false,
+      "answered_empty": null,
+      "failure_category": "keyword_miss",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "2 前項の定めにかかわらず、病気のため休学する者は、学生支援課長の許可を受けて、入寮を続けることができる。\n1第3章 費用第13条 寮費は、月額とし、次のとおりとする。\nひばり棟の個室は 38,000 円とする。"
+        }
+      ]
+    },
+    {
+      "id": "t008",
+      "question": "寮の共用洗濯室を使うには、1 回いくらかかりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [
+        "tsubasa_dorm_rules.pdf"
+      ],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": false,
+      "failure_category": "unexpected_result",
+      "retrieved": [
+        {
+          "rank": 1,
+          "file": "tsubasa_dorm_rules.pdf",
+          "text": "2 火気を使う調理器具は、居室に持ち込んではならない。\n第23条 共用の洗濯室は、午前 7 時から午後 10 時まで使える。\n2 午後 10 時以降は、居室や廊下でも静かにする。"
+        }
+      ]
+    },
+    {
+      "id": "t009",
+      "question": "寮で朝食や夕食を食べる場合の料金は、いくらですか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "t010",
+      "question": "寮で小型のペットを飼うことはできますか？",
+      "category": "out_of_scope",
+      "scope_kind": "on_topic_absent",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    },
+    {
+      "id": "t011",
+      "question": "17 に 13 を掛けると、いくつになりますか？",
+      "category": "out_of_scope",
+      "scope_kind": "off_topic",
+      "expected_doc_ids": [],
+      "retrieved_files": [],
+      "doc_hit": null,
+      "first_hit_rank": null,
+      "keyword_hits": [],
+      "keyword_hit": null,
+      "answered_empty": true,
+      "failure_category": null,
+      "retrieved": []
+    }
+  ],
+  "evidence_pages": {
+    "a001": {
+      "糸くずフィルターは、洗濯 10 回ごとに取り出して水洗いしてください。": [
+        4
+      ]
+    },
+    "a002": {
+      "塩素系の洗濯槽クリーナーを 250mL 入れ、約 40℃のぬるま湯をためて運転します。": [
+        5
+      ]
+    },
+    "a003": {
+      "保証期間を過ぎた場合は、出張料が 3,300 円かかります。": [
+        6
+      ]
+    },
+    "a004": {
+      "ただし、一時停止ボタンを押すと、約90秒後にロックが外れてふたを開けられます。": [
+        3
+      ]
+    },
+    "a005": {
+      "ただし、毛布を洗うときは 2.0kg までとし、羽毛布団と電気毛布は洗えません。": [
+        3
+      ]
+    },
+    "a006": {
+      "補修用の部品は、製造を打ち切ってから 8 年間保有します。": [
+        6
+      ]
+    },
+    "a007": {
+      "E01 ふたエラー ふたの閉め忘れ 約1分": [
+        5
+      ],
+      "E02 給水エラー 蛇口の閉め忘れ 約5分": [
+        5
+      ],
+      "E03 水位エラー 衣類の片寄り 約10分": [
+        5
+      ],
+      "E04 排水エラー 排水ホースのつまり 約30分": [
+        5
+      ],
+      "E05 乾燥エラー 乾燥フィルターのつまり 約20分": [
+        5
+      ],
+      "E06 温度エラー 周囲温度が35℃を超えた 約60分": [
+        5
+      ],
+      "E07 モーターエラー 過負荷や部品の故障 修理が必要": [
+        5
+      ]
+    },
+    "t001": {
+      "入寮の申込みは、入寮を希望する年度の 2 月 28 日までに、学生支援課へ申込書を提出して行う。": [
+        3
+      ]
+    },
+    "t002": {
+      "入寮する者は、入寮時に保証金 50,000 円を納める。": [
+        4
+      ]
+    },
+    "t003": {
+      "門限は、午後 11 時とする。": [
+        4
+      ]
+    },
+    "t004": {
+      "入寮期間は、1 年とする。": [
+        3
+      ],
+      "更新は、2 回までとする。": [
+        3
+      ]
+    },
+    "t005": {
+      "来訪者を居室に入れてはならない。": [
+        4
+      ]
+    },
+    "t006": {
+      "退寮するときは、退寮予定日の 30 日前までに、退寮届を学生支援課へ提出する。": [
+        5
+      ]
+    },
+    "t007": {
+      "ひばり棟の個室は 38,000 円とする。": [
+        4
+      ],
+      "つばめ棟の二人部屋は、1 人につき 24,000 円とする。": [
+        4
+      ],
+      "かもめ棟の個室は、45,000 円とする。": [
+        4
+      ]
+    }
+  }
+}

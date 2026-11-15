@@ -11,7 +11,7 @@ reportlab と、埋め込める日本語の TrueType フォントが要る。ア
 
 | 資料 | 組み方 | 確かめたいこと |
 |---|---|---|
-| aoba_aw820_manual | 1 段。表が 2 つ。 | カフェと同じ形（基準） |
+| aoba_aw820_manual | 1 段。表が 2 つ。**表紙と目次が先頭にあり、ページラベルで本文を 1 から数える**（2026-11-15 から）。 | 表紙・目次を飛ばした表示番号と通し番号を分けて扱えるか |
 | hidamari_waste_guide | **2 段組み**。題名だけが全幅。表は段の中。 | 段をまたぐ読み順、段の中の表（評価セットに入れず、`evals/fixtures/two_column/` に置く） |
 | tsubasa_dorm_rules | 1 段。**全ページに同じ見出しと、ページ番号**。**表紙と目次が先頭にあり、PDF のページラベルで本文を 1 から数える**（表紙・i・1〜3）。 | 繰り返しの文が、各ページの先頭と末尾に混ざる。表紙・目次を飛ばした表示番号（p.1）と、PDF の通し番号（3 ページ目）を分けて扱えるか |
 
@@ -217,7 +217,9 @@ class _RecordingDoc(BaseDocTemplate):
             self.chapters.append((flowable.getPlainText(), self.page))
 
 
-def _front_story(title: str, chapters: list[tuple[str, int]], styles: dict[str, ParagraphStyle], width: float) -> list:
+def _front_story(
+    title: str, chapters: list[tuple[str, int]], styles: dict[str, ParagraphStyle], width: float, publisher: str
+) -> list:
     """表紙と目次。目次の番号は、本文の印字番号（表紙・目次を数えない）。"""
     body = styles["body"]
     cover_title = ParagraphStyle("cover_title", parent=body, fontSize=26, leading=38, spaceAfter=14)
@@ -240,7 +242,7 @@ def _front_story(title: str, chapters: list[tuple[str, int]], styles: dict[str, 
         Spacer(1, 70 * mm),
         Paragraph(_escape(title), cover_title),
         Spacer(1, 8 * mm),
-        Paragraph("つばさ大学 学生支援課", cover_sub),
+        Paragraph(_escape(publisher), cover_sub),
         PageBreak(),
         Paragraph("目次", styles["h1"]),
         toc,
@@ -249,7 +251,15 @@ def _front_story(title: str, chapters: list[tuple[str, int]], styles: dict[str, 
 
 
 def build_single(
-    md: Path, out: Path, *, header: str | None, size: float, leading: float, cell: float, front_matter: bool = False
+    md: Path,
+    out: Path,
+    *,
+    header: str | None,
+    size: float,
+    leading: float,
+    cell: float,
+    front_matter: bool = False,
+    publisher: str = "",
 ) -> None:
     top = MARGIN + (6 * mm if header else 0)
     width = PAGE_W - 2 * MARGIN
@@ -275,7 +285,8 @@ def build_single(
     doc.title = title
     doc.addPageTemplates([PageTemplate(id="main", frames=[frame()])])
     doc.build(
-        _front_story(title, probe.chapters, styles, width) + story, canvasmaker=_numbered_canvas(header, front=True)
+        _front_story(title, probe.chapters, styles, width, publisher) + story,
+        canvasmaker=_numbered_canvas(header, front=True),
     )
 
 
@@ -337,6 +348,8 @@ def main() -> None:
         size=11.5,
         leading=21,
         cell=10,
+        front_matter=True,
+        publisher="あおば電機 お客様相談室",
     )
     build_two_columns(
         HERE / "hidamari_waste_guide.md", args.fixture_dir / "hidamari_waste_guide.pdf", size=10.5, leading=18, cell=8.5
@@ -349,6 +362,7 @@ def main() -> None:
         leading=21,
         cell=10,
         front_matter=True,
+        publisher="つばさ大学 学生支援課",
     )
     for directory, name in (
         (args.out_dir, "aoba_aw820_manual"),
