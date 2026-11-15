@@ -189,6 +189,13 @@ def test_chunks_are_returned_in_order_with_full_text_and_counts(client, use_pool
     assert [params["id"] for _, params in pool.calls] == [7, 7]
 
 
+def test_chunks_carry_the_page_labels_and_old_rows_without_them_give_null(client, use_pool):
+    labelled = {**chunk_row(0), "page": 2, "page_label": "i", "page_end_label": None}
+    use_pool(FakePool(document=[summary_row()], chunks=[labelled, chunk_row(1)]))
+    chunks = client.get("/documents/1/chunks").json()["chunks"]
+    assert [(c["page"], c["page_label"], c["page_end_label"]) for c in chunks] == [(2, "i", None), (2, None, None)]
+
+
 def test_embedding_vectors_are_never_selected_or_returned(client, use_pool):
     # 埋め込みの列は「あるか」だけを SELECT し、値そのものは読まない
     for sql in (documents._LIST_SQL, documents._DOCUMENT_SQL, documents._CHUNKS_SQL):
@@ -204,6 +211,8 @@ def test_embedding_vectors_are_never_selected_or_returned(client, use_pool):
         "chunk_index",
         "page",
         "page_end",
+        "page_label",
+        "page_end_label",
         "kind",
         "heading",
         "content",

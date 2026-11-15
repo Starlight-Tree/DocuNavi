@@ -59,7 +59,8 @@ _CORPUS_WHERE = (
 )
 _CORPUS_SQL = (
     "SELECT d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, d.title AS title, "
-    "c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end "
+    "c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end, "
+    "c.page_label AS page_label, c.page_end_label AS page_end_label "
     + _CORPUS_WHERE
     + "ORDER BY d.source, c.chunk_index LIMIT %(limit)s OFFSET %(offset)s"
 )
@@ -145,6 +146,8 @@ class Chunk:
     target: str | None = None
     document_id: int | None = None
     title: str | None = None
+    page_label: str | None = None
+    page_end_label: str | None = None
 
     @property
     def key(self) -> tuple[str, str]:
@@ -201,6 +204,8 @@ async def _fetch_chunks(
             row.get("target"),
             row.get("document_id"),
             row.get("title"),
+            row.get("page_label"),
+            row.get("page_end_label"),
         )
         for row in rows
         # SQL の条件を誤っても、範囲外のグループと、指定した対象以外の資料は持たない
@@ -298,6 +303,8 @@ def _to_hit(cand: _Cand, origin: str) -> Hit:
         chunk.target,
         chunk.document_id,
         chunk.title,
+        chunk.page_label,
+        chunk.page_end_label,
     )
 
 
@@ -378,7 +385,16 @@ async def search(
     cands: dict[tuple[str, str], _Cand] = {}
     for rank, hit in enumerate(vector_hits, start=1):
         chunk = Chunk(
-            hit.source, hit.text, hit.page, hit.page_end, hit.collection, hit.target, hit.document_id, hit.title
+            hit.source,
+            hit.text,
+            hit.page,
+            hit.page_end,
+            hit.collection,
+            hit.target,
+            hit.document_id,
+            hit.title,
+            hit.page_label,
+            hit.page_end_label,
         )
         cands[chunk.key] = _Cand(chunk, corpus.position.get(chunk.key), sim=hit.similarity, vec_rank=rank)
     vector_count = len(cands)

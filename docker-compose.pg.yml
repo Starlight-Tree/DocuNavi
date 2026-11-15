@@ -6,7 +6,7 @@
 #
 # db のパスワードは、ローカル専用の使い捨ての値で秘密ではない（CI の使い捨て Postgres と同じ扱い。ポートは公開しない）。
 # 表は db/migrate.py ではなく、初回だけ手で作る:
-#   docker compose -f docker-compose.yml -f docker-compose.pg.yml exec -T db psql -U docunavi -d docunavi < db/migrations/0001_schema.sql
+#   docker compose -f docker-compose.yml -f docker-compose.pg.yml exec -T db psql -U docunavi -d docunavi < db/migrations/0001_schema.sql   # 続けて 0002 以降も番号順に
 # （db/migrate.py は接続先を Prisma の直接ホストに固定しているので、ローカルでは使わない）
 services:
   db:

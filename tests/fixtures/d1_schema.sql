@@ -52,6 +52,8 @@ CREATE TABLE chunks (
   chunk_index          INTEGER NOT NULL,
   page                 INTEGER NOT NULL,
   page_end             INTEGER,
+  page_label           TEXT,
+  page_end_label       TEXT,
   kind                 TEXT NOT NULL DEFAULT 'text',
   heading              TEXT,
   content              TEXT NOT NULL,

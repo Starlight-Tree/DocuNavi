@@ -2,7 +2,7 @@
 
 - `translate()` の単体テスト（SQLite の書き方 → Postgres）は、いつでも動く。
 - 本物の Postgres（pgvector 入り）を使うテストは、環境変数 `PG_TEST_URL`（サーバーに入れる接続文字列。例 `postgresql://test@127.0.0.1:54329/postgres`）が
-  あるときだけ動く。テストごとに使い捨てのデータベースを作り、`db/migrations/0001_schema.sql` を適用して使う（接続先の既存のデータには触らない）。
+  あるときだけ動く。テストごとに使い捨てのデータベースを作り、`db/migrations/` の全ファイルを番号順に適用して使う（接続先の既存のデータには触らない）。
   アプリの SQL（`app/` の各モジュールの定数）を、そのまま Postgres で実行して確かめる。
 """
 
@@ -16,7 +16,7 @@ import pytest
 
 from app.pg import PgPool, SyncPg, _filter_sql, translate
 
-SCHEMA = Path(__file__).resolve().parent.parent / "db" / "migrations" / "0001_schema.sql"
+MIGRATIONS = sorted((Path(__file__).resolve().parent.parent / "db" / "migrations").glob("*.sql"))  # 番号順に全部
 PG_TEST_URL = os.environ.get("PG_TEST_URL", "")
 
 # ---- translate()（Postgres は要らない） ----
@@ -102,7 +102,8 @@ def pg_url():
     base = PG_TEST_URL.rsplit("/", 1)[0]
     url = f"{base}/{name}"
     with psycopg.connect(url, autocommit=True) as c:
-        c.execute(SCHEMA.read_text(encoding="utf-8"))
+        for migration in MIGRATIONS:
+            c.execute(migration.read_text(encoding="utf-8"))
     yield url
     with psycopg.connect(PG_TEST_URL, autocommit=True) as admin:
         admin.execute(sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(name)))

@@ -79,6 +79,8 @@ class ThreadSource(BaseModel):
     name: str
     page: int | None = None
     page_end: int | None = None
+    page_label: str | None = None  # PDF のページラベル（表紙・i・1 など）。保存されていない古い会話は null
+    page_end_label: str | None = None
     weak: bool = False
     collection: str | None = None
     document_id: int | None = None

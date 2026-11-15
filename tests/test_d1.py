@@ -193,6 +193,32 @@ def test_the_repository_saves_reuses_chunks_by_hash_and_drops_the_rest(d1_worker
     }  # 題名・グループは保存済みのまま
 
 
+def test_the_repository_saves_page_labels_and_fills_them_in_for_chunks_it_reuses(d1_worker):
+    repo = D1Repository(sync_for(d1_worker))
+    plain = _chunk(0, "alpha")
+    repo.save("a.pdf", "h1", 3, [plain, _chunk(1, "beta", page=2)])
+    assert [r["page_label"] for r in d1_worker.rows("SELECT page_label FROM chunks ORDER BY chunk_index")] == [
+        None,
+        None,
+    ]
+    first = {r["content"]: r["id"] for r in d1_worker.rows("SELECT id, content FROM chunks")}
+
+    # 同じ本文のまま PDF にページラベルが付いた: 同じ行を使い回し（再埋め込みなし）、ラベルだけが入る。ページ（通し番号）は変わらない
+    labelled = [
+        Chunk(0, 1, None, "alpha", content_hash("alpha"), page_label="表紙"),
+        Chunk(1, 2, None, "beta", content_hash("beta"), page_end=3, page_label="i", page_end_label="1", kind="table"),
+    ]
+    repo.save("a.pdf", "h2", 3, labelled)
+    rows = {
+        r["content"]: r
+        for r in d1_worker.rows("SELECT id, content, page, page_end, page_label, page_end_label FROM chunks")
+    }
+    assert {t: rows[t]["id"] for t in rows} == first
+    assert (rows["alpha"]["page"], rows["alpha"]["page_label"], rows["alpha"]["page_end_label"]) == (1, "表紙", None)
+    assert (rows["beta"]["page"], rows["beta"]["page_end"]) == (2, 3)
+    assert (rows["beta"]["page_label"], rows["beta"]["page_end_label"]) == ("i", "1")
+
+
 def test_the_repository_can_overwrite_the_title_and_records_failures_without_dropping_chunks(d1_worker):
     repo = D1Repository(sync_for(d1_worker))
     repo.save("a.pdf", "h1", 1, [_chunk(0, "alpha")], title="古い題名")

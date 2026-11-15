@@ -71,6 +71,7 @@ _HERO_SQL = (
 )
 _CHUNKS_SQL = (
     "SELECT c.chunk_index AS chunk_index, c.page AS page, c.page_end AS page_end, c.kind AS kind, "
+    "c.page_label AS page_label, c.page_end_label AS page_end_label, "
     "c.heading AS heading, c.content AS content, c.embedding_model IS NOT NULL AS embedded, "
     "c.embedding_model AS embedding_model "
     "FROM chunks c WHERE c.document_id = %(id)s ORDER BY c.chunk_index LIMIT %(limit)s"
@@ -108,6 +109,8 @@ class ChunkItem(BaseModel):
     chunk_index: int
     page: int | None = None
     page_end: int | None = None
+    page_label: str | None = None  # PDF のページラベル（表紙・i・1 など）。無ければ null（page を表示する）
+    page_end_label: str | None = None
     kind: str | None = None
     heading: str | None = None
     content: str
@@ -234,6 +237,8 @@ async def document_chunks(
                 chunk_index=chunk["chunk_index"],
                 page=chunk.get("page"),
                 page_end=chunk.get("page_end"),
+                page_label=chunk.get("page_label"),
+                page_end_label=chunk.get("page_end_label"),
                 kind=chunk.get("kind"),
                 heading=chunk.get("heading"),
                 content=chunk["content"],

@@ -223,14 +223,24 @@ class D1Repository:
         for row_id, chunk in keep:
             statements.append(
                 (
-                    "UPDATE chunks SET chunk_index = ?, page = ?, page_end = ?, kind = ?, heading = ? WHERE id = ?",
-                    (chunk.index, chunk.page, chunk.page_end, chunk.kind, chunk.heading, row_id),
+                    "UPDATE chunks SET chunk_index = ?, page = ?, page_end = ?, kind = ?, heading = ?, "
+                    "page_label = ?, page_end_label = ? WHERE id = ?",
+                    (
+                        chunk.index,
+                        chunk.page,
+                        chunk.page_end,
+                        chunk.kind,
+                        chunk.heading,
+                        chunk.page_label,
+                        chunk.page_end_label,
+                        row_id,
+                    ),
                 )
             )
         # 新しいチャンクは、1 本の複数行 INSERT にまとめる（1 件ずつだと、チャンクの数だけ operations を使う）
         for i in range(0, len(insert), INSERT_ROWS):
             part = insert[i : i + INSERT_ROWS]
-            values = ", ".join(["(?, ?, ?, ?, ?, ?, ?, ?)"] * len(part))
+            values = ", ".join(["(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"] * len(part))
             params: list[Any] = []
             for chunk in part:
                 params += [
@@ -242,10 +252,13 @@ class D1Repository:
                     chunk.heading,
                     chunk.text,
                     chunk.content_hash,
+                    chunk.page_label,
+                    chunk.page_end_label,
                 ]
             statements.append(
                 (
-                    "INSERT INTO chunks (document_id, chunk_index, page, page_end, kind, heading, content, content_hash) "
+                    "INSERT INTO chunks (document_id, chunk_index, page, page_end, kind, heading, content, content_hash, "
+                    "page_label, page_end_label) "
                     f"VALUES {values}",
                     params,
                 )

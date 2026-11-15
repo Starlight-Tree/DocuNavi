@@ -342,7 +342,7 @@ missing = [t for t in os.environ["REQUIRED_TABLES"].split() if t not in have]
 if missing:
     sys.exit(
         f"dev-local: DB '{os.environ['DB_NAME']}' に表がありません: {' '.join(missing)}\n"
-        "  スキーマは自動では作りません。新しい DB なら、手で 1 回だけ db/migrations/0001_schema.sql を適用してください（docker-compose.pg.yml の冒頭）。"
+        "  スキーマは自動では作りません。新しい DB なら、手で 1 回だけ db/migrations/ の SQL を番号順に（0001 から）適用してください（docker-compose.pg.yml の冒頭）。"
     )
 print("dev-local: DB の表: 揃っています（読み取りだけ。何も書いていません）")
 PY

@@ -152,6 +152,8 @@ def test_the_page_goes_to_the_artifact_and_never_into_the_text_the_model_sees(ve
             "name": "aoba_aw820_manual.pdf",
             "page": 3,
             "page_end": 4,
+            "page_label": None,
+            "page_end_label": None,
             "weak": False,
             "collection": None,
             "target": None,
@@ -210,6 +212,8 @@ def test_invalid_pages_become_none_so_the_screen_shows_nothing(vector_env, page,
             "name": "aoba_aw820_manual.pdf",
             "page": expected[0],
             "page_end": expected[1],
+            "page_label": None,
+            "page_end_label": None,
             "weak": False,
             "collection": None,
             "target": None,
@@ -247,6 +251,27 @@ def test_the_gap_is_measured_from_the_first_hit_and_a_close_second_is_not_weak()
     # 類似度が無い（偽の検索など）ときは、絞らない。1 件目は、いつも弱くない
     assert [s["weak"] for s in _sources([Hit("a.pdf", "A"), Hit("b.pdf", "B")])] == [False, False]
     assert _sources([]) == []
+
+
+def test_page_labels_go_to_the_artifact_and_blank_or_odd_ones_become_none():
+    from app.agents.tools import _sources
+    from app.search.types import Hit
+
+    hits = [
+        Hit("a.pdf", "A", page=3, page_end=4, page_label="i", page_end_label="ii"),
+        Hit("b.pdf", "B", page=1, page_label="表紙", page_end_label="1"),  # page_end が無いので、終わりのラベルは捨てる
+        Hit("c.pdf", "C", page=2, page_label="  ", page_end_label="x"),
+        Hit("d.pdf", "D", page=2, page_label="x" * 33),
+        Hit("e.pdf", "E", page=2),
+    ]
+    sources = _sources(hits)
+    assert [(s["page"], s["page_end"], s["page_label"], s["page_end_label"]) for s in sources] == [
+        (3, 4, "i", "ii"),
+        (1, None, "表紙", None),
+        (2, None, None, None),
+        (2, None, None, None),
+        (2, None, None, None),
+    ]
 
 
 def test_a_tool_message_with_an_artifact_survives_the_checkpoint_serializer():

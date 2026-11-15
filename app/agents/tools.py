@@ -92,11 +92,20 @@ def renumber_content(artifact: Sequence[dict[str, Any]], start: int) -> str | No
     )
 
 
+def _label(value: object) -> str | None:
+    """ページラベル。空白だけ・文字列でない・長すぎるときは None（画面が表示しない）。"""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text if 0 < len(text) <= 32 else None
+
+
 def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
     """画面に渡す出典の一覧（`_format_hits` の見出しと同じ順）。ツールの artifact で、LLM には渡らない。
 
     `page` は 1 以上の整数だけ、`page_end` は `page` より大きいときだけ入れる（不正な値は None にして、画面が表示しない）。
     `collection` は資料のグループ（未設定なら None）。画面の出典に、どのグループの資料かを添えるためのもの。
+    `page_label` / `page_end_label` は、PDF のページラベル（表紙・i・1・A-1 など。空白だけ・未設定なら None）。画面の表示用で、リンク（`#page=N`）は `page` を使う。
     `title` は資料の題名（空白だけ・未設定なら None）。画面の出典の表示用で、キーはファイル名（`name`）のまま。
     `target` は、回答を作った時点の資料の対象（未分類なら None）。あとで資料の分類が変わっても、過去の出典の表示は変えない（記録として残す）。
     `weak` は、1 位との類似度の差が `WEAK_GAP` を超える 2 件目以降と、GraphRAG で加えた参照先（`origin="graph"`）。画面の出典カードに出さない。
@@ -115,6 +124,8 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
                 "name": hit.source,
                 "page": page,
                 "page_end": page_end,
+                "page_label": _label(hit.page_label),
+                "page_end_label": _label(hit.page_end_label) if page_end is not None else None,
                 "weak": weak,
                 "collection": hit.collection,
                 "target": hit.target,
