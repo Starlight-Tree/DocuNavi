@@ -73,9 +73,15 @@ def _today_jst() -> str:
 
 
 def test_tag_check_accepts_new_format_and_writes_the_run_tag(tmp_path: Path) -> None:
-    # Git のタグ deploy/vYYYYMMDD-N → Cloud Run のタグ vYYYYMMDD-N（先頭の deploy/ を外すだけ）
+    # Git のタグ deploy/vYYYYMMDD[-N] → Cloud Run のタグ vYYYYMMDD[-N]（先頭の deploy/ を外すだけ。1 回目は日付だけ、2 回目以降が -2 から）
     today = _today_jst()
-    for name in ["deploy/v20260101-1", "deploy/v20261114-2", f"deploy/v{today}-1", f"deploy/v{today}-12"]:
+    for name in [
+        "deploy/v20260101",
+        "deploy/v20261114-2",
+        f"deploy/v{today}",
+        f"deploy/v{today}-2",
+        f"deploy/v{today}-12",
+    ]:
         (tmp_path / "run-tag").unlink(missing_ok=True)
         result = _run_tag_check(tmp_path, name)
         assert result.returncode == 0, (name, result.stderr)
@@ -92,17 +98,19 @@ def test_tag_check_rejects_malformed_names(tmp_path: Path) -> None:
         "deploy/a;rm",
         "deploy/a/b",
         "v1.0",
-        "deploy/v20261114-0",  # 連番は 1 始まり
-        "deploy/v20261114-01",  # 先頭ゼロなし
-        "deploy/v20261114",  # 連番が無い
+        "deploy/v20261114-1",  # 1 回目は日付だけ。-1 は付けない
+        "deploy/v20261114-0",
+        "deploy/v20261114-02",  # 先頭ゼロなし
         "deploy/v20261114-",
-        "deploy/v20261114-1-fix",  # 内容は名前に入れない
-        "deploy/V20261114-1",  # 小文字の v
-        "deploy/20261114-1",  # v が無い（Cloud Run のタグは英字始まり）
-        "deploy/v2026114-1",  # 日付が 7 桁
-        "deploy/v202611140-1",  # 日付が 9 桁
-        "deploy/v20261114-1/x",
-        "deploy/v20261114-1\n",
+        "deploy/v20261114-2-fix",  # 内容は名前に入れない
+        "deploy/v20261114-2-3",
+        "deploy/V20261114",  # 小文字の v
+        "deploy/20261114",  # v が無い（Cloud Run のタグは英字始まり）
+        "deploy/v2026114",  # 日付が 7 桁
+        "deploy/v202611140",  # 日付が 9 桁
+        "deploy/v20261114/x",
+        "deploy/v20261114\n",
+        "deploy/v20261114-2\n",
     ]:
         assert _run_tag_check(tmp_path, name).returncode != 0, name
         assert not (tmp_path / "run-tag").exists(), name
@@ -122,14 +130,15 @@ def test_tag_check_rejects_old_format_tags(tmp_path: Path) -> None:
 
 def test_tag_check_rejects_impossible_and_future_dates(tmp_path: Path) -> None:
     for name in [
-        "deploy/v20261340-1",
-        "deploy/v20260230-1",
-        "deploy/v20261100-1",
-        "deploy/v00000000-1",
-        "deploy/v20991231-1",
+        "deploy/v20261340",
+        "deploy/v20260230-2",
+        "deploy/v20261100",
+        "deploy/v00000000",
+        "deploy/v20991231",
     ]:
         result = _run_tag_check(tmp_path, name)
         assert result.returncode != 0, name
         assert not (tmp_path / "run-tag").exists(), name
     tomorrow = (datetime.now(timezone.utc) + timedelta(hours=9, days=1)).strftime("%Y%m%d")
-    assert _run_tag_check(tmp_path, f"deploy/v{tomorrow}-1").returncode != 0
+    assert _run_tag_check(tmp_path, f"deploy/v{tomorrow}").returncode != 0
+    assert _run_tag_check(tmp_path, f"deploy/v{tomorrow}-2").returncode != 0

@@ -5,9 +5,10 @@
 #   - 配備は必ず --no-traffic。100% への切り替え（promote）はしない。ユーザーが ./scripts/preview.sh promote で行う
 #   - --set-env-vars / --set-secrets / --use-http2 は付けない（付けると、いまの設定や有料キーの Secret が変わる・消える）。
 #     設定はサービスの最新の設定を引き継ぐ
-#   - タグ名は deploy/vYYYYMMDD-N（日付は JST の実在する日で未来でない。N は 1 始まり・先頭ゼロなし。使ったタグ・番号は再利用しない）。
-#     先頭の deploy/ を外した vYYYYMMDD-N が Cloud Run のタグ名になる（deploy/v20261117-1 → タグ v20261117-1）。
-#     2026-11-17 より前の旧形式（deploy/py314-1116 など）は、検査で止める（既存のタグは変更せず、新しく push するときだけ新形式）
+#   - タグ名は、その日の 1 回目が deploy/vYYYYMMDD、2 回目以降が deploy/vYYYYMMDD-N（N は 2 から。-1・-0・先頭ゼロは不可）。
+#     日付は JST の実在する日で未来でない。使ったタグ・番号は再利用しない。
+#     先頭の deploy/ を外した名前が Cloud Run のタグ名になる（deploy/v20261117 → タグ v20261117、deploy/v20261117-2 → タグ v20261117-2）。
+#     2026-11-17 より前の旧形式（deploy/py314-1116 など）は、検査で止める
 #   - 最後の prune-old-revisions は、配備の後始末だけ。新しい順に 3 つと、トラフィックが向いている・タグが付いたリビジョンは消さない。
 #     失敗しても配備の結果は変えない。KEEP を減らす・保護の条件を外す変更は、戻し先を消す恐れがあるので、事前に確認する
 #
@@ -31,9 +32,9 @@ steps:
       - -c
       - |
         set -euo pipefail
-        re='^deploy/v([0-9]{8})-([1-9][0-9]*)$$'
+        re='^deploy/v([0-9]{8})(-([2-9]|[1-9][0-9]+))?$$'
         if [[ ! "$${TAG_NAME:-}" =~ $$re ]]; then
-          echo "タグ名は deploy/vYYYYMMDD-N にしてください（日付は JST、N は 1 始まり・先頭ゼロなし）: '$${TAG_NAME:-}'" >&2
+          echo "タグ名は deploy/vYYYYMMDD（その日の 2 回目以降は deploy/vYYYYMMDD-N。N は 2 から、先頭ゼロなし）にしてください（日付は JST）: '$${TAG_NAME:-}'" >&2
           exit 1
         fi
         d="$${BASH_REMATCH[1]}"
