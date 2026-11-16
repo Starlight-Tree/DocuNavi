@@ -25,6 +25,8 @@ export interface ChatMetadata {
   target?: unknown;
   /** 今回の検索で拾ったチャンクの数（null は検索していない）。完了の直前に届く。古いサーバーは送らない。 */
   hit_count?: unknown;
+  /** user の発言のみ。質問の時刻（ISO 8601）。履歴は API の値、送信直後は端末の時計。使う前に `parseSentAt` で確かめる。 */
+  sent_at?: unknown;
 }
 
 /** 回答を作る途中の段階（UI message stream の transient な data-status）。待機表示の文言に使う。 */

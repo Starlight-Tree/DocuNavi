@@ -18,6 +18,7 @@ import { useAuth } from '../auth/AuthContext';
 import { createAuthedFetch } from '../auth/authFetch';
 import { CLASSIFICATION_NAME_PATTERN } from '../api/classifications';
 import { COLLECTION_NAME_PATTERN } from '../api/collections';
+import { parseSentAt } from '../lib/sentAt';
 import { parseSourceRefs } from '../lib/sources';
 import type { SourceRef } from '../lib/sources';
 import { loadThreadId, saveThreadId } from '../lib/storage';
@@ -40,6 +41,8 @@ export interface ChatMessage {
   target?: string | null;
   /** assistant のみ。そのターンの検索で拾ったチャンクの数（null は検索していない）。届かなかったときは無い。 */
   hitCount?: number | null;
+  /** user のみ。質問の時刻（ISO 8601）。履歴は API の値、送信直後は端末の時計。無ければ時刻の区切りを出さない。 */
+  sentAt?: string;
 }
 
 export interface ChatError {
@@ -105,7 +108,10 @@ function toChatMessages(messages: ChatUIMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
   for (const message of messages) {
     if (message.role === 'user') {
-      result.push({ id: message.id, role: 'user', text: userText(message) });
+      const item: ChatMessage = { id: message.id, role: 'user', text: userText(message) };
+      const sentAt = parseSentAt(message.metadata?.sent_at);
+      if (sentAt) item.sentAt = sentAt;
+      result.push(item);
     } else if (message.role === 'assistant') {
       const text = assistantText(message);
       // 本文がまだ 1 文字も届いていない assistant は、空の吹き出しにせず、待機表示に任せる
@@ -406,7 +412,7 @@ export function useChat(): UseChat {
       if (!text || text.length > MAX_MESSAGE_LENGTH || pendingRef.current) return false;
       // 資料を 1 件も選んでいないときは送らない（「選ばない」を「すべて」と読み替えない）
       if (documentIdsRef.current?.length === 0) return false;
-      begin(sendMessage({ text }));
+      begin(sendMessage({ text, metadata: { sent_at: new Date().toISOString() } }));
       return true;
     },
     [begin, sendMessage],
@@ -459,7 +465,7 @@ export function useChat(): UseChat {
     const text = lastUserText(chat.messages).trim();
     if (!text || text.length > MAX_MESSAGE_LENGTH) return false;
     startNew(ALL_SCOPE);
-    begin(sendMessage({ text }));
+    begin(sendMessage({ text, metadata: { sent_at: new Date().toISOString() } }));
     return true;
   }, [begin, chat.messages, sendMessage, startNew]);
 
@@ -506,6 +512,8 @@ export function useChat(): UseChat {
               parts: [{ type: 'text', text: item.text }],
               // 回答の出典（保存された検索結果から、サーバーが取り出したもの）。回答の直後と同じ「参照資料」を出す
               ...(item.context !== undefined ? { metadata: { context: item.context, sources: item.sources } } : {}),
+              // 質問の時刻（サーバーの値）。無い（古い会話）ときは付けない
+              ...(item.sentAt !== undefined ? { metadata: { sent_at: item.sentAt } } : {}),
             })),
           );
           setHistory('idle');

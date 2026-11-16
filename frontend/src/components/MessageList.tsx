@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { ChatPhase } from '../api/chat';
 import { MSG_HISTORY_FAILED } from '../hooks/useChat';
 import type { ChatMessage, HistoryStatus } from '../hooks/useChat';
@@ -8,6 +8,7 @@ import { classificationLabel } from '../lib/classifications';
 import { collectionLabel } from '../lib/collections';
 import { followUpQuestions } from '../lib/followUps';
 import { stripCitations } from '../lib/citations';
+import { formatSentAt } from '../lib/sentAt';
 import { parseSources } from '../lib/sources';
 import { AssistantAnswer } from './AssistantAnswer';
 
@@ -185,63 +186,72 @@ export function MessageList({
         // 生成中の最後の吹き出しは、完了するまでコピーを出さない（途中の本文をコピーさせない）
         const generating = busy && message.role === 'assistant' && message.id === lastId;
         const copied = copy?.id === message.id ? copy : null;
+        // 質問の前に、その時刻を薄く出す（時刻の無い質問・古い会話・読めない値には出さない）
+        const sentLabel = message.role === 'user' && message.sentAt ? formatSentAt(message.sentAt, new Date()) : null;
         return (
-          <article key={message.id} className={`message message-${message.role}${message.id === lastId ? ' message-latest' : ''}`}>
-            <span className="visually-hidden">
-              {message.role === 'user' ? 'あなた' : 'アシスタント'}:{' '}
-            </span>
-            {/* 本文は必ずテキストとして描画する（HTML として解釈しない）。回答だけ Markdown を整形し、利用者の発言はそのまま見せる */}
-            {message.role === 'assistant' ? (
-              <AssistantAnswer
-                text={message.text}
-                context={message.context}
-                sources={message.sources}
-                generating={generating}
-                actions={
-                  !generating && (
-                    <>
-                      <button
-                        type="button"
-                        className="icon-action"
-                        onClick={() => void copyText(message)}
-                        aria-label="この回答をコピー"
-                        title="この回答をコピー"
-                      >
-                        {copied?.ok ? <CheckIcon /> : <CopyIcon />}
-                      </button>
-                      {/* 結果は、アイコンの形だけに頼らず、読み上げにも伝える（見える文字は出さない） */}
-                      <span role="status" className={copied?.ok === false ? 'icon-action-failed' : 'visually-hidden'}>
-                        {copied ? (copied.ok ? 'コピーしました' : 'コピーできませんでした') : ''}
-                      </span>
-                    </>
-                  )
-                }
-              >
-                {/* 質問対象（対象か旧グループ）の指定があって、検索で 0 件だった最新の回答だけ。検索していない（hit_count が無い・null）ときは出さない */}
-                {!busy &&
-                  message.id === lastId &&
-                  (typeof message.target === 'string' || typeof message.collection === 'string') &&
-                  message.hitCount === 0 && (
-                    <div className="scope-empty" role="status">
-                      <p>
-                        「
-                        {typeof message.target === 'string'
-                          ? classificationLabel(message.target, targetItems)
-                          : `旧グループ: ${collectionLabel(message.collection as string, groups)}`}
-                        」の中には、該当する資料がありませんでした。
-                      </p>
-                      {onAskAll && (
-                        <button type="button" className="btn btn-secondary btn-small" onClick={onAskAll}>
-                          すべての資料で聞き直す
-                        </button>
-                      )}
-                    </div>
-                  )}
-              </AssistantAnswer>
-            ) : (
-              <p className="message-text message-question">{message.text}</p>
+          <Fragment key={message.id}>
+            {sentLabel && message.sentAt && (
+              <time className="message-time" dateTime={message.sentAt}>
+                {sentLabel}
+              </time>
             )}
-          </article>
+            <article className={`message message-${message.role}${message.id === lastId ? ' message-latest' : ''}`}>
+              <span className="visually-hidden">
+                {message.role === 'user' ? 'あなた' : 'アシスタント'}:{' '}
+              </span>
+              {/* 本文は必ずテキストとして描画する（HTML として解釈しない）。回答だけ Markdown を整形し、利用者の発言はそのまま見せる */}
+              {message.role === 'assistant' ? (
+                <AssistantAnswer
+                  text={message.text}
+                  context={message.context}
+                  sources={message.sources}
+                  generating={generating}
+                  actions={
+                    !generating && (
+                      <>
+                        <button
+                          type="button"
+                          className="icon-action"
+                          onClick={() => void copyText(message)}
+                          aria-label="この回答をコピー"
+                          title="この回答をコピー"
+                        >
+                          {copied?.ok ? <CheckIcon /> : <CopyIcon />}
+                        </button>
+                        {/* 結果は、アイコンの形だけに頼らず、読み上げにも伝える（見える文字は出さない） */}
+                        <span role="status" className={copied?.ok === false ? 'icon-action-failed' : 'visually-hidden'}>
+                          {copied ? (copied.ok ? 'コピーしました' : 'コピーできませんでした') : ''}
+                        </span>
+                      </>
+                    )
+                  }
+                >
+                  {/* 質問対象（対象か旧グループ）の指定があって、検索で 0 件だった最新の回答だけ。検索していない（hit_count が無い・null）ときは出さない */}
+                  {!busy &&
+                    message.id === lastId &&
+                    (typeof message.target === 'string' || typeof message.collection === 'string') &&
+                    message.hitCount === 0 && (
+                      <div className="scope-empty" role="status">
+                        <p>
+                          「
+                          {typeof message.target === 'string'
+                            ? classificationLabel(message.target, targetItems)
+                            : `旧グループ: ${collectionLabel(message.collection as string, groups)}`}
+                          」の中には、該当する資料がありませんでした。
+                        </p>
+                        {onAskAll && (
+                          <button type="button" className="btn btn-secondary btn-small" onClick={onAskAll}>
+                            すべての資料で聞き直す
+                          </button>
+                        )}
+                      </div>
+                    )}
+                </AssistantAnswer>
+              ) : (
+                <p className="message-text message-question">{message.text}</p>
+              )}
+            </article>
+          </Fragment>
         );
       })}
 

@@ -44,6 +44,8 @@ export async function fetchThreads(fetcher: Fetcher, signal?: AbortSignal): Prom
 export interface ThreadMessage {
   role: 'user' | 'assistant';
   text: string;
+  /** user のみ。質問を受け付けた時刻（ISO 8601。サーバーの値）。古い会話・古い API では無い。 */
+  sentAt?: string;
   /** assistant のみ。その回答の検索結果（`/chat/stream` の `messageMetadata.context` と同じ形）。出典が無い回答・古い API では無い。 */
   context?: string;
   /** assistant のみ。`context` の出典と同じ順の {name, page, page_end, weak, collection, document_id, title}。サーバーの値なので、使う前に `parseSourceRefs` で確かめる。 */
@@ -77,6 +79,9 @@ export async function fetchThreadMessages(
       throw new ChatApiError(response.status, MSG_BAD_BODY);
     }
     const message: ThreadMessage = { role: item.role, text: item.text };
+    if (item.role === 'user' && typeof item.sent_at === 'string' && !Number.isNaN(Date.parse(item.sent_at))) {
+      message.sentAt = item.sent_at;
+    }
     // 出典は、検索結果の本文（context）と、その出典の一覧（sources）が揃っているときだけ受け取る（片方だけでは「参照資料」を組めない）
     if (item.role === 'assistant' && typeof item.context === 'string' && Array.isArray(item.sources)) {
       message.context = item.context;

@@ -273,6 +273,15 @@ textarea {
   justify-content: flex-end;
 }
 
+/* 質問の前の時刻の区切り（中央・小さく・薄く）。.message-list の gap は 1.5rem なので、回答との間を保ったまま、質問に寄せる */
+.message-time {
+  display: block;
+  margin-bottom: -0.75rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 .message-question {
   max-width: 85%;
   padding: 0.6rem 1rem;

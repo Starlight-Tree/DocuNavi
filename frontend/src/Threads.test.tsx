@@ -27,7 +27,7 @@ function setup(auth: FakeAuth | null) {
   return { user };
 }
 
-type HistoryItem = { role: 'user' | 'assistant'; text: string; context?: string; sources?: unknown };
+type HistoryItem = { role: 'user' | 'assistant'; text: string; sent_at?: string; context?: string; sources?: unknown };
 
 /**
  * 会話の一覧の状態を持つ偽のサーバー。DELETE は一覧から外す。
@@ -219,6 +219,38 @@ describe('会話の一覧', () => {
     const region = await openSources();
     expect(within(region).getByText(/ザーハード1\.pdf/)).toBeInTheDocument();
     expect(within(region).getByText(/p\.2/)).toBeInTheDocument();
+  });
+
+  it('質問の前に時刻の区切りを出す（開き直した会話はサーバーの時刻、送った直後は今の時刻。時刻の無い質問には出さない）', async () => {
+    const server = threadsServer([thread('t1', '最初の質問')], {
+      messages: {
+        t1: [
+          { role: 'user', text: 'ザーハードの大気は？', sent_at: '2025-11-14T12:00:00+00:00' },
+          { role: 'assistant', text: '主に窒素です。' },
+          { role: 'user', text: '時刻が保存される前の質問' },
+          { role: 'assistant', text: 'こんにちは。' },
+        ],
+      },
+    });
+    installFetch(() => replyResponse({ thread_id: 't1' }), server.handler);
+    const { user } = setup(fakeAuth());
+
+    await user.click(await screen.findByTitle('最初の質問'));
+
+    const log = await screen.findByRole('log', { name: '会話' });
+    await within(log).findByText('ザーハードの大気は？');
+    // 去年の日付なので年も付く。時刻のある質問だけに 1 つ（端末のタイムゾーンで時刻は変わるので、形だけ確かめる）
+    expect(log.querySelectorAll('time')).toHaveLength(1);
+    expect(log.querySelector('time')).toHaveTextContent(/^2025年11月14日 \d\d:\d\d$/);
+    expect(log.querySelector('time')).toHaveAttribute('datetime', '2025-11-14T12:00:00+00:00');
+
+    // 続きを送ると、その質問の前に「今日」の時刻が付く（端末の時計。履歴の質問の時刻は変わらない）
+    await user.type(screen.getByRole('textbox', { name: 'メッセージ' }), '続きの質問');
+    await user.click(screen.getByRole('button', { name: '送信' }));
+    await screen.findByText(DEFAULT_REPLY);
+    const times = Array.from(log.querySelectorAll('time'));
+    expect(times).toHaveLength(2);
+    expect(times[1]).toHaveTextContent(/^今日 \d\d:\d\d$/);
   });
 
   it('取得している間は読み込み中を出し、届いたら消える', async () => {
