@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useOpenReference } from '../hooks/useOpenReference';
 import { hideOpenCitation, stripCitations } from '../lib/citations';
 import { renderMarkdown } from '../lib/markdown';
-import { parseSources, referenceTargets, withPages } from '../lib/sources';
+import { parseSources, withPages } from '../lib/sources';
 import type { SourceRef } from '../lib/sources';
 import { SourcesPanel } from './SourcesPanel';
 
@@ -22,31 +22,20 @@ interface AssistantAnswerProps {
 }
 
 /**
- * アシスタントの回答。本文の文末の引用（`[1]` `[1「根拠の語句」]`）を、押せる上付きの番号にし、回答の下の操作の行にある「参照資料」と同じ開き方でつなぐ。
- * 出典が無い回答では、引用の記法を本文から消す（LLM が出典の無い回答に付けた番号を、見せない）。
+ * アシスタントの回答。本文の文末の引用（`[1]` `[1「根拠の語句」]`）は見せず消す。出典は、回答の下の操作の行の「N 件のソース」から開く。
  */
 export function AssistantAnswer({ text, context, sources: refs, generating, children, actions }: AssistantAnswerProps) {
   const docs = useMemo(() => withPages(parseSources(context ?? ''), refs), [context, refs]);
-  const targets = useMemo(() => referenceTargets(docs), [docs]);
   const reference = useOpenReference(docs);
 
-  const cite =
-    docs.length > 0
-      ? {
-          sources: docs,
-          targets,
-          opening: reference.opening,
-          streaming: generating,
-          onOpen: (ref: { index: number; span: string | null }, opener: Element | null) => void reference.open(ref.index, ref.span, opener),
-        }
-      : undefined;
   const showSources = docs.length > 0 && !generating;
-  const shown = cite ? text : hideOpenCitation(stripCitations(text));
+  // 本文に引用の番号は出さない（出典は、回答の下の「N 件のソース」から開く）。LLM が付けた `[n]` は、生成の途中のものも含めて消す
+  const shown = hideOpenCitation(stripCitations(text));
 
   return (
     <>
       {/* 本文は必ずテキストとして描画する（HTML として解釈しない） */}
-      <div className="message-text markdown">{renderMarkdown(shown, cite)}</div>
+      <div className="message-text markdown">{renderMarkdown(shown)}</div>
       {children}
       {(actions || showSources) && (
         <div className="message-actions">

@@ -413,42 +413,30 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
       { name: 'tsubasa_dorm_rules.pdf', page: 3, page_end: null, weak: false, document_id: 7 },
     ];
 
-    it('文末の [n] は、押せる上付きの番号になる。本文に引用の記法は残らない。押すと、その出典を右のパネルに開く', async () => {
+    it('文末の [n] は本文に出さない（番号のボタンも出ない）。出典は「N 件のソース」から開く', async () => {
       installRefs(CITED_CONTEXT, CITED_SOURCES, '申込みは 2 月 28 日までです[2]。');
       const user = userEvent.setup();
       render(<App />);
       await ask(user);
 
-      const button = await screen.findByRole('button', { name: /参照資料 2: tsubasa_dorm_rules\.pdf p\.3を右のパネルで開く/ });
-      expect(button).toHaveTextContent('2');
+      expect(await screen.findByText('申込みは 2 月 28 日までです。')).toBeInTheDocument();
       expect(screen.queryByText(/\[2\]/)).not.toBeInTheDocument();
-      await user.click(button);
+      const region = await openSources();
+      await user.click(within(region).getAllByRole('button', { name: /を右のパネルで開く/ })[1]!);
       await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=3&chunk=1'));
     });
 
-    it('根拠の語句が出典の本文にそのまま含まれるときだけ、右のパネルでその語句を強調する', async () => {
-      installRefs(CITED_CONTEXT, CITED_SOURCES, '申込みは 2 月 28 日までです[2「2 月 28 日まで」]。');
-      const user = userEvent.setup();
+    it('根拠の語句つき・同じ番号が続く引用も、すべて本文から消す（「2 2 2」と並ばない）', async () => {
+      installRefs(CITED_CONTEXT, CITED_SOURCES, '申込みは 2 月 28 日までです[2「2 月 28 日まで」][2「入寮の申込み」][2「第5条」]。');
       render(<App />);
-      await ask(user);
+      await ask(userEvent.setup());
 
-      await user.click(await screen.findByRole('button', { name: /参照資料 2: .*根拠の語句を強調/ }));
-      const mark = await screen.findByTestId('span-mark');
-      expect(mark).toHaveTextContent('2 月 28 日まで');
+      expect(await screen.findByText('申込みは 2 月 28 日までです。')).toBeInTheDocument();
+      expect(screen.queryByText(/「2 月 28 日まで」/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^参照資料 \d+: / })).not.toBeInTheDocument();
     });
 
-    it('語句が出典の本文に無い（言い換え・作り話）引用は、番号ごと消す（チャンク全体の強調にも戻さない）', async () => {
-      installRefs(CITED_CONTEXT, CITED_SOURCES, '申込みは 2 月末です[2「二月末まで」]。');
-      const user = userEvent.setup();
-      render(<App />);
-      await ask(user);
-
-      expect(await screen.findByText(/申込みは 2 月末です。/)).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /参照資料 2: / })).not.toBeInTheDocument();
-      expect(screen.queryByText('[2「二月末まで」]')).not.toBeInTheDocument();
-    });
-
-    it('存在しない番号・参照資料に出ない出典（weak）の番号は、本文からも消す', async () => {
+    it('存在しない番号・参照資料に出ない出典（weak）の番号も、本文から消す', async () => {
       installRefs(
         CITED_CONTEXT,
         CITED_SOURCES.map((source, i) => ({ ...source, weak: i === 1 })),
@@ -457,21 +445,18 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
       render(<App />);
       await ask(userEvent.setup());
 
-      await screen.findByRole('button', { name: /参照資料 1: / });
-      expect(screen.getAllByRole('button', { name: /^参照資料 \d+: / })).toHaveLength(1);
-      expect(screen.getByText(/二つ目です。三つ目です。/)).toBeInTheDocument();
+      expect(await screen.findByText('一つ目です。二つ目です。三つ目です。')).toBeInTheDocument();
     });
 
-    it('出典が無い回答では、引用の記法を本文から消す（ボタンも出さない）', async () => {
+    it('出典が無い回答でも、引用の記法を本文から消す', async () => {
       installRefs('', [], '資料にはありません[1「根拠」]。');
       render(<App />);
       await ask(userEvent.setup());
 
       expect(await screen.findByText('資料にはありません。')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /参照資料 \d+: / })).not.toBeInTheDocument();
     });
 
-    it('参照資料のカードには、本文の番号と同じ番号が付く', async () => {
+    it('参照資料の一覧の項目には、出典の順に番号が付く', async () => {
       installRefs(CITED_CONTEXT, CITED_SOURCES, '申込みは 2 月 28 日までです[2]。');
       render(<App />);
       await ask(userEvent.setup());

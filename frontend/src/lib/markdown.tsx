@@ -1,8 +1,4 @@
 import type { ReactNode } from 'react';
-import { hideOpenCitation, splitCitations } from './citations';
-import type { CitationRef } from './citations';
-import { formatPages, sourceLabel } from './sources';
-import type { SourceDoc } from './sources';
 
 /**
  * 回答の本文（Markdown の一部）を、React の要素にする。
@@ -11,19 +7,6 @@ import type { SourceDoc } from './sources';
  * 本文は必ずテキストとして描画する（HTML として解釈しない）。リンクと画像は解釈せず、書かれたまま見せる
  * （`javascript:` などの URL を押せる形にしない）。生成の途中の、閉じていない記法は、そのまま文字として見える。
  */
-
-/** 回答の文末の引用（`[1]` `[1「語句」]`）を、押せる番号にするための材料。無ければ、引用の記法も本文として見せる。 */
-export interface CitationOptions {
-  sources: SourceDoc[];
-  /** `referenceTargets` の結果（出典の添字 → 参照資料の項目の添字）。 */
-  targets: ReadonlyMap<number, number>;
-  /** 押したとき。`opener` は押した要素。 */
-  onOpen: (ref: CitationRef, opener: Element | null) => void;
-  /** 開いている最中の出典の添字（無ければ null）。 */
-  opening: number | null;
-  /** 生成の途中か。途中なら、末尾の閉じていない引用を見せない。 */
-  streaming: boolean;
-}
 
 type Block =
   | { type: 'code'; text: string }
@@ -118,35 +101,7 @@ function parseBlocks(text: string): Block[] {
 // 太字・斜体・インラインコード。`*` の前後が空白なら、記法とみなさない（「2 * 3 * 4」を壊さない）
 const INLINE = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|\*[^*\s][^*\n]*?\*)/g;
 
-function citationLabel(ref: CitationRef, sources: SourceDoc[]): string {
-  const source = sources[ref.index];
-  const pages = source === undefined ? null : formatPages(source.page, source.pageEnd, source.pageLabel, source.pageEndLabel);
-  return `参照資料 ${ref.number}${source ? `: ${sourceLabel(source)}${pages ? ` ${pages}` : ''}` : ''}を右のパネルで開く${ref.span ? '（根拠の語句を強調）' : ''}`;
-}
-
-function renderCitations(text: string, cite: CitationOptions, keyBase: string): ReactNode[] {
-  return splitCitations(text, cite.sources, cite.targets).map((part, index) => {
-    if (typeof part === 'string') return part;
-    return (
-      <span key={`${keyBase}-${index}`} className="cite-group">
-        {part.refs.map((ref) => (
-          <button
-            key={`${ref.index}-${ref.span ?? ''}`}
-            type="button"
-            className="cite"
-            aria-label={citationLabel(ref, cite.sources)}
-            disabled={cite.opening !== null}
-            onClick={(event) => cite.onOpen(ref, event.currentTarget)}
-          >
-            <sup>{ref.number}</sup>
-          </button>
-        ))}
-      </span>
-    );
-  });
-}
-
-function renderInline(text: string, cite?: CitationOptions): ReactNode[] {
+function renderInline(text: string): ReactNode[] {
   return text.split(INLINE).map((part, index) => {
     if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) {
       return <code key={index}>{part.slice(1, -1)}</code>;
@@ -157,15 +112,12 @@ function renderInline(text: string, cite?: CitationOptions): ReactNode[] {
     if (part.length > 2 && part.startsWith('*') && part.endsWith('*')) {
       return <em key={index}>{part.slice(1, -1)}</em>;
     }
-    return cite ? <span key={index}>{renderCitations(part, cite, String(index))}</span> : part;
+    return part;
   });
 }
 
-export function renderMarkdown(text: string, cite?: CitationOptions): ReactNode {
-  // 出典が無い回答（未検索・該当なし）は、引用を読まない（本文の「[1]」を消さない）
-  const active = cite && cite.sources.length > 0 ? cite : undefined;
-  const body = active?.streaming ? hideOpenCitation(text) : text;
-  return parseBlocks(body).map((block, index) => {
+export function renderMarkdown(text: string): ReactNode {
+  return parseBlocks(text).map((block, index) => {
     switch (block.type) {
       case 'code':
         return (
@@ -177,7 +129,7 @@ export function renderMarkdown(text: string, cite?: CitationOptions): ReactNode 
         // 回答は 1 つの発言の中なので、見出しの階層は 1 つにそろえる（画面の見出しの構造を乱さない）
         return (
           <p key={index} className="md-heading" role="heading" aria-level={4}>
-            {renderInline(block.text, active)}
+            {renderInline(block.text)}
           </p>
         );
       case 'list': {
@@ -185,7 +137,7 @@ export function renderMarkdown(text: string, cite?: CitationOptions): ReactNode 
         return (
           <Tag key={index}>
             {block.items.map((item, i) => (
-              <li key={i}>{renderInline(item, active)}</li>
+              <li key={i}>{renderInline(item)}</li>
             ))}
           </Tag>
         );
@@ -198,7 +150,7 @@ export function renderMarkdown(text: string, cite?: CitationOptions): ReactNode 
                 <tr>
                   {block.head.map((cell, i) => (
                     <th key={i} scope="col">
-                      {renderInline(cell, active)}
+                      {renderInline(cell)}
                     </th>
                   ))}
                 </tr>
@@ -207,7 +159,7 @@ export function renderMarkdown(text: string, cite?: CitationOptions): ReactNode 
                 {block.rows.map((row, r) => (
                   <tr key={r}>
                     {row.map((cell, c) => (
-                      <td key={c}>{renderInline(cell, active)}</td>
+                      <td key={c}>{renderInline(cell)}</td>
                     ))}
                   </tr>
                 ))}
@@ -221,7 +173,7 @@ export function renderMarkdown(text: string, cite?: CitationOptions): ReactNode 
             {block.lines.map((line, i) => (
               <span key={i}>
                 {i > 0 && <br />}
-                {renderInline(line, active)}
+                {renderInline(line)}
               </span>
             ))}
           </p>
