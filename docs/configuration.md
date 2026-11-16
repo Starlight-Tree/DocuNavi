@@ -42,7 +42,8 @@
 | `AUTH_AUDIENCE` | `docunavi` | JWT の対象（`aud`）として受け付ける値 |
 | `AUTH_JWKS_URL` | （空） | 公開鍵の取得先を上書きする（通常は使わない） |
 | `ACCESS_MODE` | `off` | 利用者のロールごとに、見える資料グループを制限するか（下の「資料グループのアクセス制御」）。`off` は制限なし（DB も読まない）、`shadow` は制限せずに絞り込まれる件数をログに出す、`enforce` は実際に制限する。知らない値は起動を失敗させる。`shadow` と `enforce` は `DATABASE_URL` と、マイグレーション `20261026045921` の適用が要る |
-| `ACCESS_CACHE_TTL_SECONDS` | `60` | 利用者ごとの見えるグループの控えを持つ秒数（`0` で無効。負・数でない値は起動を失敗させる） |
+| `ACCESS_CACHE_TTL_SECONDS` | `60` | 利用者ごとの見えるグループと、利用資格の控えを持つ秒数（`0` で無効。負・数でない値は起動を失敗させる） |
+| `MEMBERSHIP_MODE` | `off` | ログインした利用者のうち、**アプリを使ってよい人**（`app_members` にいる人）だけに限るか（下の「利用資格（アプリを使ってよい人）」）。`off` は確認しない（ログインした全員が使える）、`shadow` は拒否せずログに出す、`enforce` は資格のない利用者を 403 にする。`ACCESS_MODE` とは独立。`shadow` と `enforce` は `AUTH_MODE=required`、`DATABASE_URL`、マイグレーション `0003` が要る。**本番では、未設定にせず値を明示する**（未設定で `AUTH_MODE=required` だと、起動時に警告が出る）。知らない値は起動を失敗させる |
 
 ## 資料の検索
 
@@ -142,6 +143,36 @@ insert into user_roles (user_id, role) values ('<"user".id>', 'cafe-staff');
 
 利用者の ID は Postgres の `"user"` 表で確認します（メールとの対応は `"user".email`）。
 **確かめた範囲:** `tests/test_access.py`（偽の DB。10 経路の漏れ、`default` ロールが `off` と同じ結果になること、`ACCESS_MODE` の 3 値、`scope` を渡し忘れても全件を検索しないこと、会話の伏せ方）。**未確認:** 本番の Postgres での `shadow` のログの観察結果、`access_audit` に書き込む手順。
+
+## 利用資格（アプリを使ってよい人）
+
+Google ログインは「だれか」を確かめるだけで、「その人に使わせてよいか」は別に決めます。`MEMBERSHIP_MODE` と表 `app_members`（マイグレーション `db/migrations/0003_app_members.sql`。空の表を作るだけで、利用者 ID は入れない）が、その判断です。**未実装の部分（利用量の枠）は、下の「利用量の制限」を参照。**
+
+- **資料の権限とは独立。** ロール・グループ（上の「資料グループのアクセス制御」）は「どの資料が見えるか」、資格は「アプリを使ってよいか」。`default` に資料を足しても、ロールを付け替えても、資格は変わりません。逆に、資格があっても見える資料が 0 件なら、資料の経路は 403（`利用できる資料がありません。`）です。`MEMBERSHIP_MODE` と `ACCESS_MODE` は、片方が `off` でももう片方が効きます。
+- **1 か所で確かめる。** 資料・チャット・会話を扱う全経路は `request_access`（`app/access.py`）を通り、会話の一覧・削除は `current_member` を通ります。`/health` だけが公開です。経路ごとに書き足さず、新しい経路が関門を通らなければ `tests/test_membership.py` が落ちます（ルートの一覧から自動で数える）。
+- **断り方。** 資格がなければ、レスポンスを始める前に 403 で断ります（ストリーミングも HTTP の 403。LLM は呼ばれない）。本文は `{"detail": "このアカウントには利用許可がありません。", "code": "APP_MEMBERSHIP_REQUIRED"}`。資料の権限の 403 には `code` が付かないので、画面は区別できます（画面は、この `code` のときだけ「利用許可がありません」の画面にして、ログアウトを出します。申請や承認の仕組みは無いので、「許可待ち」とは書かない）。
+- **DB が引けないとき。** `enforce` は 503（`利用資格を確認できませんでした。…`。`code` なし）で、許可には倒れません。`shadow` は拒否せずに続け、警告を 1 行残します。
+- **`shadow`。** 拒否せず、`enforce` なら拒否される要求を、経路だけログに出します（`利用資格(shadow): <経路> は enforce では拒否される`）。ユーザー ID は出しません。
+- **起動時。** `shadow` / `enforce` は `app_members` を 1 回読み、読めなければ起動を失敗させます（`AUTH_MODE=off` との組み合わせも失敗）。`enforce` で 0 件なら、全員が拒否されるので警告します。`off` は何も読みません。`AUTH_MODE=required` で `MEMBERSHIP_MODE` が未設定なら、「off 扱い」と分かる警告を出します（値を明示すれば出ない）。
+- **取り消しの効き方。** 判定は、資料の権限と同じ TTL（`ACCESS_CACHE_TTL_SECONDS`。既定 60 秒）でプロセス内に控えます（許可も不許可も。引けなかった結果は控えない）。**新しいリクエストへの反映は、通常はこの TTL 以内**（Cloud Run はインスタンスごとに別の控えで、無効化の通信はしない。再起動すると控えは空）。**進行中の応答は止まりません**（確認はリクエストの開始時だけ）。付与も同じ遅れで効きます。JWT（15 分）や Cookie の写し（5 分）の寿命には依存しません（バックエンドが毎回確かめるため）。
+- **許可外のユーザー行は消さない。** Google ログイン自体は通り（Better Auth のユーザー行はできる）、料金のかかる操作と資料には届きません。ログインの入口で止める（Worker の `user.create.before`）のは、今回は入れていません。
+
+**運用（`python -m app.access_admin member …`）。** 既定は確認だけで、`--apply` で書き、`access_audit` に 1 行残します。何度流しても同じ結果です（冪等）。
+
+```bash
+python -m app.access_admin member show   --email <メール>
+python -m app.access_admin member add    --email <メール> [--note <メモ>] --apply
+python -m app.access_admin member remove --user-id <ID> --apply
+python -m app.access_admin member list      # 人数だけ（メール・ID は出さない）
+```
+
+**本番へ入れる順序（それぞれ別に承認を得る）:** ① マイグレーション `0003` の適用 → ② 自分のアカウントに `member add` → ③ Cloud Run に `MEMBERSHIP_MODE=shadow`（ログで、拒否される要求と人数を確認）→ ④ `MEMBERSHIP_MODE=enforce`。自分が締め出されないよう、②が先です。**未確認（本番）:** 上のすべて。ローカルの検証は、使い捨ての Postgres と偽の DB だけです。
+
+**確かめた範囲:** `tests/test_membership.py`（全経路の拒否と LLM に届かないこと、ストリームの 403、識別コード、`MEMBERSHIP_MODE` と `ACCESS_MODE` の独立、`shadow` / `off`、控えの TTL・期限切れ後の再照会・失敗を控えないこと、有効な JWT でも取り消しが効くこと、起動時の検査、運用コマンドと表〔`PG_TEST_URL` があるとき〕）。フロントは `AuthApp.test.tsx`・`authFetch.test.ts`・`chat.test.ts`。
+
+### 利用量の制限（未実装）
+
+利用資格は「だれが使えるか」で、「どれだけ使えるか」ではありません。利用者別・日次・全体の枠は、まだありません（既存の上限: Cloud Run の `--max-instances 2` と `--concurrency 20`〔文書の値。現在の実設定は未確認〕、中継の IP 別レート制限〔本番の経路に入っているかは未確認〕、予算の自動停止〔`docs/deploy.md` の G。ただし 2026-11-09 の読み取りでは `DRY_RUN=true` で、止める判断をログに出すだけ。現状は未確認〕、1 回の LLM 呼び出しの `LLM_MAX_ATTEMPTS`）。**コードで確かめた 1 リクエストの上限（2026-11-16）:** 質問は 2000 文字（`MAX_MESSAGE_LENGTH`）、リクエスト全体のタイムアウト 60 秒（`LLM_TIMEOUT_SECONDS`）、LLM の 1 試行は 30 秒（ヘッジなしは 15 秒）で最大 3 本（`LLM_MAX_ATTEMPTS`。ヘッジは 8 秒後）、検索は 1 質問に 2 回まで（`LLM_MAX_SEARCHES`）。**設定が見当たらないもの:** LangGraph の `recursion_limit`（コードでは未指定。インストール済みの 1.2.15 の既定は 10007〔環境変数 `LANGGRAPH_DEFAULT_RECURSION_LIMIT`〕で、実質、歯止めにならない。検索の回数は `LLM_MAX_SEARCHES` が別に抑える。なお、これはグラフのステップ数で、LLM の呼び出し回数や料金の上限ではない）、Gemini の最大出力トークン、会話履歴の切り詰め（長い会話では、毎回の入力が増える）。**公開デモにするとき、または限定運用の実測で必要になったときに追加する。** 共有の枠は、複数インスタンスで共有でき、競合しても上限を守れる仕組みが要る（Postgres の原子的な加算は候補。1 チャットに 1 本の書き込みが増える）。切り替えの前に、1 リクエスト全体の LLM・ツール呼び出しの上限、タイムアウト、既存の停止手段の稼働を確かめる。
 
 ## 対象と資料種別（`target` / `doc_type`）
 
