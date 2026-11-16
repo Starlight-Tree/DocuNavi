@@ -76,6 +76,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="DocuNavi", description="資料を聞く・探す", lifespan=lifespan)
 
 origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
+# 後に足したものが外側になる。CORS は最後（最も外側）に足す
+app.add_middleware(StatementCountMiddleware)  # リクエストごとの SQL の本数をログに残す（`[計測] DB …`）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -83,7 +85,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(StatementCountMiddleware)  # リクエストごとの SQL の本数をログに残す（`[計測] DB …`）
 app.include_router(router)
 app.include_router(documents_router)
 app.include_router(collections_router)
