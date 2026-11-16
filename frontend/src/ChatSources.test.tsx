@@ -529,6 +529,14 @@ describe('続けて聞く', () => {
     expect(followUpQuestions(['ザーハード2.pdf'], [])).toHaveLength(3);
   });
 
+  it('ファイル名が表と合わなくても、コレクション名つきのパスか資料の題名で候補を出す', () => {
+    const dorm = ['入寮できるのは誰ですか？', '寮費はいくらですか？', '門限は何時ですか？'];
+    expect(followUpQuestions(['guides/tsubasa_dorm_rules.pdf'], [])).toEqual(dorm);
+    expect(followUpQuestions([{ name: 'tsubasa-dorm/rules-01.pdf', title: 'つばさ大学学生寮 入寮規程' }], [])).toEqual(dorm);
+    expect(followUpQuestions([{ name: 'x/y.pdf', title: '惑星ザーハード概説' }], [])).toHaveLength(3);
+    expect(followUpQuestions([{ name: 'x/y.pdf', title: '知らない題名' }, { name: 'z.pdf', title: null }], [])).toEqual([]);
+  });
+
   it('回答の下に出し、押すとその質問を送る', async () => {
     const { chatBodies } = installFetch((_body, call) =>
       call === 1 ? replyResponse({ reply: '2 月 28 日までです。', context: CONTEXT }) : replyResponse({ reply: '月額です。' }),

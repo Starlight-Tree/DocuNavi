@@ -127,7 +127,11 @@ export function MessageList({
   const followUps =
     onExample && !busy && lastMessage?.role === 'assistant' && lastMessage.context
       ? followUpQuestions(
-          [...new Set(parseSources(lastMessage.context).map((source) => source.name))],
+          // 題名はサーバーが送る出典の情報（lastMessage.sources）から引く。無い（古い応答・保存前の会話）ときはファイル名だけで決める
+          [...new Set(parseSources(lastMessage.context).map((source) => source.name))].map((name) => ({
+            name,
+            title: lastMessage.sources?.find((ref) => ref.name === name)?.title ?? null,
+          })),
           messages.filter((m) => m.role === 'user').map((m) => m.text),
         )
       : [];
