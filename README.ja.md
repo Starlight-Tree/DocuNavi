@@ -7,13 +7,13 @@
 資料（PDF）を根拠に答える RAG チャットボットです（FastAPI、LangGraph、Gemini、Postgres + pgvector、Cloudflare Workers 上の Next.js）。回答には出典の番号が付き、押すと資料が開きます。
 題材の資料（`storage/pdf/`）は架空のものです。
 
-| チャット（出典と、続けて聞く候補つき） | 資料一覧（対象・資料種別で絞り込み、回答に使う資料を選ぶ） |
+| チャット（回答の下に出典、続けて聞く候補、複数回の追加質問と会話の履歴） | 資料一覧（対象・資料種別で絞り込み、回答に使う資料を選ぶ） |
 |---|---|
 | ![チャット画面](docs/images/chat.png) | ![資料一覧](docs/images/documents.png) |
 
 ## 特徴
 
-- **出典つきの回答。** `[n]` から根拠の資料とページを開けます。回答に使う資料を選べます。
+- **出典つきの回答。** 回答の下の「N 件のソース」から、根拠の資料とページを開けます。回答に使う資料を選べます。
 - **測定した検索。** レイアウトを使ったチャンク分割、ハイブリッド検索（BM25 + pgvector）、リランク、GraphRAG。構成ごとの効果は `evals/` で測っています（[docs/search-design.md](docs/search-design.md)）。
 - **ガードレール。** 入力と回答を検査し、ストリーミング中の漏洩も止めます。ルールベースで、プロンプトインジェクションを完全には防ぎません（[docs/guardrails.md](docs/guardrails.md)）。
 - **LLM の不安定さへの対処。** ヘッジ、別モデルへのフォールバック、無料枠が尽きたときの有料キーへの切り替え（[docs/configuration.md](docs/configuration.md)）。

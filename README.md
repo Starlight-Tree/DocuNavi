@@ -7,13 +7,13 @@ English | [日本語](README.ja.md)
 DocuNavi is a RAG chatbot that answers questions from PDF documents and cites its sources (FastAPI, LangGraph, Gemini, Postgres + pgvector, Next.js on Cloudflare Workers).
 The sample documents (`storage/pdf/`) are fictional.
 
-| Chat (with citations and follow-up suggestions) | Document list (filter by group and type, choose which documents to use) |
+| Chat (sources under each answer, follow-up suggestions, a multi-turn conversation with history) | Document list (filter by group and type, choose which documents to use) |
 |---|---|
 | ![Chat screen](docs/images/chat.png) | ![Document list](docs/images/documents.png) |
 
 ## Features
 
-- **Answers with citations.** A `[n]` marker opens the source document and page. You choose which documents an answer may use.
+- **Answers with citations.** The "N sources" button under each answer opens the source document and page. You choose which documents an answer may use.
 - **Measured search.** Layout-aware chunking, hybrid search (BM25 + pgvector), reranking and GraphRAG; each configuration is evaluated in `evals/` ([docs/search-design.md](docs/search-design.md)).
 - **Guardrails.** Input and answers are checked, including prompt leaks while streaming. Rule-based, so not a full defense against prompt injection ([docs/guardrails.md](docs/guardrails.md)).
 - **Resilient LLM calls.** Hedged requests, model fallback, and a paid-key switch when the free tier runs out ([docs/configuration.md](docs/configuration.md)).
