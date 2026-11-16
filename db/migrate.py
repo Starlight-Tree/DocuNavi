@@ -1,10 +1,23 @@
-"""Minimal SQL migration runner for the Prisma Postgres DB. DRAFT - not run yet.
+"""Minimal SQL migration runner for Postgres (Prisma Postgres by default, Cloud SQL as an explicit second target).
 
   python db/migrate.py            # plan: list applied / pending (read-only session, writes nothing)
   python db/migrate.py --apply    # apply pending files, one transaction per file
 
-Reads DIRECT_URL from the environment (never printed). Only the direct host db.prisma.io is accepted
-(DDL must not go through the PgBouncer pooled host). Files: db/migrations/NNNN_name.sql, applied in name order.
+Targets (MIGRATE_TARGET):
+  prisma (default)  reads DIRECT_URL. Only the direct host db.prisma.io:5432 is accepted (DDL must not go through the
+                    PgBouncer pooled host). Behaviour and query count are unchanged from before: no extra checks, because
+                    every query on Prisma Postgres counts against the plan's operation quota.
+  cloudsql          reads MIGRATE_DATABASE_URL (never DIRECT_URL). Needs an explicit allowlist, all required:
+                      MIGRATE_ALLOWED_HOST / MIGRATE_ALLOWED_DB / MIGRATE_ALLOWED_USER
+                    and a TLS URL: sslmode=verify-ca (or verify-full) + sslrootcert=<existing file>. Rejected before connecting:
+                    other hosts, libpq overrides in the URL (host=, hostaddr=, ...), PG* environment overrides, *.prisma.io.
+                    Checked after connecting: the real host/db/user, TLS in use (server side), the user is not a superuser or a
+                    member of cloudsqlsuperuser (so create the migration user with SQL, not `gcloud sql users create`), and the
+                    `vector` extension already exists (create it once as postgres; this user cannot).
+                    Optional MIGRATE_APP_ROLE: after --apply, grant that role DML on the tables (and default privileges).
+
+Secrets: the URL and its password are never printed. Failures print a fixed message, the exception class and the SQLSTATE only.
+Files: db/migrations/NNNN_name.sql, applied in name order.
 History table schema_migrations(version, checksum, applied_at): an applied file whose checksum changed aborts the run
 (edit a new file instead). A session advisory lock prevents two runners at once. Needs psycopg 3.
 """
@@ -13,9 +26,10 @@ import hashlib
 import os
 import sys
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import psycopg
+from psycopg import sql
 
 MIGRATIONS = Path(__file__).resolve().parent / "migrations"
 LOCK_KEY = 7260801  # arbitrary constant for pg_advisory_lock
@@ -24,18 +38,139 @@ HISTORY_DDL = (
     "version text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())"
 )
 
+# cloudsql target: the only URL query parameters accepted. Anything else (host, hostaddr, service, options, ...) could
+# redirect the connection past the allowlist.
+CLOUDSQL_ALLOWED_QUERY = {"sslmode", "sslrootcert"}
+CLOUDSQL_TLS_MODES = {"verify-ca", "verify-full"}
+# libpq reads these when the URL leaves a field out; the cloudsql target requires everything explicit.
+FORBIDDEN_PG_ENV = (
+    "PGHOST", "PGHOSTADDR", "PGPORT", "PGDATABASE", "PGUSER", "PGSERVICE", "PGSERVICEFILE", "PGSSLMODE",
+    "PGSSLROOTCERT", "PGSSLCERT", "PGSSLKEY", "PGOPTIONS", "PGPASSFILE",
+)  # fmt: skip
+
+
+def fail(message: str) -> None:
+    """Exit with a fixed message. Never pass a URL, password or exception text here."""
+    sys.exit(message)
+
+
+def validate_cloudsql_url(url: str, env: dict[str, str]) -> None:
+    """Checks that need no connection. Calls fail() with a fixed message (no URL content) on any violation."""
+    allowed = {k: env.get(k, "") for k in ("MIGRATE_ALLOWED_HOST", "MIGRATE_ALLOWED_DB", "MIGRATE_ALLOWED_USER")}
+    missing = [k for k, v in allowed.items() if not v]
+    if missing:
+        fail("cloudsql target: set " + ", ".join(missing) + " (explicit allowlist)")
+    leaked = [k for k in FORBIDDEN_PG_ENV if env.get(k)]
+    if leaked:
+        fail("cloudsql target: unset these PG* environment variables: " + ", ".join(leaked))
+    try:
+        u = urlsplit(url)
+        port = u.port
+        query = parse_qs(u.query, keep_blank_values=True)
+    except ValueError:
+        fail("cloudsql target: MIGRATE_DATABASE_URL is not a valid URL")
+    if u.scheme not in ("postgresql", "postgres"):
+        fail("cloudsql target: MIGRATE_DATABASE_URL must be a postgresql:// URL")
+    host = u.hostname or ""
+    if "," in u.netloc.rpartition("@")[2] or not host:
+        fail("cloudsql target: exactly one explicit host is required")
+    if host.endswith("prisma.io") or allowed["MIGRATE_ALLOWED_HOST"].endswith("prisma.io"):
+        fail("cloudsql target: a prisma.io host is never accepted here (use MIGRATE_TARGET=prisma)")
+    if host != allowed["MIGRATE_ALLOWED_HOST"]:
+        fail("cloudsql target: host is not MIGRATE_ALLOWED_HOST")
+    if port != 5432:
+        fail("cloudsql target: port must be explicit 5432")
+    if urlsplit(url).path.lstrip("/") != allowed["MIGRATE_ALLOWED_DB"]:
+        fail("cloudsql target: database is not MIGRATE_ALLOWED_DB")
+    if u.username != allowed["MIGRATE_ALLOWED_USER"]:
+        fail("cloudsql target: user is not MIGRATE_ALLOWED_USER")
+    if not u.password:
+        fail("cloudsql target: the URL must carry a password (it is never printed)")
+    extra = sorted(set(query) - CLOUDSQL_ALLOWED_QUERY)
+    if extra:
+        fail("cloudsql target: URL query parameters not allowed: " + ", ".join(extra))
+    mode = (query.get("sslmode") or [""])[0]
+    if mode not in CLOUDSQL_TLS_MODES:
+        fail("cloudsql target: sslmode must be verify-ca or verify-full")
+    root = (query.get("sslrootcert") or [""])[0]
+    if not root or not Path(root).is_file():
+        fail("cloudsql target: sslrootcert must point at an existing CA file")
+
+
+def check_cloudsql_session(conn: psycopg.Connection, env: dict[str, str]) -> None:
+    """Checks on the live session (read-only queries). Calls fail() on any violation."""
+    info = conn.info
+    if (info.host, info.port, info.dbname, info.user) != (
+        env["MIGRATE_ALLOWED_HOST"], 5432, env["MIGRATE_ALLOWED_DB"], env["MIGRATE_ALLOWED_USER"]
+    ):  # fmt: skip
+        fail("cloudsql target: the connected host/port/db/user differ from the allowlist")
+    if not info.ssl_in_use:
+        fail("cloudsql target: TLS is not in use")
+    row = conn.execute(
+        "select current_database(), current_user, session_user,"
+        " coalesce((select ssl from pg_stat_ssl where pid = pg_backend_pid()), false),"
+        " (select r.rolsuper or r.rolcreaterole or r.rolcreatedb or r.rolreplication or r.rolbypassrls"
+        "    from pg_roles r where r.rolname = current_user),"
+        " case when exists (select 1 from pg_roles where rolname = 'cloudsqlsuperuser')"
+        "      then pg_has_role(current_user, 'cloudsqlsuperuser', 'member') else false end,"
+        " exists (select 1 from pg_extension where extname = 'vector')"
+    ).fetchone()
+    db, cur, sess, ssl, privileged, superuser_member, has_vector = row
+    if db != env["MIGRATE_ALLOWED_DB"] or cur != env["MIGRATE_ALLOWED_USER"] or sess != env["MIGRATE_ALLOWED_USER"]:
+        fail("cloudsql target: current_database/current_user/session_user differ from the allowlist")
+    if not ssl:
+        fail("cloudsql target: the server reports this session is not encrypted")
+    if privileged or superuser_member:
+        fail(
+            "cloudsql target: the migration user must not be superuser/createrole/createdb/replication/bypassrls "
+            "or a member of cloudsqlsuperuser (create it with SQL CREATE ROLE, not gcloud sql users create)"
+        )
+    if not has_vector:
+        fail("cloudsql target: extension vector is missing (create it once as postgres; this user cannot)")
+
 
 def connect(read_only: bool) -> psycopg.Connection:
-    url = os.environ.get("DIRECT_URL")
-    if not url:
-        sys.exit("DIRECT_URL is not set (run via: infisical run ... -- python db/migrate.py)")
-    u = urlsplit(url)
-    if u.hostname != "db.prisma.io" or u.port != 5432:
-        sys.exit("DIRECT_URL must point at the direct host db.prisma.io:5432 (not the pooled host)")
-    conn = psycopg.connect(url, connect_timeout=15, autocommit=True)
+    target = os.environ.get("MIGRATE_TARGET", "prisma")
+    env = dict(os.environ)
+    if target == "prisma":
+        url = env.get("DIRECT_URL")
+        if not url:
+            fail("DIRECT_URL is not set (run via: infisical run ... -- python db/migrate.py)")
+        u = urlsplit(url)
+        if u.hostname != "db.prisma.io" or u.port != 5432:
+            fail("DIRECT_URL must point at the direct host db.prisma.io:5432 (not the pooled host)")
+    elif target == "cloudsql":
+        url = env.get("MIGRATE_DATABASE_URL")
+        if not url:
+            fail("cloudsql target: MIGRATE_DATABASE_URL is not set")
+        validate_cloudsql_url(url, env)
+    else:
+        fail("MIGRATE_TARGET must be prisma (default) or cloudsql")
+    try:
+        conn = psycopg.connect(url, connect_timeout=15, autocommit=True)
+    except psycopg.Error as e:  # libpq text can echo connection details; print only the class and SQLSTATE
+        fail(f"connection failed ({type(e).__name__}, sqlstate={e.sqlstate})")
+    if target == "cloudsql":
+        check_cloudsql_session(conn, env)
     if read_only:  # server-side guard for plan mode (conn.read_only is not applied in autocommit mode)
         conn.execute("set default_transaction_read_only = on")
     return conn
+
+
+def grant_app_role(conn: psycopg.Connection, role: str) -> None:
+    """DML for the app role on what the migration user created, plus default privileges for later tables.
+    Idempotent. Runs as the migration user (the owner), so it needs no extra membership."""
+    r = sql.Identifier(role)
+    for stmt in (
+        "GRANT USAGE ON SCHEMA public TO {r}",
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {r}",
+        "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {r}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {r}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO {r}",
+    ):
+        conn.execute(sql.SQL(stmt).format(r=r))
+    # the history table is the migration user's own bookkeeping
+    conn.execute(sql.SQL("REVOKE ALL ON TABLE schema_migrations FROM {r}").format(r=r))
 
 
 def files() -> list[tuple[str, str, str]]:
@@ -84,6 +219,11 @@ def main() -> None:
             conn.execute("insert into schema_migrations (version, checksum) values (%s, %s)", (version, checksum))
         print("applied", version)
     conn.autocommit = True
+    app_role = os.environ.get("MIGRATE_APP_ROLE", "") if os.environ.get("MIGRATE_TARGET") == "cloudsql" else ""
+    if app_role:
+        with conn.transaction():
+            grant_app_role(conn, app_role)
+        print("granted DML to the app role")
     print("DONE")
 
 
