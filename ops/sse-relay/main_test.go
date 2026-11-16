@@ -753,7 +753,7 @@ func TestMaxStreamsFromEnv(t *testing.T) {
 // 断る応答の CORS は許可リスト方式。リストのオリジンだけ値を返し、許可外・Origin なしには CORS ヘッダーを返さない。"*" は返さない。
 func TestRejectCORSAllowlist(t *testing.T) {
 	l := newStreamLimiter(1, t.Logf)
-	l.setAllowedOrigins([]string{"https://docunavi-eosin.vercel.app", "http://localhost:3000"})
+	l.setAllowedOrigins([]string{"https://docunavi-web.wataru-apps.workers.dev", "http://localhost:3000"})
 	relay := relayWithLimiter(t, holdStreams(nil), l)
 	resp, cancel := openStream(t, relay.URL)
 	defer cancel()
@@ -766,11 +766,11 @@ func TestRejectCORSAllowlist(t *testing.T) {
 		origin string
 		want   string // 空なら Access-Control-Allow-Origin が無いこと
 	}{
-		{"https://docunavi-eosin.vercel.app", "https://docunavi-eosin.vercel.app"},
+		{"https://docunavi-web.wataru-apps.workers.dev", "https://docunavi-web.wataru-apps.workers.dev"},
 		{"http://localhost:3000", "http://localhost:3000"},
 		{"https://evil.example", ""},
-		{"https://docunavi-eosin.vercel.app.evil.example", ""}, // 前方一致で通さない
-		{"http://docunavi-eosin.vercel.app", ""},               // スキームが違う
+		{"https://docunavi-web.wataru-apps.workers.dev.evil.example", ""}, // 前方一致で通さない
+		{"http://docunavi-web.wataru-apps.workers.dev", ""},               // スキームが違う
 		{"null", ""},
 		{"", ""}, // Origin なし（curl など）
 	}
