@@ -311,3 +311,24 @@ def test_optional_classes_skips_missing_things():
         ("builtins", "ValueError"),
     )
     assert found == (ValueError,)
+
+
+# ---- ミドルウェアの順序 ----
+
+
+def test_cors_middleware_is_outermost():
+    # add_middleware は後に足したものが外側になる。CORS が最外でないと、他のミドルウェアが作る応答
+    # （エラーなど）に CORS ヘッダーが付かなくなる。足す順序をコメントだけで守らない
+    from starlette.middleware.cors import CORSMiddleware
+
+    assert app.user_middleware[0].cls is CORSMiddleware
+
+
+def test_preflight_gets_cors_headers():
+    with TestClient(app) as client:
+        res = client.options(
+            "/chat",
+            headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST"},
+        )
+    assert res.status_code == 200
+    assert "access-control-allow-origin" in res.headers
