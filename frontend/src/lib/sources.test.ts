@@ -75,6 +75,17 @@ describe('parseSourceRefs', () => {
     ]);
   });
 
+  it('suggested_questions は、文字列だけを重複と空を除いて 3 件まで読む。使えるものが無い・無いときは項目を付けない', () => {
+    const refs = parseSourceRefs([
+      { name: 'a.pdf', page: 1, page_end: null, suggested_questions: [' 門限は？ ', '門限は？', '', 3, '寮費は？', '申込みは？', '四つ目は？'] },
+      { name: 'b.pdf', page: 1, page_end: null, suggested_questions: [] },
+      { name: 'c.pdf', page: 1, page_end: null, suggested_questions: 'x' },
+      { name: 'd.pdf', page: 1, page_end: null },
+      { name: 'e.pdf', page: 1, page_end: null, suggested_questions: ['x'.repeat(61)] },
+    ]);
+    expect(refs?.map((ref) => ref.suggestedQuestions)).toEqual([['門限は？', '寮費は？', '申込みは？'], undefined, undefined, undefined, undefined]);
+  });
+
   it('collection は、資料グループの名前の形のときだけ読む。それ以外・無いときは null', () => {
     expect(
       parseSourceRefs([

@@ -35,9 +35,12 @@ const ZAHARD_TITLES: ReadonlySet<string> = new Set(['惑星ザーハード概説
 export interface FollowUpSource {
   name: string;
   title?: string | null;
+  /** 資料ごとに取り込み時に作って保存した質問（サーバーが出典に載せる）。あれば、下の固定表より優先する。 */
+  suggestedQuestions?: readonly string[];
 }
 
-function questionsFor({ name, title }: FollowUpSource): readonly string[] {
+function questionsFor({ name, title, suggestedQuestions }: FollowUpSource): readonly string[] {
+  if (suggestedQuestions && suggestedQuestions.length > 0) return suggestedQuestions;
   const base = name.split('/').pop() ?? name;
   if (/^ザーハード\d*\.(pdf|txt)$/.test(base)) return ZAHARD;
   const byName = BY_SOURCE[base];

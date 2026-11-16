@@ -529,6 +529,16 @@ describe('続けて聞く', () => {
     expect(followUpQuestions(['ザーハード2.pdf'], [])).toHaveLength(3);
   });
 
+  it('出典が質問を持っていれば、固定表より優先する（持っていない資料は固定表で補う）', () => {
+    expect(followUpQuestions([{ name: 'x/y.pdf', title: null, suggestedQuestions: ['この資料の質問ですか？'] }], [])).toEqual([
+      'この資料の質問ですか？',
+    ]);
+    expect(
+      followUpQuestions([{ name: 'guides/tsubasa_dorm_rules.pdf', suggestedQuestions: ['保存した質問ですか？'] }], []),
+    ).toEqual(['保存した質問ですか？']);
+    expect(followUpQuestions([{ name: 'guides/tsubasa_dorm_rules.pdf', suggestedQuestions: [] }], [])).toHaveLength(3);
+  });
+
   it('ファイル名が表と合わなくても、コレクション名つきのパスか資料の題名で候補を出す', () => {
     const dorm = ['入寮できるのは誰ですか？', '寮費はいくらですか？', '門限は何時ですか？'];
     expect(followUpQuestions(['guides/tsubasa_dorm_rules.pdf'], [])).toEqual(dorm);

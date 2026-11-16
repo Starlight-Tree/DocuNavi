@@ -38,6 +38,8 @@ export interface SourceRef {
   documentId?: number | null;
   /** 資料の題名。古いサーバー（送ってこない）・題名が無い・不正な値は null（省略もよい）。 */
   title?: string | null;
+  /** その資料に答えがある「続けて聞く」の質問（最大 3 件）。古いサーバー・古い会話・未生成の資料は無い（省略）。 */
+  suggestedQuestions?: string[];
 }
 
 /** 画面に出す資料の名前。題名があれば題名、無ければファイル名。 */
@@ -128,6 +130,20 @@ const parseTitle = (value: unknown): string | null => {
   return title !== '' && title.length <= MAX_TITLE_LENGTH ? title : null;
 };
 
+const MAX_QUESTIONS = 3;
+const MAX_QUESTION_LENGTH = 60;
+/** 「続けて聞く」の質問（信用しない入力）。文字列だけを、空・長すぎるもの・重複を除いて 3 件まで。使えるものが無ければ無し。 */
+const parseQuestions = (value: unknown): string[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const questions: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const text = item.trim();
+    if (text !== '' && text.length <= MAX_QUESTION_LENGTH && !questions.includes(text)) questions.push(text);
+  }
+  return questions.length > 0 ? questions.slice(0, MAX_QUESTIONS) : undefined;
+};
+
 /**
  * サーバーの `sources`（信用しない入力）を読む。配列でなければ undefined（古い応答。画面は突き合わせにフォールバックする）。
  * ページが 1 以上の整数でなければ null にして表示しない。`page_end` は `page` より大きいときだけ使う。
@@ -147,12 +163,14 @@ export function parseSourceRefs(value: unknown): SourceRef[] | undefined {
       collection,
       document_id: documentId,
       title,
+      suggested_questions: suggestedQuestions,
     } = item as Record<string, unknown>;
     if (typeof name !== 'string') return undefined;
     const validPage = isPage(page) ? page : null;
     const validEnd = validPage !== null && isPage(pageEnd) && pageEnd > validPage ? pageEnd : null;
     const label = validPage === null ? undefined : parsePageLabel(pageLabel);
     const endLabel = validEnd === null ? undefined : parsePageLabel(pageEndLabel);
+    const questions = parseQuestions(suggestedQuestions);
     refs.push({
       name,
       page: validPage,
@@ -163,6 +181,7 @@ export function parseSourceRefs(value: unknown): SourceRef[] | undefined {
       collection: typeof collection === 'string' && COLLECTION_NAME_PATTERN.test(collection) ? collection : null,
       documentId: isDocumentId(documentId) ? documentId : null,
       title: parseTitle(title),
+      ...(questions === undefined ? {} : { suggestedQuestions: questions }),
     });
   }
   return refs;
