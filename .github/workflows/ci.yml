@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend tests (Python 3.12)
+    name: Backend tests (Python 3.14)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # tests/test_history_pg_backend.py（Postgres 版の窓口）が使う、使い捨ての Postgres（pgvector 入り）。本物の DB には触れない
@@ -40,8 +40,8 @@ jobs:
           persist-credentials: false  # 後続のステップで git の認証は使わない
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          # Dockerfile のベースイメージ（python:3.12-slim）と、依存を固定した版にそろえる
-          python-version: "3.12"
+          # Dockerfile のベースイメージ（python:3.14-slim）と、依存を固定した版にそろえる
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - name: Install dependencies

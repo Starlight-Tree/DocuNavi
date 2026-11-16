@@ -107,11 +107,11 @@ Infisical CLI がプロジェクトを選ぶ `.infisical.yaml` も Git 管理外
 
 ## 依存の更新
 
-- **Python:** `requirements.txt` と `requirements-dev.txt` は、`requirements.in` / `requirements-dev.in` から [uv](https://docs.astral.sh/uv/) で生成した固定ファイルです（Python 3.12、全プラットフォーム向け）。直接は編集せず、`.in` を編集して次を実行します。
+- **Python:** `requirements.txt` と `requirements-dev.txt` は、`requirements.in` / `requirements-dev.in` から [uv](https://docs.astral.sh/uv/) で生成した固定ファイルです（Python 3.14、全プラットフォーム向け）。直接は編集せず、`.in` を編集して次を実行します。
 
   ```bash
-  uv pip compile requirements.in --universal --python-version 3.12 -o requirements.txt
-  uv pip compile requirements-dev.in --universal --python-version 3.12 -c requirements.txt -o requirements-dev.txt
+  uv pip compile requirements.in --universal --python-version 3.14 -o requirements.txt
+  uv pip compile requirements-dev.in --universal --python-version 3.14 -c requirements.txt -o requirements-dev.txt
   ```
 
 - **`requirements-lint.txt`:** CI の `workflow-lint` ジョブ（actionlint と zizmor）だけが使う、ハッシュ付きの固定です。版は `requirements-lint.in` を手で上げて、`uv pip compile requirements-lint.in --universal --python-version 3.12 --generate-hashes -o requirements-lint.txt` で再生成します。

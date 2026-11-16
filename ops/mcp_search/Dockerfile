@@ -1,6 +1,6 @@
 # 資料検索の MCP サーバーのイメージ（docs/mcp-tool-design.md）。アプリの app/ を使うので、ビルドの文脈はリポジトリの根
 # （ops/mcp_search/cloudbuild.yaml が `--file` で指す）。アプリの依存に `mcp` は足さず、このイメージにだけ入れる。
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

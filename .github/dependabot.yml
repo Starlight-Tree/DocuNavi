@@ -39,8 +39,9 @@ updates:
     groups:
       docker-minor-patch:
         update-types: [minor, patch]
-    # Python のイメージは、パッチ更新（3.12.x）だけ追う。3.12 から 3.15 のようなバージョンの引き上げは、アプリ・CI・
-    # 依存の固定ファイル（--python-version 3.12）の移行を伴うので、自動の PR にしない（2026-11-16、PR #9 が zstandard の wheel が無く失敗）
+    # Python のイメージは、パッチ更新（3.14.x）だけ追う。バージョンの引き上げは、アプリ・CI・依存の固定ファイル
+    # （--python-version 3.14）の移行を伴うので、自動の PR にしない（2026-11-16、3.12 から 3.15 への PR #9 が、
+    # orjson・pyyaml・zstandard の 3.15 用 wheel が無く失敗。3.14 へは手動で移行した）。上げるときは、wheel の有無を先に確かめる
     ignore:
       - dependency-name: python
         update-types:

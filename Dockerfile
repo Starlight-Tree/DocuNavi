@@ -1,5 +1,5 @@
 # ---- 実行用イメージ（FastAPI + LangGraph。API だけ。画面は Cloudflare の Worker `docunavi-web`（frontend）が配信する）-----------
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

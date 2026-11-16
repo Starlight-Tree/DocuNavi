@@ -42,7 +42,7 @@ RAG の精度は `tests/rag_eval_cases.py`（関連 21 件・無関係 8 件）�
 
 `.github/workflows/ci.yml` は、`main` へのプッシュと PR で次を行います。デプロイは含みません。
 
-- バックエンドのテスト（Python 3.12）
+- バックエンドのテスト（Python 3.14）
 - フロントエンドの単体テスト・型検査・ビルド
 - Go のテスト、認証 Worker の型検査、ワークフローの静的検査
 - Docker イメージのビルドと起動確認（`/health`・画面・`/chat`）
