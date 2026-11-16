@@ -56,7 +56,7 @@ jobs:
       - name: Run pytest
         env:
           PG_TEST_URL: postgresql://postgres:postgres@localhost:5432/postgres
-        run: pytest -q
+        run: pytest -q -n auto
 
   worker:
     name: Auth Worker (workers/api) typecheck
