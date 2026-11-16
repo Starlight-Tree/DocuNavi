@@ -39,6 +39,13 @@ updates:
     groups:
       docker-minor-patch:
         update-types: [minor, patch]
+    # Python のイメージは、パッチ更新（3.12.x）だけ追う。3.12 から 3.15 のようなバージョンの引き上げは、アプリ・CI・
+    # 依存の固定ファイル（--python-version 3.12）の移行を伴うので、自動の PR にしない（2026-11-16、PR #9 が zstandard の wheel が無く失敗）
+    ignore:
+      - dependency-name: python
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
 
   # go.mod は Go の中継と疑似上流にだけある（今は外部の依存なし）。
   - package-ecosystem: gomod
