@@ -144,7 +144,7 @@ data: [DONE]
 - **`message-metadata` の `context`**: `/chat` の `context` と同じ（今回のターンで検索された設定資料。完了の直前に届く）。
 - **`message-metadata` の `collection` と `hit_count`**: `/chat` と同じ意味（この会話の検索対象と、今回のターンの検索で拾ったチャンクの数。検索していなければ `hit_count` は `null`）。
 - **`message-metadata` の `target`**: この会話の質問の対象（`null` は絞らない）。`sources` の各 `target` は、回答を作った時点のその資料の対象（未分類は `null`。あとで分類が変わっても変わらない）。
-- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, page_label, page_end_label, weak, collection, target, document_id, title}`。`document_id` は資料の ID（`documents.id`。不明なら `null`）で、画面が出典から資料を直接開くのに使う。`title` は資料の題名（`documents.title`。無い・空白だけなら `null`。2026-11-15 に追加）で、画面の出典の表示名に使う（`null` ならファイル名）。`name`（ファイル名）が資料のキーで、`title` は表示用。`collection` はその資料のグループ（未設定なら `null`）。`page` は Postgres の `chunks.page`（PDF の 1 始まりのページ）、
+- **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, page_label, page_end_label, weak, collection, target, document_id, title, suggested_questions}`。`document_id` は資料の ID（`documents.id`。不明なら `null`）で、画面が出典から資料を直接開くのに使う。`title` は資料の題名（`documents.title`。無い・空白だけなら `null`。2026-11-15 に追加）で、画面の出典の表示名に使う（`null` ならファイル名）。`name`（ファイル名）が資料のキーで、`title` は表示用。`suggested_questions` は、その資料に答えがある「続けて聞く」の質問（最大 3 件、各 60 字以内の文字列の配列。`documents.suggested_questions`。取り込み後に `python -m app.ingestion.suggest` が作る）で、無い資料ではキー自体が無い。`collection` はその資料のグループ（未設定なら `null`）。`page` は Postgres の `chunks.page`（PDF の 1 始まりのページ）、
   `page_end` はページをまたぐ表の最終ページ（またがなければ `null`）。値が不正なとき（1 未満・整数でない・`page_end` が `page` 以下）は `null`。
   `page` と `page_end` は PDF の通し番号（1 始まり。元の PDF を開くリンクと照合に使う）。`page_label` と `page_end_label` は、PDF のページラベル（表紙・`i`・`1`・`A-1` など。PDF が決める表示用の番号）で、画面の表示に使う。ラベルが無い PDF・まだ再取り込みしていない資料・空白だけ・33 文字以上は `null`（その場合の表示は `page`）。`page_end_label` は `page_end` があるときだけ（2026-11-15 に追加）。
   各要素の `weak` は、同じ検索の 1 位との類似度の差が 0.05（`app/agents/tools.py` の `WEAK_GAP`）を超える 2 件目以降で `true`。画面は出典カードに出さない
@@ -197,7 +197,7 @@ data: [DONE]
   保存された範囲が、いま見えない・資料が無いときは、その名前を返さず（`null`）、`scope_unavailable` を `true` にする（「絞らない」と区別するため）。続きを送ると、サーバーは保存された範囲のまま探す。
 
   ユーザーの発言には `sent_at`（質問を受け付けた時刻。UTC の ISO 8601）が付く（2026-11-16 から）。保存時に質問へ持たせた値で、この前に保存された古い会話の発言には項目が無い。
-  `context` と `sources` は `/chat/stream` の `message-metadata` と同じ形（`sources` は `{name, page, page_end, page_label, page_end_label, weak, collection, document_id, title}`。`target` は、見えない対象の名前を返さないため含めない。`title` は、保存済みの古い会話の出典には無く `null`）。
+  `context` と `sources` は `/chat/stream` の `message-metadata` と同じ形（`sources` は `{name, page, page_end, page_label, page_end_label, weak, collection, document_id, title, suggested_questions}`。`target` は、見えない対象の名前を返さないため含めない。`title` は、保存済みの古い会話の出典には無く `null`。`suggested_questions` は、無い資料・古い会話ではキー自体が無い）。
   会話に保存された検索結果（`ToolMessage` の `artifact`）から読み直すので、新しい保存の項目は無い。**出典が付かない回答:** 検索しなかった回、いま見えないグループに基づいて伏せた回答（`ACCESS_MODE=enforce`）、
   `artifact` を持たない古い会話、保存された検索範囲がいま見えないとき（`scope_unavailable` が `true` の会話は、どの回答にも付けない）。付かない項目は、キーごと省く。
   **未確認:** 本番の DB の過去の会話に `artifact` が残っているか（テストはメモリの checkpointer と手で作った会話で確かめた）。

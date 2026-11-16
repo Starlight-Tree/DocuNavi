@@ -85,6 +85,9 @@ class ThreadSource(BaseModel):
     collection: str | None = None
     document_id: int | None = None
     title: str | None = None  # 資料の題名（画面の表示用）。保存されていない古い会話・題名が無い資料は null
+    suggested_questions: list[str] | None = (
+        None  # 「続けて聞く」の質問（最大 3 件）。保存されていない古い会話・未生成の資料は null
+    )
 
 
 class ThreadMessage(BaseModel):

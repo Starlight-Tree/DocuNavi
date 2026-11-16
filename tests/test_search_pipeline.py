@@ -555,3 +555,48 @@ def test_the_title_of_a_vector_hit_is_kept_through_the_pipeline(monkeypatch, fla
     hits = run("門限は何時ですか")
 
     assert [h.title for h in hits] == ["つばさ大学学生寮 入寮規程"]
+
+
+def test_suggested_questions_survive_the_corpus_copy_and_reach_the_sources():
+    questions = ("入寮できるのは誰ですか？", "門限は何時ですか？")
+    chunk = Chunk(
+        "tsubasa_dorm_rules.pdf",
+        "第19条 門限",
+        2,
+        None,
+        "guides",
+        None,
+        7,
+        "つばさ大学学生寮 入寮規程",
+        None,
+        None,
+        questions,
+    )
+    hit = search_pipeline._to_hit(search_pipeline._Cand(chunk, 0, sim=0.9), "vector")
+
+    assert hit.suggested_questions == questions
+    assert _sources([hit])[0]["suggested_questions"] == list(questions)
+    assert "d.suggested_questions AS suggested_questions" in search_pipeline._CORPUS_SQL
+    assert "d.suggested_questions AS suggested_questions" in search_vector._CHUNKS_SQL
+    # 質問が無い資料は None（画面は固定表にフォールバックする）
+    assert "suggested_questions" not in _sources([Hit("a.pdf", "本文")])[0]
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (
+            ["  門限は？ ", "門限は？", "", 3, None, "x" * 61, "寮費は？", "申込みは？", "四つ目は？"],
+            ("門限は？", "寮費は？", "申込みは？"),
+        ),
+        ('["門限は？"]', ("門限は？",)),
+        ("not json", None),
+        ({"a": 1}, None),
+        ([], None),
+        (None, None),
+    ],
+)
+def test_clean_questions_keeps_only_usable_strings(raw, expected):
+    from app.search.types import clean_questions
+
+    assert clean_questions(raw) == expected

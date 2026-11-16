@@ -107,6 +107,7 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
     `collection` は資料のグループ（未設定なら None）。画面の出典に、どのグループの資料かを添えるためのもの。
     `page_label` / `page_end_label` は、PDF のページラベル（表紙・i・1・A-1 など。空白だけ・未設定なら None）。画面の表示用で、リンク（`#page=N`）は `page` を使う。
     `title` は資料の題名（空白だけ・未設定なら None）。画面の出典の表示用で、キーはファイル名（`name`）のまま。
+    `suggested_questions` は、その資料に答えがある「続けて聞く」の質問（最大 3 件）。無い資料ではキー自体を付けない。画面の候補の表示用で、LLM には渡らない。
     `target` は、回答を作った時点の資料の対象（未分類なら None）。あとで資料の分類が変わっても、過去の出典の表示は変えない（記録として残す）。
     `weak` は、1 位との類似度の差が `WEAK_GAP` を超える 2 件目以降と、GraphRAG で加えた参照先（`origin="graph"`）。画面の出典カードに出さない。
     類似度が無ければ（キーワードだけで拾った箇所など）差では判断せず False。
@@ -132,6 +133,8 @@ def _sources(hits: Sequence[Hit]) -> list[dict[str, Any]]:
                 "document_id": hit.document_id,
                 "title": hit.title.strip() if isinstance(hit.title, str) and hit.title.strip() else None,
             }
+            # 質問がある資料にだけキーを付ける（無い資料・古い保存済みの会話と、形が変わらない）
+            | ({"suggested_questions": list(hit.suggested_questions)} if hit.suggested_questions else {})
         )
     return sources
 

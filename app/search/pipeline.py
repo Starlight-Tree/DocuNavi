@@ -37,7 +37,7 @@ from app.search import vector as search_vector
 from app.search.graph import build_edges
 from app.search.keyword import KeywordIndex, identifiers, normalize
 from app.search.rerank import lexical_scores
-from app.search.types import Hit, VectorSearchError
+from app.search.types import Hit, VectorSearchError, clean_questions
 
 # ログの絞り込み（ロガー名）を、移動前の app.search_pipeline のまま保つ
 logger = logging.getLogger("app.search_pipeline")
@@ -58,7 +58,7 @@ _CORPUS_WHERE = (
     f"AND {DOCUMENTS_FILTER_SQL} "
 )
 _CORPUS_SQL = (
-    "SELECT d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, d.title AS title, "
+    "SELECT d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, d.title AS title, d.suggested_questions AS suggested_questions, "
     "c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end, "
     "c.page_label AS page_label, c.page_end_label AS page_end_label "
     + _CORPUS_WHERE
@@ -148,6 +148,7 @@ class Chunk:
     title: str | None = None
     page_label: str | None = None
     page_end_label: str | None = None
+    suggested_questions: tuple[str, ...] | None = None
 
     @property
     def key(self) -> tuple[str, str]:
@@ -206,6 +207,7 @@ async def _fetch_chunks(
             row.get("title"),
             row.get("page_label"),
             row.get("page_end_label"),
+            clean_questions(row.get("suggested_questions")),
         )
         for row in rows
         # SQL の条件を誤っても、範囲外のグループと、指定した対象以外の資料は持たない
@@ -305,6 +307,7 @@ def _to_hit(cand: _Cand, origin: str) -> Hit:
         chunk.title,
         chunk.page_label,
         chunk.page_end_label,
+        chunk.suggested_questions,
     )
 
 
@@ -395,6 +398,7 @@ async def search(
             hit.title,
             hit.page_label,
             hit.page_end_label,
+            hit.suggested_questions,
         )
         cands[chunk.key] = _Cand(chunk, corpus.position.get(chunk.key), sim=hit.similarity, vec_rank=rank)
     vector_count = len(cands)
