@@ -1,4 +1,5 @@
 # GitHub Actions の SHA 固定（.github/workflows/ci.yml）と、Docker のベースイメージ、Go のモジュールを最新に保つ。
+# セキュリティ更新は公表の直後に出る（schedule・cooldown は効かない）ので、同時に出た分を ecosystem ごとに 1 つの PR にまとめる（applies-to: security-updates）。
 # pip / npm は、依存の固定（requirements*.in → uv pip compile）が落ち着いてから足す。
 version: 2
 updates:
@@ -16,6 +17,9 @@ updates:
     groups:
       github-actions-minor-patch:
         update-types: [minor, patch]
+      github-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
   # Dockerfile のベースイメージ（FROM）を最新に保つ。Dockerfile は置き場所ごとに別のディレクトリ。
   - package-ecosystem: docker
@@ -39,6 +43,9 @@ updates:
     groups:
       docker-minor-patch:
         update-types: [minor, patch]
+      docker-security:
+        applies-to: security-updates
+        patterns: ["*"]
     # Python のイメージは、パッチ更新（3.14.x）だけ追う。バージョンの引き上げは、アプリ・CI・依存の固定ファイル
     # （--python-version 3.14）の移行を伴うので、自動の PR にしない（2026-11-16、3.12 から 3.15 への PR #9 が、
     # orjson・pyyaml・zstandard の 3.15 用 wheel が無く失敗。3.14 へは手動で移行した）。上げるときは、wheel の有無を先に確かめる
@@ -63,3 +70,6 @@ updates:
     groups:
       gomod-minor-patch:
         update-types: [minor, patch]
+      gomod-security:
+        applies-to: security-updates
+        patterns: ["*"]
