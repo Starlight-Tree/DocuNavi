@@ -368,6 +368,7 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERVICE}
 ## タグ push で 0% 配備する（Cloud Build トリガー）
 
 `deploy/*` のタグを push したときだけ、Cloud Build がビルドして `--no-traffic --tag` で配備します（`cloudbuild-deploy.yaml`）。役割の分け方は、`main` への push はテストだけ（画面は手動の `deploy.yml`）、Cloud Run はタグ push だけです。**本番のトラフィックは自動では変えません**（100% への切り替えは `./scripts/preview.sh promote`、戻すのは `rollback`。あなたが実行）。
+**切り替えからあとの手順は `./scripts/release.sh <ビルド ID>` にまとめてあります**（ホストで、あなたが実行。承認待ちなら承認 → 完了待ち → 新リビジョンが 0% で `/health` が 200 か確認 → **切り替え前の確認は 1 回だけ** → 切り替え → 本番の資格確認〔テスト用ログインを一時的に有効にし、必ず削除〕→ `pin-prod`・`pin-rollback` の付け替え → 戻すコマンドの表示。`PREVIEW_DRY_RUN=1` で書き込みを実行せず確認、`--no-check` で資格確認を省く）。2026-11-17 に追加。**実機の通しの実行は未確認**（`PREVIEW_DRY_RUN=1` で、既に切り替え済みのビルドに対して表示を確かめただけ）。`pin-rollback` は、直前の本番のイメージ 1 つだけを守る（次の切り替えで付け替わる）。
 **状態（2026-11-14）:** サービスアカウント `docunavi-build`、GitHub の接続 `docunavi-github`（2nd gen）、トリガー `docunavi-tag-deploy`（承認必須）を作成し、2 回目のタグ push で 0% の配備まで通りました。
 
 - タグ名は `deploy/<Cloud Run のタグ名>`（例: `deploy/h2c-20261024` → タグ `h2c-20261024`）。形が違えば、ビルドの前に止まります。
