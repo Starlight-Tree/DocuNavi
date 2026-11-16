@@ -1,5 +1,5 @@
 // 本番の画面の確認: 質問を 1 回送り（実 API・課金が 1 回）、時刻・太字・色・吹き出しを検査して撮る。
-// `prod_check.sh --screen` と同じ内容を、共通の実行部で動かす版。撮影: screen-check。
+// `prod_check.sh --screen` は、これを共通の実行部（prod_browse.cjs）で動かす。撮影: screen-check。
 // 終了コード: 0 = 回答が出て時刻もある、2 = 時刻が出ていない。
 module.exports = async ({ page, WEB, shot, log, args }) => {
   const question = process.env.QUESTION || '寮の門限は何時ですか？';

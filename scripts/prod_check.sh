@@ -250,8 +250,10 @@ fi
 if [[ "$do_screen" == true ]]; then
   echo
   echo "--- --screen"
-  SHOT="/workspaces/docunavi/.playwright-mcp/prod-screen-check-$(date +%m%d-%H%M).png"
-  wcx "mkdir -p .playwright-mcp && cd frontend && NODE_PATH=\$PWD/node_modules infisical sm run --silent --projectId \"\$INFISICAL_PROJECT_ID_DEV\" --env=dev -- node ../scripts/prod_screen_check.cjs 2>&1 | awk '!/ INF /'" || failed=1
+  SHOT_NAME="prod-screen-check-$(date +%m%d-%H%M)"
+  SHOT="/workspaces/docunavi/.playwright-mcp/${SHOT_NAME}.png"
+  # 共通の実行部（--browse と同じ prod_browse.cjs）で、シナリオ screen-check を動かす
+  wcx "cd frontend && NODE_PATH=\$PWD/node_modules SCENARIO=screen-check SHOT_NAME=$SHOT_NAME infisical sm run --silent --projectId \"\$INFISICAL_PROJECT_ID_DEV\" --env=dev -- node ../scripts/prod_browse.cjs 2>&1 | awk '!/ INF /'" || failed=1
   [[ -n "$DRY_RUN" ]] || echo "スクリーンショット: ${SHOT#/workspaces/docunavi/}（開発コンテナ・ホストの docunavi/ 直下）"
 fi
 
