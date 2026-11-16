@@ -81,19 +81,27 @@ export const MSG_SCOPE_CONFLICT =
   'この会話の回答対象は、会話の途中では変えられません。対象を変えるときは、新しい会話にしてください。';
 export const MSG_BAD_BODY = 'サーバーから想定外の応答が返りました。しばらく待ってから再試行してください。';
 
+/** 利用資格がない 403 の識別コード（バックエンド app/access.py の MEMBERSHIP_REQUIRED_CODE）。資料の権限の 403 には付かない。 */
+export const MEMBERSHIP_REQUIRED_CODE = 'APP_MEMBERSHIP_REQUIRED';
+
 /** API が返したエラー。message は利用者にそのまま見せられる日本語。 */
 export class ChatApiError extends Error {
   /** HTTP ステータス。ネットワーク失敗など、応答が無い場合は 0。 */
   readonly status: number;
   /** 429 のときの待ち時間（秒）。Retry-After ヘッダが整数で付いていた場合のみ。 */
   readonly retryAfterSeconds?: number;
+  /** サーバーが本文で返した識別コード（例: MEMBERSHIP_REQUIRED_CODE）。無ければ未設定。 */
+  readonly code?: string;
 
-  constructor(status: number, message: string, retryAfterSeconds?: number) {
+  constructor(status: number, message: string, retryAfterSeconds?: number, code?: string) {
     super(message);
     this.name = 'ChatApiError';
     this.status = status;
     if (retryAfterSeconds !== undefined) {
       this.retryAfterSeconds = retryAfterSeconds;
+    }
+    if (code !== undefined) {
+      this.code = code;
     }
   }
 }
@@ -183,9 +191,11 @@ function parseRetryAfter(response: Response): number | undefined {
 async function toApiError(response: Response): Promise<ChatApiError> {
   const { status } = response;
   let detail: unknown;
+  let code: string | undefined;
   try {
     const body: unknown = await response.json();
     detail = isRecord(body) ? body.detail : undefined;
+    code = isRecord(body) && typeof body.code === 'string' ? body.code : undefined;
   } catch {
     detail = undefined; // JSON ではない本文（プロキシの HTML エラーページなど）
   }
@@ -201,6 +211,7 @@ async function toApiError(response: Response): Promise<ChatApiError> {
     status,
     message,
     status === 429 ? parseRetryAfter(response) : undefined,
+    status === 403 ? code : undefined,
   );
 }
 

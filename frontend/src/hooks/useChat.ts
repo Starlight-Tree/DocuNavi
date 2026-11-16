@@ -254,11 +254,13 @@ export function useChat(): UseChat {
   const fetchJson = useAuthedJsonFetch();
 
   // ログイン中は、送る直前にアクセストークンを付ける（期限が近ければ更新し、401 なら 1 回だけ更新して送り直す）
-  const { client: authClient, expire } = useAuth();
+  const { client: authClient, expire, denyAccess } = useAuth();
   const authClientRef = useRef(authClient);
   const expireRef = useRef(expire);
+  const denyAccessRef = useRef(denyAccess);
   authClientRef.current = authClient;
   expireRef.current = expire;
+  denyAccessRef.current = denyAccess;
 
   const transport = useMemo(
     () =>
@@ -267,6 +269,8 @@ export function useChat(): UseChat {
         fetch: createAuthedFetch(
           () => authClientRef.current,
           () => expireRef.current(),
+          undefined,
+          () => denyAccessRef.current(),
         ),
         headers: { Accept: 'text/event-stream' },
         // 履歴はサーバーが thread_id ごとに持つので、最後の発言だけを送る（最初の送信は thread_id も送らない）

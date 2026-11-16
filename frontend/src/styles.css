@@ -172,6 +172,12 @@ textarea {
   justify-content: center;
 }
 
+/* 長いメールアドレス（区切りのない文字列）でも、画面の幅からはみ出さない */
+.login-account {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 /* ---- ボタン ---- */
 
 .btn {

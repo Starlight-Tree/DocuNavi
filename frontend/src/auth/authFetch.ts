@@ -1,4 +1,4 @@
-import { ChatApiError, chatFetch } from '../api/chat';
+import { ChatApiError, MEMBERSHIP_REQUIRED_CODE, chatFetch } from '../api/chat';
 import type { AuthClient } from './types';
 
 export const MSG_LOGIN_REQUIRED = 'ログインが必要です。ログインし直してください。';
@@ -11,6 +11,10 @@ function withToken(init: RequestInit | undefined, token: string): RequestInit {
 
 function isUnauthorized(error: unknown): boolean {
   return error instanceof ChatApiError && error.status === 401;
+}
+
+function isMembershipRefusal(error: unknown): boolean {
+  return error instanceof ChatApiError && error.status === 403 && error.code === MEMBERSHIP_REQUIRED_CODE;
 }
 
 /**
@@ -26,8 +30,9 @@ export function createAuthedFetch(
   getClient: () => AuthClient | null,
   onSessionExpired: () => void,
   baseFetch: typeof chatFetch = chatFetch,
+  onMembershipRequired: () => void = () => undefined,
 ): typeof chatFetch {
-  return async (input, init) => {
+  const authed: typeof chatFetch = async (input, init) => {
     const client = getClient();
     if (!client) return baseFetch(input, init);
 
@@ -51,6 +56,14 @@ export function createAuthedFetch(
         if (isUnauthorized(retryError)) onSessionExpired();
         throw retryError;
       }
+    }
+  };
+  return async (input, init) => {
+    try {
+      return await authed(input, init);
+    } catch (error) {
+      if (isMembershipRefusal(error)) onMembershipRequired();
+      throw error;
     }
   };
 }

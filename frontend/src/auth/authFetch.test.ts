@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ChatApiError } from '../api/chat';
+import { ChatApiError, MEMBERSHIP_REQUIRED_CODE } from '../api/chat';
 import type { chatFetch } from '../api/chat';
 import { fakeAuth } from '../test/auth';
 import { MSG_LOGIN_REQUIRED, createAuthedFetch } from './authFetch';
@@ -119,5 +119,68 @@ describe('createAuthedFetch', () => {
 
     expect(auth.refreshAccessToken).not.toHaveBeenCalled();
     expect(expired).not.toHaveBeenCalled();
+  });
+});
+
+describe('createAuthedFetch: 利用資格がない 403', () => {
+  const noMembership = () =>
+    new ChatApiError(403, 'このアカウントには利用許可がありません。', undefined, MEMBERSHIP_REQUIRED_CODE);
+
+  it('識別コード付きの 403 では onMembershipRequired を呼び、例外はそのまま呼び出し側へ伝える。期限切れ扱いにはしない', async () => {
+    const base = vi.fn<Fetch>(async () => {
+      throw noMembership();
+    });
+    const expired = vi.fn();
+    const denied = vi.fn();
+    const auth = fakeAuth();
+
+    await expect(createAuthedFetch(() => auth, expired, base, denied)('/threads')).rejects.toMatchObject({
+      status: 403,
+      code: MEMBERSHIP_REQUIRED_CODE,
+    });
+
+    expect(denied).toHaveBeenCalledTimes(1);
+    expect(expired).not.toHaveBeenCalled();
+    expect(auth.refreshAccessToken).not.toHaveBeenCalled(); // 401 ではないので、トークンの更新もしない
+  });
+
+  it('資料の権限の 403（識別コードなし）では呼ばない', async () => {
+    const base = vi.fn<Fetch>(async () => {
+      throw new ChatApiError(403, '利用できる資料がありません。');
+    });
+    const denied = vi.fn();
+
+    await expect(createAuthedFetch(() => fakeAuth(), vi.fn(), base, denied)('/documents')).rejects.toBeInstanceOf(
+      ChatApiError,
+    );
+
+    expect(denied).not.toHaveBeenCalled();
+  });
+
+  it('成功のときも、他のエラー（503）のときも呼ばない', async () => {
+    const denied = vi.fn();
+    await createAuthedFetch(() => fakeAuth(), vi.fn(), vi.fn<Fetch>(async () => OK()), denied)('/x');
+    await expect(
+      createAuthedFetch(
+        () => fakeAuth(),
+        vi.fn(),
+        vi.fn<Fetch>(async () => {
+          throw new ChatApiError(503, '利用資格を確認できませんでした。しばらく待ってから再試行してください。');
+        }),
+        denied,
+      )('/x'),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(denied).not.toHaveBeenCalled();
+  });
+
+  it('ログインを使わない構成（client なし）でも、識別コード付きの 403 は通知する', async () => {
+    const denied = vi.fn();
+    const base = vi.fn<Fetch>(async () => {
+      throw noMembership();
+    });
+
+    await expect(createAuthedFetch(() => null, vi.fn(), base, denied)('/x')).rejects.toBeInstanceOf(ChatApiError);
+
+    expect(denied).toHaveBeenCalledTimes(1);
   });
 });

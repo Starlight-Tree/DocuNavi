@@ -6,7 +6,7 @@ import { AuthProvider, MSG_SESSION_EXPIRED } from './auth/AuthContext';
 import { RETURN_TO_STORAGE_KEY, THREAD_ID_STORAGE_KEY, saveReturnTo } from './lib/storage';
 import { fakeAuth } from './test/auth';
 import type { FakeAuth } from './test/auth';
-import { DEFAULT_REPLY, errorResponse, installFetch, replyResponse } from './test/helpers';
+import { DEFAULT_REPLY, errorResponse, installFetch, jsonResponse, replyResponse } from './test/helpers';
 
 const UNAUTHORIZED = 'ログインが必要です。ログインし直してください。';
 
@@ -363,5 +363,64 @@ describe('ログイン: 共有リンクの画面を保つ', () => {
     auth.emit({ email: 'a@example.com' });
 
     await waitFor(() => expect(window.location.search).toBe('?tab=documents'));
+  });
+});
+
+describe('ログイン: 利用資格がない（許可されていない）アカウント', () => {
+  const NO_ACCESS = 'このアカウントには利用許可がありません。';
+  const noMembership = () => jsonResponse({ detail: NO_ACCESS, code: 'APP_MEMBERSHIP_REQUIRED' }, { status: 403 });
+
+  it('会話の一覧が識別コード付きの 403 なら、「利用許可がありません」の画面にする。メールとログアウトだけを出し、チャットは出さない', async () => {
+    installFetch(() => replyResponse(), noMembership);
+    setup(fakeAuth({ user: { email: 'denied@example.com' } }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(NO_ACCESS);
+    expect(screen.getByText(/denied@example\.com/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ログアウト' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'メッセージ' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Google でログイン' })).not.toBeInTheDocument();
+  });
+
+  it('チャットの送信が識別コード付きの 403 でも、同じ画面にする', async () => {
+    installFetch(() => noMembership());
+    const { user } = setup(fakeAuth());
+
+    await ask(user, '質問');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(NO_ACCESS);
+    expect(screen.queryByRole('textbox', { name: 'メッセージ' })).not.toBeInTheDocument();
+  });
+
+  it('「ログアウト」で、端末のセッションを消してログイン画面に戻る（別のアカウントで入り直せる）', async () => {
+    installFetch(() => replyResponse(), noMembership);
+    const auth = fakeAuth();
+    const { user } = setup(auth);
+    await user.click(await screen.findByRole('button', { name: 'ログアウト' }));
+
+    expect(await screen.findByRole('button', { name: 'Google でログイン' })).toBeInTheDocument();
+    expect(auth.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('資料の権限の 403（識別コードなし）では、この画面にしない（従来どおり、チャットのまま案内だけ）', async () => {
+    installFetch(() => errorResponse(403, '利用できる資料がありません。'));
+    const { user } = setup(fakeAuth());
+
+    await ask(user, '質問');
+
+    expect(await screen.findByText('利用できる資料がありません。')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'メッセージ' })).toBeInTheDocument();
+    expect(screen.queryByText(NO_ACCESS)).not.toBeInTheDocument();
+  });
+
+  it('許可がない画面のとき、同じアカウントのセッションが再取得されても、チャットの画面には戻らない', async () => {
+    installFetch(() => replyResponse(), noMembership);
+    const auth = fakeAuth({ user: { email: 'denied@example.com' } });
+    setup(auth);
+    await screen.findByRole('alert');
+
+    auth.emit({ email: 'denied@example.com' });
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(NO_ACCESS));
+    expect(screen.queryByRole('textbox', { name: 'メッセージ' })).not.toBeInTheDocument();
   });
 });

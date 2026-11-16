@@ -8,6 +8,7 @@ import { DisplayNameDialog } from './components/DisplayNameDialog';
 import { DocumentsView, MSG_NOTHING_SELECTED } from './components/DocumentsView';
 import { ErrorBanner } from './components/ErrorBanner';
 import { LoginScreen } from './components/LoginScreen';
+import { NoAccessScreen } from './components/NoAccessScreen';
 import { MessageList } from './components/MessageList';
 import { PanelHost } from './components/PanelHost';
 import { ScopeConfirm } from './components/ScopeConfirm';
@@ -388,7 +389,7 @@ function ChatScreen() {
 }
 
 export default function App() {
-  const { state, signIn } = useAuth();
+  const { state, signIn, signOut } = useAuth();
 
   if (state.status === 'loading') {
     return (
@@ -399,6 +400,9 @@ export default function App() {
   }
   if (state.status === 'signedOut') {
     return <LoginScreen notice={state.notice} onSignIn={() => void signIn()} />;
+  }
+  if (state.status === 'noAccess') {
+    return <NoAccessScreen email={state.user.email} onSignOut={() => void signOut()} />;
   }
   // 'disabled'（ログインを使わない構成）と 'signedIn'
   return (

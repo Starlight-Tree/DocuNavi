@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CHAT_STREAM_PATH,
   ChatApiError,
+  MEMBERSHIP_REQUIRED_CODE,
   chatFetch,
   endpoint,
   streamEndpoint,
@@ -324,4 +325,36 @@ describe('parseChatFailure', () => {
       expect(parseChatFailure(value)).toBeNull();
     },
   );
+});
+
+describe('利用資格の 403（識別コード）', () => {
+  const MSG = 'このアカウントには利用許可がありません。';
+
+  it('識別コード付きの 403 は、code を持つ。メッセージは固定の日本語の detail', async () => {
+    stubFetch(() => jsonResponse({ detail: MSG, code: MEMBERSHIP_REQUIRED_CODE }, { status: 403 }));
+    const error = await failure(chatFetch('/chat/stream', { method: 'POST' }));
+    expect(error.status).toBe(403);
+    expect(error.code).toBe(MEMBERSHIP_REQUIRED_CODE);
+    expect(error.message).toBe(MSG);
+  });
+
+  it('資料の権限の 403（識別コードなし）は、code を持たない。メッセージだけ従来どおり', async () => {
+    stubFetch(() => errorResponse(403, '利用できる資料がありません。'));
+    const error = await failure(chatFetch('/chat/stream', { method: 'POST' }));
+    expect(error.status).toBe(403);
+    expect(error.code).toBeUndefined();
+    expect(error.message).toBe('利用できる資料がありません。');
+  });
+
+  it('403 以外では、本文に code があっても使わない', async () => {
+    stubFetch(() => jsonResponse({ detail: MSG, code: MEMBERSHIP_REQUIRED_CODE }, { status: 503 }));
+    const error = await failure(chatFetch('/chat/stream', { method: 'POST' }));
+    expect(error.code).toBeUndefined();
+  });
+
+  it('code が文字列でなければ無視する', async () => {
+    stubFetch(() => jsonResponse({ detail: MSG, code: { x: 1 } }, { status: 403 }));
+    const error = await failure(chatFetch('/chat/stream', { method: 'POST' }));
+    expect(error.code).toBeUndefined();
+  });
 });

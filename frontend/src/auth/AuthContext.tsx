@@ -11,7 +11,8 @@ export type AuthState =
   | { status: 'disabled' } // ログインを使わない構成（認証なしで動く）
   | { status: 'loading' }
   | { status: 'signedOut'; notice?: string }
-  | { status: 'signedIn'; user: AuthUser };
+  | { status: 'signedIn'; user: AuthUser }
+  | { status: 'noAccess'; user: AuthUser }; // ログインはできたが、利用資格（許可）がない。ログアウトだけできる
 
 export interface AuthContextValue {
   state: AuthState;
@@ -23,6 +24,8 @@ export interface AuthContextValue {
   updateName: (name: string) => Promise<void>;
   /** トークンを更新できなかった・更新しても 401 だった。ログイン画面へ戻す（会話の ID は残す）。 */
   expire: () => void;
+  /** API が「利用許可がありません」（識別コード付きの 403）を返した。許可がない画面へ切り替える（ログアウトは残す）。 */
+  denyAccess: () => void;
 }
 
 const DISABLED: AuthContextValue = {
@@ -32,6 +35,7 @@ const DISABLED: AuthContextValue = {
   signOut: async () => undefined,
   updateName: async () => undefined,
   expire: () => undefined,
+  denyAccess: () => undefined,
 };
 
 const AuthContext = createContext<AuthContextValue>(DISABLED);
@@ -68,10 +72,12 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
     const apply = (user: AuthUser | null) => {
       if (!active) return;
       if (user) restoreReturnTo();
-      // 期限切れの通知（expire）で出した案内は、ログインし直すまで残す
+      // 期限切れの通知（expire）で出した案内は、ログインし直すまで残す。許可がない画面は、同じセッションの再取得では戻さない
       setState((current) =>
         user
-          ? { status: 'signedIn', user }
+          ? current.status === 'noAccess'
+            ? { status: 'noAccess', user }
+            : { status: 'signedIn', user }
           : current.status === 'signedOut'
             ? current
             : { status: 'signedOut' },
@@ -127,9 +133,13 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
     void client?.signOut().catch(() => undefined);
   }, [client]);
 
+  const denyAccess = useCallback(() => {
+    setState((current) => (current.status === 'signedIn' ? { status: 'noAccess', user: current.user } : current));
+  }, []);
+
   const value = useMemo(
-    () => ({ state, client, signIn, signOut, updateName, expire }),
-    [state, client, signIn, signOut, updateName, expire],
+    () => ({ state, client, signIn, signOut, updateName, expire, denyAccess }),
+    [state, client, signIn, signOut, updateName, expire, denyAccess],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

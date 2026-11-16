@@ -12,17 +12,20 @@ export type Loaded<T> =
 
 /** ログイン中ならトークンを付け、401 なら 1 回更新して送り直す fetch（チャットと同じ仕組み）。 */
 export function useAuthedJsonFetch() {
-  const { client, expire } = useAuth();
+  const { client, expire, denyAccess } = useAuth();
   const clientRef = useRef(client);
   const expireRef = useRef(expire);
+  const denyRef = useRef(denyAccess);
   clientRef.current = client;
   expireRef.current = expire;
+  denyRef.current = denyAccess;
   return useMemo(
     () =>
       createAuthedFetch(
         () => clientRef.current,
         () => expireRef.current(),
         jsonFetch,
+        () => denyRef.current(),
       ),
     [],
   );
