@@ -12,9 +12,6 @@
   --accent-text: #ffffff;
   --user-bg: #2c4fcf;
   --user-text: #ffffff;
-  /* 質問の淡い背景（--user-bg の青を薄めたもの。モックの塗りの吹き出しとは別） */
-  --question-bg: color-mix(in srgb, var(--accent) 9%, var(--surface));
-  --question-border: color-mix(in srgb, var(--accent) 22%, var(--border));
   --danger-bg: #fdecec;
   --danger-border: #f0a8a8;
   --danger-text: #7a1717;
@@ -279,9 +276,9 @@ textarea {
 .message-question {
   max-width: 85%;
   padding: 0.6rem 1rem;
-  border: 1px solid var(--question-border);
+  /* 質問は、枠なしの無彩色の淡い背景（回答の本文を主役にする） */
   border-radius: var(--radius) var(--radius) 0.25rem var(--radius);
-  background: var(--question-bg);
+  background: var(--surface-muted);
   font-size: 1rem;
   line-height: 1.7;
 }
