@@ -8,6 +8,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import aclosing
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Annotated, Any
 
@@ -344,7 +345,8 @@ def _turn_inputs(message: str, collection: str | None, target: str | None = None
     collection と target は、送られたときだけ入れる（省略なら入れない。続きの会話の検索対象は、状態に残っているものを使う）。
     """
     inputs: dict[str, Any] = {
-        "messages": [HumanMessage(content=message)],
+        # 受け付けた時刻（UTC）を質問に持たせる。履歴（`GET /threads/{id}/messages`）の `sent_at` になる。LLM には渡らない
+        "messages": [HumanMessage(content=message, additional_kwargs={"sent_at": datetime.now(UTC).isoformat()})],
         "context": "",
         "sources": [],
         "hit_count": None,

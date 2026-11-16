@@ -6,6 +6,7 @@
 import time
 import uuid
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -190,7 +191,10 @@ def test_messages_in_off_mode_are_read_by_thread_id(client, monkeypatch):
     res = client.get(f"/threads/{thread_id}/messages")
 
     assert res.status_code == 200
-    assert res.json()["messages"][0] == {"role": "user", "text": "匿名の会話です"}
+    question = res.json()["messages"][0]
+    sent_at = question.pop("sent_at")  # 質問を受け付けた時刻（UTC）。値は実行時刻なので、読める形かだけ確かめる
+    assert datetime.fromisoformat(sent_at).utcoffset() is not None
+    assert question == {"role": "user", "text": "匿名の会話です"}
     assert client.get(f"/threads/{uuid.uuid4()}/messages").status_code == 404
 
 
@@ -207,6 +211,42 @@ def test_visible_messages_skip_tool_traffic_and_empty_text():
         ("user", "ザーハードの大気は？"),
         ("assistant", "窒素が主成分です。"),
     ]
+
+
+def test_visible_messages_return_sent_at_for_questions_only():
+    sent = "2026-11-16T12:34:56+00:00"
+    messages = [
+        HumanMessage(content="大気は？", additional_kwargs={"sent_at": sent}),
+        AIMessage(content="窒素です。", additional_kwargs={"sent_at": sent}),
+    ]
+
+    question, answer = threads.visible_messages(messages)
+
+    assert question.sent_at is not None and question.sent_at.isoformat() == sent
+    assert answer.sent_at is None
+
+
+def test_visible_messages_omit_sent_at_for_old_or_unreadable_values():
+    messages = [
+        HumanMessage(content="古い質問"),
+        HumanMessage(content="壊れた時刻", additional_kwargs={"sent_at": "昨日"}),
+        HumanMessage(content="文字列でない時刻", additional_kwargs={"sent_at": 12345}),
+    ]
+
+    shown = threads.visible_messages(messages)
+
+    # 項目ごと無い（`response_model_exclude_unset` で応答に出ない）
+    assert all("sent_at" not in m.model_fields_set for m in shown)
+    assert [m.model_dump(exclude_unset=True) for m in shown][0] == {"role": "user", "text": "古い質問"}
+
+
+def test_each_new_question_carries_the_time_it_was_accepted():
+    before = datetime.now(UTC)
+    inputs = routes._turn_inputs("大気は？", None)
+    after = datetime.now(UTC)
+
+    sent_at = datetime.fromisoformat(inputs["messages"][0].additional_kwargs["sent_at"])
+    assert before <= sent_at <= after
 
 
 def _search_result(call_id: str, name: str, page: int, text: str, number: int = 1) -> ToolMessage:

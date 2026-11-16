@@ -90,6 +90,10 @@ class ThreadSource(BaseModel):
 class ThreadMessage(BaseModel):
     role: Literal["user", "assistant"]
     text: str
+    sent_at: datetime | None = Field(
+        default=None,
+        description="user のみ。質問を受け付けた時刻（UTC）。この項目が入る前に保存された古い会話では項目が無い",
+    )
     context: str | None = Field(
         default=None,
         description="assistant のみ。その回答の検索結果（`/chat/stream` の `message-metadata.context` と同じ形）。出典が無い回答・伏せた回答では項目が無い",
@@ -172,10 +176,15 @@ def visible_messages(messages: list[Any], *, with_sources: bool = True) -> list[
         if not text:
             continue
         references = _turn_references(group) if role == "assistant" and with_sources else None
-        if references is None:
+        if references is not None:
+            shown.append(ThreadMessage(role=role, text=text, context=references[0], sources=references[1]))
+            continue
+        # 時刻は質問だけ。無い・読めない（古い会話）ときは、項目を付けない（`response_model_exclude_unset`）
+        sent_at = _parse_ts(message.additional_kwargs.get("sent_at")) if role == "user" else None
+        if sent_at is None:
             shown.append(ThreadMessage(role=role, text=text))
         else:
-            shown.append(ThreadMessage(role=role, text=text, context=references[0], sources=references[1]))
+            shown.append(ThreadMessage(role=role, text=text, sent_at=sent_at))
     return shown
 
 

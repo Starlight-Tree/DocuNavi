@@ -196,6 +196,7 @@ data: [DONE]
   `collection` は旧方式の検索対象、`target` は質問の対象（どちらも `null` は絞らない。項目が無い古い会話も `null`）。続きの会話で `/chat` に送る値は、これと同じか省略にする（違うと 409）。
   保存された範囲が、いま見えない・資料が無いときは、その名前を返さず（`null`）、`scope_unavailable` を `true` にする（「絞らない」と区別するため）。続きを送ると、サーバーは保存された範囲のまま探す。
 
+  ユーザーの発言には `sent_at`（質問を受け付けた時刻。UTC の ISO 8601）が付く（2026-11-16 から）。保存時に質問へ持たせた値で、この前に保存された古い会話の発言には項目が無い。
   `context` と `sources` は `/chat/stream` の `message-metadata` と同じ形（`sources` は `{name, page, page_end, page_label, page_end_label, weak, collection, document_id, title}`。`target` は、見えない対象の名前を返さないため含めない。`title` は、保存済みの古い会話の出典には無く `null`）。
   会話に保存された検索結果（`ToolMessage` の `artifact`）から読み直すので、新しい保存の項目は無い。**出典が付かない回答:** 検索しなかった回、いま見えないグループに基づいて伏せた回答（`ACCESS_MODE=enforce`）、
   `artifact` を持たない古い会話、保存された検索範囲がいま見えないとき（`scope_unavailable` が `true` の会話は、どの回答にも付けない）。付かない項目は、キーごと省く。

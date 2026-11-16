@@ -719,7 +719,7 @@ def build_graph(
         # 次のターンで最後の 1 件だけを検査していると LLM に素通りしてしまうため。
         # 拒否対象の過去の発言は、今ターンの可否にかかわらず伏せ字に差し替える（下記と同じ理由）。
         earlier = [
-            HumanMessage(content=REDACTED_USER_TEXT, id=m.id)
+            HumanMessage(content=REDACTED_USER_TEXT, id=m.id, additional_kwargs=m.additional_kwargs)
             for m in _unanswered_user_messages(messages)
             if m is not last and check_input(m.text) is not None
         ]
@@ -736,7 +736,7 @@ def build_graph(
         return {
             "messages": [
                 *earlier,
-                HumanMessage(content=REDACTED_USER_TEXT, id=last.id),
+                HumanMessage(content=REDACTED_USER_TEXT, id=last.id, additional_kwargs=last.additional_kwargs),
                 AIMessage(content=INPUT_REFUSAL_REPLY),
             ],
             "context": "",
