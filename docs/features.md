@@ -19,7 +19,7 @@
 <tr><td>回答対象</td><td>入力欄のチップで、質問の範囲（対象）を選ぶ</td><td>会話ごとに固定。権限の範囲は超えられない</td><td><a href="configuration.md">設定</a></td></tr>
 <tr><td>資料の選択</td><td>資料一覧でチェックした資料だけで答えさせる</td><td>ターンごとの指定。0 件では送信できない</td><td><a href="api.md">API</a></td></tr>
 <tr><td>追質問</td><td>「それ」「もっと」など短い質問を、前の話題で補って検索する</td><td>補完は LLM の短い 1 回。精度は実 API で未確認</td><td><a href="configuration.md">設定</a></td></tr>
-<tr><td>質問の例</td><td>空の会話に例を、回答のあとに続きの質問を出す</td><td>資料ごとの固定の質問。用意が無い資料には出ない</td><td><a href="../frontend/src/lib/followUps.ts">コード</a></td></tr>
+<tr><td>質問の例</td><td>空の会話に例を、回答のあとに続きの質問を出す</td><td>資料ごとに、取り込み後に LLM で作って保存した質問（`documents.suggested_questions`、`python -m app.ingestion.suggest`）。作っていない資料・保存前の古い会話には出ない（2026-11-17 に、ファイル名の固定表から変更）</td><td><a href="../frontend/src/lib/followUps.ts">コード</a></td></tr>
 <tr><td>停止・再試行</td><td>生成の停止、回答のコピー、失敗後の再試行</td><td>送り直しても通らない失敗（422・409・403）に再試行は出ない</td><td><a href="api.md">API</a></td></tr>
 <tr><td>会話の一覧</td><td>過去の会話を選んで続きから読む・削除する</td><td>ログイン時のみ。最新 50 件、本人の分だけ</td><td><a href="api.md">API</a></td></tr>
 <tr><td>再開の出典</td><td>再開した回答にも出典が付く</td><td>検索しなかった回答と、いま見えない資料に基づく回答には付かない</td><td><a href="api.md">API</a></td></tr>

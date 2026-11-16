@@ -37,7 +37,7 @@ flowchart LR
 | `app/agents/tools.py` | 資料の検索ツール（`search_documents`）。実体は `app/search/vector.py`（Postgres + pgvector の検索。失敗しても別の経路に戻らない） |
 | `app/access.py`・`app/scope.py` | ロール別の資料グループ制御（`ACCESS_MODE`。[configuration.md](configuration.md) の「資料グループのアクセス制御」）。`Scope` は検索できるグループの範囲で、検索は渡し忘れを許さない |
 | `app/search/` | 資料の検索。`pipeline.py`（入口。フラグでハイブリッド・リランカー・GraphRAG を重ねる）、`vector.py`（質問の埋め込みと pgvector のコサイン類似度検索、起動時の DB の検査。設計: [search-design.md](search-design.md)）、`keyword.py`（BM25）、`rerank.py`、`graph.py`、`types.py`（`Hit` と `VectorSearchError`） |
-| `app/ingestion/` | PDF の取り込み（`python -m app.ingestion`）と埋め込み（`python -m app.ingestion.embed`）。資料ごとの「続けて聞く」の質問は `python -m app.ingestion.suggest`（既定は確認だけ。`--apply` で実 API を 1 資料 1 回呼び、`documents.suggested_questions` に保存。PDF が変わった資料だけ作り直す。取り込み Job にはまだ組み込んでいない）。`corpus.py` は評価の BM25 基準線用。ページは通し番号（`page`）と PDF のページラベル（`page_label`）を分けて持つ（下の「ページの番号とラベル」） |
+| `app/ingestion/` | PDF の取り込み（`python -m app.ingestion`）と埋め込み（`python -m app.ingestion.embed`）。資料ごとの「続けて聞く」の質問は `python -m app.ingestion.suggest`（既定は確認だけ。`--apply` で実 API を 1 資料 1 回呼び、`documents.suggested_questions` に保存。PDF が変わった資料だけ作り直す。取り込み Job にはまだ組み込んでいない。新しい資料を取り込んだら、手で実行する。2026-11-17 に本番の全 80 資料を作成済み）。`corpus.py` は評価の BM25 基準線用。ページは通し番号（`page`）と PDF のページラベル（`page_label`）を分けて持つ（下の「ページの番号とラベル」） |
 | `db/` | `migrations/`（SQL を番号順に。`migrate.py` が適用する。`0002` は `chunks.page_label` `page_end_label`）、`seeds/`、`local-init/` |
 | `frontend/` | チャット画面（Next.js + React + TypeScript）。Cloudflare の Worker `docunavi-web`（OpenNext）が配信する（FastAPI は配信しない）。E2E もここ |
 | `storage/pdf/<名前>/` | PDF の資料（取り込みの元。検索は Postgres を読む。ディレクトリ名は整理用。いまは zahard・cafe・guides） |

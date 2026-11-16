@@ -127,11 +127,10 @@ export function MessageList({
   const followUps =
     onExample && !busy && lastMessage?.role === 'assistant' && lastMessage.context
       ? followUpQuestions(
-          // 題名はサーバーが送る出典の情報（lastMessage.sources）から引く。無い（古い応答・保存前の会話）ときはファイル名だけで決める
-          [...new Set(parseSources(lastMessage.context).map((source) => source.name))].map((name) => {
-            const ref = lastMessage.sources?.find((r) => r.name === name);
-            return { name, title: ref?.title ?? null, suggestedQuestions: ref?.suggestedQuestions };
-          }),
+          // 質問はサーバーが出典に載せる（lastMessage.sources）。無い（古い応答・保存前の会話・まだ作っていない資料）ときは出さない
+          [...new Set(parseSources(lastMessage.context).map((source) => source.name))].map((name) => ({
+            suggestedQuestions: lastMessage.sources?.find((ref) => ref.name === name)?.suggestedQuestions,
+          })),
           messages.filter((m) => m.role === 'user').map((m) => m.text),
         )
       : [];

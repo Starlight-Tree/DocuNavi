@@ -522,34 +522,34 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
 });
 
 describe('続けて聞く', () => {
-  it('回答の根拠になった資料に答えがある質問を出し、聞いたばかりの質問は出さない', () => {
-    const questions = followUpQuestions(['tsubasa_dorm_rules.pdf'], ['入寮できるのは誰ですか？']);
-    expect(questions).toEqual(['寮費はいくらですか？', '門限は何時ですか？', '入寮の申込みはいつまでにすればよいですか？']);
-    expect(followUpQuestions(['unknown.pdf'], [])).toEqual([]);
-    expect(followUpQuestions(['ザーハード2.pdf'], [])).toHaveLength(3);
-  });
-
-  it('出典が質問を持っていれば、固定表より優先する（持っていない資料は固定表で補う）', () => {
-    expect(followUpQuestions([{ name: 'x/y.pdf', title: null, suggestedQuestions: ['この資料の質問ですか？'] }], [])).toEqual([
-      'この資料の質問ですか？',
+  it('出典が持つ質問を並べ、聞いたばかりの質問・重複は出さず、3 件までにする', () => {
+    const dorm = { suggestedQuestions: ['入寮できるのは誰ですか？', '寮費はいくらですか？', '門限は何時ですか？'] };
+    const more = { suggestedQuestions: ['寮費はいくらですか？', '申込みはいつまでですか？', '四つ目ですか？'] };
+    expect(followUpQuestions([dorm], ['入寮できるのは誰ですか？'])).toEqual(['寮費はいくらですか？', '門限は何時ですか？']);
+    expect(followUpQuestions([dorm, more], [])).toEqual(['入寮できるのは誰ですか？', '寮費はいくらですか？', '門限は何時ですか？']);
+    expect(followUpQuestions([dorm, more], ['入寮できるのは誰ですか？', '寮費はいくらですか？', '門限は何時ですか？'])).toEqual([
+      '申込みはいつまでですか？',
+      '四つ目ですか？',
     ]);
-    expect(
-      followUpQuestions([{ name: 'guides/tsubasa_dorm_rules.pdf', suggestedQuestions: ['保存した質問ですか？'] }], []),
-    ).toEqual(['保存した質問ですか？']);
-    expect(followUpQuestions([{ name: 'guides/tsubasa_dorm_rules.pdf', suggestedQuestions: [] }], [])).toHaveLength(3);
   });
 
-  it('ファイル名が表と合わなくても、コレクション名つきのパスか資料の題名で候補を出す', () => {
-    const dorm = ['入寮できるのは誰ですか？', '寮費はいくらですか？', '門限は何時ですか？'];
-    expect(followUpQuestions(['guides/tsubasa_dorm_rules.pdf'], [])).toEqual(dorm);
-    expect(followUpQuestions([{ name: 'tsubasa-dorm/rules-01.pdf', title: 'つばさ大学学生寮 入寮規程' }], [])).toEqual(dorm);
-    expect(followUpQuestions([{ name: 'x/y.pdf', title: '惑星ザーハード概説' }], [])).toHaveLength(3);
-    expect(followUpQuestions([{ name: 'x/y.pdf', title: '知らない題名' }, { name: 'z.pdf', title: null }], [])).toEqual([]);
+  it('質問を持たない出典（古い会話・まだ作っていない資料）からは、出さない', () => {
+    expect(followUpQuestions([{}, { suggestedQuestions: [] }], [])).toEqual([]);
+    expect(followUpQuestions([], [])).toEqual([]);
   });
 
   it('回答の下に出し、押すとその質問を送る', async () => {
     const { chatBodies } = installFetch((_body, call) =>
-      call === 1 ? replyResponse({ reply: '2 月 28 日までです。', context: CONTEXT }) : replyResponse({ reply: '月額です。' }),
+      call === 1
+        ? replyResponse({
+            reply: '2 月 28 日までです。',
+            context: CONTEXT,
+            sources: [
+              { name: 'tsubasa_dorm_rules.pdf', page: 1, page_end: null, suggested_questions: ['寮費はいくらですか？', '門限は何時ですか？'] },
+              { name: 'tsubasa_dorm_rules.pdf', page: 2, page_end: null, suggested_questions: ['寮費はいくらですか？', '入寮できるのは誰ですか？'] },
+            ],
+          })
+        : replyResponse({ reply: '月額です。' }),
     );
     const user = userEvent.setup();
     render(<App />);
@@ -563,6 +563,16 @@ describe('続けて聞く', () => {
 
     await screen.findByText('月額です。');
     expect(chatBodies()[1]).toMatchObject({ message: '寮費はいくらですか？' });
+  });
+
+  it('出典が質問を持っていない回答（古いサーバー・まだ作っていない資料）には、出さない', async () => {
+    installFetch(() => replyResponse({ reply: '2 月 28 日までです。', context: CONTEXT }));
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    await screen.findByText('2 月 28 日までです。');
+    expect(screen.queryByRole('group', { name: '続けて聞く' })).not.toBeInTheDocument();
   });
 
   it('出典が無い回答（資料を検索していない）には、出さない', async () => {
