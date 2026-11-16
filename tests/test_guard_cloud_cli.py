@@ -1,10 +1,18 @@
 """PreToolUse フック .claude/hooks/guard-cloud-cli.py の判定のテスト。
 
-フックは Claude Code が子プロセスとして呼ぶので、ここでも同じく標準入力に JSON を渡して実行する。
+フックは Claude Code が子プロセスとして呼ぶ（標準入力に JSON、`python -I`）。
   終了コード 2 = 拒否 / 標準出力に permissionDecision "ask" = 確認の強制 / 何も出さず 0 = 判断しない
 GCP には一切触れない（コマンド文字列を検査するだけ）。
+
+判定の大量のケースは、起動の費用（1 件 約 30 ms、約 900 件）を避けるため、`run_hook` がフックの `main()` を
+同じプロセスの中で呼ぶ（標準入力・標準出力・標準エラー・終了コードは同じ）。実プロセスでの起動（`run_hook_process`）は、
+入口の契約（`test_in_process_and_real_process_agree`）と、時間切れを見るテストだけが使う。
+フックの内部状態（`_steps` `_PAREN_CACHE`）は `analyze()` が毎回リセットするので、呼び出しをまたいで残らない。
 """
 
+import contextlib
+import importlib.util
+import io
 import json
 import subprocess
 import sys
@@ -14,13 +22,38 @@ import pytest
 
 HOOK = Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "guard-cloud-cli.py"
 
+_spec = importlib.util.spec_from_file_location("guard_cloud_cli_hook", HOOK)
+assert _spec is not None and _spec.loader is not None
+_hook = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_hook)
 
-def run_hook(command: str, tool_name: str = "Bash") -> tuple[int, str, str]:
-    payload = {"tool_name": tool_name, "tool_input": {"command": command}, "hook_event_name": "PreToolUse"}
+
+def _payload(command: str, tool_name: str = "Bash") -> str:
+    return json.dumps({"tool_name": tool_name, "tool_input": {"command": command}, "hook_event_name": "PreToolUse"})
+
+
+def run_hook_process(command: str, tool_name: str = "Bash") -> tuple[int, str, str]:
+    """実際の起動（Claude Code と同じ）。遅いので、入口の契約と時間切れのテストだけに使う。"""
     proc = subprocess.run(
-        [sys.executable, "-I", str(HOOK)], input=json.dumps(payload), capture_output=True, text=True, timeout=20
+        [sys.executable, "-I", str(HOOK)],
+        input=_payload(command, tool_name),
+        capture_output=True,
+        text=True,
+        timeout=20,
     )
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def run_hook(command: str, tool_name: str = "Bash") -> tuple[int, str, str]:
+    out, err = io.StringIO(), io.StringIO()
+    saved_stdin = sys.stdin
+    sys.stdin = io.StringIO(_payload(command, tool_name))
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = _hook.main()
+    finally:
+        sys.stdin = saved_stdin
+    return code, out.getvalue(), err.getvalue()
 
 
 def decision(command: str) -> str:
@@ -1284,13 +1317,35 @@ def test_round5_a_nesting_deeper_than_the_limit_is_denied_whatever_it_contains()
 
 def test_a_too_complex_command_fails_closed():
     # 入れ子が深く・長く、決まった時間で検査できないものは、通さない（フックの timeout を待たない）
-    code, _, err = run_hook("echo " + "a" * 4_000_000)
+    code, _, err = run_hook_process("echo " + "a" * 4_000_000)  # 実プロセス（timeout=20 の中で終わることも見る）
     assert code == 2 and err.strip()
 
 
 def test_deeply_nested_substitutions_are_checked_in_bounded_time():
     nested = '"$(a=(' * 100 + "x" + '))"' * 100
-    assert decision(nested) in {"pass", "ask", "deny"}  # 例外・タイムアウトにならない（run_hook の timeout=20）
+    code, out, _ = run_hook_process(nested)  # 実プロセス: 例外・タイムアウトにならない（timeout=20）
+    assert code in {0, 2}
+    if code == 0 and out.strip():
+        assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "ask"
+
+
+# 同じプロセスの中での実行（run_hook）と、実際の起動（run_hook_process）が、終了コード・標準出力・標準エラーまで同じ
+@pytest.mark.parametrize(
+    ("command", "tool_name"),
+    [
+        ("gcloud run services delete docunavi --region asia-northeast1", "Bash"),  # 拒否
+        ("gcloud auth login", "Bash"),  # 確認
+        ("gcloud run services list", "Bash"),  # 通す
+        ("gh run delete 1", "Monitor"),
+        ("gcloud projects delete p", "Read"),  # Bash 以外は見ない
+        ("cat ~/.config/gcloud/credentials.db", "Bash"),
+        ("bash -c 'gh run delete 1'", "Bash"),
+        ("echo hello", "Bash"),
+        ("", "Bash"),
+    ],
+)
+def test_in_process_and_real_process_agree(command, tool_name):
+    assert run_hook(command, tool_name) == run_hook_process(command, tool_name)
 
 
 def test_a_crashing_check_fails_closed():
