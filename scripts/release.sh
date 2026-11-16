@@ -11,15 +11,15 @@
 #   2. 新リビジョンが 0%、本番が別のリビジョンで 100% であることと、タグ付き URL の /health が 200 であることを確かめる
 #   3. 計画（切り替え・資格確認の副作用・ピン留め・戻し方）を示し、**ここで 1 回だけ**確認する
 #   4. 100% へ切り替える（scripts/preview.sh promote）→ 本番の /health
-#   5. 資格確認: 本番 Worker のテスト用ログインを一時的に有効にし、開発コンテナで scripts/prod_membership_check.sh を実行する。
-#      終わったら（失敗・中断でも）テスト用ログインの Secret を削除する（trap）
+#   5. 資格確認: scripts/prod_check.sh --chat を呼ぶ（テスト用ログインを一時的に有効にし、開発コンテナで scripts/prod_membership_check.sh を実行。
+#      終わったら、失敗・中断でも、テスト用ログインの Secret を削除する）
 #   6. 通ったら、ピン留めを付け替える（pin-prod = 新イメージ、pin-rollback = 切り替え前のイメージ）
 #   7. 新リビジョン・戻し先・戻すコマンドを表示する。失敗したときは、戻すかどうかを聞く（自動では戻さない）
 #
 # 判断が要るのは切り替えだけ（手順 3）。Secret・トークンの値は表示しない（Infisical の値は、コンテナからパイプで wrangler に渡す）。
 # 本番のトラフィックは、この確認のあとにだけ動く。ガード（フック・権限）は外さない。
 # 環境変数: PROJECT_ID（既定 docunavi-app）、REGION（既定 asia-northeast1）、SERVICE（既定 docunavi）、AR_REPO（既定 cloud-run-source-deploy）、
-#   DEVCONTAINER（既定 docunavi-devcontainer）、WRANGLER（既定 wrangler@4.158.0）、AUTH_WORKER（既定 docunavi-api）
+#   DEVCONTAINER（既定 docunavi-devcontainer）、AUTH_WORKER（既定 docunavi-api。表示用。実際の処理は prod_check.sh）
 set -euo pipefail
 
 # 書き込みなので、本人の ID で動かす（コンテナの既定は docunavi-viewer へのなりすまし。書き込みは 403 になる）
@@ -31,7 +31,6 @@ REGION="${REGION:-asia-northeast1}"
 SERVICE="${SERVICE:-docunavi}"
 AR_REPO="${AR_REPO:-cloud-run-source-deploy}"
 DEVCONTAINER="${DEVCONTAINER:-docunavi-devcontainer}"
-WRANGLER="${WRANGLER:-wrangler@4.158.0}"
 AUTH_WORKER="${AUTH_WORKER:-docunavi-api}"
 DRY_RUN="${PREVIEW_DRY_RUN:-}"
 IMAGE_REPO="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${SERVICE}"
@@ -171,7 +170,7 @@ echo "切り替え前（戻し先）: $cur_rev  ${cur_digest:0:19}…"
 echo "切り替え後          : $new_rev  ${new_digest:0:19}…（タグ ${run_tag}）"
 echo "1. 100% を $new_rev へ移す（scripts/preview.sh promote ${run_tag}）→ 本番の /health"
 if [[ "$do_check" == true ]]; then
-  echo "2. 資格確認: 本番 Worker $AUTH_WORKER のテスト用ログイン（TEST_LOGIN_EMAIL / TEST_LOGIN_TOKEN）を一時的に有効にする。"
+  echo "2. 資格確認（scripts/prod_check.sh --chat）: 本番 Worker $AUTH_WORKER のテスト用ログインを一時的に有効にする。"
   echo "   本番 DB のテストユーザーに資格を一時的に付けて外す（access_audit に 2 行残る）。本番の LLM を 1 回呼ぶ（課金）。終わったら Secret を削除する"
 else
   echo "2. 資格確認は省く（--no-check）"
@@ -202,60 +201,14 @@ if ! health "$svc_url"; then
 fi
 echo "本番の /health: 200"
 
-# ---- 5. 資格確認（テスト用ログインは、必ず戻す）
-login_touched=false
-login_off() {
-  local k
-  [[ "$login_touched" == true ]] || return 0
-  for k in TEST_LOGIN_TOKEN TEST_LOGIN_EMAIL; do
-    if [[ -n "$DRY_RUN" ]]; then
-      echo "+ npx $WRANGLER secret delete $k --name $AUTH_WORKER"
-      continue
-    fi
-    printf 'y\n' | (cd /tmp && npx "$WRANGLER" secret delete "$k" --name "$AUTH_WORKER") >/dev/null 2>&1 \
-      || echo "（$k は既にありませんでした、または削除に失敗しました。下の確認を見てください）" >&2
-  done
-  login_touched=false
-  if [[ -z "$DRY_RUN" ]]; then
-    if (cd /tmp && npx "$WRANGLER" secret list --name "$AUTH_WORKER" 2>/dev/null) | grep -q 'TEST_LOGIN'; then
-      echo "警告: Worker $AUTH_WORKER に TEST_LOGIN_* が残っています。手で削除してください: workers/api/test-login.sh off" >&2
-    else
-      echo "テスト用ログインを無効にしました（Worker の Secret に TEST_LOGIN_* は無い）"
-    fi
-  fi
-}
-trap login_off EXIT
-
-login_on() {
-  local k
-  login_touched=true
-  for k in TEST_LOGIN_EMAIL TEST_LOGIN_TOKEN; do
-    if [[ -n "$DRY_RUN" ]]; then
-      echo "+ （$DEVCONTAINER で Infisical dev の $k を読み、パイプで）npx $WRANGLER secret put $k --name $AUTH_WORKER"
-      continue
-    fi
-    docker exec -u vscode -e K="$k" "$DEVCONTAINER" bash -lc '
-      cd /workspaces/docunavi; set -a; . .dev-local/infisical-ids.env; set +a
-      infisical export --projectId "$INFISICAL_PROJECT_ID_DEV" --env dev --path / --format json 2>/dev/null \
-        | python3 -c "import sys,json,os; d={e[\"key\"]:e[\"value\"] for e in json.load(sys.stdin)}; sys.stdout.write(d[os.environ[\"K\"]])"' \
-      | (cd /tmp && npx "$WRANGLER" secret put "$k" --name "$AUTH_WORKER" >/dev/null)
-  done
-}
-
-check_rc=0
+# ---- 5. 資格確認（本番の /chat。テスト用ログインの有効化・削除は prod_check.sh が trap で必ず行う）
 if [[ "$do_check" == true ]]; then
   echo
-  echo "--- 資格確認（テスト用ログインを一時的に有効にします）"
-  login_on
-  if [[ -n "$DRY_RUN" ]]; then
-    echo "+ docker exec -u vscode $DEVCONTAINER bash -lc 'cd /workspaces/docunavi && bash scripts/prod_membership_check.sh'"
-  else
-    docker exec -u vscode "$DEVCONTAINER" bash -lc 'cd /workspaces/docunavi && bash scripts/prod_membership_check.sh' || check_rc=$?
-  fi
-  login_off
-  trap - EXIT
+  echo "--- 資格確認（scripts/prod_check.sh --chat）"
+  check_rc=0
+  "$HERE/prod_check.sh" --chat -y || check_rc=$?
   if [[ "$check_rc" != 0 ]]; then
-    echo "資格確認が合格しませんでした（終了コード ${check_rc}）。" >&2
+    echo "資格確認が合格しませんでした（終了コード $check_rc）。" >&2
     offer_rollback
     exit 1
   fi

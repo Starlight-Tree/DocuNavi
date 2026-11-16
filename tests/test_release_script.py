@@ -29,11 +29,10 @@ def test_help_explains_the_single_confirmation_and_the_host_only_rule():
     assert "1 回だけ" in result.stdout
 
 
-def test_script_never_moves_traffic_without_the_confirmation_and_cleans_up_the_test_login():
+def test_script_never_moves_traffic_without_the_confirmation_and_delegates_the_check():
     text = SCRIPT.read_text(encoding="utf-8")
     # 切り替え（preview.sh promote）は、確認のあとにだけ置く
     assert text.index('confirm "切り替えてよいですか?"') < text.index('preview.sh" promote')
-    # テスト用ログインは、失敗・中断でも消す（trap）
-    assert "trap login_off EXIT" in text
-    # 値は表示しない（Infisical の値は標準入力で wrangler に渡す）
-    assert "secret put" in text and 'echo "$TEST_LOGIN' not in text
+    # 資格確認（テスト用ログインの有効化と削除）は prod_check.sh に任せる。ここで Worker の Secret を書かない
+    assert 'prod_check.sh" --chat -y' in text
+    assert "secret put" not in text
