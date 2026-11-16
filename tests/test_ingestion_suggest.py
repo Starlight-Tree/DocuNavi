@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from app.d1 import SyncD1
 from app.ingestion import suggest
 from app.ingestion.embedding import ApiBudget
@@ -184,3 +186,29 @@ def test_main_apply_needs_a_key_unless_vertex(monkeypatch, capsys):
 
     assert suggest.main(["--apply"]) == 2
     assert "GEMINI_API_KEY" in capsys.readouterr().err
+
+
+def test_ids_regenerate_only_those_documents_even_when_questions_exist(d1_worker):
+    _doc(d1_worker, 1, questions=["古い？"], suggestions_hash="h")
+    _doc(d1_worker, 2, questions=["古い？"], suggestions_hash="h")
+    budget = ApiBudget(10)
+
+    report = suggest_pending(_store(d1_worker), FakeSuggester(budget), budget, max_docs=10, apply=True, ids=[2])
+
+    assert (report.selected, report.saved) == (1, 1)
+    rows = {
+        r["id"]: json.loads(r["suggested_questions"])
+        for r in d1_worker.rows("SELECT id, suggested_questions FROM documents")
+    }
+    assert rows[1] == ["古い？"]
+    assert rows[2] == ["質問A2？", "質問B2？", "質問C2？"]
+
+
+def test_a_missing_question_mark_is_added():
+    assert usable(["店舗数は", "必要ですか?", "あります。"]) == ["店舗数は？", "必要ですか?", "あります。"]
+
+
+@pytest.mark.parametrize("value", ["a", "0", "1,x", ",", "-1"])
+def test_main_rejects_a_bad_ids_value(value, capsys):
+    assert suggest.main(["--ids", value]) == 2
+    assert "--ids" in capsys.readouterr().err
