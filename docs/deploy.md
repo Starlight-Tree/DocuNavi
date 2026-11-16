@@ -371,7 +371,13 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERVICE}
 **切り替えからあとの手順は `./scripts/release.sh <ビルド ID>` にまとめてあります**（ホストで、あなたが実行。承認待ちなら承認 → 完了待ち → 新リビジョンが 0% で `/health` が 200 か確認 → **切り替え前の確認は 1 回だけ** → 切り替え → 本番の資格確認〔`scripts/prod_check.sh --chat` を呼ぶ。テスト用ログインを一時的に有効にし、必ず削除。単独の確認は [testing.md](testing.md) の「本番の /chat の自動テスト」〕→ `pin-prod`・`pin-rollback` の付け替え → 戻すコマンドの表示。`PREVIEW_DRY_RUN=1` で書き込みを実行せず確認、`--no-check` で資格確認を省く）。2026-11-17 に追加。**実機の通しは 2026-11-17 に 1 回確認済み**（ビルド `05265f65`、承認 → 完了待ち → 0% と `/health` 200 → 切り替え → 資格確認〔403 → 200、LLM 1 回〕→ ピン留め。証拠等級 A）。この回は、承認と実行を、Claude がホストから、ユーザーの指示のもとで行った。`pin-rollback` は、直前の本番のイメージ 1 つだけを守る（次の切り替えで付け替わる）。
 **状態（2026-11-14）:** サービスアカウント `docunavi-build`、GitHub の接続 `docunavi-github`（2nd gen）、トリガー `docunavi-tag-deploy`（承認必須）を作成し、2 回目のタグ push で 0% の配備まで通りました。
 
-- タグ名は `deploy/<Cloud Run のタグ名>`（例: `deploy/h2c-20261024` → タグ `h2c-20261024`）。形が違えば、ビルドの前に止まります。
+- **タグの名前（2026-11-17 に決定）:** Git のタグは `deploy/vYYYYMMDD-N`（例: `deploy/v20261117-1`）。形が違えば、ビルドの前に `check-tag` が止めます。
+  - 日付は **JST** の、実在する日で、未来でない日（`check-tag` が確かめる）。N は **1 始まり・先頭ゼロなし**で、同じ日の 2 回目は `-2`。内容（`suggest` など）は名前に入れず、タグを切るコミットのメッセージに書く。
+  - **使ったタグと番号は再利用しない。** 配備を失敗して取り消した番号も飛ばして、次の番号を使う（Git は同じ名前のタグを作らせない。削除して作り直す、`-f` で付け替えることもしない）。Cloud Run は、同じタグ名を別のリビジョンへ付けると、前のリビジョンから黙って外す。この再利用は `check-tag` では止まらない（未確認の穴）。
+  - **変換:** Cloud Run のタグ名は、Git のタグから先頭の `deploy/` を外したもの（`deploy/v20261117-1` → `v20261117-1`。タグ付き URL は `https://v20261117-1---…`）。先頭の `v` は、Cloud Run のタグ名が英字始まりのため。
+  - **旧形式の 4 つ**（`deploy/py314-1116` `deploy/suggest-20261117` `deploy/suggest-hook-1117` `deploy/membership-1117`）と、それに対応する Cloud Run のタグ・リビジョンは変更しません。旧形式の名前は、あらためて push しても `check-tag` が止めます（配備済みなので、再配備には使わない）。戻すのは、旧リビジョンへの `./scripts/preview.sh rollback <リビジョン>`（リビジョン名で指定するので、タグの形に左右されない）。`promote <Cloud Run のタグ名>` と `release.sh` のタグの検査は、旧形式も通る緩い形のままで、旧ビルドの ID でも動きます。
+  - `scripts/preview.sh deploy` のプレビュー用のタグ（`preview-YYYYMMDD-HHMM`）は別系統で、この規則の対象外です。
+  - Cloud Build のトリガー `docunavi-tag-deploy` のパターン `^deploy/.*$` は、そのままです。形の違うタグを push すると、承認待ちのビルドは作られますが、`check-tag` で失敗して、リビジョンは増えません。
 - 配備は `--set-env-vars` `--set-secrets` `--use-http2` を付けません。環境変数・Secret・ポート名（`http1` か `h2c`）は、サービスの最新の設定を引き継ぎます。
 - タグを切ったコミットがそのまま配備されます（`main` にある・CI が通っていることは、トリガーは確かめない。0% なので本番には出ない）。料金は、タグを push した回数分の Cloud Build だけです。
 
@@ -414,7 +420,7 @@ as_me gcloud builds triggers create github --project "$PROJECT_ID" --region "$RE
 
 ### 使うとき
 
-`git tag deploy/h2c-20261024 && git push origin deploy/h2c-20261024`（push は承認を得てから）。承認は `gcloud alpha builds approve <ID> --location <リージョン>`（`beta` は地域指定に対応しない）でできます。読み取りでの確認は、`gcloud builds list --billing-project=docunavi-app --project docunavi-app`（成否）と、`gcloud run services describe docunavi … --format='yaml(status.traffic)'`（新しいリビジョンが 0% で、本番が 100% のまま）です。
+次の番号は、`D=$(TZ=Asia/Tokyo date +%Y%m%d); git ls-remote --tags origin "deploy/v${D}-*"; git tag -l "deploy/v${D}-*"` で、リモートとローカルの両方の使用済みの番号を見て決めます。`git tag deploy/v20261117-1 && git push origin deploy/v20261117-1`（push は承認を得てから）。タグは、実績のある軽量タグにします（注釈付きタグでトリガーが動くかは確かめていません）。承認は `gcloud alpha builds approve <ID> --location <リージョン>`（`beta` は地域指定に対応しない）でできます。読み取りでの確認は、`gcloud builds list --billing-project=docunavi-app --project docunavi-app`（成否）と、`gcloud run services describe docunavi … --format='yaml(status.traffic)'`（新しいリビジョンが 0% で、本番が 100% のまま）です。
 配備のあと、最後のステップ `prune-old-revisions` が古いリビジョンを消します。新しい順に 3 つと、トラフィックが向いている・タグが付いたリビジョンは残します（タグが付いた古いものは、タグを外すまで残る）。消せなくても警告だけで、ビルドは成功のままです（2026-11-15 の実際のビルドで動作を確認。証拠等級 A）。
 
 ### 限界と確認

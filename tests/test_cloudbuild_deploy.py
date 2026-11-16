@@ -5,6 +5,7 @@ Docker も Cloud Build も使わずに確かめられるのは、設定の中身
 
 import re
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -67,12 +68,68 @@ def _run_tag_check(tmp_path: Path, tag_name: str) -> subprocess.CompletedProcess
     )
 
 
-def test_tag_check_accepts_deploy_tags_and_writes_the_run_tag(tmp_path: Path) -> None:
-    result = _run_tag_check(tmp_path, "deploy/h2c-20261024")
-    assert result.returncode == 0
-    assert (tmp_path / "run-tag").read_text() == "h2c-20261024"
+def _today_jst() -> str:
+    return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y%m%d")
 
 
-def test_tag_check_rejects_other_names(tmp_path: Path) -> None:
-    for name in ["", "main", "deploy/", "deploy/H2C", "deploy/1abc", "deploy/a;rm", "deploy/a/b", "v1.0"]:
+def test_tag_check_accepts_new_format_and_writes_the_run_tag(tmp_path: Path) -> None:
+    # Git のタグ deploy/vYYYYMMDD-N → Cloud Run のタグ vYYYYMMDD-N（先頭の deploy/ を外すだけ）
+    today = _today_jst()
+    for name in ["deploy/v20260101-1", "deploy/v20261114-2", f"deploy/v{today}-1", f"deploy/v{today}-12"]:
+        (tmp_path / "run-tag").unlink(missing_ok=True)
+        result = _run_tag_check(tmp_path, name)
+        assert result.returncode == 0, (name, result.stderr)
+        assert (tmp_path / "run-tag").read_text() == name.removeprefix("deploy/")
+
+
+def test_tag_check_rejects_malformed_names(tmp_path: Path) -> None:
+    for name in [
+        "",
+        "main",
+        "deploy/",
+        "deploy/H2C",
+        "deploy/1abc",
+        "deploy/a;rm",
+        "deploy/a/b",
+        "v1.0",
+        "deploy/v20261114-0",  # 連番は 1 始まり
+        "deploy/v20261114-01",  # 先頭ゼロなし
+        "deploy/v20261114",  # 連番が無い
+        "deploy/v20261114-",
+        "deploy/v20261114-1-fix",  # 内容は名前に入れない
+        "deploy/V20261114-1",  # 小文字の v
+        "deploy/20261114-1",  # v が無い（Cloud Run のタグは英字始まり）
+        "deploy/v2026114-1",  # 日付が 7 桁
+        "deploy/v202611140-1",  # 日付が 9 桁
+        "deploy/v20261114-1/x",
+        "deploy/v20261114-1\n",
+    ]:
         assert _run_tag_check(tmp_path, name).returncode != 0, name
+        assert not (tmp_path / "run-tag").exists(), name
+
+
+def test_tag_check_rejects_old_format_tags(tmp_path: Path) -> None:
+    # 2026-11-17 より前の 4 つ。再配備で同じ名前を push しても止まる（既存のタグ自体は変更しない）
+    for name in [
+        "deploy/py314-1116",
+        "deploy/suggest-20261117",
+        "deploy/suggest-hook-1117",
+        "deploy/membership-1117",
+        "deploy/h2c-20261024",
+    ]:
+        assert _run_tag_check(tmp_path, name).returncode != 0, name
+
+
+def test_tag_check_rejects_impossible_and_future_dates(tmp_path: Path) -> None:
+    for name in [
+        "deploy/v20261340-1",
+        "deploy/v20260230-1",
+        "deploy/v20261100-1",
+        "deploy/v00000000-1",
+        "deploy/v20991231-1",
+    ]:
+        result = _run_tag_check(tmp_path, name)
+        assert result.returncode != 0, name
+        assert not (tmp_path / "run-tag").exists(), name
+    tomorrow = (datetime.now(timezone.utc) + timedelta(hours=9, days=1)).strftime("%Y%m%d")
+    assert _run_tag_check(tmp_path, f"deploy/v{tomorrow}-1").returncode != 0
