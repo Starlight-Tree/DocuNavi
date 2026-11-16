@@ -9,6 +9,9 @@ R2 の資料群（バケット直下のプレフィックス）ごとに取り�
 
 `R2_ACCOUNT_ID` `R2_BUCKET` `R2_CREDENTIALS_JSON`（または `R2_CREDENTIALS_FILE`）、`DATABASE_URL`、`GEMINI_API_KEY` が要る。
 
+埋め込みの後に、質問の生成（`python -m app.ingestion.suggest --if-enabled`。環境変数 `SUGGEST_ENABLED=true` のときだけ動く）を呼ぶ。
+失敗しても、取り込み・埋め込みの結果と終了コードには影響しない（失敗は資料ごとに DB に残り、次の実行が続きから再試行する）。
+
 埋め込みは、取り込みの終了コードが 0 または 3 のときだけ実行する。3 は壊れた PDF が混ざったとき（壊れた文書にはチャンクが無く、
 埋め込みの対象にもならない）。壊れた PDF は取り込むたびに同じく失敗するので、3 で止めると、他の資料が検索に出なくなる。
 1・2（DB・R2 の失敗、設定の誤り）のときは、取り込みが済んでいないので埋め込まない。
@@ -23,6 +26,7 @@ from collections.abc import Callable, Sequence
 
 from app.ingestion.embedding import DEFAULT_MAX_CALLS, DEFAULT_MAX_CHUNKS
 from app.ingestion.service import COLLECTION_PATTERN
+from app.ingestion.suggest import after_ingest
 
 Command = Callable[[Sequence[str]], int]
 
@@ -50,8 +54,11 @@ def run_sync(
     apply: bool,
     max_chunks: int = DEFAULT_MAX_CHUNKS,
     max_calls: int = DEFAULT_MAX_CALLS,
+    suggest_main: Command | None = None,
 ) -> int:
-    """資料群ごとに取り込み、全部終わってから 1 回だけ埋め込む。取り込みと埋め込みは、引数の関数で呼ぶ（テストでは偽物）。"""
+    """資料群ごとに取り込み、全部終わってから 1 回だけ埋め込み、続けて質問を作る。各工程は、引数の関数で呼ぶ（テストでは偽物）。
+
+    質問の生成（`suggest_main`）は、取り込みが終わったときだけ、埋め込みの成否にかかわらず呼ぶ。失敗しても終了コードに影響させない。"""
     names: list[str] = []
     for name in collections:
         if COLLECTION_PATTERN.fullmatch(name):
@@ -73,6 +80,8 @@ def run_sync(
     embed_code = embed_main(
         [*(["--apply"] if apply else []), "--max-chunks", str(max_chunks), "--max-calls", str(max_calls)]
     )
+    if suggest_main is not None:
+        after_ingest(suggest_main, apply=apply)
     if embed_code != 0:
         print(f"埋め込みが終わりませんでした（終了コード {embed_code}）。", file=sys.stderr)
         return embed_code if embed_code in (1, 2) else 1
@@ -94,6 +103,12 @@ def _call_ingest(argv: Sequence[str]) -> int:
 
 def _call_embed(argv: Sequence[str]) -> int:
     from app.ingestion.embed import main
+
+    return main(argv)
+
+
+def _call_suggest(argv: Sequence[str]) -> int:
+    from app.ingestion.suggest import main
 
     return main(argv)
 
@@ -122,6 +137,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         apply=args.apply,
         max_chunks=args.max_chunks,
         max_calls=args.max_calls,
+        suggest_main=_call_suggest,
     )
 
 

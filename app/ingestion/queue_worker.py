@@ -16,6 +16,7 @@
 取り込みの終了コードで ack と retry を決める: 0・3 は ack（3 の失敗は documents.failure_reason に残る）、1 は遅延付きの retry、
 2（設定の誤り）は ack も retry もしない（`visibility_timeout` の後に再配信される。ログで知らせる）。
 埋め込みは、取り込み後に 1 回だけ呼ぶ。失敗したら、その回の取り込みの分は retry にする。
+続けて質問の生成（`python -m app.ingestion.suggest --if-enabled`。`SUGGEST_ENABLED=true` のときだけ動く）を呼ぶ。その成否は ack・retry に影響させない。
 
 終了コード: 0 = 完了（Queue が空になった、または 1 回の起動の上限に達した）、1 = 一時的な失敗（Queue・R2・DB・埋め込み）、
 2 = 設定の誤り・使い方の誤り。
@@ -35,6 +36,7 @@ from typing import Any
 
 from app.ingestion.embedding import DEFAULT_MAX_CALLS, DEFAULT_MAX_CHUNKS
 from app.ingestion.service import COLLECTION_PATTERN
+from app.ingestion.suggest import after_ingest
 from app.pdf_originals import MAX_ORIGINAL_BYTES
 
 logger = logging.getLogger(__name__)
@@ -225,6 +227,7 @@ def process_batch(
     embed_main: Command,
     max_chunks: int,
     max_calls: int,
+    suggest_main: Command | None = None,
 ) -> tuple[list[str], list[str], Outcome]:
     """1 回分の通知を処理し、(ack する lease, retry する lease, 結果) を返す。同じ PDF の通知は 1 回だけ取り込む。"""
     outcome = Outcome()
@@ -272,6 +275,8 @@ def process_batch(
         except Exception as exc:  # noqa: BLE001
             logger.error("埋め込みで失敗しました (%s)", type(exc).__name__)
             embed_code = 1
+        if suggest_main is not None:
+            after_ingest(suggest_main, apply=True)  # 失敗しても ack・retry には影響させない（取り込みは済んでいる）
         leases = [lease for group in done.values() for lease in group]
         if embed_code == 0:
             outcome.ingested += len(done)
@@ -300,6 +305,7 @@ def run_worker(
     visibility_timeout_seconds: int = DEFAULT_VISIBILITY_TIMEOUT_SECONDS,
     max_chunks: int = DEFAULT_MAX_CHUNKS,
     max_calls: int = DEFAULT_MAX_CALLS,
+    suggest_main: Command | None = None,
 ) -> int:
     """Queue が空になるか、`max_batches` 回に達するまで、pull → 処理 → ack をくり返す。"""
     total = Outcome()
@@ -323,6 +329,7 @@ def run_worker(
             embed_main=embed_main,
             max_chunks=max_chunks,
             max_calls=max_calls,
+            suggest_main=suggest_main,
         )
         try:
             client.ack(acks, retries)
@@ -374,6 +381,12 @@ def _call_embed(argv: Sequence[str]) -> int:
     return main(argv)
 
 
+def _call_suggest(argv: Sequence[str]) -> int:
+    from app.ingestion.suggest import main
+
+    return main(argv)
+
+
 def main(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None) -> int:
     args = _parser().parse_args(argv)
     env = os.environ if env is None else env
@@ -411,6 +424,7 @@ def main(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None
         visibility_timeout_seconds=args.visibility_timeout,
         max_chunks=args.max_chunks,
         max_calls=args.max_calls,
+        suggest_main=_call_suggest,
     )
 
 

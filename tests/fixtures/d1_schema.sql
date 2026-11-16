@@ -42,6 +42,8 @@ CREATE TABLE documents (
   doc_type       TEXT REFERENCES document_types (name) ON UPDATE RESTRICT ON DELETE RESTRICT,
   suggested_questions TEXT,
   suggestions_hash    TEXT,
+  suggestions_at      INTEGER,
+  suggestions_failure TEXT,
   created_at     INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
   updated_at     INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
 );

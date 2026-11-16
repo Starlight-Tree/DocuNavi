@@ -164,3 +164,40 @@ def test_main_rejects_non_positive_limits(flag, monkeypatch):
     _wire(monkeypatch, FakeStore(["cafe"]), calls)
     assert sync.main(["--apply", flag, "0"]) == 2
     assert calls.log == []
+
+
+def _suggest_calls(calls: "Calls", code=0):
+    def suggest_main(argv):
+        calls.log.append(("suggest", list(argv)))
+        if isinstance(code, Exception):
+            raise code
+        return code
+
+    return suggest_main
+
+
+def test_suggest_runs_after_embedding_and_gets_the_caps():
+    calls = Calls()
+    assert _run(["cafe"], calls, suggest_main=_suggest_calls(calls)) == 0
+    assert calls.kinds() == ["ingest", "embed", "suggest"]
+    argv = calls.log[-1][1]
+    assert argv[0] == "--if-enabled" and "--apply" in argv and "--max-docs" in argv
+
+
+@pytest.mark.parametrize("code", [1, 2, RuntimeError("boom")])
+def test_a_suggest_failure_never_changes_the_exit_code(code, capsys):
+    calls = Calls()
+    assert _run(["cafe"], calls, suggest_main=_suggest_calls(calls, code)) == 0
+    assert "取り込みには影響しません" in capsys.readouterr().err
+
+
+def test_suggest_still_runs_when_embedding_failed_but_the_exit_code_is_the_embed_one():
+    calls = Calls(embed_code=1)
+    assert _run(["cafe"], calls, suggest_main=_suggest_calls(calls)) == 1
+    assert calls.kinds() == ["ingest", "embed", "suggest"]
+
+
+def test_suggest_is_skipped_when_ingestion_failed():
+    calls = Calls(ingest_codes={"cafe": 1})
+    assert _run(["cafe"], calls, suggest_main=_suggest_calls(calls)) == 1
+    assert "suggest" not in calls.kinds()

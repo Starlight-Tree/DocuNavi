@@ -512,3 +512,54 @@ def test_worker_source_has_no_r2_write_calls():
     source = inspect.getsource(qw)
     for forbidden in (".put(", "put_object", "delete_object", "copy_object", ".upload"):
         assert forbidden not in source
+
+
+# --- 質問の生成（取り込みの後。ack・retry に影響させない） ---------------------------------------------------------
+
+
+def batch_with_suggest(messages, commands, suggest):
+    return qw.process_batch(
+        messages,
+        bucket=BUCKET,
+        exists=commands.exists,
+        ingest_main=commands.ingest,
+        embed_main=commands.embed,
+        max_chunks=50,
+        max_calls=2,
+        suggest_main=suggest,
+    )
+
+
+def test_suggest_runs_once_after_embedding_when_something_was_ingested():
+    commands, calls = Commands(), []
+
+    def suggest(argv):
+        calls.append(list(argv))
+        return 0
+
+    acks, retries, _ = batch_with_suggest([msg(1, key="cafe/a.pdf"), msg(2, key="guides/b.pdf")], commands, suggest)
+
+    assert (acks, retries) == (["l1", "l2"], [])
+    assert len(calls) == 1 and calls[0][0] == "--if-enabled" and "--apply" in calls[0]
+
+
+@pytest.mark.parametrize("result", [1, 2, RuntimeError("boom")])
+def test_a_suggest_failure_does_not_retry_or_leave_the_notification(result):
+    def suggest(argv):
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    acks, retries, outcome = batch_with_suggest([msg(1)], Commands(), suggest)
+
+    assert (acks, retries) == (["l1"], [])
+    assert outcome.exit_code() == 0
+
+
+def test_suggest_is_not_called_when_nothing_was_ingested():
+    calls = []
+    commands = Commands(ingest_codes={"cafe/menu.pdf": 1})
+
+    acks, retries, _ = batch_with_suggest([msg(1)], commands, lambda argv: calls.append(argv) or 0)
+
+    assert (acks, retries, calls) == ([], ["l1"], [])
