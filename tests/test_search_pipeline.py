@@ -19,7 +19,7 @@ from app.search import vector as search_vector
 from app.search.graph import build_edges
 from app.search.keyword import KeywordIndex, identifiers, tokenize
 from app.search.pipeline import Chunk
-from app.search.types import Hit, VectorSearchError
+from app.search.types import SUGGESTED_QUESTIONS_SQL, Hit, VectorSearchError
 
 FLAGS = ("SEARCH_HYBRID", "SEARCH_RERANK", "SEARCH_GRAPH")
 
@@ -576,8 +576,8 @@ def test_suggested_questions_survive_the_corpus_copy_and_reach_the_sources():
 
     assert hit.suggested_questions == questions
     assert _sources([hit])[0]["suggested_questions"] == list(questions)
-    assert "d.suggested_questions AS suggested_questions" in search_pipeline._CORPUS_SQL
-    assert "d.suggested_questions AS suggested_questions" in search_vector._CHUNKS_SQL
+    assert SUGGESTED_QUESTIONS_SQL in search_pipeline._CORPUS_SQL
+    assert SUGGESTED_QUESTIONS_SQL in search_vector._CHUNKS_SQL
     # 質問が無い資料は None（画面は固定表にフォールバックする）
     assert "suggested_questions" not in _sources([Hit("a.pdf", "本文")])[0]
 

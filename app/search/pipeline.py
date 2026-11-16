@@ -37,7 +37,7 @@ from app.search import vector as search_vector
 from app.search.graph import build_edges
 from app.search.keyword import KeywordIndex, identifiers, normalize
 from app.search.rerank import lexical_scores
-from app.search.types import Hit, VectorSearchError, clean_questions
+from app.search.types import SUGGESTED_QUESTIONS_SQL, Hit, VectorSearchError, clean_questions
 
 # ログの絞り込み（ロガー名）を、移動前の app.search_pipeline のまま保つ
 logger = logging.getLogger("app.search_pipeline")
@@ -58,7 +58,9 @@ _CORPUS_WHERE = (
     f"AND {DOCUMENTS_FILTER_SQL} "
 )
 _CORPUS_SQL = (
-    "SELECT d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, d.title AS title, d.suggested_questions AS suggested_questions, "
+    "SELECT d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, d.title AS title, "
+    + SUGGESTED_QUESTIONS_SQL
+    + ", "
     "c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end, "
     "c.page_label AS page_label, c.page_end_label AS page_end_label "
     + _CORPUS_WHERE

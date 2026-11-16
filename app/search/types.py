@@ -6,6 +6,12 @@ from typing import Any, NamedTuple
 MAX_SUGGESTIONS = 3
 MAX_SUGGESTION_CHARS = 60
 
+# 検索の SQL で `suggested_questions` を読む式。質問を作った時点の版（suggestions_hash）が今の版（content_hash）と違う、
+# つまり PDF が入れ替わって再生成を待っている質問は、画面に出さない（古い PDF の内容の質問が残らないように）。
+SUGGESTED_QUESTIONS_SQL = (
+    "CASE WHEN d.suggestions_hash = d.content_hash THEN d.suggested_questions END AS suggested_questions"
+)
+
 
 def clean_questions(value: Any) -> tuple[str, ...] | None:
     """`documents.suggested_questions`（jsonb の配列、または JSON 文字列）を、画面に渡せる形にする。

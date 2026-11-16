@@ -26,7 +26,7 @@ from app.agents.resilience import KeySwitch, call_with_key_switch, key_switch_ho
 from app.history import get_pool
 from app.ingestion import embedding
 from app.scope import ALLOWED_FILTER_SQL, DOCUMENTS_FILTER_SQL, TARGET_FILTER_SQL, Scope, require_scope
-from app.search.types import Hit, VectorSearchError, clean_questions
+from app.search.types import SUGGESTED_QUESTIONS_SQL, Hit, VectorSearchError, clean_questions
 
 # ログの絞り込み（ロガー名）を、移動前の app.search_vector のまま保つ
 logger = logging.getLogger("app.search_vector")
@@ -40,7 +40,9 @@ _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
 
 # Vectorize が返したチャンク ID を、本文・メタデータに引き直す（範囲・対象・資料の条件は、Vectorize のフィルターに加えてここでも確かめる）
 _CHUNKS_SQL = (
-    "SELECT c.id AS chunk_id, d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, d.title AS title, d.suggested_questions AS suggested_questions, "
+    "SELECT c.id AS chunk_id, d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, d.title AS title, "
+    + SUGGESTED_QUESTIONS_SQL
+    + ", "
     "c.heading AS heading, c.content AS content, c.page AS page, c.page_end AS page_end, c.chunk_index AS chunk_index, "
     "c.page_label AS page_label, c.page_end_label AS page_end_label "
     "FROM chunks c JOIN documents d ON d.id = c.document_id "
