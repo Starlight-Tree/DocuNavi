@@ -6,6 +6,8 @@
 export interface AuthUser {
   /** 画面に出す名前（メールアドレス）。取れなければ null。 */
   email: string | null;
+  /** プロフィール画像の URL（Google のアイコン）。無ければ null か省略。 */
+  image?: string | null | undefined;
 }
 
 export interface AuthClient {

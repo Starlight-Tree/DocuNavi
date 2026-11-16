@@ -242,6 +242,7 @@ function ChatScreen() {
         view={view}
         mode={chat.mode ?? healthMode}
         userLabel={state.status === 'signedIn' ? (state.user.email ?? 'ログイン中') : undefined}
+        userImage={state.status === 'signedIn' ? state.user.image : undefined}
         onSignOut={signedIn ? () => void signOut() : undefined}
         onNewConversation={() => {
           // いまの会話と検索範囲を閉じて、チャットで新しく始める

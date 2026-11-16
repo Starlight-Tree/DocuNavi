@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import App from './App';
@@ -92,6 +92,33 @@ describe('ログイン: 画面', () => {
 
     await screen.findByText(DEFAULT_REPLY);
     expect(authorization(chatInits()[0]!)).toBe('Bearer tok-1');
+  });
+
+  it('プロフィール画像があれば、アバターに表示する。https 以外は使わず、読み込めなければ人型アイコンに戻す', async () => {
+    installFetch(() => replyResponse());
+    const { unmount } = render(
+      <AuthProvider client={fakeAuth({ user: { email: 'a@example.com', image: 'https://lh3.googleusercontent.com/a/x=s96-c' } })}>
+        <App />
+      </AuthProvider>,
+    );
+    const account = await screen.findByRole('button', { name: 'アカウントメニュー' });
+    const img = account.querySelector<HTMLImageElement>('.ws-account-avatar img');
+    expect(img).toHaveAttribute('src', 'https://lh3.googleusercontent.com/a/x=s96-c');
+    expect(img).toHaveAttribute('referrerpolicy', 'no-referrer');
+    expect(account.querySelector('.ws-account-avatar svg')).toBeNull();
+    fireEvent.error(img!);
+    expect(account.querySelector('.ws-account-avatar img')).toBeNull();
+    expect(account.querySelector('.ws-account-avatar svg')).not.toBeNull();
+    unmount();
+
+    render(
+      <AuthProvider client={fakeAuth({ user: { email: 'a@example.com', image: 'http://example.com/a.png' } })}>
+        <App />
+      </AuthProvider>,
+    );
+    const plain = await screen.findByRole('button', { name: 'アカウントメニュー' });
+    expect(plain.querySelector('.ws-account-avatar img')).toBeNull();
+    expect(plain.querySelector('.ws-account-avatar svg')).not.toBeNull();
   });
 
   it('起動直後（セッションの確認中）は、ログイン画面を一瞬出さずに待つ', async () => {
