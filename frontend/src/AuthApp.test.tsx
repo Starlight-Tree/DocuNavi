@@ -84,7 +84,7 @@ describe('ログイン: 画面', () => {
     expect(screen.queryByRole('menuitem', { name: 'ログアウト' })).not.toBeInTheDocument();
     await user.click(account);
     expect(screen.getByRole('menuitem', { name: 'ログアウト' })).toBeInTheDocument();
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['ナレッジ', 'ログアウト']); // ログイン中は、ナレッジとログアウトの順
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['ナレッジ', '表示名を変更', 'ログアウト']); // ログイン中は、ナレッジ・表示名の変更・ログアウトの順
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('menuitem', { name: 'ログアウト' })).not.toBeInTheDocument();
     expect(account).toHaveFocus();
@@ -130,6 +130,74 @@ describe('ログイン: 画面', () => {
     expect(account).not.toHaveTextContent('a@example.com');
     await user.click(account);
     expect(within(screen.getByRole('menu')).getByText('a@example.com')).toBeInTheDocument();
+  });
+
+  it('メニューの「表示名を変更」から、表示名を保存できる。保存するとボタンの名前がすぐ変わる', async () => {
+    installFetch(() => replyResponse());
+    const auth = fakeAuth({ user: { email: 'a@example.com', name: '山田 太郎' } });
+    const { user } = setup(auth);
+
+    await user.click(await screen.findByRole('button', { name: 'アカウントメニュー' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['ナレッジ', '表示名を変更', 'ログアウト']);
+    await user.click(screen.getByRole('menuitem', { name: '表示名を変更' }));
+
+    const dialog = await screen.findByRole('dialog', { name: '表示名を変更' });
+    const input = within(dialog).getByRole('textbox', { name: '表示名' });
+    expect(input).toHaveValue('山田 太郎');
+    expect(input).toHaveFocus();
+    await user.clear(input);
+    await user.type(input, '  たろう  ');
+    await user.click(within(dialog).getByRole('button', { name: '保存' }));
+
+    expect(auth.updateName).toHaveBeenCalledWith('たろう'); // 前後の空白は除く
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'アカウントメニュー' })).toHaveTextContent('たろう');
+  });
+
+  it('表示名が不正なら保存せず、理由を出す。キャンセルでも保存しない', async () => {
+    installFetch(() => replyResponse());
+    const auth = fakeAuth({ user: { email: 'a@example.com', name: '山田 太郎' } });
+    const { user } = setup(auth);
+
+    await user.click(await screen.findByRole('button', { name: 'アカウントメニュー' }));
+    await user.click(screen.getByRole('menuitem', { name: '表示名を変更' }));
+    const dialog = await screen.findByRole('dialog', { name: '表示名を変更' });
+    const input = within(dialog).getByRole('textbox', { name: '表示名' });
+
+    await user.clear(input);
+    await user.click(within(dialog).getByRole('button', { name: '保存' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('表示名を入力してください');
+
+    await user.type(input, 'あ'.repeat(31));
+    await user.click(within(dialog).getByRole('button', { name: '保存' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('30 文字以内');
+    expect(auth.updateName).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('button', { name: 'キャンセル' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(auth.updateName).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'アカウントメニュー' })).toHaveTextContent('山田 太郎');
+  });
+
+  it('保存に失敗したら、固定の案内を出してダイアログを残す。名前は変えない', async () => {
+    installFetch(() => replyResponse());
+    const auth = fakeAuth({ user: { email: 'a@example.com', name: '山田 太郎' } });
+    auth.updateName.mockRejectedValueOnce(new Error('secret detail'));
+    const { user } = setup(auth);
+
+    await user.click(await screen.findByRole('button', { name: 'アカウントメニュー' }));
+    await user.click(screen.getByRole('menuitem', { name: '表示名を変更' }));
+    const dialog = await screen.findByRole('dialog', { name: '表示名を変更' });
+    const input = within(dialog).getByRole('textbox', { name: '表示名' });
+    await user.clear(input);
+    await user.type(input, 'たろう');
+    await user.click(within(dialog).getByRole('button', { name: '保存' }));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('表示名を保存できませんでした');
+    expect(alert).not.toHaveTextContent('secret detail');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'アカウントメニュー', hidden: true })).toHaveTextContent('山田 太郎');
   });
 
   it('起動直後（セッションの確認中）は、ログイン画面を一瞬出さずに待つ', async () => {

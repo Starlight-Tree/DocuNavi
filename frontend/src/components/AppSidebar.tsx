@@ -14,6 +14,7 @@ interface AppSidebarProps {
   userImage?: string | null | undefined;
   /** メニューの先頭に出すメールアドレス（ボタンには名前を出すため）。 */
   userEmail?: string | null | undefined;
+  onChangeName?: (() => void) | undefined;
   onSignOut?: (() => void) | undefined;
   onNewConversation: () => void;
   /** サイドバーを閉じる（再表示のボタンは、呼び出し側がメインの上に出す）。渡さなければ、閉じるボタンを出さない（UI モック）。 */
@@ -134,7 +135,7 @@ function inApp(action: () => void) {
  * 共通の左サイドバー。新しい会話、会話の履歴、アカウントのメニュー（ナレッジ・ログアウト）を持つ。閉じるボタンで畳める。閉じたレールは、ロゴの位置のボタンと、空き部分のクリックで開く。
  * `knowledgeInMenu` でないとき（UI モック）は、上部に画面の切り替え（チャット / 資料）を出す。
  */
-export function AppSidebar({ view, mode, userLabel, userImage, userEmail, onSignOut, onNewConversation, onCollapse, collapseRef, onGoChat, onGoDocuments, knowledgeInMenu, history, documentCount, rail, railToggleRef, onExpand }: AppSidebarProps) {
+export function AppSidebar({ view, mode, userLabel, userImage, userEmail, onChangeName, onSignOut, onNewConversation, onCollapse, collapseRef, onGoChat, onGoDocuments, knowledgeInMenu, history, documentCount, rail, railToggleRef, onExpand }: AppSidebarProps) {
   const modeInfo = mode ? (MODE_LABELS[mode] ?? { label: mode, hint: `モード: ${mode}` }) : null;
   return (
     <div className="ws-sidebar">
@@ -160,7 +161,7 @@ export function AppSidebar({ view, mode, userLabel, userImage, userEmail, onSign
             <KnowledgeIcon />
           </a>
           <div className="ws-rail-foot">
-            <AccountMenu label={userLabel} image={userImage} email={userEmail} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} compact />
+            <AccountMenu label={userLabel} image={userImage} email={userEmail} onChangeName={onChangeName} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} compact />
           </div>
         </nav>
       )}
@@ -207,9 +208,9 @@ export function AppSidebar({ view, mode, userLabel, userImage, userEmail, onSign
             </span>
           )}
           {knowledgeInMenu ? (
-            <AccountMenu label={userLabel} image={userImage} email={userEmail} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} />
+            <AccountMenu label={userLabel} image={userImage} email={userEmail} onChangeName={onChangeName} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} />
           ) : (
-            userLabel && onSignOut && <AccountMenu label={userLabel} image={userImage} email={userEmail} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} />
+            userLabel && onSignOut && <AccountMenu label={userLabel} image={userImage} email={userEmail} onChangeName={onChangeName} onSignOut={onSignOut} onOpenKnowledge={onGoDocuments} knowledgeCurrent={view === 'documents'} />
           )}
         </div>
       </div>

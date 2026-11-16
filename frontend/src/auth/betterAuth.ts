@@ -72,6 +72,10 @@ export function createBetterAuth(baseURL: string): AuthClient {
       const { error } = await client.signIn.social({ provider: 'google', callbackURL: window.location.origin });
       if (error) throw new Error('sign-in failed');
     },
+    updateName: async (name) => {
+      const { error } = await client.updateUser({ name });
+      if (error) throw new Error('update-name failed');
+    },
     signOut: async () => {
       cached = null;
       signingOut = true;

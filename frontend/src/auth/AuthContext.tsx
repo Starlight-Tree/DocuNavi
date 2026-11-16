@@ -19,6 +19,8 @@ export interface AuthContextValue {
   signIn: () => Promise<void>;
   /** 自分でログアウトする。会話の ID も捨てる（共有の端末に残さない）。 */
   signOut: () => Promise<void>;
+  /** 表示名を変更する。成功したら画面の名前もすぐ変える。失敗したら例外を投げる。 */
+  updateName: (name: string) => Promise<void>;
   /** トークンを更新できなかった・更新しても 401 だった。ログイン画面へ戻す（会話の ID は残す）。 */
   expire: () => void;
 }
@@ -28,6 +30,7 @@ const DISABLED: AuthContextValue = {
   client: null,
   signIn: async () => undefined,
   signOut: async () => undefined,
+  updateName: async () => undefined,
   expire: () => undefined,
 };
 
@@ -107,6 +110,16 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
     }
   }, [client]);
 
+  const updateName = useCallback(
+    async (name: string) => {
+      if (!client) return;
+      await client.updateName(name);
+      // 再取得の通知（少し遅れる）を待たずに、画面の名前を変える
+      setState((current) => (current.status === 'signedIn' ? { status: 'signedIn', user: { ...current.user, name } } : current));
+    },
+    [client],
+  );
+
   const expire = useCallback(() => {
     setState((current) =>
       current.status === 'signedIn' ? { status: 'signedOut', notice: MSG_SESSION_EXPIRED } : current,
@@ -115,8 +128,8 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
   }, [client]);
 
   const value = useMemo(
-    () => ({ state, client, signIn, signOut, expire }),
-    [state, client, signIn, signOut, expire],
+    () => ({ state, client, signIn, signOut, updateName, expire }),
+    [state, client, signIn, signOut, updateName, expire],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

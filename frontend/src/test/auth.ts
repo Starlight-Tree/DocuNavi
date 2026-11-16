@@ -9,6 +9,7 @@ export interface FakeAuth extends AuthClient {
   refreshAccessToken: ReturnType<typeof vi.fn<() => Promise<string | null>>>;
   signInWithGoogle: ReturnType<typeof vi.fn<() => Promise<void>>>;
   signOut: ReturnType<typeof vi.fn<() => Promise<void>>>;
+  updateName: ReturnType<typeof vi.fn<(name: string) => Promise<void>>>;
 }
 
 export interface FakeAuthOptions {
@@ -35,6 +36,7 @@ export function fakeAuth(options: FakeAuthOptions = {}): FakeAuth {
       return () => listeners.delete(listener);
     },
     signInWithGoogle: vi.fn(async () => undefined),
+    updateName: vi.fn(async () => undefined),
     signOut: vi.fn(async () => {
       emit(null);
     }),

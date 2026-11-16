@@ -4,6 +4,7 @@ import { useAuth } from './auth/AuthContext';
 import { AppSidebar, SidebarIcon } from './components/AppSidebar';
 import { useWideScreen } from './hooks/useWideScreen';
 import { Composer } from './components/Composer';
+import { DisplayNameDialog } from './components/DisplayNameDialog';
 import { DocumentsView, MSG_NOTHING_SELECTED } from './components/DocumentsView';
 import { ErrorBanner } from './components/ErrorBanner';
 import { LoginScreen } from './components/LoginScreen';
@@ -72,7 +73,8 @@ function ChatScreen() {
   const targets = usableClassifications(classifications.targets);
   const targetItems = classificationItems(classifications.targets);
   const healthMode = useBackendMode();
-  const { state, signOut } = useAuth();
+  const { state, signOut, updateName } = useAuth();
+  const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const signedIn = state.status === 'signedIn';
   // 開いている画面は URL が決める（戻る・再読み込み・共有で戻れる）
   const { tab: view, doc, navigate } = useUrlState();
@@ -233,10 +235,12 @@ function ChatScreen() {
   };
 
   return (
+    <>
     <div
       className={panelOpen ? 'ws-shell ws-shell-panel' : 'ws-shell'}
       data-expanded={panelOpen && expanded ? 'true' : undefined}
       data-side={sideOpen ? undefined : 'closed'}
+      inert={nameDialogOpen}
     >
       <AppSidebar
         view={view}
@@ -244,6 +248,7 @@ function ChatScreen() {
         userLabel={state.status === 'signedIn' ? (state.user.name?.trim() || state.user.email || 'ログイン中') : undefined}
         userEmail={state.status === 'signedIn' ? state.user.email : undefined}
         userImage={state.status === 'signedIn' ? state.user.image : undefined}
+        onChangeName={signedIn ? () => setNameDialogOpen(true) : undefined}
         onSignOut={signedIn ? () => void signOut() : undefined}
         onNewConversation={() => {
           // いまの会話と検索範囲を閉じて、チャットで新しく始める
@@ -375,6 +380,10 @@ function ChatScreen() {
         onClosed={() => setExpanded(false)}
       />
     </div>
+    {nameDialogOpen && state.status === 'signedIn' && (
+      <DisplayNameDialog initial={state.user.name?.trim() ?? ''} onSave={updateName} onClose={() => setNameDialogOpen(false)} />
+    )}
+    </>
   );
 }
 

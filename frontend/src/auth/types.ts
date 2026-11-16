@@ -23,6 +23,8 @@ export interface AuthClient {
   onChange: (listener: (user: AuthUser | null) => void) => () => void;
   /** Google のログイン画面へ移る（戻ってきたときに、セッションの Cookie ができる）。 */
   signInWithGoogle: () => Promise<void>;
+  /** 表示名を変更する。失敗したら例外を投げる。 */
+  updateName: (name: string) => Promise<void>;
   /** この端末のセッションを破棄する。 */
   signOut: () => Promise<void>;
 }
