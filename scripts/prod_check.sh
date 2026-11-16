@@ -6,7 +6,11 @@
 #   ./scripts/prod_check.sh --stream               # /chat/stream で 1 回送り、出典と引用を検査（scripts/prod_smoke_chat.py --stream）
 #   ./scripts/prod_check.sh --screen               # 本番の画面（Playwright）で、時刻・太字・色・吹き出しを見て、スクリーンショットを残す
 #   ./scripts/prod_check.sh --stream --screen      # 続けて実行できる（--chat、--stream、--screen の順）
-#   --question "…"   --stream / --screen の質問（既定: 寮の門限は何時ですか？）。質問は 1 回だけ（実 API・課金）
+#   ./scripts/prod_check.sh --browse <名前>        # 本番の画面を、テスト専用ユーザーでログインして操作・撮影する（scripts/prod_scenarios/<名前>.cjs。何度でも指定できる）
+#                                                  #   chat-2turns（2 往復。課金 2 回）、documents（資料一覧。課金なし）、screen-check（時刻・太字の検査。課金 1 回）
+#                                                  #   画像の名前を変えるには --browse chat-2turns=readme-chat（.playwright-mcp/readme-chat.png）
+#   --scenario-args '<JSON>'   --browse のシナリオへ渡す引数（全シナリオ共通）。--viewport 1280x800、--theme light|dark も指定できる
+#   --question "…"   --stream / --screen / --browse の質問（既定: 寮の門限は何時ですか？）。質問は 1 回だけ（実 API・課金）
 #   -y               確認を省く（release.sh が、切り替え前の確認のあとに呼ぶ）
 #   PREVIEW_DRY_RUN=1 ./scripts/prod_check.sh …   # 書き込みは実行せず、コマンドだけ表示（読み取りは実行する）
 #
@@ -48,6 +52,10 @@ confirm() {
 do_chat=false
 do_stream=false
 do_screen=false
+scenarios=""
+scenario_args="{}"
+viewport="1280x800"
+theme="light"
 assume_yes=false
 question="寮の門限は何時ですか？"
 while [[ $# -gt 0 ]]; do
@@ -56,6 +64,27 @@ while [[ $# -gt 0 ]]; do
     --chat) do_chat=true ;;
     --stream) do_stream=true ;;
     --screen) do_screen=true ;;
+    --browse)
+      [[ $# -ge 2 && "$2" =~ ^[a-z0-9-]+(=[a-z0-9-]+)?$ ]] || die "--browse にはシナリオ名（小文字・数字・ハイフン。画像名を変えるなら 名前=画像名）が要ります"
+      [[ -f "$(dirname "$0")/prod_scenarios/${2%%=*}.cjs" ]] || die "シナリオがありません: scripts/prod_scenarios/${2%%=*}.cjs"
+      scenarios="$scenarios $2"
+      shift
+      ;;
+    --scenario-args)
+      [[ $# -ge 2 ]] || die "--scenario-args には JSON が要ります"
+      scenario_args="$2"
+      shift
+      ;;
+    --viewport)
+      [[ $# -ge 2 && "$2" =~ ^[0-9]{3,4}x[0-9]{3,4}$ ]] || die "--viewport は 1280x800 の形です"
+      viewport="$2"
+      shift
+      ;;
+    --theme)
+      [[ $# -ge 2 && ( "$2" == light || "$2" == dark ) ]] || die "--theme は light か dark です"
+      theme="$2"
+      shift
+      ;;
     -y | --yes) assume_yes=true ;;
     --question)
       [[ $# -ge 2 && -n "$2" ]] || die "--question には質問文が要ります"
@@ -66,7 +95,8 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-if [[ "$do_chat" == false && "$do_stream" == false && "$do_screen" == false ]]; then usage 2; fi
+if [[ "$do_chat" == false && "$do_stream" == false && "$do_screen" == false && -z "$scenarios" ]]; then usage 2; fi
+python3 -c 'import json,sys; json.loads(sys.argv[1])' "$scenario_args" 2>/dev/null || die "--scenario-args が JSON ではありません"
 [[ ${#question} -le 200 ]] || die "質問が長すぎます（200 文字まで）"
 [[ "$EMAIL" =~ ^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+$ ]] || die "MEMBERSHIP_CHECK_EMAIL の形が違います"
 
@@ -76,7 +106,7 @@ for c in docker npx; do command -v "$c" >/dev/null || die "$c が見つかりま
 # 開発コンテナで実行する（作業場所と Infisical の ID は、毎回ここで決める。作業フォルダーの違いによる事故を防ぐ）。
 # 引数: コンテナで実行するシェルの 1 行。質問は環境変数 QUESTION で渡す（シェルの引用符に混ぜない）。
 cx() {
-  docker exec -u vscode -e QUESTION="$question" -e SHOT="${SHOT:-}" "$DEVCONTAINER" bash -lc \
+  docker exec -u vscode -e QUESTION="$question" -e SHOT="${SHOT:-}" -e SCENARIO_ARGS="$scenario_args" -e VIEWPORT="$viewport" -e THEME="$theme" "$DEVCONTAINER" bash -lc \
     "set -o pipefail; cd /workspaces/docunavi && set -a && . .dev-local/infisical-ids.env && set +a && $1"
 }
 # 書き込み（DRY_RUN では表示だけ）
@@ -95,6 +125,7 @@ modes=""
 [[ "$do_chat" == true ]] && modes="$modes --chat"
 [[ "$do_stream" == true ]] && modes="$modes --stream"
 [[ "$do_screen" == true ]] && modes="$modes --screen"
+for s in $scenarios; do modes="$modes --browse $s"; done
 
 # ---- 計画と確認
 echo "=== 本番の確認${modes} ==="
@@ -103,6 +134,13 @@ echo "- 本番 DB のテストユーザーに、利用資格を一時的に付�
 if [[ "$do_chat" == true ]]; then echo "- --chat: 資格なしで 403 → 資格ありで 200（本番の LLM を 1 回呼ぶ）"; fi
 if [[ "$do_stream" == true ]]; then echo "- --stream: /chat/stream に 1 回送る（質問: ${question}）"; fi
 if [[ "$do_screen" == true ]]; then echo "- --screen: 本番の画面で 1 回送る（質問: ${question}）。スクリーンショットを .playwright-mcp/ に残す"; fi
+for s in $scenarios; do
+  case "${s%%=*}" in
+    chat-2turns) echo "- --browse $s: 本番の画面で 2 往復する（質問: ${question} と、続けて聞く候補の 1 つ。実 API・課金が 2 回）。画像を .playwright-mcp/ に残す。ビューポート ${viewport}、テーマ ${theme}、引数 ${scenario_args}" ;;
+    screen-check) echo "- --browse $s: 本番の画面で 1 回送る（質問: ${question}。実 API・課金が 1 回）。画像を .playwright-mcp/ に残す" ;;
+    *) echo "- --browse $s: 本番の画面を操作して撮る（scripts/prod_scenarios/${s%%=*}.cjs を読んで、課金（実 API）が無いか確かめてから実行）。画像を .playwright-mcp/ に残す。ビューポート ${viewport}、テーマ ${theme}、引数 ${scenario_args}" ;;
+  esac
+done
 confirm "実行してよいですか?"
 
 # ---- 後始末（trap。失敗・中断でも必ず行う）
@@ -198,7 +236,7 @@ if [[ "$do_chat" == true ]]; then
   wcx "bash scripts/prod_membership_check.sh" || failed=1
 fi
 
-if [[ "$do_stream" == true || "$do_screen" == true ]]; then
+if [[ "$do_stream" == true || "$do_screen" == true || -n "$scenarios" ]]; then
   add_member
   # 資格の判定は各インスタンスが短時間（既定 60 秒）控える。直前に「資格なし」を控えていなければ待たなくてよい
 fi
@@ -216,6 +254,15 @@ if [[ "$do_screen" == true ]]; then
   wcx "mkdir -p .playwright-mcp && cd frontend && NODE_PATH=\$PWD/node_modules infisical sm run --silent --projectId \"\$INFISICAL_PROJECT_ID_DEV\" --env=dev -- node ../scripts/prod_screen_check.cjs 2>&1 | awk '!/ INF /'" || failed=1
   [[ -n "$DRY_RUN" ]] || echo "スクリーンショット: ${SHOT#/workspaces/docunavi/}（開発コンテナ・ホストの docunavi/ 直下）"
 fi
+
+for s in $scenarios; do
+  echo
+  echo "--- --browse $s"
+  sname="${s%%=*}"
+  sshot=""
+  [[ "$s" == *=* ]] && sshot="${s#*=}"
+  wcx "cd frontend && NODE_PATH=\$PWD/node_modules SCENARIO=$sname SHOT_NAME=$sshot infisical sm run --silent --projectId \"\$INFISICAL_PROJECT_ID_DEV\" --env=dev -- node ../scripts/prod_browse.cjs 2>&1 | awk '!/ INF /'" || failed=1
+done
 
 remove_member
 echo
