@@ -76,6 +76,13 @@ describe('splitCitations', () => {
 });
 
 describe('hideOpenCitation と stripCitations', () => {
+  it('根拠の語句の中に「」があっても、引用を本文に残さない', () => {
+    const quoted = '[1「最も注目されているのは「ザーハリアン文明」と呼ばれる種族です。」]';
+    expect(stripCitations(`遺跡です${quoted}。続きです[2]。`)).toBe('遺跡です。続きです。');
+    expect(hideOpenCitation('遺跡です[1「最も注目されているのは「ザーハリアン文明」と呼ばれ')).toBe('遺跡です');
+    expect(hideOpenCitation(`遺跡です${quoted}`)).toBe(`遺跡です${quoted}`);
+  });
+
   it('生成の途中の、閉じていない引用だけを末尾から除く', () => {
     expect(hideOpenCitation('回答です[')).toBe('回答です');
     expect(hideOpenCitation('回答です[1')).toBe('回答です');

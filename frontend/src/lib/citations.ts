@@ -25,7 +25,8 @@ export type CitationPart = string | { type: 'cite'; refs: CitationRef[] };
 // 1 つの引用。番号は 1〜3 桁、語句は 1 行・200 文字まで（暴走した出力で、本文を飲み込まない）
 const MARKER = /\[(\d{1,3})(?:「([^」\n]{1,200})」)?\]/g;
 // 生成の途中の、閉じていない引用（末尾の `[` `[1` `[1「語` `[1「語」`）
-const OPEN_TAIL = /\[(?:\d{1,3}(?:「[^」\n]*」?)?)?$/;
+// 語句の中に「」があってもよい（`」]` が来るまでが語句）
+const OPEN_TAIL = /\[(?:\d{1,3}(?:「(?:(?!」\])[^\n])*)?)?$/;
 
 /** 生成の途中の本文から、末尾の閉じていない引用を除く（`[1「…` が一瞬だけ文字として見えるのを防ぐ）。 */
 export function hideOpenCitation(text: string): string {
@@ -34,7 +35,8 @@ export function hideOpenCitation(text: string): string {
 
 /** 引用を消した本文（コピー用）。引用は、画面の出典と対になるもので、コピーした文章には要らない。 */
 export function stripCitations(text: string): string {
-  return text.replace(/\[\d{1,3}(?:「[^」\n]{1,200}」)?\]/g, '');
+  // 語句の中に「」があっても消す（`」]` で閉じるまでが語句）。splitCitations の MARKER とは別に、本文に残さないことを優先する
+  return text.replace(/\[\d{1,3}(?:「[^\n]{1,200}?」)?\]/g, '');
 }
 
 /**
