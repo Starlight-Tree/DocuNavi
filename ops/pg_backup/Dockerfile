@@ -1,5 +1,5 @@
 # 本番 Postgres の定期バックアップ Job のイメージ（手順は docs/pg-backup.md）。pg_dump は 17 以上（サーバーは 17.2）。
-FROM python:3.12-slim-trixie
+FROM python:3.15-slim-trixie
 ENV PYTHONUNBUFFERED=1
 RUN apt-get update \
     && apt-get install -y --no-install-recommends postgresql-client-17 \
