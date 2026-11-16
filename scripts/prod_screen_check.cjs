@@ -10,7 +10,7 @@ const { chromium } = require('playwright-core');
 
 const WEB = (process.env.WEB || 'https://docunavi-web.wataru-apps.workers.dev').replace(/\/$/, '');
 const QUESTION = process.env.QUESTION || '寮の門限は何時ですか？';
-const SHOT = process.env.SHOT || '/tmp/prod-screen-check.png';
+const SHOT = process.env.SHOT || require('path').join(__dirname, '..', '.playwright-mcp', 'prod-screen-check.png'); // 共有の一時フォルダー（/tmp）には書かない（Sonar S5443）
 for (const k of ['TEST_LOGIN_EMAIL', 'TEST_LOGIN_PASSWORD', 'TEST_LOGIN_TOKEN']) {
   if (!process.env[k]) {
     console.error(`${k} が未設定です（値は表示しません）。`);
