@@ -6,6 +6,8 @@ interface AccountMenuProps {
   label?: string | undefined;
   /** プロフィール画像の URL。https のときだけ表示し、読めなければ人型アイコンに戻す。 */
   image?: string | null | undefined;
+  /** メニューの先頭に出すメールアドレス。渡さなければ `label` を出す。 */
+  email?: string | null | undefined;
   /** ログアウト。ログインを使わない構成では渡さない（項目を出さない）。 */
   onSignOut?: (() => void) | undefined;
   /** 「ナレッジ」（資料一覧）を開く。 */
@@ -31,7 +33,7 @@ function PersonIcon() {
  * ログインを使わない構成でも、ナレッジへ行く入口として出す（表示名とログアウトは出さない）。
  * 開いたら先頭の項目にフォーカスを置く。↑↓ で移動、Esc で閉じてボタンへ戻る。メニューの外を押しても閉じる。
  */
-export function AccountMenu({ label, image, onSignOut, onOpenKnowledge, knowledgeCurrent, compact }: AccountMenuProps) {
+export function AccountMenu({ label, image, email, onSignOut, onOpenKnowledge, knowledgeCurrent, compact }: AccountMenuProps) {
   const signedIn = onSignOut !== undefined && label !== undefined;
   // 読み込みに失敗した URL は覚えて、人型アイコンに戻す（URL が変わったら、また試す）
   const [failedImage, setFailedImage] = useState<string | null>(null);
@@ -75,7 +77,7 @@ export function AccountMenu({ label, image, onSignOut, onOpenKnowledge, knowledg
     <div className={compact ? 'ws-account ws-account-compact' : 'ws-account'}>
       {open && (
         <div ref={menuRef} id={menuId} role="menu" aria-label={signedIn ? 'アカウント' : 'メニュー'} className="ws-account-menu" onKeyDown={handleKeyDown}>
-          {signedIn && <p className="ws-account-who">{label}</p>}
+          {signedIn && <p className="ws-account-who">{email || label}</p>}
           <button
             type="button"
             role="menuitem"

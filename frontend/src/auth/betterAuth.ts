@@ -28,8 +28,8 @@ export function createBetterAuth(baseURL: string): AuthClient {
   // 自分でログアウト（または期限切れで破棄）した直後は、サーバーが消す前の古い「ログイン中」の通知を捨てる
   let signingOut = false;
 
-  const toUser = (data: { user?: { email?: string | null; image?: string | null } } | null | undefined): AuthUser | null =>
-    data?.user ? { email: data.user.email ?? null, image: data.user.image ?? null } : null;
+  const toUser = (data: { user?: { email?: string | null; name?: string | null; image?: string | null } } | null | undefined): AuthUser | null =>
+    data?.user ? { email: data.user.email ?? null, name: data.user.name ?? null, image: data.user.image ?? null } : null;
 
   const requestToken = async (): Promise<string | null> => {
     const { data } = await client.$fetch<{ token?: string }>('/token', { method: 'GET' });

@@ -241,7 +241,8 @@ function ChatScreen() {
       <AppSidebar
         view={view}
         mode={chat.mode ?? healthMode}
-        userLabel={state.status === 'signedIn' ? (state.user.email ?? 'ログイン中') : undefined}
+        userLabel={state.status === 'signedIn' ? (state.user.name?.trim() || state.user.email || 'ログイン中') : undefined}
+        userEmail={state.status === 'signedIn' ? state.user.email : undefined}
         userImage={state.status === 'signedIn' ? state.user.image : undefined}
         onSignOut={signedIn ? () => void signOut() : undefined}
         onNewConversation={() => {

@@ -121,6 +121,17 @@ describe('ログイン: 画面', () => {
     expect(plain.querySelector('.ws-account-avatar svg')).not.toBeNull();
   });
 
+  it('名前があればボタンに名前を出し、メニューの先頭にメールアドレスを出す', async () => {
+    installFetch(() => replyResponse());
+    const { user } = setup(fakeAuth({ user: { email: 'a@example.com', name: '山田 太郎' } }));
+
+    const account = await screen.findByRole('button', { name: 'アカウントメニュー' });
+    expect(account).toHaveTextContent('山田 太郎');
+    expect(account).not.toHaveTextContent('a@example.com');
+    await user.click(account);
+    expect(within(screen.getByRole('menu')).getByText('a@example.com')).toBeInTheDocument();
+  });
+
   it('起動直後（セッションの確認中）は、ログイン画面を一瞬出さずに待つ', async () => {
     installFetch(() => replyResponse());
     const auth = fakeAuth();

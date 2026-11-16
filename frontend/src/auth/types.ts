@@ -6,6 +6,8 @@
 export interface AuthUser {
   /** 画面に出す名前（メールアドレス）。取れなければ null。 */
   email: string | null;
+  /** Google の表示名（初回ログイン時の値）。無ければ null か省略。 */
+  name?: string | null | undefined;
   /** プロフィール画像の URL（Google のアイコン）。無ければ null か省略。 */
   image?: string | null | undefined;
 }
