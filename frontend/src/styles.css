@@ -288,6 +288,16 @@ textarea {
   line-height: 1.85;
 }
 
+/* 会話の本文は細め（Noto Sans JP の Light。350 は 400 と見分けがつかなかった）。強調は 700 を明示する（細い本文の bolder は 400 止まりで、太字にならない） */
+.message-assistant,
+.message-question {
+  font-weight: 300;
+}
+.message-assistant strong,
+.message-question strong {
+  font-weight: 700;
+}
+
 .message-text {
   margin: 0;
   white-space: pre-wrap;
