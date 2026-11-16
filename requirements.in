@@ -8,7 +8,7 @@ langchain-core>=0.3
 langchain-google-genai>=2.0
 python-dotenv>=1.0
 # PDF の取り込み（python -m app.ingestion。評価コーパスとアップロード資料の抽出）
-pypdf>=6.19
+pypdf>=6.21.4
 # ログイン（AUTH_MODE=required）の JWT 検証。Supabase の JWKS（非対称鍵）で署名を確かめる。docs/configuration.md
 PyJWT[crypto]>=2.8
 # 元 PDF の置き場（Cloudflare R2。S3 互換。PDF_STORE=r2 のときだけ使う）。docs/r2-key-issuer.md
