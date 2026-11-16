@@ -7,6 +7,9 @@
   --surface-muted: #eef0ed;
   --text: #1f2421;
   --text-muted: #5d6762;
+  /* 回答の本文は少し淡く、強調だけ濃く（ダークは本文を少し暗く、強調を白く） */
+  --text-body: #4a504c;
+  --text-strong: #0f1311;
   --border: #e0e4df;
   --accent: #2c4fcf;
   --accent-text: #ffffff;
@@ -37,6 +40,8 @@
     --surface-muted: #232825;
     --text: #e6eae7;
     --text-muted: #9aa59f;
+    --text-body: #c4cbc6;
+    --text-strong: #ffffff;
     --border: #2e3532;
     --accent: #8aa2ff;
     --accent-text: #101319;
@@ -57,6 +62,8 @@
   --surface-muted: #232825;
   --text: #e6eae7;
   --text-muted: #9aa59f;
+  --text-body: #c4cbc6;
+  --text-strong: #ffffff;
   --border: #2e3532;
   --accent: #8aa2ff;
   --accent-text: #101319;
@@ -297,12 +304,15 @@ textarea {
   line-height: 1.85;
 }
 
-/* 会話の本文は細め（Noto Sans JP の Light。350 は 400 と見分けがつかなかった）。強調は 700 を明示する（細い本文の bolder は 400 止まりで、太字にならない） */
-.message-assistant,
-.message-question {
-  font-weight: 300;
+/* 回答の本文は少し弱い色（--text-body）にして、強調（太字・見出し）だけを --text-strong にする。太さの差に、明るさの差を足して、
+   本文を細くしなくても、要点が浮く（300 は、ダークで灰色っぽく読みにくかった）。質問は通常の色のまま */
+.message-assistant {
+  color: var(--text-body);
 }
 .message-assistant strong,
+.message-assistant .md-heading {
+  color: var(--text-strong);
+}
 .message-question strong {
   font-weight: 700;
 }
