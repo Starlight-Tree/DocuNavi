@@ -3,6 +3,7 @@ import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { jwt } from 'better-auth/plugins';
 import { Pool } from 'pg';
+import { checkUpdateUserBody } from './displayName';
 
 export interface Env {
   // Better Auth の保存先は Postgres（Hyperdrive 経由）。docs/architecture.md
@@ -52,6 +53,12 @@ function auth(env: Env, pool: Pool) {
     emailAndPassword: { enabled: allowedEmail !== null, autoSignIn: false, minPasswordLength: 24, maxPasswordLength: 128 },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        // 表示名の変更（画面のダイアログ）。更新 API は name を検査しないので、ここで形と中身を守る（displayName.ts）
+        if (ctx.path === '/update-user') {
+          const problem = checkUpdateUserBody(ctx.body);
+          if (problem !== null) throw new APIError('BAD_REQUEST', { message: problem });
+          return;
+        }
         if (allowedEmail === null || (ctx.path !== '/sign-up/email' && ctx.path !== '/sign-in/email')) return;
         const body = (ctx.body ?? {}) as { email?: unknown };
         const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
