@@ -14,6 +14,16 @@
 規則は `app/access.py` と同じ: ロールが 1 つも無い利用者は `default` ロール。最初のロールを割り当てると `default` は使われなくなる（見えるグループが減りうる）。
 最後のロールを外すと `default` に戻る。見えるグループが増える解除は、`--allow-widen` が無ければ書かない。
 
+アプリの利用資格（`app_members`。`MEMBERSHIP_MODE`。資料のロールとは独立）の保守は `member` コマンド。同じく既定は確認だけで、何度流しても結果は同じ（冪等）:
+
+    python -m app.access_admin member show   --email <メール>
+    python -m app.access_admin member add    --email <メール> [--note <メモ>] --apply
+    python -m app.access_admin member remove --user-id <ID> --apply
+    python -m app.access_admin member list                                  # 資格のある利用者の人数だけ（メール・ID は出さない）
+
+外した資格は、新しいリクエストには、各インスタンスのキャッシュ TTL（`ACCESS_CACHE_TTL_SECONDS`。既定 60 秒）以内に効く。進行中の応答は止まらない。
+開発用の資格付与はマイグレーションに入れない。ローカルの DB には、このコマンドで付ける（利用者の行が無ければ付けない）。
+
 終了コード: 0 = 完了（変更なしも含む）、1 = 利用者・ロールが無い、DB の失敗、広がる解除を拒否した、2 = 使い方の誤り・DATABASE_URL 未設定・`DB_BACKEND` が pg ではない。
 """
 
@@ -51,6 +61,15 @@ def _parser() -> argparse.ArgumentParser:
             p.add_argument("--apply", action="store_true", help="実際に書く（無ければ確認だけ）")
         if name == "revoke":
             p.add_argument("--allow-widen", action="store_true", help="見えるグループが増える解除も許す")
+    member = sub.add_parser("member", help="アプリの利用資格（app_members）。show / add / remove / list")
+    member.add_argument("action", choices=("show", "add", "remove", "list"))
+    who = member.add_mutually_exclusive_group()
+    who.add_argument(
+        "--email", metavar="MAIL", help='利用者のメール（"user".email）。list 以外で、これか --user-id が要る'
+    )
+    who.add_argument("--user-id", metavar="ID", help='利用者の ID（"user".id = JWT の sub）')
+    member.add_argument("--note", default="", metavar="TEXT", help="add のとき残すメモ（任意。個人情報は書かない）")
+    member.add_argument("--apply", action="store_true", help="実際に書く（無ければ確認だけ）")
     return parser
 
 
@@ -86,7 +105,52 @@ def _fmt(items: Sequence[str]) -> str:
     return "、".join(items) if items else "（なし）"
 
 
+def _run_member(db, args: argparse.Namespace) -> int:
+    """`member` コマンド。利用資格（`app_members`）の確認・付与・取り消し。付与・取り消しは冪等（すでに同じ状態なら変更なし）。"""
+    if args.action == "list":
+        rows = db.execute("SELECT count(*) AS n FROM app_members")
+        print(f"利用資格のある利用者: {int(rows[0]['n'])} 人")
+        return 0
+    uid = _user_id(db, args)
+    if uid is None:
+        print("その利用者が見つかりません（資格は、ログイン済みの利用者にだけ付けられます）。", file=sys.stderr)
+        return 1
+    is_member = bool(db.execute("SELECT 1 AS ok FROM app_members WHERE user_id = %(uid)s", {"uid": uid}))
+    if args.action == "show":
+        print(f"利用資格: {'あり' if is_member else 'なし'}")
+        return 0
+    adding = args.action == "add"
+    if adding == is_member:
+        print(f"変更なし（すでに利用資格が{'ある' if adding else 'ない'}）。")
+        return 0
+    print(f"利用資格: {'なし → あり' if adding else 'あり → なし'}")
+    if not args.apply:
+        print("書き込みはしていません（--apply で書きます）。")
+        return 0
+    if adding:
+        write = (
+            "INSERT INTO app_members (user_id, note) VALUES (%(uid)s, %(note)s) ON CONFLICT (user_id) DO NOTHING",
+            {"uid": uid, "note": args.note},
+        )
+    else:
+        write = ("DELETE FROM app_members WHERE user_id = %(uid)s", {"uid": uid})
+    audit = (
+        "INSERT INTO access_audit (actor, table_name, op, row_data) "
+        "VALUES (%(a)s, 'app_members', %(op)s, %(d)s::jsonb)",
+        {"a": ACTOR, "op": "INSERT" if adding else "DELETE", "d": json.dumps({"user_id": uid})},
+    )
+    db.batch([write, audit])
+    print("書きました（access_audit に記録）。")
+    if not adding:
+        print(
+            "新しいリクエストには、各インスタンスのキャッシュ TTL（既定 60 秒）以内に効きます。進行中の応答は止まりません。"
+        )
+    return 0
+
+
 def _run(db, args: argparse.Namespace) -> int:
+    if args.command == "member":
+        return _run_member(db, args)
     uid = _user_id(db, args)
     if uid is None:
         print("その利用者が見つかりません。", file=sys.stderr)
@@ -144,7 +208,10 @@ def _run(db, args: argparse.Namespace) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    args = parser.parse_args(argv)
+    if args.command == "member" and args.action != "list" and args.email is None and args.user_id is None:
+        parser.error("member show / add / remove には --email か --user-id が要ります")
     load_dotenv()
     try:
         if backend() != "pg":

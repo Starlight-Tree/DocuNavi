@@ -32,7 +32,16 @@ async def _verify_separately(*, search: bool) -> None:
 
 
 async def run_startup_checks() -> None:
-    """起動時の DB の検査（アクセス制御と資料の検索）。使えない状態なら、AccessConfigError / VectorSearchError で起動を失敗させる。"""
+    """起動時の DB の検査（利用資格・アクセス制御・資料の検索）。使えない状態なら、AccessConfigError / VectorSearchError で起動を失敗させる。
+
+    利用資格（`MEMBERSHIP_MODE`）はアクセス制御（`ACCESS_MODE`）と独立で、有効なときだけ `app_members` を 1 回読む（off は何も読まない）。
+    """
+    membership = access.check_membership_config()  # 知らない MEMBERSHIP_MODE・匿名との組み合わせは、ここで失敗する
+    await _run_data_checks()
+    await access.verify_membership_config(membership)
+
+
+async def _run_data_checks() -> None:
     mode = access.check_config()  # 知らない ACCESS_MODE・不正な TTL は、ここで失敗する
     search = not is_mock_mode()
     pool = get_pool()

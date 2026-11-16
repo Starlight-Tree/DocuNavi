@@ -25,7 +25,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field, ValidationError
 
-from app.access import Access, request_access, target_is_visible
+from app.access import Access, current_member, request_access, target_is_visible
 from app.api import routes
 from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, get_pool
@@ -265,7 +265,7 @@ async def _recent_threads_memory(saver: BaseCheckpointSaver, prefix: str) -> lis
 
 
 @router.get("", response_model=ThreadList)
-async def list_threads(user_id: Annotated[str | None, Depends(current_user)]) -> ThreadList:
+async def list_threads(user_id: Annotated[str | None, Depends(current_member)]) -> ThreadList:
     if user_id is None:
         raise HTTPException(status_code=404, detail=_DETAIL_NOT_AVAILABLE)
     prefix = f"{user_id}:"
@@ -335,7 +335,7 @@ async def get_thread_messages(
 @router.delete("/{thread_id}", status_code=204)
 async def delete_thread(
     thread_id: Annotated[str, Path(max_length=routes.MAX_THREAD_ID_LENGTH, pattern=r"^[A-Za-z0-9_-]+$")],
-    user_id: Annotated[str | None, Depends(current_user)],
+    user_id: Annotated[str | None, Depends(current_member)],
 ) -> Response:
     key = conversation_key(user_id, thread_id)
     saver = _saver()

@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
+from app.access import MembershipRequired  # noqa: E402
 from app.api.classifications import router as classifications_router  # noqa: E402
 from app.api.collections import router as collections_router  # noqa: E402
 from app.api.documents import router as documents_router  # noqa: E402
@@ -89,6 +90,12 @@ app.include_router(collections_router)
 app.include_router(classifications_router)
 app.include_router(threads_router)
 app.include_router(graph_router)
+
+
+@app.exception_handler(MembershipRequired)
+async def membership_required_handler(request: Request, exc: MembershipRequired) -> JSONResponse:
+    # 利用資格がない 403。資料の権限の 403 と画面が区別できるよう、固定メッセージ（detail）に識別コード（code）を添える
+    return JSONResponse(status_code=403, content={"detail": exc.detail, "code": exc.code})
 
 
 @app.exception_handler(Exception)

@@ -11,6 +11,16 @@
   見えないグループの名前を載せない。過去の会話は表示するが、見えないグループの検索結果に基づく回答は伏せる（`mask_hidden_turns`）。
 - `docunavi-mcp`（`ops/mcp_search`）は運用者専用で、`Scope.ALL` を明示して全グループを検索する。このモジュールは通らない。
 - 利用者へのロールの割り当て（`user_roles`）は、管理画面ができるまで（フェーズ 4）、運用者が SQL で行う。
+
+利用資格（`MEMBERSHIP_MODE`。資料の権限とは別の設定）:
+- 「この利用者はアプリを使ってよいか」は `app_members`（利用者 ID の一覧。マイグレーション 0003）で決める。資料のロール・グループとは独立で、
+  `default` に資料を足しても、ロールを付け替えても、資格は変わらない。逆に、資格があっても、見える資料が 0 件なら `require_any` が 403 にする。
+- `MEMBERSHIP_MODE`: `off`（既定。確認しない）/ `shadow`（拒否せず、enforce なら拒否される要求をログに出す）/ `enforce`（資格のない利用者は 403）。
+  `ACCESS_MODE` とは独立（片方が off でも、もう片方は効く）。enforce で資格を引けなければ 503（許可には倒れない）、shadow では拒否せず続ける。
+- 確認は `request_access`（資料を扱う全経路が通る）と `current_member`（会話の一覧・削除）に 1 か所ずつ。経路ごとに書き足さない。
+  確認するのはリクエストの開始時だけで、始まったストリームは最後まで流れる。結果は、資料の権限と同じ TTL でプロセス内に控える
+  （許可・不許可のどちらも。取り消し・付与は、新しいリクエストに、通常はその TTL 以内に効く。再起動すると控えは空になる）。
+- 資格のない利用者のユーザー行（Better Auth）は消さない。ログインはできても、料金のかかる操作と資料には届かない。
 """
 
 import logging
@@ -20,17 +30,23 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Annotated, Any
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
-from app.auth import current_user
+from app.auth import auth_mode, current_user
 from app.history import get_pool
 from app.scope import ALLOWED_FILTER_SQL, Scope
 
 logger = logging.getLogger(__name__)
 
 ACCESS_MODES = ("off", "shadow", "enforce")
+MEMBERSHIP_MODES = ACCESS_MODES
 DEFAULT_ROLE = "default"
+
+# 利用資格がない 403 を、資料の権限の 403 と機械的に区別するための識別コード（応答の本文の `code`。画面が見る）
+MEMBERSHIP_REQUIRED_CODE = "APP_MEMBERSHIP_REQUIRED"
+DETAIL_MEMBERSHIP_REQUIRED = "このアカウントには利用許可がありません。"
+DETAIL_MEMBERSHIP_UNAVAILABLE = "利用資格を確認できませんでした。しばらく待ってから再試行してください。"
 
 # クライアントへ返す固定メッセージ。見えないグループの名前・存在を載せない
 DETAIL_FORBIDDEN_COLLECTION = "指定された資料グループは利用できません。"
@@ -84,11 +100,29 @@ def access_mode() -> str:
     return value
 
 
+class MembershipRequired(HTTPException):
+    """利用資格がない（403）。応答の本文は `{"detail": <固定の日本語>, "code": "APP_MEMBERSHIP_REQUIRED"}`（`app/main.py` の handler）。"""
+
+    def __init__(self) -> None:
+        super().__init__(status_code=403, detail=DETAIL_MEMBERSHIP_REQUIRED)
+        self.code = MEMBERSHIP_REQUIRED_CODE
+
+
+def membership_mode() -> str:
+    """MEMBERSHIP_MODE（off / shadow / enforce。未設定・空は off）。知らない値は、黙って off にせず例外にする。ACCESS_MODE とは独立。"""
+    value = os.environ.get("MEMBERSHIP_MODE", "").strip().lower() or "off"
+    if value not in MEMBERSHIP_MODES:
+        raise AccessConfigError(f"MEMBERSHIP_MODE は {' / '.join(MEMBERSHIP_MODES)} のどれかにしてください。")
+    return value
+
+
 DEFAULT_CACHE_TTL_SECONDS = 60.0
 _CACHE_MAX_ENTRIES = 1024
 # 利用者 ID（匿名は None）→ (期限の monotonic 秒, 見えるグループ, 全グループを含むか, 引いた接続プール)。プロセス内だけ。Cloud Run のインスタンスごとに別。
 # 接続プールが入れ替わったら（テストの偽の DB を含む）、控えは使わない
 _cache: dict[str | None, tuple[float, frozenset[str], bool, Any]] = {}
+# 利用者 ID → (期限の monotonic 秒, 資格があるか, 引いた接続プール)。許可も不許可も控える。プロセス内だけ（インスタンスごとに別）
+_member_cache: dict[str, tuple[float, bool, Any]] = {}
 
 
 def cache_ttl_seconds() -> float:
@@ -106,8 +140,19 @@ def cache_ttl_seconds() -> float:
 
 
 def clear_cache() -> None:
-    """キャッシュを空にする（テスト・運用の即時反映用）。"""
+    """キャッシュ（見えるグループと利用資格）を空にする（テスト・運用の即時反映用）。"""
     _cache.clear()
+    _member_cache.clear()
+
+
+def _make_room(cache: dict[Any, tuple[Any, ...]], now: float) -> None:
+    """上限に達していたら、期限切れを捨て、それでも満杯なら最も古く入れたものを 1 つ捨てる。"""
+    if len(cache) < _CACHE_MAX_ENTRIES:
+        return
+    for key in [k for k, v in cache.items() if v[0] <= now]:
+        del cache[key]
+    if len(cache) >= _CACHE_MAX_ENTRIES:
+        cache.pop(next(iter(cache)))
 
 
 def _cache_get(user_id: str | None, pool: Any) -> tuple[frozenset[str], bool] | None:
@@ -125,11 +170,7 @@ def _cache_put(user_id: str | None, visible: frozenset[str], complete: bool, poo
     if ttl <= 0:
         return
     now = time.monotonic()
-    if len(_cache) >= _CACHE_MAX_ENTRIES:
-        for key in [k for k, v in _cache.items() if v[0] <= now]:
-            del _cache[key]
-        if len(_cache) >= _CACHE_MAX_ENTRIES:
-            _cache.pop(next(iter(_cache)))  # 最も古く入れたもの
+    _make_room(_cache, now)
     _cache[user_id] = (now + ttl, visible, complete, pool)
 
 
@@ -235,8 +276,69 @@ class Access:
         return masked
 
 
-async def request_access(user_id: Annotated[str | None, Depends(current_user)]) -> Access:
-    """FastAPI の依存。認証（`current_user`）のあとで、利用者のアクセス権を決める。off では DB を読まない。"""
+_MEMBER_SQL = "SELECT 1 AS ok FROM app_members WHERE user_id = %(uid)s"
+
+
+async def is_member(user_id: str | None) -> bool:
+    """利用資格があるか（`app_members` に行があるか）。匿名（None）は資格なし。TTL 内は、プロセス内の控えを返す。
+
+    引けなければ `AccessUnavailable`（呼び出し側が、拒否ではなく 503 にする。引けなかった結果は控えない）。
+    """
+    if user_id is None:
+        return False
+    pool = get_pool()
+    if pool is None:
+        raise AccessUnavailable("DB の接続が開いていません")
+    hit = _member_cache.get(user_id)
+    if hit is not None and hit[2] is pool and hit[0] > time.monotonic():
+        return hit[1]
+    async with pool.connection() as conn:
+        cursor = await conn.execute(_MEMBER_SQL, {"uid": user_id})
+        member = bool(await cursor.fetchall())
+    ttl = cache_ttl_seconds()
+    if ttl > 0:
+        now = time.monotonic()
+        _make_room(_member_cache, now)
+        _member_cache[user_id] = (now + ttl, member, pool)
+    return member
+
+
+async def enforce_membership(user_id: str | None, path: str) -> None:
+    """利用資格を確かめる。資格がなければ `MembershipRequired`（403）。ACCESS_MODE とは独立に、MEMBERSHIP_MODE だけで決まる。
+
+    off は何も読まない。shadow は拒否せず、enforce なら拒否される要求を（経路だけ）ログに出す。引けなかったときは、
+    enforce なら 503（許可には倒れない）、shadow なら続ける。DB 障害と「資格なし」は区別する（503 と 403）。
+    """
+    mode = membership_mode()
+    if mode == "off":
+        return
+    try:
+        member = await is_member(user_id)
+    except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・SQL が入りうる。型の名前だけを残す
+        logger.warning("利用資格を引けませんでした (mode=%s, %s)", mode, type(exc).__name__)
+        if mode == "shadow":
+            return
+        raise HTTPException(status_code=503, detail=DETAIL_MEMBERSHIP_UNAVAILABLE) from None
+    if member:
+        return
+    if mode == "shadow":
+        logger.info("利用資格(shadow): %s は enforce では拒否される（資格のない利用者）", path)
+        return
+    raise MembershipRequired()
+
+
+async def current_member(request: Request, user_id: Annotated[str | None, Depends(current_user)]) -> str | None:
+    """FastAPI の依存。認証（`current_user`）のあとで利用資格を確かめ、利用者 ID を返す。資料の権限は見ない経路（会話の一覧・削除）が使う。"""
+    await enforce_membership(user_id, request.url.path)
+    return user_id
+
+
+async def request_access(request: Request, user_id: Annotated[str | None, Depends(current_user)]) -> Access:
+    """FastAPI の依存。認証（`current_user`）のあとで、利用資格（MEMBERSHIP_MODE）と、利用者のアクセス権（ACCESS_MODE）を決める。
+
+    資料を扱う経路は、すべてここを通る。資格は資料の権限より先に確かめる（どちらが off でも、もう一方は効く）。off では DB を読まない。
+    """
+    await enforce_membership(user_id, request.url.path)
     mode = access_mode()
     if mode == "off":
         return Access(mode, Scope.ALL)
@@ -293,6 +395,53 @@ async def verify_access_config() -> None:
             f"ロールの表を読めませんでした ({type(exc).__name__})。マイグレーション 20261026045921 が適用済みか確認してください。"
         ) from exc
     check_probe_row(mode, row)
+
+
+def check_membership_config() -> str:
+    """起動時の検査のうち、DB を使わない部分。MEMBERSHIP_MODE を返す。知らない値・不正な TTL・匿名との組み合わせは、起動を失敗させる。
+
+    本番（AUTH_MODE=required）で MEMBERSHIP_MODE が未設定なら、「off 扱い（ログインした全員が使える）」と分かるよう警告を残す
+    （設定し忘れに気づけるように。値を明示すれば、この警告は出ない）。
+    """
+    mode = membership_mode()
+    if mode != "off":
+        cache_ttl_seconds()
+        if auth_mode() == "off":
+            raise AccessConfigError(
+                f"MEMBERSHIP_MODE={mode} には AUTH_MODE=required が必要です（匿名では利用者を区別できません）。"
+            )
+    elif auth_mode() == "required":
+        if os.environ.get("MEMBERSHIP_MODE", "").strip():
+            logger.info("利用資格: 無効（MEMBERSHIP_MODE=off。ログインした全員が使える）")
+        else:
+            logger.warning(
+                "利用資格: MEMBERSHIP_MODE が未設定です（off 扱い。ログインした全員が使えます）。意図した値を明示してください"
+            )
+    return mode
+
+
+async def verify_membership_config(mode: str) -> None:
+    """起動時の検査。MEMBERSHIP_MODE が shadow / enforce で使えない状態なら、AccessConfigError で起動を失敗させる（off は何も読まない）。
+
+    `app_members`（マイグレーション 0003）を読めなければ失敗する。enforce で行が 0 件なら、全員が拒否されるので警告する。
+    ACCESS_MODE の検査とは独立（片方が off でも行う）。
+    """
+    if mode == "off":
+        return
+    pool = get_pool()
+    if pool is None:
+        raise AccessConfigError(f"MEMBERSHIP_MODE={mode} には DB（DATABASE_URL）が必要です。")
+    try:
+        async with pool.connection() as conn:
+            cursor = await conn.execute("SELECT count(*) AS members FROM app_members")
+            members = int((await cursor.fetchall())[0]["members"])
+    except Exception as exc:  # noqa: BLE001 - 型の名前だけを残す
+        raise AccessConfigError(
+            f"app_members を読めませんでした ({type(exc).__name__})。マイグレーション 0003 が適用済みか確認してください。"
+        ) from exc
+    logger.info("利用資格: %s（app_members %d 件）", mode, members)
+    if mode == "enforce" and members == 0:
+        logger.warning("利用資格: app_members が 0 件です。enforce では、全員が拒否されます")
 
 
 def _source_allowed(source: dict[str, Any], scope: Scope) -> bool:
