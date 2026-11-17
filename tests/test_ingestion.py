@@ -573,7 +573,7 @@ def test_the_cafe_pdf_keeps_its_table_as_one_chunk_across_the_page_break(monkeyp
     rows = table.text.split("\n")
     assert rows[0] == "店舗名 エリア 住所 営業時間 定休日 座席数"
     assert len(rows) == 13  # 見出し行は 1 つ、店舗は 12 行
-    assert "湖畔テラス店 湖畔 みなと市湖畔1-3-7 9:00〜20:00 なし 76席" in rows
+    assert "遺跡テラス店 遺跡 アルカ市遺跡1-3-7 9:00〜20:00 なし 76席" in rows
     assert table.heading == "店舗一覧"
     # ページ番号は本文に入らない
     assert not any("3 / 4" in c.text or "4 / 4" in c.text for c in chunks)

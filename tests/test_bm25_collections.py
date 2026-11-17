@@ -158,7 +158,7 @@ def test_a_collection_without_hits_does_not_take_a_slot():
 # ---- 範囲（SEARCH_SCOPE） ----
 
 ZAHARD_QUERY = "ザーハードの大気の酸素濃度はどれくらい？"
-CAFE_QUERY = "みなとコーヒーの定休日"
+CAFE_QUERY = "オアシス珈琲の定休日"
 
 
 def _files(query):

@@ -10,7 +10,8 @@ reportlab と、埋め込める日本語の TrueType フォントが要る。ア
 Markdown は、見出し（# ##）・段落・表（| 区切り）・脚注（[^n] と [^n]: 本文）だけを扱う。
 出力はバイト単位で再現できる（作成日時を固定している）。2026-11-15 から、先頭に表紙・目次を付け、PDF のページラベルで本文を 1 から数える（表紙・i・1〜）。レイアウト（A4、余白 20mm、表の見出し行を次ページでも繰り返す）は、
 Word や Google Docs の書き出しに近い形にしてある。質問・正解は直さない（承認済み）。
-文字の大きさ（本文 12pt・表 10pt）と行間（23pt）は、表が 4 ページ構成の 3〜4 ページ目に 5 行と 7 行で、ページをまたぐように選んだ（内容は変えていない）。
+文字の大きさ（本文 12pt・表 10pt）と行間（23pt）は、表が 4 ページ構成の 3〜4 ページ目にまたがるように選んだ（内容は変えていない）。
+2026-11-18 に、惑星ザーハードの店に書き換えた（原稿・質問の名前と言葉の置き換え）。表は 3 ページ目に 2 行、4 ページ目に 10 行（元は 5 行と 7 行）。
 """
 
 import argparse
@@ -216,7 +217,7 @@ def build(
         return story
 
     margins = {"leftMargin": 20 * mm, "rightMargin": 20 * mm, "topMargin": 20 * mm, "bottomMargin": 22 * mm}
-    title = "みなとコーヒー 店舗案内"
+    title = "オアシス珈琲 店舗案内"
     if not front_matter:
         doc = SimpleDocTemplate(str(pdf_path), pagesize=A4, title=title, author="", invariant=True, **margins)
         doc.build(make_story(), canvasmaker=_numbered_canvas())
@@ -225,7 +226,7 @@ def build(
     probe = _RecordingDoc(io.BytesIO(), pagesize=A4, title=title, author="", invariant=True, **margins)
     probe.build(make_story(), canvasmaker=_numbered_canvas())
     doc = SimpleDocTemplate(str(pdf_path), pagesize=A4, title=title, author="", invariant=True, **margins)
-    front = _front_story(title, probe.chapters, body, h1, "みなとコーヒー お客様相談室")
+    front = _front_story(title, probe.chapters, body, h1, "オアシス珈琲 お客様相談室")
     doc.build(front + make_story(), canvasmaker=_numbered_canvas(front=True))
 
 
