@@ -1,6 +1,6 @@
 """db/migrate.py の接続先・TLS・権限の検査を確かめる。DB には接続しない（接続後の検査は偽の接続で）。
 
-実際の Cloud SQL・Prisma への接続、`CREATE ROLE` で作ったユーザーが本当に cloudsqlsuperuser でないことは、未確認（本番の作成の後に確かめる）。
+実際の Cloud SQL・AlloyDB・Prisma への接続は未確認（AlloyDB の権限は 2026-11-17 に psql で確認済み。migrate.py 経由は未確認）。
 """
 
 import importlib.util
@@ -219,6 +219,57 @@ def test_cloudsql_connect_passes_the_url_untouched_and_checks_the_session(monkey
     monkeypatch.setattr(migrate.psycopg, "connect", fake_connect)
     assert migrate.connect(read_only=True) is fake
     assert seen["url"] == url(ca)
+
+
+# ---- alloydb 対象（cloudsql と同じ検査。接頭辞と、拒否する権限ロールだけが違う） ----
+
+
+def test_alloydb_target_uses_the_same_url_checks_with_its_own_prefix(ca, env) -> None:
+    migrate.validate_cloudsql_url(url(ca), env, "alloydb")
+    with pytest.raises(SystemExit) as e:
+        migrate.validate_cloudsql_url(url(ca, host="10.20.0.9"), env, "alloydb")
+    assert str(e.value).startswith("alloydb target:")
+    assert PASSWORD not in str(e.value)
+    with pytest.raises(SystemExit) as e:
+        migrate.validate_cloudsql_url(url(ca, query=f"sslmode=require&sslrootcert={ca}"), env, "alloydb")
+    assert "verify-ca" in str(e.value)  # 暗号化だけ（require）は、ここでも拒否する
+
+
+def test_alloydb_session_check_refuses_either_superuser_role(env) -> None:
+    conn = FakeConn()
+    migrate.check_cloudsql_session(conn, env, "alloydb")
+    query = conn.queries[0]
+    assert "cloudsqlsuperuser" in query
+    assert "alloydbsuperuser" in query  # どちらのスーパーユーザーロールの所属も見る
+    with pytest.raises(SystemExit) as e:
+        migrate.check_cloudsql_session(FakeConn(row=(DB, USER, USER, True, False, True, True)), env, "alloydb")
+    assert str(e.value).startswith("alloydb target:")
+    assert "alloydbsuperuser" in str(e.value)
+
+
+def test_alloydb_connect_checks_the_session_and_ignores_direct_url(monkeypatch, ca, env) -> None:
+    seen: dict = {}
+    fake = FakeConn()
+    fake.execute = lambda q, p=None: SimpleNamespace(fetchone=lambda: fake.row)  # type: ignore[method-assign]
+
+    def fake_connect(u, **kw):
+        seen["url"] = u
+        return fake
+
+    monkeypatch.setenv("MIGRATE_TARGET", "alloydb")
+    monkeypatch.setenv("DIRECT_URL", "postgresql://u:p@db.prisma.io:5432/db")
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("MIGRATE_DATABASE_URL", url(ca))
+    monkeypatch.setattr(migrate.psycopg, "connect", fake_connect)
+    checked: list[str] = []
+    real = migrate.check_cloudsql_session
+    monkeypatch.setattr(
+        migrate, "check_cloudsql_session", lambda c, e, t="cloudsql": (checked.append(t), real(c, e, t))[1]
+    )
+    assert migrate.connect(read_only=True) is fake
+    assert seen["url"] == url(ca)  # DIRECT_URL ではなく MIGRATE_DATABASE_URL
+    assert checked == ["alloydb"]
 
 
 # ---- 権限の付与・資材 ----
