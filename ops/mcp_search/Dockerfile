@@ -18,7 +18,7 @@ COPY ops/mcp_search/requirements.txt ./mcp-requirements.txt
 RUN pip install -r requirements.txt -r mcp-requirements.txt
 
 COPY --chown=app:app app ./app
-COPY --chown=app:app ops/mcp_search/main.py ./ops/mcp_search/main.py
+COPY --chmod=0755 ops/mcp_search/main.py ./ops/mcp_search/main.py
 
 USER app
 
