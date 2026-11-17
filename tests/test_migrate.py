@@ -106,7 +106,8 @@ def test_rejects_a_prisma_allowlist(ca, env, capsys) -> None:
 
 class FakeConn:
     def __init__(self, *, host=HOST, port=5432, dbname=DB, user=USER, ssl_in_use=True, row=None) -> None:
-        self.info = SimpleNamespace(host=host, port=port, dbname=dbname, user=user, ssl_in_use=ssl_in_use)
+        self.info = SimpleNamespace(host=host, port=port, dbname=dbname, user=user)
+        self.pgconn = SimpleNamespace(ssl_in_use=ssl_in_use)  # as in psycopg: the flag is on PGconn, not ConnectionInfo
         self.row = row if row is not None else (DB, USER, USER, True, False, False, True)
         self.queries: list[str] = []
 
@@ -299,3 +300,13 @@ def test_dockerfile_copies_only_the_migration_materials() -> None:
     assert "seeds" not in dockerfile.split("USER app")[0].split("COPY --chown=app:app db/")[1]
     ignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
     assert not re.search(r"^/?db/?$|^db/migrat", ignore, flags=re.MULTILINE)
+
+
+def test_tls_flag_is_read_from_the_libpq_connection():
+    # The session check reads conn.pgconn.ssl_in_use. The fake connections above cannot catch a wrong attribute
+    # (the first AlloyDB run failed on conn.info.ssl_in_use), so pin the real psycopg API here.
+    import psycopg
+    from psycopg import pq
+
+    assert hasattr(pq.PGconn, "ssl_in_use")
+    assert not hasattr(psycopg.ConnectionInfo, "ssl_in_use")

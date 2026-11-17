@@ -109,7 +109,7 @@ def check_cloudsql_session(conn: psycopg.Connection, env: dict[str, str], target
         env["MIGRATE_ALLOWED_HOST"], 5432, env["MIGRATE_ALLOWED_DB"], env["MIGRATE_ALLOWED_USER"]
     ):  # fmt: skip
         fail(f"{target} target: the connected host/port/db/user differ from the allowlist")
-    if not info.ssl_in_use:
+    if not conn.pgconn.ssl_in_use:  # ConnectionInfo has no ssl_in_use; it lives on the libpq connection
         fail(f"{target} target: TLS is not in use")
     row = conn.execute(
         "select current_database(), current_user, session_user,"
