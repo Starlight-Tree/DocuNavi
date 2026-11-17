@@ -160,7 +160,7 @@ flowchart TB
   - 逐次配信: 1.6 秒の応答が、7 個のチャンクに分かれて届く。
   - 切断: クライアントを切ると、LLM 呼び出しが取り消される（HTTP/1.1 のままだと、最後まで走る。本番 `docunavi` と同じ設定が要る）。
 - **起動:** 20 分あけたあとの最初のアクセスでも、DB の応答は 0.3 秒ほどで、再開の遅れは見られませんでした。
-- **未検証・制限:** PSC と AlloyDB の課金は Console での確認待ちです。クレジットの期限後に費用が変わるため、この構成を続けるかは別に判断します。アクセス制御（`ACCESS_MODE` / `MEMBERSHIP_MODE`）は `off` です。
+- **未検証・制限:** PSC と AlloyDB の課金は Console での確認待ちです。クレジットの期限後に費用が変わるため、この構成を続けるかは別に判断します。アクセス制御は、`ACCESS_MODE` が `off`、`MEMBERSHIP_MODE` が `enforce`（`app_members` にいる人だけが使える）です（2026-11-18 に `docunavi-gcp-00004-dtp` で確認）。
 
 ```mermaid
 flowchart LR
