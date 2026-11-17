@@ -15,7 +15,7 @@ RUN groupadd --system --gid 10001 app \
 # アプリの固定済みの依存に mcp を足す。1 回の pip install で解決し、アプリの版を動かさない
 COPY requirements.txt ./requirements.txt
 COPY ops/mcp_search/requirements.txt ./mcp-requirements.txt
-RUN pip install -r requirements.txt -r mcp-requirements.txt
+RUN pip install --only-binary :all: -r requirements.txt -r mcp-requirements.txt
 
 COPY --chown=app:app app ./app
 COPY --chmod=0755 ops/mcp_search/main.py ./ops/mcp_search/main.py

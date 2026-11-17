@@ -14,7 +14,7 @@ RUN groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
 
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --only-binary :all: -r requirements.txt
 
 # 本番相当で単体実行できるようにコードも COPY する。
 # 開発時は docker-compose.yml のボリュームマウントで上書きされる。

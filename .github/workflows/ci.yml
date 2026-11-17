@@ -45,7 +45,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: pip install --only-binary :all: -r requirements-dev.txt
       # 設定は pyproject.toml の [tool.ruff]。整形、lint、テストの順（版は requirements-dev.txt で固定）
       - name: Check formatting (ruff format)
         run: ruff format --check .
