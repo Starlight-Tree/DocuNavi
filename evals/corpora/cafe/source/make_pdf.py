@@ -25,15 +25,69 @@ from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Flowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 rl_config.invariant = 1  # 作成日時・ID を固定し、同じ入力から同じバイト列にする
 
 HERE = Path(__file__).resolve().parent
 FONT_NAME = "JPFont"
+FRAME_PADDING = 6  # reportlab の枠の内側の余白（pt）。表紙は、この余白を引いて、本文と同じ左端（20mm）に置く
+MARGIN_LEFT, MARGIN_BOTTOM = 20 * mm, 22 * mm
+COVER_IMAGE = HERE / "images" / "cafe_cover.jpg"
+COLOPHON = ["初版｜2026年11月"]
+
+
+class _ImageCover(Flowable):
+    """画像つきの表紙。題名と副題を上にまとめ、その下に画像（角をわずかに丸く）、下端に発行情報を置く。
+
+    枠いっぱいの 1 つの部品で、ページの絶対位置に描く（枠の内側の余白で、画像と文字の左端がずれるのを避けるため）。
+    惑星ザーハードの設定資料（evals/fixtures/zahard_pdf/make_pdf.py）の表紙と同じ組み方。
+    """
+
+    def __init__(self, image: Path, title: str, subtitle: str, colophon: list[str]) -> None:
+        super().__init__()
+        self.image, self.title, self.subtitle, self.colophon = image, title, subtitle, colophon
+
+    def wrap(self, availWidth: float, availHeight: float) -> tuple[float, float]:
+        return availWidth, availHeight
+
+    def draw(self) -> None:
+        page_w, page_h = A4
+        content_w = page_w - 2 * MARGIN_LEFT
+        canv = self.canv
+        canv.saveState()
+        canv.translate(-(MARGIN_LEFT + FRAME_PADDING), -(MARGIN_BOTTOM + FRAME_PADDING))  # ページの左下へ座標を戻す
+        title = ParagraphStyle("c_title", fontName=FONT_NAME, fontSize=30.5, leading=44, wordWrap="CJK")
+        sub = ParagraphStyle("c_sub", fontName=FONT_NAME, fontSize=13, leading=22, wordWrap="CJK")
+        note = ParagraphStyle(
+            "c_note", fontName=FONT_NAME, fontSize=10, leading=16, wordWrap="CJK", textColor=colors.HexColor("#555555")
+        )
+        y = page_h - 38 * mm
+        for text, style, gap in ((self.title, title, 3 * mm), (self.subtitle, sub, 14 * mm)):
+            para = Paragraph(_escape(text), style)
+            _, height = para.wrap(content_w, page_h)
+            para.drawOn(canv, MARGIN_LEFT, y - height)
+            y -= height + gap
+        image_w, image_h = ImageReader(str(self.image)).getSize()
+        height = content_w * image_h / image_w
+        clip = canv.beginPath()
+        clip.roundRect(MARGIN_LEFT, y - height, content_w, height, 1.5 * mm)
+        canv.clipPath(clip, stroke=0, fill=0)
+        canv.drawImage(str(self.image), MARGIN_LEFT, y - height, width=content_w, height=height)
+        canv.restoreState()
+        canv.saveState()
+        canv.translate(-(MARGIN_LEFT + FRAME_PADDING), -(MARGIN_BOTTOM + FRAME_PADDING))
+        bottom = 24 * mm
+        for line in reversed(self.colophon):
+            para = Paragraph(_escape(line), note)
+            _, height = para.wrap(content_w, page_h)
+            para.drawOn(canv, MARGIN_LEFT, bottom)
+            bottom += height
+        canv.restoreState()
 
 
 def _escape(text: str) -> str:
@@ -124,7 +178,12 @@ class _RecordingDoc(SimpleDocTemplate):
 
 
 def _front_story(
-    title: str, chapters: list[tuple[str, int]], body: ParagraphStyle, h1: ParagraphStyle, publisher: str
+    title: str,
+    chapters: list[tuple[str, int]],
+    body: ParagraphStyle,
+    h1: ParagraphStyle,
+    publisher: str,
+    cover_image: Path | None = None,
 ) -> list:
     """表紙と目次。目次の番号は、本文の印字番号（表紙・目次を数えない）。"""
     cover_title = ParagraphStyle("cover_title", parent=body, fontSize=26, leading=38, spaceAfter=14)
@@ -144,11 +203,17 @@ def _front_story(
             ]
         )
     )
+    if cover_image is None:
+        cover: list = [
+            Spacer(1, 70 * mm),
+            Paragraph(_escape(title), cover_title),
+            Spacer(1, 8 * mm),
+            Paragraph(_escape(publisher), cover_sub),
+        ]
+    else:
+        cover = [_ImageCover(cover_image, title, publisher, COLOPHON)]
     return [
-        Spacer(1, 70 * mm),
-        Paragraph(_escape(title), cover_title),
-        Spacer(1, 8 * mm),
-        Paragraph(_escape(publisher), cover_sub),
+        *cover,
         PageBreak(),
         Paragraph("目次", h1),
         toc,
@@ -165,6 +230,7 @@ def build(
     leading: float,
     cell_size: float = 10.0,
     front_matter: bool = True,
+    cover_image: Path | None = None,
 ) -> None:
     pdfmetrics.registerFont(TTFont(FONT_NAME, str(font_path)))
 
@@ -226,7 +292,7 @@ def build(
     probe = _RecordingDoc(io.BytesIO(), pagesize=A4, title=title, author="", invariant=True, **margins)
     probe.build(make_story(), canvasmaker=_numbered_canvas())
     doc = SimpleDocTemplate(str(pdf_path), pagesize=A4, title=title, author="", invariant=True, **margins)
-    front = _front_story(title, probe.chapters, body, h1, "オアシス珈琲 お客様相談室")
+    front = _front_story(title, probe.chapters, body, h1, "オアシス珈琲 お客様相談室", cover_image)
     doc.build(front + make_story(), canvasmaker=_numbered_canvas(front=True))
 
 
@@ -235,11 +301,26 @@ def main() -> None:
     parser.add_argument("--font", type=Path, required=True, help="埋め込む日本語の TrueType フォント（.ttf）")
     parser.add_argument("--md", type=Path, default=HERE / "cafe_store_guide.md")
     parser.add_argument("--out", type=Path, default=HERE.parent / "cafe_store_guide.pdf")
+    parser.add_argument(
+        "--cover-image",
+        type=Path,
+        default=COVER_IMAGE,
+        help="表紙の画像（既定: source/images/cafe_cover.jpg）。none で画像なしの表紙",
+    )
     parser.add_argument("--font-size", type=float, default=12.0)
     parser.add_argument("--leading", type=float, default=23.0)
     parser.add_argument("--cell-size", type=float, default=10.0, help="表の文字の大きさ")
     args = parser.parse_args()
-    build(args.md, args.out, args.font, font_size=args.font_size, leading=args.leading, cell_size=args.cell_size)
+    cover = None if str(args.cover_image) == "none" else args.cover_image
+    build(
+        args.md,
+        args.out,
+        args.font,
+        font_size=args.font_size,
+        leading=args.leading,
+        cell_size=args.cell_size,
+        cover_image=cover,
+    )
     print(f"-> {args.out}")
 
 
