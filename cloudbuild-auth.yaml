@@ -1,0 +1,15 @@
+# 認証サービス（Cloud Run `docunavi-gcp-auth`）のイメージを Cloud Build でビルドして Artifact Registry に置く（配備はしない）。
+# 使い方: SERVICE=docunavi-gcp-auth BUILD_CONFIG=cloudbuild-auth.yaml ./scripts/preview.sh build
+# 置換変数: _IMAGE（ビルドしたイメージの名前）
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file
+      - workers/api/Dockerfile.node
+      - --tag
+      - ${_IMAGE}
+      - .
+
+images:
+  - ${_IMAGE}

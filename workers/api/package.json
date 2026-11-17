@@ -4,10 +4,13 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --local --port 8787",
-    "typecheck": "tsc --noEmit",
-    "deploy": "wrangler deploy"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "deploy": "wrangler deploy",
+    "build:node": "esbuild src/node.ts --bundle --platform=node --format=esm --target=node24 --packages=external --outfile=dist/node.mjs",
+    "start:node": "node dist/node.mjs"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.9",
     "better-auth": "1.7.18",
     "hono": "4.13.17",
     "kysely": "^0.29.8",
@@ -15,6 +18,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261107.1",
+    "@types/node": "^24.19.2",
     "@types/pg": "^8.11.10",
     "typescript": "^5.9.0",
     "wrangler": "4.158.0"

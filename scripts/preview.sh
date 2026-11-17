@@ -17,6 +17,7 @@
 #   ./scripts/preview.sh promote preview-20261021-2114        # 実行前に確認を取る。-y で省く
 #   ./scripts/preview.sh rollback docunavi-00005-zl7
 # 環境変数: PROJECT_ID（既定 docunavi-app）、REGION（既定 asia-northeast1）、SERVICE（既定 docunavi）、AR_REPO（既定 cloud-run-source-deploy）、
+#   BUILD_CONFIG（既定 cloudbuild.yaml。認証サービス `docunavi-gcp-auth` は SERVICE=docunavi-gcp-auth BUILD_CONFIG=cloudbuild-auth.yaml で build だけ使う）、
 #   PREVIEW_DRY_RUN=1（gcloud を実行せず、実行するコマンドを表示する。公開値は伏せる）
 set -euo pipefail
 
@@ -27,6 +28,7 @@ PROJECT_ID="${PROJECT_ID:-docunavi-app}"
 REGION="${REGION:-asia-northeast1}"
 SERVICE="${SERVICE:-docunavi}"
 AR_REPO="${AR_REPO:-cloud-run-source-deploy}"
+BUILD_CONFIG="${BUILD_CONFIG:-cloudbuild.yaml}"
 DRY_RUN="${PREVIEW_DRY_RUN:-}"
 
 die() {
@@ -92,7 +94,7 @@ case "$cmd" in
     git diff --quiet HEAD -- || die "追跡中のファイルに未コミットの変更があります。コミットしてからビルドしてください"
     image="$(image_for "$head_sha")"
     echo "IMAGE=$image"
-    run gcloud builds submit . --project "$PROJECT_ID" --config cloudbuild.yaml \
+    run gcloud builds submit . --project "$PROJECT_ID" --config "$BUILD_CONFIG" \
       --substitutions "_IMAGE=${image}"
     ;;
 

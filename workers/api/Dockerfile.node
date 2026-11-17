@@ -1,0 +1,19 @@
+# 認証サービス（Better Auth。Cloud Run `docunavi-gcp-auth`）のイメージ。ビルドの文脈はリポジトリの根（cloudbuild-auth.yaml）。
+# Worker（Cloudflare）には使わない。入口は workers/api/src/node.ts（esbuild で dist/node.mjs にまとめる）。
+FROM node:24-slim AS build
+WORKDIR /app
+COPY workers/api/package.json workers/api/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY workers/api/src ./src
+RUN npx esbuild src/node.ts --bundle --platform=node --format=esm --target=node24 --packages=external --outfile=dist/node.mjs
+
+FROM node:24-slim
+ENV NODE_ENV=production
+WORKDIR /app
+COPY workers/api/package.json workers/api/package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
+COPY --from=build /app/dist/node.mjs ./dist/node.mjs
+# root 以外で実行する（node イメージの node ユーザー）
+USER node
+# Cloud Run は待ち受けポートを $PORT で渡す（未指定は 8080）
+CMD ["node", "dist/node.mjs"]
