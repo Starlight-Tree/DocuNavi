@@ -165,12 +165,23 @@ def connect(read_only: bool) -> psycopg.Connection:
 
 def grant_app_role(conn: psycopg.Connection, role: str) -> None:
     """DML for the app role on what the migration user created, plus default privileges for later tables.
-    Idempotent. Runs as the migration user (the owner), so it needs no extra membership."""
+    Idempotent. Runs as the migration user (the owner), so it needs no extra membership.
+    Grants name the migration user's own tables one by one: GRANT ... ON ALL TABLES also touches tables the
+    platform owns (AlloyDB keeps internal ones in public) and fails with permission denied."""
     r = sql.Identifier(role)
+    conn.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {r}").format(r=r))
+    owned = (
+        "select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace"
+        " where n.nspname = 'public' and c.relowner = (select oid from pg_roles where rolname = current_user)"
+        " and c.relkind in {kinds} order by 1"
+    )
+    for kinds, stmt in (
+        ("('r', 'p')", "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.{n} TO {r}"),
+        ("('S')", "GRANT USAGE, SELECT ON SEQUENCE public.{n} TO {r}"),
+    ):
+        for (name,) in conn.execute(owned.format(kinds=kinds)).fetchall():
+            conn.execute(sql.SQL(stmt).format(n=sql.Identifier(name), r=r))
     for stmt in (
-        "GRANT USAGE ON SCHEMA public TO {r}",
-        "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {r}",
-        "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {r}",
         "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {r}",
         "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO {r}",
     ):

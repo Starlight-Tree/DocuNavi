@@ -283,6 +283,7 @@ def test_grant_app_role_uses_a_quoted_identifier_and_no_ownership_change() -> No
 
         def execute(self, q, params=None):
             self.statements.append(q)
+            return SimpleNamespace(fetchall=lambda: [("schema_migrations",), ("documents",)])
 
     conn = Conn()
     migrate.grant_app_role(conn, 'app"; DROP TABLE x; --')
@@ -290,6 +291,26 @@ def test_grant_app_role_uses_a_quoted_identifier_and_no_ownership_change() -> No
     assert '"app""; DROP TABLE x; --"' in text  # 識別子として引用される
     assert not re.search(r"\b(OWNER TO|SUPERUSER|CREATEROLE|ALL PRIVILEGES ON DATABASE)\b", text)
     assert "REVOKE ALL ON TABLE schema_migrations" in text
+
+
+def test_grant_app_role_names_only_tables_the_migration_user_owns() -> None:
+    # AlloyDB keeps platform-owned tables in public; GRANT ... ON ALL TABLES fails on them (permission denied)
+    class Conn:
+        def __init__(self) -> None:
+            self.statements: list[object] = []
+
+        def execute(self, q, params=None):
+            self.statements.append(q)
+            return SimpleNamespace(fetchall=lambda: [("documents",), ("we ird",)])
+
+    conn = Conn()
+    migrate.grant_app_role(conn, "app")
+    text = " ".join(s.as_string(None) if hasattr(s, "as_string") else str(s) for s in conn.statements)
+    assert "ALL TABLES" not in text and "ALL SEQUENCES" not in text
+    assert 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."documents" TO "app"' in text
+    assert 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."we ird" TO "app"' in text
+    assert 'GRANT USAGE, SELECT ON SEQUENCE public."documents" TO "app"' in text
+    assert "c.relowner = (select oid from pg_roles where rolname = current_user)" in text
 
 
 def test_dockerfile_copies_only_the_migration_materials() -> None:
