@@ -3,15 +3,15 @@
 FROM node:24-slim AS build
 WORKDIR /app
 COPY workers/api/package.json workers/api/package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY workers/api/src ./src
-RUN npx esbuild src/node.ts --bundle --platform=node --format=esm --target=node24 --packages=external --outfile=dist/node.mjs
+RUN node_modules/.bin/esbuild src/node.ts --bundle --platform=node --format=esm --target=node24 --packages=external --outfile=dist/node.mjs
 
 FROM node:24-slim
 ENV NODE_ENV=production
 WORKDIR /app
 COPY workers/api/package.json workers/api/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 COPY --from=build /app/dist/node.mjs ./dist/node.mjs
 # root 以外で実行する（node イメージの node ユーザー）
 USER node

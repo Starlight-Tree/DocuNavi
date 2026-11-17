@@ -22,7 +22,7 @@ COPY --chown=app:app app ./app
 COPY --chown=app:app storage ./storage
 # マイグレーションの実行用（Cloud Run Job が `python db/migrate.py` で動かす）。必要な資材だけ。seeds/ と local-init/ は入れない。
 # API のプロセスは import せず、実行もしない。接続先・権限の検査は db/migrate.py の docstring
-COPY --chown=app:app db/migrate.py ./db/migrate.py
+COPY --chmod=0755 db/migrate.py ./db/migrate.py
 COPY --chown=app:app db/migrations ./db/migrations
 
 USER app
