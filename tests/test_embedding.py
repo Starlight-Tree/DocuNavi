@@ -5,6 +5,7 @@
 """
 
 import math
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -282,6 +283,86 @@ def test_vertex_ai_sends_one_text_per_call(monkeypatch):
     report = embed_pending(store, embedder, budget, max_chunks=300, apply=True)
     assert [len(batch) for batch in embedder.sent] == [1] * 5
     assert (report.saved, report.calls, report.error) == (5, 5, None)
+
+
+class NumberedEmbedder:
+    """本文の番号（「本文N」）をそのままベクトルの先頭にする。どの本文のベクトルが、どの行に保存されたかを確かめられる。"""
+
+    def __init__(self, budget: ApiBudget, *, fail_on: frozenset[int] = frozenset()) -> None:
+        self.budget = budget
+        self.fail_on = fail_on
+        self.lock = threading.Lock()
+        self.sent: list[int] = []
+
+    def embed(self, texts):
+        self.budget.spend()
+        (text,) = texts
+        number = int(text.rsplit("本文", 1)[1])
+        if number in self.fail_on:
+            raise EmbeddingError("ServerError (status=503)")
+        with self.lock:
+            self.sent.append(number)
+        return [_vec(float(number))]
+
+
+def test_concurrent_sends_save_each_vector_to_its_own_row(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
+    store, budget = FakeStore(50), ApiBudget(60)
+    embedder = NumberedEmbedder(budget)
+    report = embed_pending(store, embedder, budget, max_chunks=300, apply=True, concurrency=8)
+    assert (report.saved, report.calls, report.error) == (50, 50, None)
+    assert sorted(embedder.sent) == list(range(1, 51))
+    assert all(store.done[i][0] == float(i) for i in range(1, 51))
+    assert store.count_pending() == 0
+
+
+def test_the_call_budget_is_never_exceeded_by_concurrent_calls():
+    budget = ApiBudget(50)
+    results: list[bool] = []
+    lock = threading.Lock()
+
+    def spend():
+        try:
+            budget.spend()
+            ok = True
+        except BudgetExceeded:
+            ok = False
+        with lock:
+            results.append(ok)
+
+    threads = [threading.Thread(target=spend) for _ in range(300)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert (budget.calls, results.count(True), results.count(False)) == (50, 50, 250)
+
+
+def test_a_failure_in_a_concurrent_window_keeps_the_others_and_stops(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
+    store, budget = FakeStore(30), ApiBudget(60)
+    embedder = NumberedEmbedder(budget, fail_on=frozenset({13}))
+    report = embed_pending(store, embedder, budget, max_chunks=300, apply=True, concurrency=8)
+    # 1〜8 は成功、9〜16 の組では 13 だけ失敗。その組の成功分（13 以外の 7 件）は保存され、17 以降は送らない
+    assert report.error and "503" in report.error
+    assert set(store.done) == set(range(1, 17)) - {13}
+    assert (report.saved, report.calls) == (15, 16)
+    assert store.count_pending() == 15  # 13 と 17〜30。次の実行はここから続ける
+
+
+def test_concurrency_keeps_the_call_cap_check_before_any_call(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_USE_VERTEXAI", "true")
+    store, budget = FakeStore(20), ApiBudget(10)
+    embedder = NumberedEmbedder(budget)
+    report = embed_pending(store, embedder, budget, max_chunks=300, apply=True, concurrency=8)
+    assert embedder.sent == [] and budget.calls == 0 and store.done == {}
+    assert report.error and "上限" in report.error
+
+
+def test_the_cli_sends_eight_at_a_time_on_vertex_unless_told_otherwise(monkeypatch):
+    assert cli._parser().parse_args([]).concurrency is None
+    assert cli._parser().parse_args(["--concurrency", "3"]).concurrency == 3
+    assert embedding.VERTEX_CONCURRENCY == 8
 
 
 def test_a_second_run_skips_what_is_already_embedded():

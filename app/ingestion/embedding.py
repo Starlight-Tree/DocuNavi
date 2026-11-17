@@ -20,8 +20,10 @@ import hashlib
 import json
 import math
 import os
+import threading
 from collections.abc import Sequence
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from app.d1 import MAX_BATCH
@@ -42,6 +44,8 @@ PRICE_PER_MILLION_TOKENS = 0.20
 # （LLM だけを切り替えずに済むように。真でも偽でも、モデルと次元は同じで、保存済みのベクトルはそのまま使う）
 VERTEX_ENV = "EMBEDDING_USE_VERTEXAI"
 VERTEX_LOCATION_ENV = "EMBEDDING_VERTEX_LOCATION"
+# Vertex は 1 回 1 本しか送れないので、取り込みの CLI は既定でこの本数ずつ同時に送る（`--concurrency` で変える。429 が出たら減らす）
+VERTEX_CONCURRENCY = 8
 # gemini-embedding-2 の提供先は global・us・eu（公式のモデルページ。リージョン指定は不可）
 DEFAULT_VERTEX_LOCATION = "global"
 _TRUTHY = {"1", "true", "yes", "on"}
@@ -102,11 +106,14 @@ def query_text(question: str) -> str:
 class ApiBudget:
     max_calls: int
     calls: int = 0
+    # 同時に送るとき（embed_pending の concurrency > 1）も、上限を超えて数えないようにする
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def spend(self) -> None:
-        if self.calls >= self.max_calls:
-            raise BudgetExceeded(f"呼び出しの上限 {self.max_calls} 回に達しました")
-        self.calls += 1
+        with self._lock:
+            if self.calls >= self.max_calls:
+                raise BudgetExceeded(f"呼び出しの上限 {self.max_calls} 回に達しました")
+            self.calls += 1
 
 
 class Embedder(Protocol):
@@ -189,9 +196,28 @@ class EmbedReport:
     error: str | None = None
 
 
+def _embed_one(embedder: Embedder, texts: Sequence[str]) -> list[list[float]] | EmbeddingError:
+    """1 回分を送る。失敗（上限・API・返りの検査）は、例外ではなく値で返す（同時に送った他の分を捨てないため）。"""
+    try:
+        return embedder.embed(texts)
+    except EmbeddingError as exc:
+        return exc
+
+
 def embed_pending(
-    store: EmbeddingStore, embedder: Embedder, budget: ApiBudget, *, max_chunks: int, apply: bool
+    store: EmbeddingStore,
+    embedder: Embedder,
+    budget: ApiBudget,
+    *,
+    max_chunks: int,
+    apply: bool,
+    concurrency: int = 1,
 ) -> EmbedReport:
+    """`concurrency` が 2 以上なら、1 回に 1 本しか送れない経路（Vertex AI）などで、その本数ずつ同時に送る。
+
+    同時に送った組は、全部の結果を待ってから、成功した分を保存する（1 つでも失敗したら、その組を保存して止める。
+    次の実行は、まだ埋め込みの無い行から続ける）。呼び出しの上限は、送る前に確かめる（計画が超えるなら 1 回も送らない）。
+    """
     pending = store.pending_embeddings(max_chunks)
     texts = [document_text(c.heading, c.content) for c in pending]
     characters = sum(len(t) for t in texts)
@@ -217,16 +243,30 @@ def embed_pending(
         )
         return report
     step = batch_size()
-    for start in range(0, len(pending), step):
-        batch = pending[start : start + step]
-        try:
-            vectors = embedder.embed(texts[start : start + step])
-            report.saved += store.save_embeddings(list(zip(batch, vectors, strict=True)))
-        except EmbeddingError as exc:
-            report.error = str(exc)
-            break
-        finally:
+    slices = [slice(start, start + step) for start in range(0, len(pending), step)]
+    workers = max(1, concurrency)
+    pool = ThreadPoolExecutor(max_workers=workers) if workers > 1 else None
+    try:
+        for first in range(0, len(slices), workers):
+            window = slices[first : first + workers]
+            if pool is None:
+                outcomes = [_embed_one(embedder, texts[sl]) for sl in window]
+            else:
+                outcomes = list(pool.map(lambda sl: _embed_one(embedder, texts[sl]), window))
+            failure: EmbeddingError | None = None
+            for sl, outcome in zip(window, outcomes, strict=True):
+                if isinstance(outcome, EmbeddingError):
+                    failure = failure or outcome
+                    continue
+                report.saved += store.save_embeddings(list(zip(pending[sl], outcome, strict=True)))
             report.calls = budget.calls
+            if failure is not None:
+                report.error = str(failure)
+                break
+    finally:
+        if pool is not None:
+            pool.shutdown()
+        report.calls = budget.calls
     return report
 
 

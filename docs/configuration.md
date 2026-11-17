@@ -390,6 +390,8 @@ Gemini のレート制限はプロジェクト単位なので、同じプロジ�
 
 `EMBEDDING_USE_VERTEXAI=true` で、取り込み（`python -m app.ingestion.embed`）と質問の埋め込みの両方が Vertex AI になります（`app/ingestion/embedding.py` の `make_client`）。モデル（`gemini-embedding-2`）・次元（768）・入力の形は変えません。既定（空）では従来と同じです。
 
+Vertex の `gemini-embedding-2` は 1 回に 1 本しか送れないので、取り込みのコマンドは、Vertex のとき既定で 8 本ずつ同時に送ります（`--concurrency N` で変更。1 なら順番に送る。2026-11-18 から。`app/ingestion/embedding.py` の `VERTEX_CONCURRENCY`）。呼び出し回数の上限（`--max-calls`）は、同時に送っても超えません。同時に送った組のうち 1 本でも失敗したら、成功した分を保存して止め、次の実行は続きから始まります。ローカル DB の 2,233 チャンク（Vertex、8 本ずつ）は 2 分 15 秒でした（実測。レート制限は出ませんでした）。
+
 - **実装・テスト済み（偽の SDK）:** 経路の切り替え、キー不要、ロケーション、有料キーへ切り替えないこと。
 - **実測（2026-11-09、証拠等級 A、開発コンテナから各 1 回。`docunavi-app`・`global`・利用者本人の ADC）:** 取り込みの形（1 本ずつ 3 本）は返却 3 本・768 次元で合計 1.85 秒。質問 1 本は 0.35〜0.39 秒（上限 `EMBED_TIMEOUT_SECONDS` = 10 秒に収まる）。API キー経路とのコサイン類似度は 3 文とも 1.0000 で、保存済みのベクトルは作り直さずに使えます。
 - **未確認:** Cloud Run からの遅延、Cloud Run のサービスアカウントへの `roles/aiplatform.user`、複数の `Content` を 1 回で渡したときの返り方（返らないと、取り込みは `EmbeddingError` で止まる。壊れた値は保存しない）。

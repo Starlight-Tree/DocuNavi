@@ -26,6 +26,7 @@ from app.ingestion.embedding import (
     DIMENSIONS,
     MAX_INPUT_CHARS,
     MODEL,
+    VERTEX_CONCURRENCY,
     VERTEX_ENV,
     ApiBudget,
     D1EmbeddingStore,
@@ -48,6 +49,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--apply", action="store_true", help="実 API を呼び、DB に保存する（課金される）")
     parser.add_argument("--max-chunks", type=int, default=DEFAULT_MAX_CHUNKS, help="今回の対象の上限")
     parser.add_argument("--max-calls", type=int, default=DEFAULT_MAX_CALLS, help="API への送信回数の上限")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=None,
+        help=f"同時に送る本数。既定は Vertex AI（{VERTEX_ENV}=true）なら {VERTEX_CONCURRENCY}、それ以外は 1（順番に送る）",
+    )
     return parser
 
 
@@ -67,9 +74,10 @@ def _print_report(report: EmbedReport, max_chunks: int, max_calls: int) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.max_chunks < 1 or args.max_calls < 1:
-        print("--max-chunks と --max-calls は 1 以上にしてください。", file=sys.stderr)
+    if args.max_chunks < 1 or args.max_calls < 1 or (args.concurrency is not None and args.concurrency < 1):
+        print("--max-chunks・--max-calls・--concurrency は 1 以上にしてください。", file=sys.stderr)
         return 2
+    concurrency = args.concurrency if args.concurrency is not None else (VERTEX_CONCURRENCY if use_vertex() else 1)
 
     load_dotenv()
     url = database_url()
@@ -89,7 +97,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         with sync_client(SyncD1, url) as client:
             store = D1EmbeddingStore(client)
             embedder = GeminiEmbedder(api_key, budget) if args.apply else None
-            report = embed_pending(store, embedder, budget, max_chunks=args.max_chunks, apply=args.apply)  # type: ignore[arg-type]
+            report = embed_pending(
+                store,
+                embedder,  # type: ignore[arg-type]
+                budget,
+                max_chunks=args.max_chunks,
+                apply=args.apply,
+                concurrency=concurrency,
+            )
             statements = getattr(client, "statements", None)
     except D1Error as exc:
         print(f"DB の操作に失敗しました（{exc}）。", file=sys.stderr)
