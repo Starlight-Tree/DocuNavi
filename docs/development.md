@@ -111,8 +111,10 @@ Infisical CLI がプロジェクトを選ぶ `.infisical.yaml` も Git 管理外
 
   ```bash
   uv pip compile requirements.in --universal --python-version 3.14 -o requirements.txt
-  uv pip compile requirements-dev.in --universal --python-version 3.14 -c requirements.txt -o requirements-dev.txt
+  uv pip compile requirements-dev.in --universal --python-version 3.14 -c requirements.txt --generate-hashes -o requirements-dev.txt
   ```
+
+  `requirements-dev.txt` はハッシュ付きで、CI は `pip install --require-hashes` で入れます（SonarCloud の `S8544` 対策。2026-11-18）。Dependabot のセキュリティ更新が版だけを書き換えると、ハッシュが合わず CI の install が失敗します。その場合は、上のコマンドで再生成します。
 
 - **`requirements-lint.txt`:** CI の `workflow-lint` ジョブ（actionlint と zizmor）だけが使う、ハッシュ付きの固定です。版は `requirements-lint.in` を手で上げて、`uv pip compile requirements-lint.in --universal --python-version 3.12 --generate-hashes -o requirements-lint.txt` で再生成します。
   手元で検査するには、`pip install --require-hashes -r requirements-lint.txt` の後に `actionlint` と `zizmor --offline .` を実行します。
