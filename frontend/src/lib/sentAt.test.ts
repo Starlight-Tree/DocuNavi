@@ -8,12 +8,13 @@ const NOW = new Date(2026, 10, 16, 21, 30); // 2026-11-16 21:30
 describe('formatSentAt', () => {
   it('同じ日は「今日」', () => {
     expect(formatSentAt(at(2026, 11, 16, 21, 2), NOW)).toBe('今日 21:02');
-    expect(formatSentAt(at(2026, 11, 16, 0, 5), NOW)).toBe('今日 00:05');
+    expect(formatSentAt(at(2026, 11, 16, 0, 5), NOW)).toBe('今日 0:05');
+    expect(formatSentAt(at(2026, 11, 16, 4, 46), NOW)).toBe('今日 4:46'); // 時は 0 埋めしない、分は 2 桁
   });
 
   it('前の日は「昨日」（月をまたいでも）', () => {
     expect(formatSentAt(at(2026, 11, 15, 20, 41), NOW)).toBe('昨日 20:41');
-    expect(formatSentAt(at(2026, 10, 31, 9, 0), new Date(2026, 10, 1, 8, 0))).toBe('昨日 09:00');
+    expect(formatSentAt(at(2026, 10, 31, 9, 0), new Date(2026, 10, 1, 8, 0))).toBe('昨日 9:00');
   });
 
   it('それより前の今年は「月日」、去年以前は年も付ける', () => {

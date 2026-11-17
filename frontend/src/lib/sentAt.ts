@@ -9,18 +9,19 @@ function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-function pad(n: number): string {
-  return String(n).padStart(2, '0');
+/** 分は 2 桁、時は桁をそろえない（「4:46」。「04:46」にしない）。 */
+function clock(at: Date): string {
+  return `${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`;
 }
 
 /**
- * 「今日 21:02」「昨日 20:41」「11月14日 21:02」「2025年11月14日 21:02」。端末のタイムゾーンで表示する。
+ * 「今日 21:02」「今日 4:46」「昨日 20:41」「11月14日 21:02」「2025年11月14日 21:02」（時は 0 埋めしない）。端末のタイムゾーンで表示する。
  * 読めない値は null（区切りを出さない）。`now` は引数で受ける（テストで固定できるように）。
  */
 export function formatSentAt(iso: string, now: Date): string | null {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return null;
-  const time = `${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  const time = clock(at);
   if (sameDay(at, now)) return `今日 ${time}`;
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
   if (sameDay(at, yesterday)) return `昨日 ${time}`;

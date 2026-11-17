@@ -241,7 +241,7 @@ describe('会話の一覧', () => {
     await within(log).findByText('ザーハードの大気は？');
     // 去年の日付なので年も付く。時刻のある質問だけに 1 つ（端末のタイムゾーンで時刻は変わるので、形だけ確かめる）
     expect(log.querySelectorAll('time')).toHaveLength(1);
-    expect(log.querySelector('time')).toHaveTextContent(/^2025年11月14日 \d\d:\d\d$/);
+    expect(log.querySelector('time')).toHaveTextContent(/^2025年11月14日 \d{1,2}:\d\d$/);
     expect(log.querySelector('time')).toHaveAttribute('datetime', '2025-11-14T12:00:00+00:00');
 
     // 続きを送ると、その質問の前に「今日」の時刻が付く（端末の時計。履歴の質問の時刻は変わらない）
@@ -250,7 +250,7 @@ describe('会話の一覧', () => {
     await screen.findByText(DEFAULT_REPLY);
     const times = Array.from(log.querySelectorAll('time'));
     expect(times).toHaveLength(2);
-    expect(times[1]).toHaveTextContent(/^今日 \d\d:\d\d$/);
+    expect(times[1]).toHaveTextContent(/^今日 \d{1,2}:\d\d$/);
   });
 
   it('取得している間は読み込み中を出し、届いたら消える', async () => {
