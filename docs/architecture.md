@@ -161,6 +161,7 @@ flowchart TB
   - 切断: クライアントを切ると、LLM 呼び出しが取り消される（HTTP/1.1 のままだと、最後まで走る。本番 `docunavi` と同じ設定が要る）。
 - **起動:** 20 分あけたあとの最初のアクセスでも、DB の応答は 0.3 秒ほどで、再開の遅れは見られませんでした。
 - **未検証・制限:** PSC と AlloyDB の課金は Console での確認待ちです。クレジットの期限後に費用が変わるため、この構成を続けるかは別に判断します。アクセス制御は、`ACCESS_MODE` が `off`、`MEMBERSHIP_MODE` が `enforce`（`app_members` にいる人だけが使える）です（2026-11-18 に `docunavi-gcp-00004-dtp` で確認）。
+- **画面の配備（2026-11-18）:** ホストで行います（開発コンテナには Cloudflare の資格情報が無い）。`frontend/deploy-web.sh` の既定値は本番なので使わず、環境変数を検証用に置き換えて `npm run build:cf` のあと `wrangler deploy --name docunavi-gcp-web` を実行します（`--name` で本番の `docunavi-web` には触れません）。`NEXT_PUBLIC_AUTH_ENABLED=1`、`NEXT_PUBLIC_API_BASE_URL` と `NEXT_PUBLIC_STREAM_BASE_URL` はどちらも Cloud Run `docunavi-gcp` の URL（中継なし）、`AUTH_PROXY_TARGET` は `docunavi-gcp-auth` の URL です。実行前に `wrangler whoami` でアカウントを確かめます。`frontend/node_modules` は開発コンテナと共有する Linux 用なので、`npm ci` はそこでせず、コピーしてビルドします。値は、配備済みの画面の中身から割り出した推定です（以前の配備の記録は無い）。配備後、`/`・`/api/auth/ok`・`/api/auth/get-session` が 200、ビルドに検証用 API の URL だけが入っていることを確認しました（2026-11-18、A）。ログイン後の画面の動きは未確認です。
 
 ```mermaid
 flowchart LR
