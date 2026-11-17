@@ -39,6 +39,12 @@ from app.search.types import VectorSearchError
 
 logger = logging.getLogger(__name__)
 
+
+def _log_value(value: str) -> str:
+    """ログに出す値から改行を除く（ログの行を偽装されないため）。"""
+    return value.replace("\r", "_").replace("\n", "_")
+
+
 router = APIRouter()
 
 MAX_MESSAGE_LENGTH = 2000
@@ -478,7 +484,7 @@ async def chat(
             # 切断はエラーではない。except Exception の外で返し、ログも INFO・固定文・thread_id だけにする
             logger.info(
                 "クライアントが切断したため LLM 呼び出しを取り消しました (thread_id=%s, elapsed=%.1fs)",
-                thread_id,
+                _log_value(thread_id),
                 time.monotonic() - started,
             )
             status = "gone"
@@ -500,7 +506,7 @@ async def chat(
         status = str(failure.status_code)
         error = exc
         # 詳細（例外本体・スタックトレース）はログにだけ残す。thread_id はパターン検証済み
-        logger.exception("LLM 呼び出しに失敗しました (status=%s, thread_id=%s)", failure.status_code, thread_id)
+        logger.exception("LLM 呼び出しに失敗しました (status=%s, thread_id=%s)", failure.status_code, _log_value(thread_id))
         raise failure from exc
     finally:
         await _cancel_and_wait(work, gone, drain)
@@ -576,7 +582,7 @@ def _log_stream_failure(exc: BaseException, failure: HTTPException, thread_id: s
     logger.error(
         "LLM 呼び出しに失敗しました (status=%s, thread_id=%s)",
         failure.status_code,
-        thread_id,
+        _log_value(thread_id),
         exc_info=(type(exc), exc, exc.__traceback__),
     )
 
@@ -615,7 +621,7 @@ async def _stream_body(
                 status = "gone"
                 logger.info(
                     "クライアントが切断したため LLM 呼び出しを取り消しました (thread_id=%s, elapsed=%.1fs)",
-                    thread_id,
+                    _log_value(thread_id),
                     time.monotonic() - started,
                 )
                 return
@@ -623,7 +629,7 @@ async def _stream_body(
                 status = "shutdown"
                 logger.info(
                     "サーバーの停止のため、進行中の応答を打ち切りました (thread_id=%s, elapsed=%.1fs)",
-                    thread_id,
+                    _log_value(thread_id),
                     time.monotonic() - started,
                 )
                 for chunk in ui.error(DRAIN_MESSAGE, status=503, retry_after=DRAIN_RETRY_AFTER_SECONDS):
@@ -648,7 +654,7 @@ async def _stream_body(
         # Starlette は、クライアントの切断を見つけると、本体の生成を取り消す。失敗ではない
         logger.info(
             "ストリームを中断し、LLM 呼び出しを取り消しました (thread_id=%s, elapsed=%.1fs)",
-            thread_id,
+            _log_value(thread_id),
             time.monotonic() - started,
         )
         raise

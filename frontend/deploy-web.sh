@@ -9,8 +9,8 @@ export NEXT_PUBLIC_API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL:-https://docunavi-xe
 export NEXT_PUBLIC_STREAM_BASE_URL="${NEXT_PUBLIC_STREAM_BASE_URL:-https://docunavi-sse-relay-xe42miq4da-an.a.run.app}"
 # /api/auth/* を中継する先（データ用 Worker）
 export AUTH_PROXY_TARGET="${AUTH_PROXY_TARGET:-https://docunavi-api.wataru-apps.workers.dev}"
-npm ci --no-audit --no-fund
-if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then npx wrangler whoami >/dev/null 2>&1 || npx wrangler login; fi
+npm ci --no-audit --no-fund --ignore-scripts
+if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then node_modules/.bin/wrangler whoami >/dev/null 2>&1 || node_modules/.bin/wrangler login; fi
 npm run build:cf
-npx wrangler deploy
+node_modules/.bin/wrangler deploy
 echo "deployed: docunavi-web"

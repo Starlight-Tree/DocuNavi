@@ -53,8 +53,8 @@ jobs:
       - name: Deploy the auth Worker
         working-directory: workers/api
         run: |
-          npm ci --no-audit --no-fund
-          npx wrangler deploy
+          npm ci --no-audit --no-fund --ignore-scripts
+          node_modules/.bin/wrangler deploy
       - name: Deploy the web Worker (OpenNext)
         working-directory: frontend
         run: ./deploy-web.sh

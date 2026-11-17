@@ -23,7 +23,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 ARCHIVE="go${GO_VERSION}.linux-${ARCH}.tar.gz"
 
-curl -fsSL -o "${TMP}/${ARCHIVE}" "https://go.dev/dl/${ARCHIVE}" || { echo "取得に失敗しました" >&2; exit 1; }
+curl --proto "=https" --tlsv1.2 -fsSL -o "${TMP}/${ARCHIVE}" "https://go.dev/dl/${ARCHIVE}" || { echo "取得に失敗しました" >&2; exit 1; }
 ACTUAL="$(sha256sum "${TMP}/${ARCHIVE}" | cut -d' ' -f1)"
 if [ "${ACTUAL}" != "${EXPECTED}" ]; then
   echo "SHA-256 が一致しません。導入を中止します" >&2

@@ -20,7 +20,7 @@ install_gh() {
   sudo apt-get update -y &&
     sudo apt-get install -y --no-install-recommends ca-certificates curl &&
     sudo mkdir -p -m 755 /etc/apt/keyrings &&
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee "$keyring" >/dev/null &&
+    curl --proto "=https" --tlsv1.2 -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee "$keyring" >/dev/null &&
     sudo chmod go+r "$keyring" &&
     echo "deb [arch=$(dpkg --print-architecture) signed-by=$keyring] https://cli.github.com/packages stable main" |
     sudo tee "$list" >/dev/null &&
