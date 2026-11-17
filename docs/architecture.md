@@ -150,11 +150,11 @@ flowchart TB
   - `NEXT_PUBLIC_AUTH_ENABLED`、`NEXT_PUBLIC_AUTH_BASE_URL`: 画面（Worker `docunavi-web`）のビルド時に渡す公開用の値で、秘密ではありません。Cloud Run のイメージには入りません。
   - gh の読み取り専用トークン: 開発コンテナの名前付きボリューム（`~/.gh-config`）。gcloud のログインは残しません（[.devcontainer/README.md](../.devcontainer/README.md)）。
 
-## 代替構成の検証（AlloyDB）
+## 検証環境（AlloyDB Express）
 
-**本番ではありません。** Prisma の利用上限に依存せず、別の DB でも動くことを確かめるための、別スタック `docunavi-gcp-*` です。本番（上の「どこで動くか」）は変わりません。
+**テストと検証のための別スタック `docunavi-gcp-*` です。** PostgreSQL 互換の AlloyDB Express と、本番とは異なる認証サービス・接続構成（Private Service Connect、SSE の中継なし）で、アプリが動くことを確かめます。本番（上の「どこで動くか」。Prisma Postgres）とは独立していて、本番は変わりません。
 
-- **位置づけ:** 本番への切り替えは未決定です。切り替えは URL の手動変更で、自動のフェイルオーバーではありません。本番データの継続的な同期は作っていません（データはダミーで、ローカルを正本に、同じマイグレーションと投入手順で反映します）。「待機系（パッシブ）」ではなく、別構成の検証環境として読んでください。
+- **位置づけ:** この構成を本番に採用するかは未決定です。本番データの継続的な同期も、自動のフェイルオーバーも作っていません（データはダミーで、ローカルを正本に、同じマイグレーションと投入手順で反映します）。待機系（パッシブ）ではなく、検証環境として読んでください。
 - **構成:** 画面の Worker `docunavi-gcp-web`、認証の Cloud Run `docunavi-gcp-auth`（Better Auth。画面の Worker が `/api/auth/*` を中継）、API の Cloud Run `docunavi-gcp`（FastAPI + LangGraph）、DB は AlloyDB Express（東京、Private Service Connect のみ。マイグレーション 0001〜0005）。接続は TLS（`verify-ca`）で、ユーザーは用途ごとに分けています。
 - **SSE:** Go の中継を通さず、ブラウザーが API に直接つなぎます。Cloud Run を HTTP/2（h2c）にしたうえで、次を確認しました（2026-11-17）。
   - 逐次配信: 1.6 秒の応答が、7 個のチャンクに分かれて届く。

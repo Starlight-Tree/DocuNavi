@@ -21,6 +21,8 @@
 
 ## アーキテクチャ
 
+本番（Prisma Postgres）:
+
 ```mermaid
 flowchart LR
     B[ブラウザー] --> W["Cloudflare Worker<br/>docunavi-web (Next.js)"]
@@ -36,19 +38,21 @@ flowchart LR
 
 質問は、入力ガード → エージェント（資料を検索するツール呼び出しのループ）→ 出力ガードの順に LangGraph で処理します。詳細は [docs/architecture.md](docs/architecture.md)。選んだ理由（学習のために入れた Go の中継を含む）は [docs/decisions/](docs/decisions/README.md)。
 
-### 代替構成の検証環境（本番ではありません）
+### 検証環境（AlloyDB Express）
 
-Prisma Postgres を使わなくても動くことを確かめるための、別スタック `docunavi-gcp-*` です。本番ではありません。本番をこちらへ切り替えるかは未決定で、自動のフェイルオーバーも、データの継続的な同期もありません（データはダミーだけ）。詳細と制限は [docs/architecture.md](docs/architecture.md#代替構成の検証alloydb)。
+`docunavi-gcp-*` は、テストと検証のための別スタックです。PostgreSQL 互換の AlloyDB Express と、本番とは異なる認証サービス・接続構成（Private Service Connect、SSE の中継なし）で、アプリが動くことを確かめます。本番（Prisma Postgres）とは独立していて、ダミーデータだけを使います。データの継続的な同期も、自動のフェイルオーバーもありません。この構成を本番に採用するかは未決定です。詳細と制限は [docs/architecture.md](docs/architecture.md#検証環境alloydb-express)。
 
 ```mermaid
 flowchart LR
-    B[ブラウザー] --> W["Cloudflare Worker<br/>docunavi-gcp-web (Next.js)"]
-    W -->|"/api/auth/*"| AU["Cloud Run<br/>docunavi-gcp-auth (Better Auth)"]
-    B -->|"/chat ほか（SSE も直接。中継なし）"| A["FastAPI + LangGraph<br/>Cloud Run docunavi-gcp"]
+    B[ブラウザー] --> W["Cloudflare Worker<br/>docunavi-gcp-web"]
+    W -->|"/api/auth/*"| AU["Cloud Run<br/>docunavi-gcp-auth"]
+    B -->|"/chat, /chat/stream"| A["Cloud Run<br/>docunavi-gcp<br/>FastAPI + LangGraph"]
     A --> G[Gemini]
-    A -->|PSC| DB[("AlloyDB Express<br/>pgvector")]
+    A -->|PSC| DB[("AlloyDB Express")]
     AU -->|PSC| DB
 ```
+
+チャット（SSE を含む）は、ブラウザーから API へ直接つなぎます（Go の中継は通しません）。
 
 ## Quick start
 

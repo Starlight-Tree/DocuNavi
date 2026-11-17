@@ -21,6 +21,8 @@ The sample documents (`storage/pdf/`) are fictional.
 
 ## Architecture
 
+Production (Prisma Postgres):
+
 ```mermaid
 flowchart LR
     B[Browser] --> W["Cloudflare Worker<br/>docunavi-web (Next.js)"]
@@ -36,19 +38,21 @@ flowchart LR
 
 A question goes through LangGraph: input guard → agent (tool-call loop that searches the documents) → output guard. See [docs/architecture.md](docs/architecture.md). Why things are built this way (including the Go relay, which is there for learning): [docs/decisions/](docs/decisions/README.md).
 
-### Alternative stack (under evaluation, not production)
+### Test environment (AlloyDB Express)
 
-A separate stack, `docunavi-gcp-*`, checks that the app also runs without Prisma Postgres. It is not production. Switching production to it has not been decided, and it has no automatic failover and no continuous data sync (it holds dummy data only). Details and limits: [docs/architecture.md](docs/architecture.md#代替構成の検証alloydb)
+`docunavi-gcp-*` is a separate stack for testing and evaluation. It checks that the app works on PostgreSQL-compatible AlloyDB Express, with a different auth service and connection setup (Private Service Connect, no SSE relay). It is independent of the production stack (Prisma Postgres) and uses dummy data only. There is no continuous data sync and no automatic failover. Whether to adopt this setup in production is not decided. Details and limits: [docs/architecture.md](docs/architecture.md#検証環境alloydb-express)
 
 ```mermaid
 flowchart LR
-    B[Browser] --> W["Cloudflare Worker<br/>docunavi-gcp-web (Next.js)"]
-    W -->|"/api/auth/*"| AU["Cloud Run<br/>docunavi-gcp-auth (Better Auth)"]
-    B -->|"/chat etc. incl. SSE (direct, no relay)"| A["FastAPI + LangGraph<br/>Cloud Run docunavi-gcp"]
+    B[Browser] --> W["Cloudflare Worker<br/>docunavi-gcp-web"]
+    W -->|"/api/auth/*"| AU["Cloud Run<br/>docunavi-gcp-auth"]
+    B -->|"/chat, /chat/stream"| A["Cloud Run<br/>docunavi-gcp<br/>FastAPI + LangGraph"]
     A --> G[Gemini]
-    A -->|PSC| DB[("AlloyDB Express<br/>pgvector")]
+    A -->|PSC| DB[("AlloyDB Express")]
     AU -->|PSC| DB
 ```
+
+Chat requests, including SSE, go from the browser straight to the API (no Go relay).
 
 ## Quick start
 
