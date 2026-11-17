@@ -23,9 +23,9 @@ NAMES = ("ザーハード1", "ザーハード2", "ザーハード3")
 
 # 承認した PDF のバイト列。作り直したら、ここも更新する（DB の documents.content_hash と元 PDF の表示は、この内容に結び付く）
 APPROVED_SHA256 = {
-    "ザーハード1.pdf": "6d8490c2ffd9763e51c01bee50457ad9855d1e0446b3483c695f53119e57b54e",
-    "ザーハード2.pdf": "62baaabb3154c1d952f95ab160cb684f2969c529409e56c4c075df73ecea53fa",
-    "ザーハード3.pdf": "a9ea0854d297dcbf5bc9c5edab41873692a4e557f31567e6cea17c9f4e18a770",
+    "ザーハード1.pdf": "40e2d60dfe1bad1177ad4c39bcdfd8de70445b400001586aa868de40955309be",
+    "ザーハード2.pdf": "88e1791f21f1aebba2e1797dfcbaf3f3ed2e0df5fb88955bc5e6f502a083c181",
+    "ザーハード3.pdf": "2f8e1d426e0dae511c3c4bb02803cb041f51854f8e8d2c97977cc3519cf58e22",
 }
 
 

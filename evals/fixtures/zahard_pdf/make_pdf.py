@@ -29,15 +29,77 @@ from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
-from reportlab.platypus import KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    Flowable,
+    KeepTogether,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 rl_config.invariant = 1  # 作成日時・ID を固定し、同じ入力から同じバイト列にする
 
 HERE = Path(__file__).resolve().parent
 FONT_NAME = "JPFont"
+FRAME_PADDING = 6  # reportlab の枠の内側の余白（pt）。表紙は、この余白を引いて、本文と同じ左端（20mm）に置く
+MARGIN_LEFT, MARGIN_BOTTOM = 20 * mm, 22 * mm
+
+
+class _ImageCover(Flowable):
+    """画像つきの表紙。題名と副題を上にまとめ、その下に画像（角をわずかに丸く）、下端に発行情報を置く。
+
+    枠いっぱいの 1 つの部品で、ページの絶対位置に描く（枠の内側の余白で、画像と文字の左端がずれるのを避けるため）。
+    """
+
+    def __init__(self, image: Path, title: str, series: str, colophon: list[str]) -> None:
+        super().__init__()
+        self.image, self.title, self.series, self.colophon = image, title, series, colophon
+
+    def wrap(self, availWidth: float, availHeight: float) -> tuple[float, float]:
+        self.avail = (availWidth, availHeight)
+        return availWidth, availHeight
+
+    def draw(self) -> None:
+        page_w, page_h = A4
+        content_w = page_w - 2 * MARGIN_LEFT
+        canv = self.canv
+        canv.saveState()
+        # 枠の左下（余白の内側）から、ページの左下へ座標を戻す
+        canv.translate(-(MARGIN_LEFT + FRAME_PADDING), -(MARGIN_BOTTOM + FRAME_PADDING))
+        title = ParagraphStyle("c_title", fontName=FONT_NAME, fontSize=30.5, leading=44, wordWrap="CJK")
+        sub = ParagraphStyle("c_sub", fontName=FONT_NAME, fontSize=13, leading=22, wordWrap="CJK")
+        note = ParagraphStyle(
+            "c_note", fontName=FONT_NAME, fontSize=10, leading=16, wordWrap="CJK", textColor=colors.HexColor("#555555")
+        )
+        y = page_h - 38 * mm
+        for text, style, gap in ((self.title, title, 3 * mm), (self.series, sub, 14 * mm)):
+            para = Paragraph(text, style)
+            _, height = para.wrap(content_w, page_h)
+            para.drawOn(canv, MARGIN_LEFT, y - height)
+            y -= height + gap
+        image_w, image_h = ImageReader(str(self.image)).getSize()
+        height = content_w * image_h / image_w
+        clip = canv.beginPath()
+        clip.roundRect(MARGIN_LEFT, y - height, content_w, height, 1.5 * mm)
+        canv.clipPath(clip, stroke=0, fill=0)
+        canv.drawImage(str(self.image), MARGIN_LEFT, y - height, width=content_w, height=height)
+        canv.restoreState()
+        canv.saveState()
+        canv.translate(-(MARGIN_LEFT + FRAME_PADDING), -(MARGIN_BOTTOM + FRAME_PADDING))
+        bottom = 24 * mm
+        for line in reversed(self.colophon):
+            para = Paragraph(line, note)
+            _, height = para.wrap(content_w, page_h)
+            para.drawOn(canv, MARGIN_LEFT, bottom)
+            bottom += height
+        canv.restoreState()
 
 
 def sentences_of(raw: str) -> list[str]:
@@ -96,7 +158,15 @@ class _RecordingDoc(SimpleDocTemplate):
             self.chapters.append((flowable.getPlainText(), self.page))
 
 
-def build(txt_path: Path, pdf_path: Path, title: str, series: str, groups: dict[str, list[int]]) -> None:
+def build(
+    txt_path: Path,
+    pdf_path: Path,
+    title: str,
+    series: str,
+    groups: dict[str, list[int]],
+    cover_image: Path | None = None,
+    colophon: list[str] | None = None,
+) -> None:
     raw = unicodedata.normalize("NFC", txt_path.read_text(encoding="utf-8"))
     if any(char in raw for char in "&<>"):
         raise ValueError("段落の文字列に、エスケープが要る文字があります")
@@ -117,7 +187,12 @@ def build(txt_path: Path, pdf_path: Path, title: str, series: str, groups: dict[
             story.append(KeepTogether([Paragraph(name, h2), Paragraph("".join(group), body)]))
         return story
 
-    margins = {"leftMargin": 20 * mm, "rightMargin": 20 * mm, "topMargin": 20 * mm, "bottomMargin": 22 * mm}
+    margins = {
+        "leftMargin": MARGIN_LEFT,
+        "rightMargin": MARGIN_LEFT,
+        "topMargin": 20 * mm,
+        "bottomMargin": MARGIN_BOTTOM,
+    }
     # 1 回目: 本文だけを組んで、見出しが載るページを控える。2 回目: 表紙・目次を前に付けて組む（本文のページ分けは変わらない）
     probe = _RecordingDoc(io.BytesIO(), pagesize=A4, title=title, author="", invariant=True, **margins)
     probe.build(make_story(), canvasmaker=_numbered_canvas())
@@ -135,11 +210,18 @@ def build(txt_path: Path, pdf_path: Path, title: str, series: str, groups: dict[
             ]
         )
     )
+    if cover_image is None:
+        cover: list = [
+            Spacer(1, 70 * mm),
+            Paragraph(title, cover_title),
+            Spacer(1, 8 * mm),
+            Paragraph(series, cover_sub),
+        ]
+    else:
+        # 表紙は 1 ページのまま。本文のページ数・ページラベル・本文の文は変わらない
+        cover = [_ImageCover(cover_image, title, series, colophon or [])]
     front = [
-        Spacer(1, 70 * mm),
-        Paragraph(title, cover_title),
-        Spacer(1, 8 * mm),
-        Paragraph(series, cover_sub),
+        *cover,
         PageBreak(),
         Paragraph("目次", h1),
         toc,
@@ -159,7 +241,16 @@ def main() -> None:
     pdfmetrics.registerFont(TTFont(FONT_NAME, str(args.font)))
     args.out.mkdir(parents=True, exist_ok=True)
     for name, spec in layout.items():
-        build(args.txt_dir / f"{name}.txt", args.out / f"{name}.pdf", spec["title"], spec["series"], spec["groups"])
+        cover = HERE / spec["cover_image"] if spec.get("cover_image") else None
+        build(
+            args.txt_dir / f"{name}.txt",
+            args.out / f"{name}.pdf",
+            spec["title"],
+            spec["series"],
+            spec["groups"],
+            cover,
+            spec.get("colophon"),
+        )
         print(f"-> {args.out / (name + '.pdf')}")
 
 
