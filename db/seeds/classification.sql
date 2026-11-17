@@ -10,7 +10,7 @@ begin;
 
 insert into document_targets (name, label, description, sort_order) values
   ('zahard', 'ザーハード', '架空の惑星ザーハードの設定資料の対象です。', 10),
-  ('minato-coffee', 'みなとコーヒー', '喫茶店「みなとコーヒー」の店舗案内の対象です。', 20),
+  ('minato-coffee', 'オアシス珈琲', '喫茶店「オアシス珈琲」の店舗案内の対象です。', 20),  -- 2026-11-18 に店名を書き換え（name は変えられない。既存の DB は label を UPDATE する）
   ('tsubasa-dorm', 'つばさ大学学生寮', 'つばさ大学の学生寮の規程の対象です。', 30),
   ('aoba-aw820', 'あおば電機 AW-820', 'あおば電機の機器 AW-820 の取扱説明書の対象です。', 40)
 on conflict (name) do nothing;

@@ -182,13 +182,13 @@ python -m app.access_admin member list      # 人数だけ（メール・ID は�
 | 項目 | 役割 | 保存先 |
 |---|---|---|
 | `collection` | 保存（R2 の配置）と**閲覧権限**の単位。変えない | `documents.collection` |
-| `target` | 何についての資料か（例: ザーハード / みなとコーヒー）。**チャットの質問の範囲**になる | `documents.target` → `document_targets.name` |
+| `target` | 何についての資料か（例: ザーハード / オアシス珈琲）。**チャットの質問の範囲**になる | `documents.target` → `document_targets.name` |
 | `doc_type` | 資料の性格（設定資料 / 店舗案内 / 規程 / 取扱説明書）。一覧の絞り込みだけに使う | `documents.doc_type` → `document_types.name` |
 
 - 1 資料に、対象 1 つ・資料種別 1 つ（NULL は未分類）。取り込みは書かず、設定は運用者の SQL です。ファイル名からの自動分類はしません。
 - 検索は **権限の範囲（`Scope`）∩ 対象**。対象を選んでも権限は広がりません。対象を指定しない検索は、これまでと同じ結果（未分類の資料も入る）です。
 - 名前（`name`）は変えられません（DB のトリガーが拒否）。使用中の対象・種別は消せません（外部キー）。
-- 初期の語彙: `zahard` ザーハード / `minato-coffee` みなとコーヒー / `tsubasa-dorm` つばさ大学学生寮 / `aoba-aw820` あおば電機 AW-820、`setting` 設定資料 / `store-guide` 店舗案内 / `regulation` 規程 / `manual` 取扱説明書（利用者が 2026-11-03 に承認）。
+- 初期の語彙: `zahard` ザーハード / `minato-coffee` オアシス珈琲（2026-11-18 に「みなとコーヒー」から店名を書き換え。`name` は変えられないので、そのまま） / `tsubasa-dorm` つばさ大学学生寮 / `aoba-aw820` あおば電機 AW-820、`setting` 設定資料 / `store-guide` 店舗案内 / `regulation` 規程 / `manual` 取扱説明書（利用者が 2026-11-03 に承認）。
 
 ### チャットの指定（`POST /chat`・`/chat/stream`）
 
