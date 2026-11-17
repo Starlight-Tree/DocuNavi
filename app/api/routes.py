@@ -506,7 +506,9 @@ async def chat(
         status = str(failure.status_code)
         error = exc
         # 詳細（例外本体・スタックトレース）はログにだけ残す。thread_id はパターン検証済み
-        logger.exception("LLM 呼び出しに失敗しました (status=%s, thread_id=%s)", failure.status_code, _log_value(thread_id))
+        logger.exception(
+            "LLM 呼び出しに失敗しました (status=%s, thread_id=%s)", failure.status_code, _log_value(thread_id)
+        )
         raise failure from exc
     finally:
         await _cancel_and_wait(work, gone, drain)
