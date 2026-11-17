@@ -315,7 +315,7 @@ def test_grant_app_role_names_only_tables_the_migration_user_owns() -> None:
 
 def test_dockerfile_copies_only_the_migration_materials() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-    assert "COPY --chown=app:app db/migrate.py ./db/migrate.py" in dockerfile
+    assert "COPY --chmod=0755 db/migrate.py ./db/migrate.py" in dockerfile
     assert "COPY --chown=app:app db/migrations ./db/migrations" in dockerfile
     assert not re.search(r"^COPY\b.*\bdb(/seeds|/local-init)?\s+\./db\b", dockerfile, flags=re.MULTILINE)
     assert "seeds" not in dockerfile.split("USER app")[0].split("COPY --chown=app:app db/")[1]
