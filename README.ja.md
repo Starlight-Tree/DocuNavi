@@ -36,6 +36,20 @@ flowchart LR
 
 質問は、入力ガード → エージェント（資料を検索するツール呼び出しのループ）→ 出力ガードの順に LangGraph で処理します。詳細は [docs/architecture.md](docs/architecture.md)。選んだ理由（学習のために入れた Go の中継を含む）は [docs/decisions/](docs/decisions/README.md)。
 
+### 代替構成の検証環境（本番ではありません）
+
+Prisma Postgres を使わなくても動くことを確かめるための、別スタック `docunavi-gcp-*` です。本番ではありません。本番をこちらへ切り替えるかは未決定で、自動のフェイルオーバーも、データの継続的な同期もありません（データはダミーだけ）。詳細と制限は [docs/architecture.md](docs/architecture.md#代替構成の検証alloydb)。
+
+```mermaid
+flowchart LR
+    B[ブラウザー] --> W["Cloudflare Worker<br/>docunavi-gcp-web (Next.js)"]
+    W -->|"/api/auth/*"| AU["Cloud Run<br/>docunavi-gcp-auth (Better Auth)"]
+    B -->|"/chat ほか（SSE も直接。中継なし）"| A["FastAPI + LangGraph<br/>Cloud Run docunavi-gcp"]
+    A --> G[Gemini]
+    A -->|PSC| DB[("AlloyDB Express<br/>pgvector")]
+    AU -->|PSC| DB
+```
+
 ## Quick start
 
 取り込んだ資料を Postgres（pgvector）で検索し、Gemini で回答します。環境変数 `DB_BACKEND=pg`、`DATABASE_URL`、`GEMINI_API_KEY` を読みます。設定の詳細は [docs/development.md](docs/development.md)、[docs/configuration.md](docs/configuration.md)。

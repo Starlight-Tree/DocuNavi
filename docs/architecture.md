@@ -150,6 +150,28 @@ flowchart TB
   - `NEXT_PUBLIC_AUTH_ENABLED`、`NEXT_PUBLIC_AUTH_BASE_URL`: 画面（Worker `docunavi-web`）のビルド時に渡す公開用の値で、秘密ではありません。Cloud Run のイメージには入りません。
   - gh の読み取り専用トークン: 開発コンテナの名前付きボリューム（`~/.gh-config`）。gcloud のログインは残しません（[.devcontainer/README.md](../.devcontainer/README.md)）。
 
+## 代替構成の検証（AlloyDB）
+
+**本番ではありません。** Prisma の利用上限に依存せず、別の DB でも動くことを確かめるための、別スタック `docunavi-gcp-*` です。本番（上の「どこで動くか」）は変わりません。
+
+- **位置づけ:** 本番への切り替えは未決定です。切り替えは URL の手動変更で、自動のフェイルオーバーではありません。本番データの継続的な同期は作っていません（データはダミーで、ローカルを正本に、同じマイグレーションと投入手順で反映します）。「待機系（パッシブ）」ではなく、別構成の検証環境として読んでください。
+- **構成:** 画面の Worker `docunavi-gcp-web`、認証の Cloud Run `docunavi-gcp-auth`（Better Auth。画面の Worker が `/api/auth/*` を中継）、API の Cloud Run `docunavi-gcp`（FastAPI + LangGraph）、DB は AlloyDB Express（東京、Private Service Connect のみ。マイグレーション 0001〜0005）。接続は TLS（`verify-ca`）で、ユーザーは用途ごとに分けています。
+- **SSE:** Go の中継を通さず、ブラウザーが API に直接つなぎます。Cloud Run を HTTP/2（h2c）にしたうえで、次を確認しました（2026-11-17）。
+  - 逐次配信: 1.6 秒の応答が、7 個のチャンクに分かれて届く。
+  - 切断: クライアントを切ると、LLM 呼び出しが取り消される（HTTP/1.1 のままだと、最後まで走る。本番 `docunavi` と同じ設定が要る）。
+- **起動:** 20 分あけたあとの最初のアクセスでも、DB の応答は 0.3 秒ほどで、再開の遅れは見られませんでした。
+- **未検証・制限:** PSC と AlloyDB の課金は Console での確認待ちです。クレジットの期限後に費用が変わるため、この構成を続けるかは別に判断します。アクセス制御（`ACCESS_MODE` / `MEMBERSHIP_MODE`）は `off` です。
+
+```mermaid
+flowchart LR
+    B["ブラウザー"] --> W["Cloudflare Worker<br/>docunavi-gcp-web"]
+    W -->|"/api/auth/*"| AU["Cloud Run<br/>docunavi-gcp-auth"]
+    B -->|"/chat ほか（SSE も直接）"| A["Cloud Run<br/>docunavi-gcp（h2c）"]
+    A --> G["Gemini"]
+    A -->|PSC| DB[("AlloyDB Express")]
+    AU -->|PSC| DB
+```
+
 ## ログインの流れ
 
 2026-11-08 から、認証は Better Auth（認証用 Worker `docunavi-api` の `/api/auth/*`。Google ログイン、15 分の JWT、JWKS）です。それ以前の Supabase Auth の流れは Git の履歴にあります。

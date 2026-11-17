@@ -36,6 +36,20 @@ flowchart LR
 
 A question goes through LangGraph: input guard → agent (tool-call loop that searches the documents) → output guard. See [docs/architecture.md](docs/architecture.md). Why things are built this way (including the Go relay, which is there for learning): [docs/decisions/](docs/decisions/README.md).
 
+### Alternative stack (under evaluation, not production)
+
+A separate stack, `docunavi-gcp-*`, checks that the app also runs without Prisma Postgres. It is not production. Switching production to it has not been decided, and it has no automatic failover and no continuous data sync (it holds dummy data only). Details and limits: [docs/architecture.md](docs/architecture.md#代替構成の検証alloydb)
+
+```mermaid
+flowchart LR
+    B[Browser] --> W["Cloudflare Worker<br/>docunavi-gcp-web (Next.js)"]
+    W -->|"/api/auth/*"| AU["Cloud Run<br/>docunavi-gcp-auth (Better Auth)"]
+    B -->|"/chat etc. incl. SSE (direct, no relay)"| A["FastAPI + LangGraph<br/>Cloud Run docunavi-gcp"]
+    A --> G[Gemini]
+    A -->|PSC| DB[("AlloyDB Express<br/>pgvector")]
+    AU -->|PSC| DB
+```
+
 ## Quick start
 
 The app searches the ingested documents in Postgres (pgvector) and answers with Gemini. It reads `DB_BACKEND=pg`, `DATABASE_URL` and `GEMINI_API_KEY` from the environment. Setup details: [docs/development.md](docs/development.md), [docs/configuration.md](docs/configuration.md).
