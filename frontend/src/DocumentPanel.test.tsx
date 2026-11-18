@@ -167,7 +167,7 @@ describe('出典を押して右のパネルを開く', () => {
     await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
     expect(await atPage(3)).toBeInTheDocument();
     expect(fakePdf.opened).toEqual(['/documents/7/file']);
-    expect(fakePdf.renders.at(-1)?.page).toBe(3);
+    await waitFor(() => expect(fakePdf.renders.at(-1)?.page).toBe(3)); // ページ表示のほうが、描画の記録より先に出る
     expect(files).toEqual([]);
   });
 
@@ -229,7 +229,7 @@ describe('出典を押して右のパネルを開く', () => {
     expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&chunk=1');
 
     expect(await atPage(1)).toBeInTheDocument();
-    expect(fakePdf.renders.map((r) => r.page)).toEqual([1]);
+    await waitFor(() => expect(fakePdf.renders.map((r) => r.page)).toEqual([1])); // ページ表示のほうが、描画の記録より先に出る
   });
 
   it('同じ資料の中で表示を切り替えても、PDF は開き直さない（見ているページを保つ）', async () => {
