@@ -67,7 +67,7 @@
   1. Google Cloud の OAuth クライアント（<https://console.cloud.google.com/apis/credentials?project=docunavi-app>。実機では未確認の URL）に、承認済みのリダイレクト URI `http://localhost:3000/api/auth/callback/google` と、JavaScript 生成元 `http://localhost:3000` を**追加**する（既存の値は消さない。2026-11-11 に追加済み）。同意画面が「テスト」状態なら、自分のアカウントをテストユーザーに追加する。
   2. 登録（開発コンテナの端末、vscode ユーザー。`infisical login` 済み。書き込みはマシン ID では行えない）: `bash scripts/dev-local.sh register`。Client ID と Secret は `read -rs` で受け（表示されない）、権限 600 の一時ファイルを `infisical secrets set --file` に渡します（成功・失敗のどちらでも消す）。登録後に取得し直して一致を確かめ、`.dev.vars` を作り直します。
   3. `bash scripts/dev-local.sh start` のあと、ブラウザーで `http://localhost:3000` → Google でログイン。ログイン後にローカル DB の `user` `account` に行ができることを確かめる。
-- **取れないときの確認順（「Secret が無い」と即断しない）:** `vars` は、取れないとき次の確認材料を値なしで出します。(1) 認証の種類（メッセージに「マシン ID」か「ユーザーのログイン」と出る）。マシン ID なら、`docunavi-local` に Viewer で入っているか、Client Secret の期限（TTL 30 日）。ユーザーのログインなら、ログイン中のアカウントと組織（`infisical user get`、`infisical org`） (2) プロジェクト ID が見えているか (3) 環境 `dev`・パス `/`・いま入っているキー名（読めないキーは出ない = 権限を疑う） (4) 自分の権限、`infisical login` の期限切れ（ユーザーのログインのとき）。それでも無い場合に限り、承認を得てから追加・ローテーションを検討します。
+- **取れないときの確認順（「Secret が無い」と即断しない）:** `vars` は、取れないとき次の確認材料を値なしで出します。(1) 認証の種類（メッセージに「マシン ID」か「ユーザーのログイン」と出る）。マシン ID なら、`docunavi-local` に Viewer で入っているか、Client Secret の期限（TTL 180 日）。ユーザーのログインなら、ログイン中のアカウントと組織（`infisical user get`、`infisical org`） (2) プロジェクト ID が見えているか (3) 環境 `dev`・パス `/`・いま入っているキー名（読めないキーは出ない = 権限を疑う） (4) 自分の権限、`infisical login` の期限切れ（ユーザーのログインのとき）。それでも無い場合に限り、承認を得てから追加・ローテーションを検討します。
 - **確認の状況（2026-11-11）:** 保存値の取得し直しと一致、`start` での起動、Google ログイン（ローカル DB に `account`・`user`・`session` ができ、`/threads` が 200）を確認済みです。未確認: 本番の Cloudflare で使われている Secret が新しいものであること（読み出せない）、`user_roles` は空（ローカルは `ACCESS_MODE=off`）。
 
 ### 開発コンテナの停止と切り替え

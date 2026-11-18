@@ -139,7 +139,7 @@ def get(path):
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
             hint = (
-                "マシン ID（~/.infisical/identity）の権限と Client Secret の期限（TTL 30 日）を確認してください（Infisical の docunavi-local に Viewer で入っているか）。"
+                "マシン ID（~/.infisical/identity）の権限と Client Secret の期限（TTL 180 日）を確認してください（Infisical の docunavi-local に Viewer で入っているか）。"
                 if os.environ["INF_AUTH"] == "マシン ID"
                 else "infisical login をやり直してください。"
             )
