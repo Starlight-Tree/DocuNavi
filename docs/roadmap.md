@@ -1,92 +1,82 @@
 # ロードマップ
 
-現状・未了・次の順序だけを置く（2026-11-09 に全面改訂、2026-11-15 に現状を更新）。完了済みの経緯は Git の履歴にある。重要な決定は [decisions/](decisions/README.md)、設計と測定は各文書（下の表のリンク）。
-目的は、DB を使うアプリへ育てることと、Cloudflare・R2・Cloud Run などの構成を実際に動かして学ぶこと。計画なので、段階に入るたびに見直す。
+順序と状態だけを置く（2026-11-18 に圧縮。設計・測定は各文書、完了の経緯は Git の履歴）。決定は [decisions/](decisions/README.md)。
+目的は、DB を使うアプリへ育てることと、Cloudflare・R2・Cloud Run などを実際に動かして学ぶこと。日付つきの数字は、その日付のまま。
 
-## 現状（2026-11-15。日付つきの数字は、その日付のまま）
+## 現状（2026-11-18）
 
-- **構成:** 画面は Cloudflare の Worker `docunavi-web`（`frontend`）、認証は Worker `docunavi-api`（Better Auth、Google ログイン。Hyperdrive 経由で同じ Postgres）、API は Cloud Run の FastAPI。DB は Prisma Postgres `docunavi-prod`（Free・東京・pgvector）。PDF 原本は R2。構成は [architecture.md](architecture.md)。
-- **本番 DB の件数**（2026-11-09、読み取りの SELECT、証拠等級 A）: `documents` 80 行、`chunks` 2,313 行（すべて埋め込み済み）、`user` 2 行、`session` 2 行（行数であり、利用者の人数ではない）。
-- **バックアップ** `docunavi-pg-backup-daily`（毎週日曜 00:00 JST＝土曜 15:00 UTC。2026-11-10 に毎日から変更、R2 `docunavi-backups`、手順は [pg-backup.md](pg-backup.md)）:
-  - **設定の確認は完了**（2026-11-09）: 定時実行、R2 への保存、削除規則 `delete-after-14d`（有効。Cloudflare の API で確認）。初回の定時実行は成功した（実行 `docunavi-pg-backup-4jndj`、53 秒、9,479,225 バイト、18 表、終了コード 0。Job の実行履歴とログで確認。Scheduler 自体の設定は閲覧用の権限では読めず、実行履歴で確認した）。
-  - **2026-11-11 に足したもの:** 失敗の通知（ログベースのアラート 2 本。Job の ERROR と Scheduler の ERROR。利用者が作成し、有効・通知先 1 件ずつと報告）。復旧訓練 `scripts/pg_restore_drill.sh`（使い捨ての pgvector へ戻して表の件数を検査。確認したのは合成のダンプまでで、本物の R2 のダンプでは未実行）。月次の長期保持（その月の最初のダンプを `pg/monthly/` へ写し 400 日保持。**2026-11-15 00:00 JST の定期実行で、月次の写し `pg/monthly/docunavi-202611.dump` を保存した**〔Job `docunavi-pg-backup-h7pjq`、約 22 秒。`pg/docunavi-20261114-150022.dump` は 9.5MB・データのある表 18。`ops/HANDOFF_prisma_usage.md` の記録〕）。**R2 のライフサイクル規則は分かれている**（2026-11-15、利用者がホストで確認〔`wrangler r2 bucket lifecycle list`〕。`delete-after-14d` = `pg/docunavi-` 14 日、`delete-monthly-after-400d` = `pg/monthly/` 400 日、`Default Multipart Abort Rule` = 全プレフィックス 7 日。利用者の報告）。月次の写しが 400 日保持されること自体は、期限が来るまで確認できない。実行されなかった週は通知できないので、毎週月曜に最新のキーの日付を手で見る。
-  - **未確認（上の設定確認とは別）:** Prisma への復元（検証は別の pgvector への復元まで）、規則で実際に期限削除されること（最初の期限は 2026-11-22 ごろ）、アラートの通知が実際に届くこと（失敗が起きるまで受動確認）。
-- **Prisma Free の使用量**（2026-11-15、Console のスクリーンショット〔Usage、All Projects、Current billing period〕、利用者の貼り付け、証拠等級 A）: Operations **197,536 / 200,000**（残り約 2.5K）、ストレージ 0.01 / 2.00 GiB、請求 $0.00。課金期間は暦月（11/1〜11/30）。グラフでは 11/8 ごろから 11/12 ごろに約 +158K 増え、その後はほぼ横ばい（11/14 の 197.3K から 11/15 の 197.5K で、1 日 0.2K 前後。利用者の読み取り）。11-09 の報告は 39.1K だった。**急増の原因ごとの内訳は記録していない**（削減策で止まったことは測定済み）。上限の 200,000 操作/月に届くと、次の月まで読み書きが止まる（データは残る。利用者が受け入れた、2026-11-08。止まる範囲には認証も含まれうるが、画面から使えなくなるかは未確認）。**急増は 11/10 までに起きていた**（11/10 に 196.8K）。11/11 の削減策〔下の「DB 操作の削減」〕の後は、196,865〔11/11〕→196,971〔11/12〕→197,334〔11/14 15:25Z〕→197,536〔11/15〕と、約 3〜7 ops/h（`ops/HANDOFF_prisma_usage.md`、Usage API の値。API の 197,344 と Console の 197.3K は一致）。11/15 00:00 JST の週次の sync・backup と本番の画面確認を含む 52 時間の増分が +363 なので、**週次実行 1 回の消費は数百以下**と読める（内訳は未測定）。**11/22 の履歴掃除の初回の消費量は未測定で、余裕は約 2.5K。** 7 ops/h のままなら月末は約 200K（枠の境目）。Console のグラフの月末予測（約 430K）は、11/8〜11 の急増からの直線外挿で、直近の率とは合わない。 超過したときの挙動（課金か停止か）は、料金表で未確認。
-- **試験用の DB を削除した**（2026-11-09）: 本番の前に作った Prisma のプロジェクト `2026-11-08T00:20:12.134Z`（資料 80・チャンク 2,313・利用者 0 行）。Hyperdrive の接続先が `docunavi-prod` であることは、Console では確かめていない（本番 DB に `user`・`session` の行があることからの推定）。
-- **速度の改善**（2026-11-09、利用者が一段落とした）: 検索の並列化 `546f755` は push 済みで CI は成功（実行 42515411791）。効果はローカルの pgvector で約 1 ms、本番の時間は未測定。補完モデルの変更（`gemini-3.5-flash-lite`）は、費用が約 25〜27% 増えるため採用しなかった。補完だけの思考レベルを下げる案（案 6）は、効果がなく廃棄した。トレース上の内訳は、回答の LLM が約 78%、検索が約 19%、補完が 0.7〜1.25 秒（追質問のみ）。`CHAT_SMALLTALK_SKIP` は off のまま。
-- **DB 操作の削減**（2026-11-10〜11、Free の 200K 操作/月 を節約。コミット `9d59128` `a2bb995` `cc97771` `e74819f`）: 会話一覧を 1 クエリ、毎時の同期で未変更の資料を書き直さない、キーワード検索の資料の写しを 1 クエリで取得（リクエストごとの SQL 数をログに出す）、同期・認証・権限確認の操作を削減。**効果:** 反映後は上の使用量のとおり約 3〜7 ops/h に収まった（反映前の率との比較は無い）。毎時の同期は週 1 回（日曜 00:00 JST）に変え、`docunavi-ingest-queue-every-5min` は一時停止中（再開時は Job のイメージ `docunavi:7634303` を更新する）。
-- **配備の経路と最新（2026-11-15）:** Cloud Run は、`deploy/<タグ名>` のタグを push すると Cloud Build（トリガー `docunavi-tag-deploy`、承認必須）が 0% で配備する（2026-11-14〜15 に実機で確認、証拠等級 A）。100% への切り替えと戻しは `scripts/preview.sh`（利用者）。配備の最後に古いリビジョンを自動で整理し、Artifact Registry は直近 5 イメージ + `pin-*` タグを残す。**未確認:** GitHub のタグ保護は未設定（承認はエージェントも出せるので、誤タグへの安全策にとどまる）。本番の API は `docunavi-00072-riv`（参照資料の題名表示。画面で確認済み。旧会話はファイル名のまま）。画面は、テーマの切り替え（ライト・ダーク）、ファビコン、サイドレールの操作、フォントの読み込みを 2026-11-12〜15 に変更（配備は手動の `deploy.yml`）。
-- **`TEST_LOGIN_TOKEN`（決定済み）:** 本番 Worker `docunavi-api` では、検証の間は ON を維持する（利用者の決定）。承認待ちではない。検証が一段落してから OFF にするかを判断し、本番運用に戻る前に OFF を確認する。
+- **構成:** 画面は Worker `docunavi-web`、認証は Worker `docunavi-api`（Better Auth）、API は Cloud Run の FastAPI、DB は Prisma Postgres `docunavi-prod`（Free・東京・pgvector）、PDF 原本は R2。[architecture.md](architecture.md)。
+- **Prisma Free は上限で止まっている。来月まで放置する**（月 200,000 操作。止まることは利用者が受け入れ済み。[decisions/0012](decisions/0012-accept-prisma-free-limit-and-cut-operations.md)）。2026-11-15 の Console で 197,536 / 200,000（利用者の貼り付け、等級 A）。2026-11-18 の引き継ぎの記録では本番 API は 503（この文書では再確認していない）。更新は **2026-12-01**。それまで放置し、Prisma を呼ぶ確認は増やさない。**未確認:** 認証が止まり画面から使えなくなるか、超過時が課金か停止か。未追跡のローカルメモ `ops/HANDOFF_prisma_usage.md` は記録として引用しない（12-01 後に削除予定）。
+- **本番 DB の件数**（2026-11-09、読み取り、等級 A）: `documents` 80、`chunks` 2,313（すべて埋め込み済み）、`user` 2 行（人数ではない）。
+- **取り込み:** 同期は週 1 回（日曜 00:00 JST）。`docunavi-ingest-queue-every-5min` は一時停止。「続けて聞く」の質問の自動生成は配備済みで有効（[architecture.md](architecture.md)。Job 経由の実行は未確認）。
+- **バックアップ:** 週 1 回（日曜 00:00 JST）、R2 へ。手順・規則・復元は [pg-backup.md](pg-backup.md)。失敗の通知（アラート 2 本）は作成済み。**未確認:** Prisma への復元（検証は別の pgvector まで）、期限削除（最初は 2026-11-22 ごろ）、通知の到達。実行されなかった週は通知できないので、毎週月曜に最新のキーの日付を見る。
+- **配備の経路:** `deploy/<タグ名>` の push で Cloud Build（承認必須）が 0% で配備し、100% への切り替えと戻しは `scripts/preview.sh`（利用者）。Worker は手動の `deploy.yml`。[deploy.md](deploy.md)。**未確認:** GitHub のタグ保護（未設定）。
+- **`TEST_LOGIN_TOKEN`:** 2026-11-15 の決定は「検証の間は ON を維持」、[testing.md](testing.md) は「使うときだけ入れて終わったら削除」（`scripts/prod_check.sh` が 2026-11-17 から行う）。**現在の状態は未確認。** 本番運用に戻る前に OFF を確認する。
+- **監視設定:** ログベース指標 4 つ（`chat_requests_total` `chat_failures_total` `chat_total_ms` `chat_smalltalk_total`）とアラート 2 本を 2026-11-09 に作成（利用者の報告。[deploy.md](deploy.md) の「保留中の運用の準備」6）。**未確認:** 通知の到達、指標の値が増えること。
+- **接続数:** プール上限は docunavi=2・docunavi-mcp=1（2026-11-09、利用者の決定。根拠と測定は [decisions/0011](decisions/0011-db-connection-pool-limits.md)）。
+- **速度（2026-11-09）:** 時間の約 78% は回答の LLM、約 19% は検索。補完モデルの変更は費用が約 25〜27% 増えるので不採用。
 
-## 現在のフェーズの必須残作業
+## 日付待ち
 
-- **監視設定（ログベース指標とアラート）:** 2026-11-09 に 4 つ作成した（ユーザーがホストで実行。名前・フィルタ・種類は `gcloud logging metrics list` で確認した）。構造化ログ（`fd44269`）は本番に配備済みで、`jsonPayload`（`message="chat_metrics"`）として入ることを、2026-11-09 の本番の実ログ 1 件で確認した。指標は `chat_requests_total` `chat_failures_total`（`status` が 3 桁の数字のとき）`chat_total_ms`（分布）`chat_smalltalk_total`（`smalltalk=true`。専用のログは足さない）。アラートを 2 本作成した（2026-11-09、利用者が実行。チャットの失敗が 10 分に 3 件以上、`docunavi` の 5xx が 5 分に 5 件以上。通知先は利用者宛てのメール。[ops/monitoring/](../ops/monitoring/)、[deploy.md](deploy.md) の「保留中の運用の準備」6）。作成の確認は利用者が貼った一覧（2 本、有効、通知先 1 件ずつ。利用者の報告）。**未確認:** 通知先の確認メールを押したか、実際に通知が届くか。実ログ 1 件で、`status` は文字列、`smalltalk` は真偽値、`total_ms` は整数で入ることを確認した。失敗時の `status` は、コードでは `str(failure.status_code)` で文字列になり（`app/api/routes.py`）、`tests/test_chat_metrics.py` の 16 件が通った（2026-11-09、コードとテスト）。本番のログは、直近 30 日で `chat_metrics` が 2 件（どちらも `ok`）で、失敗は 1 件も無い。**未確認:** 本番のログで、失敗時の `status`（`429` など）が文字列で入ること（失敗が起きるまでの受動確認）、作成後に指標の値が実際に増えること（指標は作成後のログだけを数える。閲覧用の権限では値を読めないので、配備後の確認の手順 2 の 5 で見る）。
-- **接続数:** プールの上限は環境変数 `DATABASE_POOL_MAX_SIZE`（既定 3）で決める。本番値は docunavi=2・docunavi-mcp=1（利用者の決定、2026-11-09）。Job 4 本が同時に動く最悪で 9 本（プール上限 10）。**配備済み（2026-11-09、利用者が実行）:** `docunavi` は `docunavi-00050-wuw`（画像 `a22e088`、`DATABASE_POOL_MAX_SIZE=2`）、`docunavi-mcp` は `docunavi-mcp-00004-qif`（`=1`）。それぞれ 0% で配備して `/health`・環境変数・起動ログを確かめたあと 100% へ移した。本番の `/chat` 1 回（200、11.87 秒、`hit_count=2`）と MCP の検索 1 回（200）を確認した。戻し先は `docunavi-00028-2kx` と `docunavi-mcp-00003-mck`。**確認した（2026-11-09、証拠等級 A）:** Job の重なりは、実行履歴（Scheduler の設定は閲覧用の権限で読めないので、実際の開始時刻から読んだ）で、`ingest-queue` が 5 分ごと、`ingest-sync` が毎時 0 分、`history-cleanup` が日曜 03:00 JST、`pg-backup` が 03:30 JST。最大の重なりは日曜 03:00 JST の 3 本（`history-cleanup` `ingest-queue` `ingest-sync`。2026-11-07 に実行が重なった）で、4 本は同時にならない。接続は docunavi 2 × 最大 2 インスタンス + mcp 1 + Job 3 本（各 1 と仮定）= 8 で、上限 10 に収まる。プールの待ち時間は、本番 DB（読み取り専用）への検索 1 回ぶん（KNN + 軽い問い合わせの 2 回の借り出し。埋め込みの API は呼ばない）を、開発コンテナから 3 波ずつ流して測った。同時 2 件までは、上限 2 と 3 で差が小さい（中央値 202 ms と 196 ms）。同時 4 件で 379 ms と 262 ms、16 件で 1462 ms と 1199 ms（上限 1 は 3029 ms）。エラーは 0。実際の利用は `chat_metrics` が 30 日で 2 件なので、調整はしない（上限 2 と 1 のまま）。**未確認:** Cloud Run 上での待ち時間（測ったのは開発コンテナから）、`/chat` 全体の同時負荷（LLM を含む）、Job の接続数（各 1 は仮定）。Hyperdrive の接続先（直接ホスト、上限 5 で余裕 0）は変更しない。
+| 日付 | 内容 | 場所 |
+|---|---|---|
+| 2026-11-22 | 履歴削除ジョブの初回の定期実行（03:00 JST、7 日、`--apply`）。DELETE 権限と結果は未確認 | [deploy.md](deploy.md) の「保留中の運用の準備」4 |
+| 2026-11-24 以降 | 検証環境の VPC ピアリングの削除を再試行（それまで放置。引き継ぎの記録で、未確認） | [alloydb-test-env.md](alloydb-test-env.md) |
+| 2026-12-01 | Prisma Free の更新。上の「止まっている」を見直す | [decisions/0012](decisions/0012-accept-prisma-free-limit-and-cut-operations.md) |
+| 2026-12-02 | `playwright-auth` の Client Secret の期限切れ（期限前にローテーション） | [.claude/rules/secrets.md](../.claude/rules/secrets.md) |
+| 2027-01 中 | Cloudflare の API トークンの作り直し（期限 2027-02-06） | 同上、[deploy.md](deploy.md) |
+| 未定 | `budget-guard` の `DRY_RUN` を `false` に戻す時期 | 下の「予算ガード」 |
 
-## 条件待ち・将来対応・受動確認・別の運用確認（現在のフェーズの必須ではない）
+## 条件待ち・受動確認
 
-- **条件待ち:** 利用者向けの SaaS 管理の要件（⑤）。詳細は下の表。独自ドメイン待ち（段階 3、③）は 2026-11-09 に廃止した。
-- **将来対応:** 署名付き URL は作らない方針。履歴削除ジョブは、2026-11-15 に `--apply` を戻した（利用者の承認。日数は 7 日、決定は 2026-11-09）。最初に消えうるのは 2026-11-22 03:00 JST の定期実行。初回の実行結果と DELETE 権限は未確認（詳細は [deploy.md](deploy.md) の 4）。`budget-guard` の `DRY_RUN` を `false` に戻す時期は未決（条件は下の「予算ガード」）。**準備は済んだ（2026-11-09）。実行と決定は利用者:** 手順は [deploy.md](deploy.md) の「保留中の運用の準備」（4 履歴削除、5 `budget-guard`、6 アラートは作成済み。1〜3 は実施済みで削除）。④ ⑥ ⑧ と検索の未確認・限界は、下の各表と節。
-- **受動確認（起きたときに見る）:** 新しい PDF を取り込んだときの Postgres への書き込み、Better Auth のトークン期限切れ後の更新（どちらも未確認）。バックアップの削除規則 `delete-after-14d` で実際に期限削除されること（最初の期限は 2026-11-22 ごろ。期限が来てから R2 を見る。それまで現在のフェーズは開けておかない）。ほかは下の「受動確認」の表。
-- **別の運用確認タスク（今回の必須とは合意していない。完了条件に入れない）:** バックアップの Prisma への復元（検証は別の pgvector への復元まで）、月次の長期保持の R2 規則は確認済み（上）。失敗の通知は作成済み（上）で、到達の確認だけが受動確認。
+- **条件待ち:** 利用者向けの SaaS 管理の要件（⑤）。署名付き URL は作らない方針（認証ヘッダー付きで取る）。
+- **受動確認（起きたときにログで見る）:** 新しい PDF の取り込みの書き込み、Better Auth のトークン期限切れ後の更新、有料キーへの切り替えと 60 秒の保持・別モデルへの切り替え（ログ `app.agents.resilience`）、履歴削除で会話が実際に消えること（2026-10-25 に確認、2026-11-15 に `--apply` を戻した。上の 11-22）。
 
 ## 段階の状態（2026-10-13 の計画の番号のまま）
 
 | 段階 | 内容 | 状態 |
 |---|---|---|
-| 0 | Cloud Run に 1 コンテナで配備（[deploy.md](deploy.md)） | 済み（2026-10-20）。`--max-instances`・予算アラート・閲覧用の ID（`docunavi-viewer`）も設定済み。2026-11-14 から、日々の配備はタグ push の Cloud Build（0% 配備）+ `scripts/preview.sh` |
-| 1 | Postgres と履歴の保存先 | 済み。2026-11-08 に Supabase から Prisma Postgres へ移した（DB は `DATABASE_URL` だけに依存させていたので移せた） |
+| 0 | Cloud Run に 1 コンテナで配備 | 済み（2026-10-20）。`--max-instances`・予算アラート・閲覧用の ID も設定済み |
+| 1 | Postgres と履歴の保存先 | 済み。2026-11-08 に Supabase から Prisma Postgres へ移した（DB は `DATABASE_URL` だけに依存させていた） |
 | 2 | 認証 | 済み。2026-11-08 から本番は Better Auth |
-| 3 | Cloudflare の前段（独自ドメイン・レート制限） | 廃止（2026-11-09、利用者の決定。[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)）。独自ドメインの取得待ちはやめた。ドメインなしで、画面は Worker で配信済み |
-| 4a | R2 に原本を置き、取り込む | 済み（2026-10-21。本番は `PDF_STORE=r2`）。資料は全員共通（利用者のアップロードは作らない。作る段で見直す） |
-| 4b | 取り込みの自動化 | 済み（2026-10-26。R2 のイベント通知 → Queue → Cloud Run の Job、毎時の突き合わせ）。設計は [r2-ingest-design.md](r2-ingest-design.md) |
-| 4c | ハイブリッド検索・リランカー・GraphRAG・引用 | 検索の 3 つは実装・配備済み（2026-11-01、下の「検索」）。引用: 文末の番号 `[n]` と根拠の語句の強調を実装（2026-11-09、`b004b5f`。**本番に配備済み**〔画面は `ed2301b`、API は `docunavi-00052-nic`〔`fc62c99`〕を 2026-11-09 に 100% へ昇格。利用者が実行〕。`docs/api.md`）。実 API（Vertex、質問 5 問を各 1 回、本番 DB は読み取り専用、証拠等級 A）で、4 問は引用の語句がすべて原文どおり。入寮・退寮の質問 1 問は、本文に無い期限（「2月28日」など）が作られ、語句 3 つのうち 2 つが原文に無かった（再実行 1 回で再現）。対処: 語句が原文に無い引用は、番号ごと画面から消す（チャンク全体の強調には戻さない）。**限界:** 本文の作り話そのものは直らない（本来は「資料に記載がありません」）。**本番での確認（2026-11-09、証拠等級 A）:** `prod_smoke_chat.py --stream` 1 回は 200・`hit_count` 2・出典は範囲内。引用は 原文どおり 1・原文に無い 2（画面は消す）・`番号が無い` 0。画面で番号の表示、押すと資料ビューアで根拠の箇所が強調されることを、利用者のスクリーンショットで確認（[deploy.md](deploy.md) の「保留中の運用の準備」2）。**未確認:** 原文に無い引用が画面から消えること、質問を増やしたときの割合、指標の増加。署名付き URL は作らない（認証ヘッダー付きで取る） |
-| 5 | フロントの分離 | 済み。Next.js 化（2026-10-25）、Vercel から Worker `docunavi-web` へ（2026-11-08） |
+| 3 | Cloudflare の前段（独自ドメイン・レート制限） | 廃止（2026-11-09。[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)） |
+| 4a | R2 に原本を置き、取り込む | 済み（2026-10-21。`PDF_STORE=r2`）。資料は全員共通（アップロードは作らない。作る段で見直す） |
+| 4b | 取り込みの自動化 | 済み（2026-10-26。R2 通知 → Queue → Cloud Run Job）。[r2-ingest-design.md](r2-ingest-design.md) |
+| 4c | ハイブリッド検索・リランカー・GraphRAG・引用 | 検索の 3 つは配備済み（下の「検索」）。引用（文末の `[n]` と根拠の語句の強調。[api.md](api.md)）は 2026-11-09 に配備。実 API の 5 問（各 1 回、等級 A）のうち 1 問で本文に無い期限が作られたため、原文に無い語句の引用は番号ごと画面から消す。**限界:** 本文の作り話は直らない。**未確認:** 消える挙動の本番での確認 |
+| 5 | フロントの分離 | 済み。Next.js 化（2026-10-25）、Worker へ（2026-11-08） |
 
 ## 実装順序 ①〜⑧ の状態
 
 | 番 | 項目 | 状態 |
 |---|---|---|
-| ① | Next.js 化 | 完了（2026-10-25、利用者の判断） |
-| ② | 本番での切断 → LLM 取り消し | 確認済み（2026-10-25、証拠等級 A）。h2c の本番で、停止ボタンを押すとログに取り消しが出る。HTTP/1.1 のリビジョンに戻すと効かない |
-| ③ | Cloudflare Worker（`api.` → Worker → Cloud Run） | 廃止（2026-11-09、利用者の決定。独自ドメイン待ちだった） |
-| ④ | Go の SSE 中継 | 本番に配備済み（2026-10-25。`docunavi-sse-relay`、画面の `/chat/stream` だけが通る）。100 同時接続の試験は済み。**本番の中継に上限は適用しない**（利用者の決定。[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)）。**ローカルで確認（2026-11-09、実バイナリ・疑似の上流、証拠等級 A）:** 中継自身の `: ping`、同時接続の上限（100 本保持、101 本目を拒否）。**コードとテスト（2026-11-09、疑似の上流と `go test -race`、証拠等級 A。本番へは同日配備、下記）:** 本文サイズの上限（既定 1 MiB → 413）、新しい接続のレート制限（既定 60/分・バースト 10 → 429。キーはクライアント IP だけ。既定は接続元、`SSE_RATE_LIMIT_TRUST_XFF=true` で `X-Forwarded-For` を右端から `SSE_RATE_LIMIT_TRUSTED_PROXIES` 段目〔既定 1〕）、詰まった下流の切断（書き込み 1 回ごとに 30 秒。上流も取り消す）。上限は `/chat/stream` だけ（`/chat` は中継を通らない）。レート制限は台ごとの数え方。**未確認:** 実環境での測定、100 本を超える負荷。**Cloud Run 直受けの確認（2026-11-09、試験用の `docunavi-sse-trial-xff`〔`/echo`、`*.run.app` へ ID トークンつき〕。出力はユーザーが見て、右端から 1 段目が実接続元と判断。削除済み）:** 本番への配備は `SSE_RATE_LIMIT_TRUST_XFF=true` と `SSE_RATE_LIMIT_TRUSTED_PROXIES=1` で行う（`decisions/0005` は更新済み）。確認したのは `*.run.app` への直接の呼び出しだけで、LB・カスタムドメインを挟むなら段数を見直す。**配備（2026-11-09 06:3x JST、ユーザーが実行）:** 本番の `docunavi-sse-relay` を、イメージ `bc3d297` と上の 2 つの環境変数に切り替えた（リビジョン `00003-bs9` が 100%。戻しは `00001-wvx`〔環境変数なし、旧イメージ `ac95150`〕へ `update-traffic`。戻しは未実行）。**配備後の確認（証拠等級 A、読み取りのログ、各 1 回）:** 起動ログに `max_body=1048576 rate=60/分 burst=10 trust_xff=true hops=1`。2 MiB の本文で `body_too_large content_length_over_limit=true`（413 の経路）。偽の左端を毎回変えた 14 回の POST のうち 2 回が `rate_limited`（左端を読んでいれば拒否されない）。**応答コードと画面の確認（2026-11-09、証拠等級 A。ユーザーが ④ の完了と判断）:** 本番の中継へ認証なしの POST（上流が 401 を返し、LLM は呼ばない）。413: 2 MiB の本文 1 回で 413、固定文、0.11 秒。429: 小さい POST 10 回はすべて 401（バースト 10 の範囲）。続けて 12 回目で 429（`Retry-After: 1`、固定文）。直前の 11 回は 401 で、補充分を含めて設計どおり。本番の中継への送信は計 23 回。画面の表示: 開発コンテナの画面（API は届かないアドレス）で、Playwright が応答を差し替えて確認した（本番の画面と中継をつないだ実測ではない）。429 は固定文・「約 7 秒待ってから再試行してください。」・再試行。413 は修正前、固定文が出ず「リクエストを処理できませんでした（HTTP 413）。」だった（`frontend/src/api/chat.ts` の `SERVER_DETAIL_STATUSES` に 413 が無かったため）。413 を足し、画面で固定文と再試行が出ることを確認した（Vitest 544 件が通り、413 のテスト 2 件は修正を外すと失敗する）。**この修正の配備（2026-11-09）:** コミット `b09eeb6` をプッシュし、CI の 6 ジョブが成功した後、`deploy.yml`（run 42546562472、`docunavi-web` を更新）が成功した。本番の画面（テストログイン `e2e-test@docunavi.invalid`）で、`/chat/stream` だけを Playwright で 413 に差し替え、固定文「送れる大きさを超えています。短くして、もう一度お試しください。」と再試行が出ることを確認した（本物の 413 が中継から返った場合の確認ではない。LLM は呼んでいない。ログインで本番にテストユーザーのセッションが 1 件できた）。`TEST_LOGIN_TOKEN` は ON のまま（利用者の判断）。**未確認:** 2 台に増えたときの数え方、実利用での誤拒否の有無。 将来の拡張（案）: 信頼するプロキシのアドレス範囲を設定し、直接の相手がその範囲内のときだけ右から左へ戻る方式（段数に加えてアドレスでも判定）。④ は、上記のとおり完了（ユーザーの判断、2026-11-09）。[ops/sse-relay/README.md](../ops/sse-relay/README.md) |
-| ⑤ | Django（SaaS 管理） | 学習用の試作 `ops/django-saas/`（本番には入れない）。本番の SaaS 管理としては条件待ち（利用者向けの要件が固まったとき）。運用者向けの `docunavi-admin` は 2026-11-08 に廃止。[decisions/0003](decisions/0003-django-only-for-operator-admin.md) |
-| ⑥ | `--use-http2` + hypercorn（h2c） | 本番に適用済み。既知の問題（2026-11-09 に調べた。**「切断の後に SIGTERM に応じない」は再現しなかった**）: 生成中の接続がつながったまま SIGTERM を受けると、hypercorn は終わらない（h2c 固有ではなく HTTP/1.1 でも。原因は、`Server.wait_closed()` が全接続の終了を待ち、`--graceful-timeout` が効かないこと。Cloud Run は約 10 秒で SIGKILL）。ローカルの修正: `python -m app.serve`（Dockerfile の CMD。SIGTERM の 6 秒後に進行中の応答を打ち切り、約 6.3 秒で終了。h1・h2c・`/chat`・`/chat/stream` で確認）。**配備済み**（2026-11-09。`docunavi-00050-wuw`、画像 `a22e088`。起動ログ・`/health`・`/chat` 200 は確認した。**未確認:** 本番での SIGTERM の挙動〔約 6 秒で終わるか〕。`app.serve` で起動したことは、ログから判別できていない） |
+| ① | Next.js 化 | 完了（2026-10-25） |
+| ② | 本番での切断 → LLM 取り消し | 確認済み（2026-10-25、等級 A）。h2c の本番（`docunavi-00016-ces`）で停止ボタンを押すとログに取り消しが出る。HTTP/1.1 のリビジョンでは効かない |
+| ③ | Cloudflare Worker（`api.` → Worker → Cloud Run） | 廃止（2026-11-09。[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)） |
+| ④ | Go の SSE 中継 | 本番に配備済み（2026-10-25。`/chat/stream` だけ）。本文上限・レート制限・詰まった下流の切断を 2026-11-09 に配備し、認証なしの POST で 413・429 を確認（等級 A）。完了（利用者の判断、2026-11-09）。**本番に同時数の上限は適用しない**（[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)）。**未確認:** 100 本超の負荷、長い回答での逐次表示、2 台のときの数え方。詳細は [ops/sse-relay/README.md](../ops/sse-relay/README.md) |
+| ⑤ | Django（SaaS 管理） | 学習用の試作 `ops/django-saas/`（本番には入れない）。本番は条件待ち。`docunavi-admin` は 2026-11-08 に廃止（[decisions/0003](decisions/0003-django-only-for-operator-admin.md)） |
+| ⑥ | `--use-http2` + hypercorn（h2c） | 本番に適用済み。SIGTERM で終わらない問題は `python -m app.serve`（Dockerfile の CMD）で直し、2026-11-09 に配備（`app/serve.py`）。**未確認:** 本番での SIGTERM の挙動（約 6 秒で終わるか） |
 | ⑦ | （欠番） | 廃止。番号は参照のために残す |
-| ⑧ | ロール別 PDF グループ制御 | フェーズ 1〜3 は完了。本番は `ACCESS_MODE=enforce`（2026-10-26）。ロールの割り当ては CLI `python -m app.access_admin`（2026-11-09 に追加。既定は確認だけ、`--apply` で書く。ロールの作成と、ロールが持つグループの編集は SQL）。計画は [access-control-plan.md](access-control-plan.md)、仕様は [configuration.md](configuration.md)。CLI の SQL は、使い捨てのローカル Postgres（PG 18 + pgvector）で実行して確認済み（2026-11-09）。**検索の範囲の確認（2026-11-09、証拠等級 A、各 1 回）:** 本番 DB（読み取り専用）に対し、`pipeline.search` で `Scope.only({"cafe"})` と `Scope.ALL`（対照）を比べた。埋め込みは Vertex、LLM は呼んでいない。質問 2 問（入寮・退寮の期限、ザーハードのエネルギーの暴走）で、`cafe` のみは 2 問とも 0 件（`cafe` 以外の混入なし）、`ALL` は 5 件ずつ（1 問目はすべて `synthetic-test`、2 問目は `synthetic-test` 4 件と `zahard` 1 件）。承認は埋め込み 2 回だったが、両方の範囲を見るため 2 問になり 4 回（費用はごくわずか）。DB の資料数は `cafe` 1、`synthetic-test` 74（ほかに `guides` 2、`zahard` 3）。**対照の確認（2026-11-09、証拠等級 A、1 回）:** 同じ条件（`Scope.only({"cafe"})`、本番 DB は読み取り専用、埋め込みは Vertex、LLM なし）で `cafe` の質問「みなとコーヒーはいつ創業しましたか。」を検索すると、5 件すべてが `cafe_store_guide.pdf`（p1、類似度 0.82〜0.72）で、`cafe` 以外は混ざらなかった。上の 2 問（`cafe` と無関係）は 0 件だったので、範囲の絞り込みは両方向で効いている。**ログインした `/chat/stream` 経路の確認（2026-11-09、利用者の承認、証拠等級 A、本番の API・LLM。テスト専用ユーザーに `cafe-staff` を割り当てて実行）:** `cafe` の質問は 200、`hit_count` 2、出典は `cafe` だけ（範囲外の出典なし）。`zahard` の質問は 200、`hit_count` 0、「資料には記載がありません」。解除（`--allow-widen`）後は `default` に戻り、`zahard` の質問に出典が付いた（`synthetic-test` 2 件）。LLM は計 3 回。`user_roles` は 0 行に戻り、`access_audit` に 2 行残った。**限界:** テスト用ログイン（メール + パスワード）で、Google ログインの利用者ではない。`TEST_LOGIN_TOKEN` は ON のまま（利用者の決定待ち） |
+| ⑧ | ロール別 PDF グループ制御 | フェーズ 1〜3 は完了。本番は `ACCESS_MODE=enforce`（2026-10-26）。割り当ては `python -m app.access_admin`（既定は確認だけ、`--apply` で書く）。[access-control-plan.md](access-control-plan.md)、[configuration.md](configuration.md)。**確認（2026-11-09、等級 A、各 1 回）:** 本番 DB（読み取り専用）で `Scope.only({"cafe"})` は無関係な質問で 0 件、`cafe` の質問で `cafe` だけ。`cafe-staff` の `/chat/stream` は `zahard` の質問に出典 0 件。**限界:** テスト用ログインで、Google ログインの利用者ではない |
 
-ほかに本番にあるもの: MCP `docunavi-mcp`（読み取り専用の `search_documents`。[mcp-tool-design.md](mcp-tool-design.md)）、別モデルへのフォールバック（`gemini-3.5-flash-lite`、2026-10-21。実際に切り替わった回は未見）、有料キーへの切り替え（配備済み。本物の 429 は未見）、予算ガード（下）。
+ほかに本番にあるもの: MCP `docunavi-mcp`（[mcp-tool-design.md](mcp-tool-design.md)）、別モデルへのフォールバック（実際に切り替わった回は未見）、有料キーへの切り替え（本物の 429 は未見）、予算ガード。
 
-## 検索（2026-11-01 に実装・配備。設計は [search-design.md](search-design.md)）
+## 検索（設計は [search-design.md](search-design.md)）
 
-- ハイブリッド（アプリ内 BM25 + RRF）、リランカー（語の一致）、GraphRAG（「第N条」の参照先を追加の文脈に）。3 つとも既定 on（GraphRAG は 2026-11-01 に on へ。[0007](decisions/0007-graph-rag-default-on.md)）。環境変数は [configuration.md](configuration.md)。MCP はベクトル検索のまま。
-- 実 API での比較（2026-11-01、答えのある 64 問、等級 A。結果は `evals/results/pipeline_compare.json`）: 根拠が上位 3 件に入る数は、ベクトルのみ 61、ハイブリッド 61、ハイブリッド + リランカー 63、3 つとも on 63（k=5 は 62 / 62 / 64 / 64）。差は 1〜2 問で、exact（型番を問う質問）だけに出た。
-- **限界・未確認:** RRF の重みとリランカーの配合は、結果を見る前に固定した値のまま（調整するときは別の質問で）。GraphRAG は本番の資料（2026-11-01 時点）で辺が 0 本で、効果は評価専用の資料でしか測っていない。検索のベクトル側は Python で再実装して比べており、本番の SQL は通していない。資料の写しの更新間隔は、本番で 600 秒（`SEARCH_CORPUS_TTL_SECONDS`）。チャンクが数千を超えたら、DB の全文索引への移行を測る。汎用の実体グラフ（LLM で抽出して保存）は未着手。
+- ハイブリッド（BM25 + RRF）・リランカー・GraphRAG は、3 つとも本番で既定 on（2026-11-01。[0007](decisions/0007-graph-rag-default-on.md)）。MCP はベクトル検索のまま。
+- 実 API での比較（2026-11-01、64 問、等級 A、`evals/results/pipeline_compare.json`）: 根拠が上位 3 件に入る数は、ベクトルのみ 61、ハイブリッド 61、+ リランカー 63、3 つとも on 63。差は 1〜2 問で、型番を問う質問だけ。
+- **限界・未確認:** RRF の重みとリランカーの配合は結果を見る前に固定した値のまま。GraphRAG は本番の資料で辺が 0 本で、効果は評価専用の資料でしか測っていない。チャンクが数千を超えたら、DB の全文索引への移行を測る。
 
-## 予算ガード（2026-11-01 時点。現在値は再確認していない）
+## 予算ガード（2026-11-09 の読み取り。現在値は未確認）
 
-- 月 ¥3,000（50・90・100%、クレジットは差引前、通知先 `budget-alerts`。利用者の報告）。
-- `budget-guard` 本体は `DRY_RUN=true`（リビジョン `budget-guard-00004-b7r` を読み取りで確認、等級 A）。**この間は、上限に届いても課金を外さない。** 2026-10-31 14:24 UTC に実際に課金が外れた記録がある（`DRY_RUN=false` のときのログ）。再紐付けの 20 分後の 2026-11-01 00:30:59 UTC にも再発した。ログでは、2026-11-01 01:02〜01:10 UTC の「would disable billing」の費用が 1004〜1051 で予算 1000.0 を超え、それ以降は無い（2026-11-09 に読み取り、等級 A）ので、紐づけ直したときに同じ月の費用が予算を超えていたためと読める（推測）。同じ時刻に `deleteBillingAssignment` の 403 も出ている。ログでは、2 つのインスタンスが同時に起動し、一方が「billing disabled」を出した 0.18 秒後に、もう一方が 403（`IAM_PERMISSION_DENIED`）を出している。同じサービスアカウントの一方の呼び出しは通っているので、権限が無いのではなく、同じ通知の二重の処理が、すでに外れた課金に対して失敗したと読める（推測。等級 A はログの事実まで）。予算額は、利用者の説明で途中に ¥1,000 から ¥3,000 へ変えた（ログの 1000.0 は変更前の値）。`false` に戻す時期は未決（条件と確認は [deploy.md](deploy.md) の「保留中の運用の準備」5）。
-- `budget-guard-disarm`（承認して課金を戻す `POST /disarm`、`ops/budget_guard_disarm/`）は、`imagen-app-2026` に配備済みで `DRY_RUN=true`。動作確認は利用者の報告。`false` への切り替えは、課金の再開が実際に確認できるまで行わない。
+- 月 ¥3,000。`budget-guard` と `budget-guard-disarm` は `DRY_RUN=true`（等級 A）。**この間は、上限に届いても課金を外さない。** 過去に `false` で外れた記録がある（2026-10-31〜11-01）。`false` に戻す時期は未決。条件と確認は [deploy.md](deploy.md) の「保留中の運用の準備」5。`false` への切り替えは、課金の再開が実際に確認できるまで行わない。
 - 未確認: 前払い ¥800 が費用に数えられるか、発動時の費用の内訳。
-
-## 受動確認（起きたときにログで見る。能動的には確認しない）
-
-| 項目 | 起きるとき | 見る場所 |
-|---|---|---|
-| 無料キーが 429 になったときの、有料キーへの切り替えと 60 秒の保持 | 無料枠が尽きたとき | Cloud Run のログの `app.agents.resilience` の WARNING |
-| 主モデルが落ちたときの、別モデルへの実際の切り替え（品質、取り消した試行の課金も） | 主モデルの試行が 3 回とも失敗したとき | 同上。どのモデルが答えたか |
-| 履歴の削除ジョブで、会話が実際に消えること | 確認済み（2026-10-25。「削除した会話: 10 件」）。本番を Postgres へ移した後は `--apply` なしなので消えない | `run jobs executions list`（`docunavi-history-cleanup`） |
 
 ## 方針
 
-- 1 段ずつ足し、毎回「動く状態」を保つ（`pytest`・`npm test`・`docker compose up` が通ること）。先回りしてリファクタしない。
-- 設定が空なら従来どおり動く（モックモード）。構成は monorepo のまま。足すモジュールは必要になった時に作る。
-- DB は普通の Postgres + pgvector として使い、`DATABASE_URL` だけに依存する。学習用の構成であって、必須の構成ではない。
-- 公開に要る守り（`--max-instances`・予算アラート・`CORS_ORIGINS` を実ドメインに絞る）は、配備のときに済ませてある（[deploy.md](deploy.md)）。
+- 1 段ずつ足し、毎回「動く状態」を保つ（`pytest`・`npm test`・`docker compose up`）。先回りしてリファクタしない。
+- 設定が空なら従来どおり動く（モックモード）。DB は普通の Postgres + pgvector で、`DATABASE_URL` だけに依存する。
 
 ## 今はやらないこと
 
-- `app/agents/graph.py`（LLM 設定・モック・グラフが同居）の分割と、`app/api/routes.py` の LLM エラー分類の分離。テストが `build_graph` などを直接 import しているので、分ける理由（複数エージェント化など）が出るまで保留する。
-- 環境変数の読み取りの集約（settings）。変数群（DB・R2・認証）がさらに増えたときに行う。
+- `app/agents/graph.py` の分割と、`app/api/routes.py` の LLM エラー分類の分離（分ける理由が出るまで保留）。
+- 環境変数の読み取りの集約（settings）。変数群がさらに増えたときに行う。

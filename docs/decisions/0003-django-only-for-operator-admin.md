@@ -10,7 +10,7 @@ Django（SaaS 管理）は、学習のために測る対象だった。試作 `o
 - 製品の Django は `ops/access_admin/` だけ。**運用者 1 人専用**で、利用者向けの機能・マルチテナントは作らない。
 - 認証の例外: この管理画面に限り、Django 自身の運用者ログイン（`django.contrib.auth`、パスワード + TOTP）を使う。Supabase Auth とは連携しない。利用者は今までどおり Supabase Auth だけ。
 - Django が止まっても、利用者向けの機能は動き続ける。運用者が 2 人以上、または利用者が入るなら、この例外の対象外（決め直す）。
-- Django が `migrate` するのは `saas` スキーマだけ。`chatbot` の表は `supabase/migrations/` だけが変える（Django 側は `managed=False`）。
+- Django が `migrate` するのは `saas` スキーマだけ。`chatbot` の表は `supabase/migrations/` だけが変える（Django 側は `managed=False`）。〔2026-11-18 の注: 当時のパス。`supabase/` は削除済みで、いまのマイグレーションは `db/migrations/`（Git の履歴に旧パスがある）〕
 - 試作 `ops/django-saas/` は本番に入れず、`access_admin` とモデル・ロールを使い回さない。
 
 ## 結果と限界

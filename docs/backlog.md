@@ -38,6 +38,15 @@
 | PDF の右端切れ（スマホ） | ブラウザー内蔵のビューアの表示。CSS では直せない | 既知の制限として扱う |
 | 関係図（390px）の操作ボタン | ノードが隅にあると、ズームの操作が重なる | 操作を半透明にする、またはノードを避ける |
 
+## 判断待ち・既知の穴
+
+画面ではなく、運用・基盤の項目です。優先度は付けていません。
+
+| 項目 | 状態（日付つき） | 次の一手 |
+|---|---|---|
+| 利用者の**最後の** `user_roles` の行を消すと、見える範囲が `default` ロール（既定の資料グループ）まで広がる | 2026-11-18 にコードと migration を読んで確かめた（証拠等級 A。実 DB では動かしていない）。`app/access.py` の `_VISIBLE_SQL` は、`user_roles` が 0 行の利用者に `default` ロールを当てる。`db/migrations/0001_schema.sql` の `user_roles` には、最後の 1 行を守る制約もトリガーも無い。**運用の CLI は守っている:** `app/access_admin.py` の `revoke` は、見えるグループが増える解除を `--allow-widen` が無ければ書かず、`tests/test_access_admin.py::test_revoking_the_last_role_that_widens_access_needs_allow_widen` が確かめる。**守れていないもの:** SQL の直接の `DELETE`（この経路を確かめるテストは見つからなかった）。`"user"` の行の削除による CASCADE は、その利用者が存在しなくなるので広がりの問題にならない。出どころはコンテナのメモリー `durable-notes.md`（2026-11-08）の「テストの無い既知の穴」で、CLI の追加後は一部が古い | 直接の SQL の削除まで止めるか（DB 側の制約・トリガー）、運用の規則（CLI だけを使う）で足りるとするかを決める。どちらでも、`default` に割り当てている資料グループ（`role_collection_access`）が、広がったときに見える範囲になる |
+| ヒーロー画像の基盤（`app/hero_images/`、`document_images`、`GET /documents/{id}/hero`、星庭ジョブ）を**続けるか止めるか**が未決定 | 2026-11-18 にリポジトリを読んで確かめた（等級 A）。コードは残っている: `app/hero_images/`（運用者用の取り込み・承認）、`app/api/documents.py` の `/hero` と一覧の `hero_image`、`db/migrations/0001_schema.sql` の `document_images`、`tests/test_hero_images.py` `tests/test_document_hero.py`。一方、画面は 2026-11-03 の再設計でヒーローを取得も表示もしなくなった（[image-generation-design.md](image-generation-design.md) の冒頭の記述。画面側のコードの現状は今回は読んでいない）。同じ文書に「基盤を続けるか止めるかは未決定。廃止したのではない」とある。承認済みの画像 6 枚が DB と R2 に残っているとの記述は 2026-11-03 時点のもので、DB・R2 を読んでいないので未確認。`roadmap.md` にヒーロー画像の項目は見つからなかった | 続けるなら、画面への再表示の設計と、`docunavi-app` で画像生成を動かすかの決定（同文書の D1）が要る。止めるなら、API・表・星庭ジョブ側のどこまでを消すかを `docs/decisions/` に残してから決める（消す前に参照を grep する） |
+
 ## 測ってから決める
 
 | 項目 | 前提の確認 |

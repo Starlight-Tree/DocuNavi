@@ -44,12 +44,21 @@
 | `ACCESS_MODE` | `off` | 利用者のロールごとに、見える資料グループを制限するか（下の「資料グループのアクセス制御」）。`off` は制限なし（DB も読まない）、`shadow` は制限せずに絞り込まれる件数をログに出す、`enforce` は実際に制限する。知らない値は起動を失敗させる。`shadow` と `enforce` は `DATABASE_URL` と、マイグレーション `20261026045921` の適用が要る |
 | `ACCESS_CACHE_TTL_SECONDS` | `60` | 利用者ごとの見えるグループと、利用資格の控えを持つ秒数（`0` で無効。負・数でない値は起動を失敗させる） |
 | `MEMBERSHIP_MODE` | `off` | ログインした利用者のうち、**アプリを使ってよい人**（`app_members` にいる人）だけに限るか（下の「利用資格（アプリを使ってよい人）」）。`off` は確認しない（ログインした全員が使える）、`shadow` は拒否せずログに出す、`enforce` は資格のない利用者を 403 にする。`ACCESS_MODE` とは独立。`shadow` と `enforce` は `AUTH_MODE=required`、`DATABASE_URL`、マイグレーション `0003` が要る。**本番では、未設定にせず値を明示する**（未設定で `AUTH_MODE=required` だと、起動時に警告が出る）。知らない値は起動を失敗させる |
+| `SEARCH_HYBRID` | `on` | チャットの検索で、キーワード（BM25。`app/search/keyword.py`）の順位をベクトルの順位と RRF で合わせる。値は `on` / `off`（`1` / `0`、`true` / `false`、`yes` / `no` も可）。不正な値は 503（固定文）にする。黙って既定には戻さない。下の「資料の検索」 |
+| `SEARCH_RERANK` | `on` | 候補を、質問との語の一致で並べ直す（`app/search/rerank.py`。外部のモデルも API も使わない）。値の書き方は `SEARCH_HYBRID` と同じ |
+| `SEARCH_GRAPH` | `on` | 上位のチャンクが「第N条」と参照する先のチャンクを、追加の文脈に加える（GraphRAG。`app/search/graph.py`）。2026-11-01 に既定を on にした（[decisions/0007](decisions/0007-graph-rag-default-on.md)）。値の書き方は `SEARCH_HYBRID` と同じ |
+| `SEARCH_CANDIDATES` | `20` | 1 次検索の候補の数（ベクトル・キーワードそれぞれ）。1〜100 の数。`top_k` より小さくはならない。範囲外・数でない値は 503 |
+| `SEARCH_GRAPH_MAX_EXTRA` | `1` | `SEARCH_GRAPH` で加えるチャンクの上限。0〜3 の数（0 で加えない）。範囲外・数でない値は 503 |
+| `SEARCH_CORPUS_TTL_SECONDS` | `60` | キーワード側・GraphRAG が読む資料の写し（範囲ごと）を持つ秒数。0〜3600 の数。範囲外・数でない値は 503。ロードマップの記録（2026-11-01）では、本番は 600。**本番の現在の設定は未確認（2026-11-18）** |
+| `SEARCH_SCOPE` | （空） | `scripts/bm25_baseline.py`（評価の基準線）だけが読む。アプリは読まない |
+
+`SEARCH_HYBRID` `SEARCH_RERANK` `SEARCH_GRAPH` の 3 つが全部 `off` なら、`search_vector.search`（ベクトル検索だけ）をそのまま呼ぶ。上の 5 つ（`SEARCH_SCOPE` を除く）は `app/search/pipeline.py` が、検索のたびに読む。既定は、2026-11-18 に、そのファイルの `Flags.from_env` で確かめた。
 
 ## 資料の検索
 
-チャットの検索（`search_documents`）は、**DB の `chunks` へのベクトル検索だけ**です（`app/search/vector.py`）。決めた理由と、見直す条件は [search-design.md](search-design.md)、測定は [evals/README.md](../evals/README.md) にあります。
+チャットの検索（`search_documents`）の入口は `app/search/pipeline.py` です。**DB の `chunks` へのベクトル検索（`app/search/vector.py`）に、ハイブリッド（BM25 + RRF）・リランカー（語の一致）・GraphRAG（「第N条」の参照先）を、環境変数 `SEARCH_*`（上の表）で重ねます。3 つとも既定は on です**（コードの既定。2026-11-18 に確認。本番の実際の設定は未確認）。3 つとも off にすると、ベクトル検索だけになります。決めた理由と、見直す条件は [search-design.md](search-design.md)、測定は [evals/README.md](../evals/README.md) にあります。MCP（`ops/mcp_search/`）は、ベクトル検索（`search_vector.search`）だけを呼びます。
 
-- **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元）、pgvector でコサイン類似度が高い順に、上位 `TOP_K`（2）チャンクを取ります。本文とメタデータも同じ Postgres から取ります。対象は `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループだけ）で、PDF は読みません。
+- **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元）、pgvector でコサイン類似度が高い順に取ります（ベクトル検索は常に走ります）。`SEARCH_HYBRID` が on なら、キーワード（BM25）の順位を RRF で合わせ、`SEARCH_RERANK` が on なら語の一致で並べ直し、`SEARCH_GRAPH` が on なら参照先のチャンクを `SEARCH_GRAPH_MAX_EXTRA`（1）件まで加えます。最終的に、上位 `TOP_K`（2）チャンクを返します。本文とメタデータも同じ Postgres から取ります。対象は `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループだけ）で、PDF は読みません。
   返す形は `[番号] ファイル名\n見出し\n本文` です（番号は 1 から。回答の文末の引用 `[n]` が指す。[api.md](api.md) の「回答の文末の引用」）。
 - **必要なもの。** 本物の LLM では `DB_BACKEND=pg` と `DATABASE_URL`、`GEMINI_API_KEY`（質問の埋め込み用。`EMBEDDING_USE_VERTEXAI=true` のときだけ Vertex AI でキーは要らない）。Postgres に、取り込み・埋め込み済みであること。
   本番は、R2 の PDF を取り込みジョブ（`docunavi-ingest-sync` が毎時、`docunavi-ingest-queue` が R2 の通知で）が `python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で入れます。R2 の最上位のプレフィックスが `documents.collection`（資料のグループ）になります（`hero/` は画像の置き場）。
@@ -62,7 +71,7 @@
 - **評価用の PDF の写し。** `storage/pdf/cafe/` と `storage/pdf/guides/` の PDF は、`evals/corpora/` の同名のファイルと同じです（`tests/test_bm25_collections.py` が一致を確かめる）。差し替えるときは、両方を更新し、評価の baseline を取り直します。
   `storage/pdf/zahard/` の 3 冊は、元の .txt を PDF にしたものです（2026-11-15 から、表紙・目次・見出し・ページラベルを足し、題名を内容が分かる名前にしました。ファイル名は同じ。[evals/fixtures/zahard_pdf/README.md](../evals/fixtures/zahard_pdf/README.md)。見た目の目視は未確認）。
   2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は、reportlab 製の 1 冊でしか試しておらず、実物で確かめるまでアプリには置きません（`evals/fixtures/two_column/`）。
-- **BM25 の基準線。** 以前の BM25 は、アプリから外し、評価用に `scripts/bm25_baseline.py` に残しました（`SEARCH_SCOPE` はこの基準線だけが読む）。
+- **BM25 の基準線。** ローカルの PDF を読む以前の BM25 は、アプリから外し、評価用に `scripts/bm25_baseline.py` に残しました（`SEARCH_SCOPE` はこの基準線だけが読む）。ハイブリッドのキーワード側は、別の実装（`app/search/keyword.py`。DB の `chunks` の写しを読む）で、アプリはこの基準線を import しません。
 - **確かめていないこと。** 画面が使う `/chat/stream` を、本物の LLM と DB で通した確認。LLM が書く検索クエリでの精度（評価は質問文のまま）。質問ごとの追加の遅延と費用（評価では、埋め込みの API は 1.1〜1.4 秒）。
 
 ## ログイン（認証）
@@ -176,7 +185,7 @@ python -m app.access_admin member list      # 人数だけ（メール・ID は�
 
 ## 対象と資料種別（`target` / `doc_type`）
 
-2026-11-03 に実装（ローカルのみ。**本番の DB・Cloud Run・画面は未適用**）。決定は [decisions/0008](decisions/0008-document-target-and-type.md)。
+2026-11-03 に実装（当時はローカルのみ）。**本番への適用の状態は、この文書では未確認**（2026-11-18 時点。`db/seeds/classification.sql` のコメントには「本番は 2026-11-04 に適用済み」とあるが、本番の DB は読んでいない）。決定は [decisions/0008](decisions/0008-document-target-and-type.md)。
 資料に、`collection` とは別の分類を 2 つ足しました。画面の名前は「対象」「資料種別」、DB と API の名前は `target` / `doc_type` です。
 
 | 項目 | 役割 | 保存先 |

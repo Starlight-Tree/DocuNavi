@@ -121,16 +121,24 @@ RAG の精度は `tests/rag_eval_cases.py`（関連 21 件・無関係 8 件）�
 | JWT | `GET /api/auth/token`（ES256、15 分、`aud=docunavi`）を、Cloud Run の `/chat` に `Authorization: Bearer` で送る |
 | スクリプト | [scripts/prod_smoke_chat.py](../scripts/prod_smoke_chat.py)。既定はログインして JWT を取るだけ。`--send` で `/chat` を 1 回だけ叩く（本番の LLM・埋め込みを使う。課金）。`--create` は初回だけ |
 
-**運用の決定（2026-11-09）:** テストユーザーは DB に**残し**、`TEST_LOGIN_TOKEN` は**使うときだけ**入れて、終わったら**削除**します（平時は無効）。認証情報の原本は Infisical（`INFISICAL_PROJECT_ID_DEV` のプロジェクト、環境 `dev`）の `TEST_LOGIN_EMAIL` `TEST_LOGIN_PASSWORD` `TEST_LOGIN_TOKEN` です。JWT は保存せず、毎回サインインして取ります。
+**運用（決定 2026-11-09。スクリプトの内容は 2026-11-18 に読んで確認）:** テストユーザーは DB に**残し**、本番 Worker の `TEST_LOGIN_TOKEN` は**使うときだけ**入れて、終わったら**削除**します（平時は無効）。認証情報の原本は Infisical（`INFISICAL_PROJECT_ID_DEV` のプロジェクト、環境 `dev`）の `TEST_LOGIN_EMAIL` `TEST_LOGIN_PASSWORD` `TEST_LOGIN_TOKEN` です。JWT は保存せず、毎回サインインして取ります。
+有効にして無効に戻す経路は 2 つで、どちらもホストの利用者が実行します（Worker の Secret は本番への書き込みなので、エージェントは実行しない）。
 
-手順（運用者。Worker の Secret は本番への書き込みなので、エージェントは実行しない。ホストのターミナルで）:
+| 経路 | 有効にする | 無効に戻す |
+|---|---|---|
+| `./scripts/prod_check.sh`（`--chat` `--stream` `--screen` `--browse`） | `TEST_LOGIN_EMAIL` と `TEST_LOGIN_TOKEN` の両方を `wrangler secret put` | 終了時に**必ず**、両方を `secret delete` し、`secret list` に `TEST_LOGIN` が残っていないことを確かめる（最大 3 回。残れば警告）。**実行前から有効だった場合も、終わると無効になる** |
+| `bash workers/api/test-login.sh on` / `off`（手で実行） | `on`: 同じ 2 つを入れる | `off`: `TEST_LOGIN_TOKEN` だけを削除する（`TEST_LOGIN_EMAIL` は残るが、トークンが無ければ無効） |
+
+**本番 Worker にいま設定されているかは、この文書では確認していません**（ホストで `bash workers/api/test-login.sh status` を実行すると、Secret の名前だけが見える）。「検証の間は有効のまま維持する」という扱いは、この運用（使うときだけ入れて削除。`prod_check.sh` は毎回削除する）とは別で、この文書の決定ではありません。維持するかどうかは、利用者に確認が要ります（[roadmap.md](roadmap.md) の記述との食い違いは、2026-11-18 に open question とした）。
+
+手順（`test-login.sh` を使う場合。運用者がホストのターミナルで）:
 
 1. 有効にする: `bash workers/api/test-login.sh on`（Infisical の値を `wrangler secret put` に標準入力で渡す。要 `wrangler login --device`）。
 2. テストする: `infisical sm run --silent --projectId "$INFISICAL_PROJECT_ID_DEV" --env=dev -- python scripts/prod_smoke_chat.py --send`（ユーザーが無いときだけ `--create`）。
-3. **終わったら無効にする:** `bash workers/api/test-login.sh off`（`TEST_LOGIN_TOKEN` を削除。入口は 400 に戻る）。`status` で Secret の名前を確かめられます。
+3. **終わったら無効にする:** `bash workers/api/test-login.sh off`（`TEST_LOGIN_TOKEN` を削除。入口は 400 に戻る）。`status` で Secret の名前を確かめられます。`prod_check.sh` を使った場合は、スクリプトが無効に戻します（上の表）。
 4. テストユーザーを消すとき（復元できない）: 本番 DB の `user` `account` `session` の該当行を SQL で削除します。
 
-**利用資格（`MEMBERSHIP_MODE=enforce`）の自動確認:** 開発コンテナで `bash scripts/prod_membership_check.sh`（`--deny-only` なら、①だけで課金なし）。テストユーザーで、①資格なしは `/chat` が 403 → ②一時的に `member add` → ③65 秒待って 200 → ④必ず `member remove`、を行う（途中で失敗しても外す）。待つのは、各インスタンスが判定を `ACCESS_CACHE_TTL_SECONDS`（既定 60 秒）控え、「資格なし」の控えは付与で消えないため。③は本番の LLM を 1 回呼ぶ（課金）。前提は上の `TEST_LOGIN_TOKEN` が有効なこと。**確かめていない:** 実際の Google ログインの経路。大きな変更のあとだけ、本人が画面でチャットを 1 回送って確かめる（決定 2026-11-16。パスワードの一般公開や保存済みセッションは足さない）。本番で合格を確認した（2026-11-16）。
+**利用資格（`MEMBERSHIP_MODE=enforce`）の自動確認:** 開発コンテナで `bash scripts/prod_membership_check.sh`（`--deny-only` なら、①だけで課金なし）。テストユーザーで、①資格なしは `/chat` が 403 → ②一時的に `member add` → ③65 秒待って 200 → ④必ず `member remove`、を行う（途中で失敗しても外す）。待つのは、各インスタンスが判定を `ACCESS_CACHE_TTL_SECONDS`（既定 60 秒）控え、「資格なし」の控えは付与で消えないため。③は本番の LLM を 1 回呼ぶ（課金）。前提は上の `TEST_LOGIN_TOKEN` が有効なこと（`prod_check.sh --chat` は、有効化から後始末までを自分で行う）。**確かめていない:** 実際の Google ログインの経路。大きな変更のあとだけ、本人が画面でチャットを 1 回送って確かめる（決定 2026-11-16。パスワードの一般公開や保存済みセッションは足さない）。本番で合格を確認した（2026-11-16）。
 
 - **限界:** Workers のレート制限はメモリ上で、インスタンス間では効きません。総当たりへの備えは、長いパスワードと、テストの間だけ有効にすることに頼っています。
 - **検証の状況:** ローカル（2026-11-08）で、無効時は 400、有効時はトークン無し・違うトークン・別のメールが 403、正しい組み合わせで登録・ログイン・JWT 取得、その JWT をアプリ（`AUTH_MODE=required`）が受理することを確認しました。**本番でも確認しました（2026-11-09）:** 登録・ログイン・JWT 発行・`/chat` 200。

@@ -7,14 +7,16 @@
 |---|---|---|
 | [0001](0001-frontend-on-vercel-api-only-backend.md) | 画面は Vercel（Next.js）、バックエンドは API だけ | 実装済み |
 | [0002](0002-role-based-collection-access.md) | ロール別の資料グループ制御（ロールは「グループの束」） | 実装済み（本番は `enforce`） |
-| [0003](0003-django-only-for-operator-admin.md) | Django は運用者 1 人の管理画面に限る（試作は別物） | 実装済み（配備済み） |
+| [0003](0003-django-only-for-operator-admin.md) | Django は運用者 1 人の管理画面に限る（試作は別物） | 廃止（2026-11-08。`docunavi-admin` と `ops/access_admin/` を削除。記録として残す） |
 | [0004](0004-no-llm-gateway.md) | LLM ゲートウェイを使わず、耐障害性はアプリ内で持つ | 実装済み |
 | [0005](0005-go-sse-relay-without-prod-limit.md) | Go の SSE 中継は配備し、本番には同時数の上限を入れない | 配備済み（上限のコードは未配備） |
 | [0006](0006-graph-rag-default-off.md) | 検索の GraphRAG は既定 OFF のまま | 置き換え済み（0007） |
-| [0007](0007-graph-rag-default-on.md) | 検索の GraphRAG を既定 ON にする（`SEARCH_GRAPH_MAX_EXTRA`=1 のまま） | 実装済み（未プッシュ・未配備） |
-| [0008](0008-document-target-and-type.md) | 資料の分類「対象」「資料種別」を足し、`collection` は保存・認可の単位のまま | 実装済み（ローカルのみ。画面は承認待ち） |
+| [0007](0007-graph-rag-default-on.md) | 検索の GraphRAG を既定 ON にする（`SEARCH_GRAPH_MAX_EXTRA`=1 のまま） | 実装済み（`main` に入っている。2026-11-18 に `git branch -r --contains` で確認。`SEARCH_GRAPH` の既定は on。本番への配備はロードマップの記録〔2026-11-01〕で、実機の設定は再確認していない） |
+| [0008](0008-document-target-and-type.md) | 資料の分類「対象」「資料種別」を足し、`collection` は保存・認可の単位のまま | 実装済み（`main`。スキーマは `db/migrations/0001_schema.sql`、初期分類は `db/seeds/classification.sql`。本番への適用は、そのファイルのコメントに「2026-11-04 適用済み」とあるが、本番では未確認〔2026-11-18〕） |
 | [0009](0009-drop-custom-domain-and-worker-front.md) | 独自ドメインと、Cloudflare Worker の前段（段階 3・③）を廃止する | 決定（文書のみ） |
 | [0010](0010-physical-page-number-and-display-label.md) | PDF のページを「通し番号」（リンク・照合）と「表示ラベル」（画面の表示）に分ける | 実装済み（`main`。本番 DB に 0002 適用済み。Cloud Run・再取り込みは未実施） |
+| [0011](0011-db-connection-pool-limits.md) | DB の接続プールの上限を docunavi=2・docunavi-mcp=1 にする | 実装済み（本番に配備済み） |
+| [0012](0012-accept-prisma-free-limit-and-cut-operations.md) | Prisma Free の月 200,000 操作の上限は受け入れ、DB 操作は構成で減らす | 実装済み（2026-11-18 の引き継ぎでは上限で停止中。12-01 まで放置） |
 
 ## 書き方
 

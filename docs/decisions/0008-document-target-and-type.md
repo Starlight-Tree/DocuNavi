@@ -22,4 +22,4 @@
 - 画面の変更は、`.claude/rules/ui-review.md` に従い、UI モック（`/mock/classification`）の承認のあとに本体へ入れる。
 
 ## 出典
-[configuration.md](../configuration.md) の「対象と資料種別」、[api.md](../api.md)、`supabase/migrations/20261103150000_document_classification.sql`、`supabase/backfills/20261103150000_classify_initial_documents.sql`
+[configuration.md](../configuration.md) の「対象と資料種別」、[api.md](../api.md)、`supabase/migrations/20261103150000_document_classification.sql`、`supabase/backfills/20261103150000_classify_initial_documents.sql`（2026-11-18 の注: 当時のパス。`supabase/` は削除済み〔Git の履歴〕。いまは、分類の表と列が `db/migrations/0001_schema.sql`、初期分類が `db/seeds/classification.sql`）
