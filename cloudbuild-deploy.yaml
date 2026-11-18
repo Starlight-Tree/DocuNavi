@@ -53,6 +53,9 @@ steps:
 
   - id: build
     name: gcr.io/cloud-builders/docker
+    # Dockerfile の `COPY --chmod` は BuildKit が必要（旧ビルダーでは失敗する）
+    env:
+      - DOCKER_BUILDKIT=1
     args:
       - build
       - --tag
