@@ -56,7 +56,7 @@ flowchart LR
 
 | | 列・項目 | 使い道 |
 |---|---|---|
-| 通し番号 | `chunks.page`・`page_end`（1 始まり） | 元の PDF を開くリンク（`#page=N`）、評価の根拠ページの照合 |
+| 通し番号 | `chunks.page`・`page_end`（1 始まり） | PDF を開くリンク（`#page=N`）、評価の根拠ページの照合 |
 | 表示ラベル | `chunks.page_label`・`page_end_label`（PDF の `/PageLabels`。「表紙」「i」「1」「A-1」など） | 画面の出典・チャンクの表示だけ |
 
 - 取り込み（`pdf_parser._page_labels`）がラベルを読み、`chunker` がチャンクに付けます。ラベルが無い・壊れた PDF は `NULL`（表示は通し番号）で、取り込みは止まりません。

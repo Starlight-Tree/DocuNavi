@@ -1,7 +1,7 @@
 """資料の一覧（読み取り専用）。DB（`documents` / `chunks`）に保存された内容を、そのまま見せる。
 
 - チャットの検索（ベクトル検索）が読むのと同じ DB。ここに出る本文が、検索の対象になる本文そのもの（`status = 'ready'` の文書）
-- `GET /documents/{id}/file` は取り込んだ元の PDF を返す（名前と内容のハッシュが DB と合うものだけ。`app/pdf_originals.py`）
+- `GET /documents/{id}/file` は取り込んだ PDF を返す（名前と内容のハッシュが DB と合うものだけ。`app/pdf_originals.py`）
 - `AUTH_MODE=required` のときは、`/chat` と同じ検証（`current_user`）を通った人だけが読める
 - `ACCESS_MODE=enforce` のときは、利用者が見えるグループ（`app/access.py`）の資料だけが一覧に出て、見えない資料の本文・PDF・関係図は
   存在しないのと同じ 404（`off` と `shadow` は、ログインした人が全グループの全文を読める）。見えるグループが 0 件なら 403
@@ -41,9 +41,9 @@ _MAX_CHUNKS = 2000
 _DETAIL_NOT_CONFIGURED = "資料のデータベースが設定されていません。"
 _DETAIL_UNAVAILABLE = "資料を取得できませんでした。しばらく待ってから再試行してください。"
 _DETAIL_NOT_FOUND = "指定された資料が見つかりません。"
-_DETAIL_NO_ORIGINAL = "元の PDF は利用できません。"
-_DETAIL_ORIGINAL_MISMATCH = "元の PDF が、DB に保存された資料と一致しません。"
-_DETAIL_ORIGINAL_UNAVAILABLE = "元の PDF を取得できませんでした。しばらく待ってから再試行してください。"
+_DETAIL_NO_ORIGINAL = "PDF は利用できません。"
+_DETAIL_ORIGINAL_MISMATCH = "PDF が、DB に保存された資料と一致しません。"
+_DETAIL_ORIGINAL_UNAVAILABLE = "PDF を取得できませんでした。しばらく待ってから再試行してください。"
 
 _LIST_SQL = (
     "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, "
@@ -121,7 +121,7 @@ class ChunkItem(BaseModel):
 class DocumentDetail(BaseModel):
     document: DocumentSummary
     chunks: list[ChunkItem]
-    # 元の PDF を GET /documents/{id}/file で返せるか（名前と内容のハッシュが DB と合うファイルが storage/pdf/ にある）
+    # PDF を GET /documents/{id}/file で返せるか（名前と内容のハッシュが DB と合うファイルが storage/pdf/ にある）
     original_pdf: bool = False
 
 
@@ -260,7 +260,7 @@ async def document_file(
     document_id: Annotated[int, Path(ge=1, le=_MAX_ID)],
     access: Annotated[Access, Depends(request_access)],
 ) -> Response:
-    """取り込んだ元の PDF。名前とハッシュが DB と合うものだけを、確かめたバイト列のまま返す（app/pdf_originals.py）。"""
+    """取り込んだ PDF。名前とハッシュが DB と合うものだけを、確かめたバイト列のまま返す（app/pdf_originals.py）。"""
     headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
     access.require_any()
     pool = get_pool()
@@ -274,7 +274,7 @@ async def document_file(
         raise _unavailable(exc) from None
     if not rows:
         raise HTTPException(status_code=404, detail=_DETAIL_NOT_FOUND)
-    access.require_visible(rows[0].get("collection"), "元の PDF", _DETAIL_NOT_FOUND)
+    access.require_visible(rows[0].get("collection"), "PDF", _DETAIL_NOT_FOUND)
     source = rows[0]["source"]
     original = await asyncio.to_thread(find_original, source, rows[0].get("content_hash"))
     if not original.ok or original.data is None:

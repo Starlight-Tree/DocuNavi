@@ -1,4 +1,4 @@
-"""資料の元 PDF を探す（`documents` の行 → `storage/pdf/` のどの PDF か）。
+"""資料の PDF を探す（`documents` の行 → `storage/pdf/` のどの PDF か）。
 
 DB の `documents` が持っているのは、`source`（ファイル名）と `content_hash`（取り込んだ PDF のバイト列の sha256）だけで、
 どの資料群のディレクトリにあったかは持っていない。そこで次のように決める。
@@ -6,7 +6,7 @@ DB の `documents` が持っているのは、`source`（ファイル名）と `
 - `source` は、置き場の中の安全な相対パス（`a.pdf` か `dir/a.pdf`。部品は 3 個まで）だけ受け付ける。絶対パス・空の部品・`.` / `..`・
   バックスラッシュ・NUL・制御文字を含むものは「見つからない」。DB の値をそのまま結合せず、`storage/pdf/<資料群>/` の直下を走査して、
   `<資料群>/<source>` が完全に一致するファイルを候補にする（途中のディレクトリがリンクなら読まない）
-- 候補の中身を読み、sha256 が `content_hash` と一致するものだけを元 PDF とする（名前が同じでも、中身が違えば返さない）。
+- 候補の中身を読み、sha256 が `content_hash` と一致するものだけを PDF とする（名前が同じでも、中身が違えば返さない）。
   これにより、DB に保存したテキストの元とは別版の PDF を見せない
 - **返すバイト列は、ハッシュを確かめた、そのバイト列**（検証のあとで読み直さない）
 - シンボリックリンクは使わない。ファイルがリンクなら読まず、資料群のディレクトリがリンクで置き場の外へ出るなら走査しない
@@ -30,10 +30,10 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 
-# 元 PDF の置き場（リポジトリ直下の storage/pdf/）。直下のディレクトリが資料群で、その下に PDF を置く。検索には使わない（検索は DB だけを読む）
+# PDF の置き場（リポジトリ直下の storage/pdf/）。直下のディレクトリが資料群で、その下に PDF を置く。検索には使わない（検索は DB だけを読む）
 PDF_DIR = Path(__file__).resolve().parents[1] / "storage" / "pdf"
 
-# 元 PDF として読む上限。いまの PDF は 100 KB 前後。応答はメモリに載せるので、これを超えるものは返さない
+# PDF として読む上限。いまの PDF は 100 KB 前後。応答はメモリに載せるので、これを超えるものは返さない
 MAX_ORIGINAL_BYTES = 20 * 1024 * 1024
 
 Reason = Literal["missing", "mismatch", "unavailable"]
@@ -41,7 +41,7 @@ Reason = Literal["missing", "mismatch", "unavailable"]
 
 @dataclass(frozen=True)
 class OriginalPdf:
-    """元 PDF の探索結果。ok のときだけ data（ハッシュを確かめたバイト列）がある。"""
+    """PDF の探索結果。ok のときだけ data（ハッシュを確かめたバイト列）がある。"""
 
     ok: bool
     reason: Reason | None = None
@@ -141,10 +141,10 @@ def _find_in_r2(source: str, content_hash: object) -> OriginalPdf:
             if wanted and hashlib.sha256(data).hexdigest() == wanted:
                 return OriginalPdf(ok=True, data=data)
     except Exception as exc:  # noqa: BLE001 - 例外の文字列には接続先・鍵の ID が入りうる。型の名前だけを残す
-        logger.warning("R2 から元の PDF を読めませんでした (%s)", type(exc).__name__)
+        logger.warning("R2 から PDF を読めませんでした (%s)", type(exc).__name__)
         return OriginalPdf(ok=False, reason="unavailable")
     if seen:
-        logger.warning("元の PDF の内容が、DB に保存された資料と一致しません")
+        logger.warning("PDF の内容が、DB に保存された資料と一致しません")
         return OriginalPdf(ok=False, reason="mismatch")
     return _missing()
 
@@ -157,7 +157,7 @@ def find_original_in_r2(source: object, content_hash: object) -> OriginalPdf:
 
 
 def find_original(source: object, content_hash: object) -> OriginalPdf:
-    """`source` と `content_hash` に合う元 PDF を探す。
+    """`source` と `content_hash` に合う PDF を探す。
 
     見つからなければ reason="missing"。名前の合うファイルはあるが、どれも内容が違う（または、DB にハッシュが無く
     確かめられない）なら reason="mismatch"。複数が一致したときは中身が同一なので、名前順で先のものを返す。
@@ -182,6 +182,6 @@ def find_original(source: object, content_hash: object) -> OriginalPdf:
         if wanted and hashlib.sha256(data).hexdigest() == wanted:
             return OriginalPdf(ok=True, data=data)
     if seen:
-        logger.warning("元の PDF の内容が、DB に保存された資料と一致しません")
+        logger.warning("PDF の内容が、DB に保存された資料と一致しません")
         return OriginalPdf(ok=False, reason="mismatch")
     return _missing()

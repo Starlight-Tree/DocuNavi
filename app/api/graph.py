@@ -3,7 +3,7 @@
 - `GET /documents/{id}/graph`: 章・条・項・脚注のノードと、関係の辺
 - `GET /documents/{id}/impact?node=…&hops=2`: そのノードを変えたとき、依存をたどって影響が及ぶ先
 - 対象は入寮規程（`tsubasa_dorm_rules.pdf`）だけ。他の資料は 404
-- DB には何も保存しない。元の PDF（名前と内容のハッシュが DB と合うもの。`app/pdf_originals.py`）を、リクエストのたびに読んで計算する
+- DB には何も保存しない。PDF（名前と内容のハッシュが DB と合うもの。`app/pdf_originals.py`）を、リクエストのたびに読んで計算する
 - `AUTH_MODE=required` のときは `/documents` と同じ検証（`current_user`）を通った人だけが読める。`ACCESS_MODE=enforce` で
   見えないグループの資料は、存在しないのと同じ 404（対象外の資料の 404 と文が違うと存在が分かるので、先に見える資料かを確かめる）
 - 例外の文字列・サーバーのパスは返さない（固定メッセージ）

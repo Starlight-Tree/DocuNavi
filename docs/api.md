@@ -146,7 +146,7 @@ data: [DONE]
 - **`message-metadata` の `target`**: この会話の質問の対象（`null` は絞らない）。`sources` の各 `target` は、回答を作った時点のその資料の対象（未分類は `null`。あとで分類が変わっても変わらない）。
 - **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, page_label, page_end_label, weak, collection, target, document_id, title, suggested_questions}`。`document_id` は資料の ID（`documents.id`。不明なら `null`）で、画面が出典から資料を直接開くのに使う。`title` は資料の題名（`documents.title`。無い・空白だけなら `null`。2026-11-15 に追加）で、画面の出典の表示名に使う（`null` ならファイル名）。`name`（ファイル名）が資料のキーで、`title` は表示用。`suggested_questions` は、その資料に答えがある「続けて聞く」の質問（最大 3 件、各 60 字以内の文字列の配列。`documents.suggested_questions`。取り込み後に `python -m app.ingestion.suggest` が作る）で、無い資料ではキー自体が無い。`collection` はその資料のグループ（未設定なら `null`）。`page` は Postgres の `chunks.page`（PDF の 1 始まりのページ）、
   `page_end` はページをまたぐ表の最終ページ（またがなければ `null`）。値が不正なとき（1 未満・整数でない・`page_end` が `page` 以下）は `null`。
-  `page` と `page_end` は PDF の通し番号（1 始まり。元の PDF を開くリンクと照合に使う）。`page_label` と `page_end_label` は、PDF のページラベル（表紙・`i`・`1`・`A-1` など。PDF が決める表示用の番号）で、画面の表示に使う。ラベルが無い PDF・まだ再取り込みしていない資料・空白だけ・33 文字以上は `null`（その場合の表示は `page`）。`page_end_label` は `page_end` があるときだけ（2026-11-15 に追加）。
+  `page` と `page_end` は PDF の通し番号（1 始まり。PDF を開くリンクと照合に使う）。`page_label` と `page_end_label` は、PDF のページラベル（表紙・`i`・`1`・`A-1` など。PDF が決める表示用の番号）で、画面の表示に使う。ラベルが無い PDF・まだ再取り込みしていない資料・空白だけ・33 文字以上は `null`（その場合の表示は `page`）。`page_end_label` は `page_end` があるときだけ（2026-11-15 に追加）。
   各要素の `weak` は、同じ検索の 1 位との類似度の差が 0.05（`app/agents/tools.py` の `WEAK_GAP`）を超える 2 件目以降で `true`。画面は出典カードに出さない
   （LLM が受け取った抜粋は変えず、折りたたみの一覧には残る）。類似度が無いときと 1 件目は `false`。
   LLM に渡す文面（`context`）にはページを載せない（ツールの `artifact` で画面にだけ渡す）。検索しなかったターン・入力ガードが拒否したターンは空の配列。
@@ -255,14 +255,14 @@ data: [DONE]
   使っていません（モックモードなど）（エラーではなく 200。`documents` は空）。`configured: true` で `documents` が空なら、DB はあるが文書が 0 件です。
 - **`GET /documents/{id}/chunks`:** その文書のチャンクを `chunk_index` 順に、`page`・`page_end`・`page_label`・`page_end_label`（PDF のページラベル。無ければ `null`）・`kind`・`heading`・`content`（全文）・
   `embedded`（埋め込みがあるか）・`embedding_model` で返します。**埋め込みのベクトルそのものは返しません。**
-  存在しない `id` は 404、`id` が 1 以上の整数でなければ 422。応答の `original_pdf`（真偽値）は、元の PDF を `/file` で返せるか。
-- **`GET /documents/{id}/file`:** 取り込んだ元の PDF（`application/pdf`、`Content-Disposition: inline`。日本語のファイル名は `filename*=UTF-8''…`）。
+  存在しない `id` は 404、`id` が 1 以上の整数でなければ 422。応答の `original_pdf`（真偽値）は、PDF を `/file` で返せるか。
+- **`GET /documents/{id}/file`:** 取り込んだ PDF（`application/pdf`、`Content-Disposition: inline`。日本語のファイル名は `filename*=UTF-8''…`）。
   DB の `source`（ファイル名）と `content_hash`（取り込んだ PDF の sha256）に合うものだけを、`storage/pdf/<資料群>/` の直下（本番は `PDF_STORE=r2` で、R2 の同じ資料群）から探して返す。
   **名前だけでは選ばない**（同じ名前で中身が違う PDF は返さない）。返すのは、ハッシュを確かめたバイト列そのもの。
   `source` はファイル名としてだけ扱い（`/` `\` `..` を含むものは探さない）、シンボリックリンクは、行き先が置き場の中でも使わない。
   20 MiB を超えるファイルは返さない。
-  - 存在しない `id` は 404。ファイルが無い・探せないときは 404（`元の PDF は利用できません。`）。
-    名前の合うファイルはあるが内容が DB と違う（または DB にハッシュが無い）ときは 409（`元の PDF が、DB に保存された資料と一致しません。`）。
+  - 存在しない `id` は 404。ファイルが無い・探せないときは 404（`PDF は利用できません。`）。
+    名前の合うファイルはあるが内容が DB と違う（または DB にハッシュが無い）ときは 409（`PDF が、DB に保存された資料と一致しません。`）。
   - 画面は、認証付きの fetch で取った PDF を Blob URL にして、ブラウザー内蔵の PDF 表示（iframe）で見せる。
     PC のブラウザーだけを確かめている（スマホ・iOS は未確認）。
 - **認証:** `AUTH_MODE=required` のときは `/chat` と同じ（`Authorization: Bearer`、失敗は固定メッセージの 401）。資料ごとの閲覧権限はまだ無く、
@@ -307,7 +307,7 @@ data: [DONE]
 ## `GET /documents/{id}/graph`、`GET /documents/{id}/impact`
 
 入寮規程（`tsubasa_dorm_rules.pdf`）の条文の関係（実験）。**対象はこの 1 資料だけ**で、他の資料は 404（`この資料は、関係図の対象ではありません。`）。
-DB には何も保存せず、元の PDF（`/file` と同じく、名前とハッシュが DB と合うもの）を、リクエストのたびに読んで計算する。
+DB には何も保存せず、PDF（`/file` と同じく、名前とハッシュが DB と合うもの）を、リクエストのたびに読んで計算する。
 規則だけで作る（LLM は使わない）。抽出の仕組みと精度は `app/relations/` と `evals/relations/`。
 
 - **`/graph`:** `nodes`（`id`・`type`＝`chapter` / `article` / `paragraph` / `footnote`・`label`・`text`・`parent`・`page`）と、
@@ -318,9 +318,9 @@ DB には何も保存せず、元の PDF（`/file` と同じく、名前とハ�
   影響が及ぶ先。`impacted`（`id` と起点からの `hops`）、`articles`（影響が及ぶ条。起点の条は除く）、たどった `edges`、`start`。
   たどる辺は `references` / `exception_of` / `uses_term` だけ（`same_chapter` は依存ではない）。
   `hops` は 1〜10（既定 2）。形の違う `node` と範囲外の `hops` は 422、規程に無い `node` は 404、章（`ch…`）は起点にできず 422。
-- **エラー:** 存在しない `id` は 404、元の PDF が無いとき 404、内容が DB と違うとき 409、DB を読めない・未設定は固定メッセージの 503、
+- **エラー:** 存在しない `id` は 404、PDF が無いとき 404、内容が DB と違うとき 409、DB を読めない・未設定は固定メッセージの 503、
   PDF の読み取り・条文の分割に失敗したときは固定メッセージの 500（例外の内容は含まない）。応答は `Cache-Control: no-store`。
 - **認証:** `/documents` と同じ（`AUTH_MODE=required` で `Authorization: Bearer`）。
-- **画面:** 資料一覧で入寮規程を開き、元の PDF が使えるときだけ「関係図」の切り替えが出る。図に描くのは、依存の辺に出てくる項・脚注だけ
+- **画面:** 資料一覧で入寮規程を開き、PDF が使えるときだけ「関係図」の切り替えが出る。図に描くのは、依存の辺に出てくる項・脚注だけ
   （依存のない項は選択欄から選ぶ）。項を選ぶと `/impact`（`hops=2` 固定）を呼び、直接（1 ホップ）・間接（2 ホップ）を色と文字で示す。
 - **限界:** 辞書（寮費・共益費・入寮期間・保証金の 4 語）に無い語の依存は出ない。語は文字列の一致で見る。測定は `evals/relations/`（同じ人が作った正解に対する値）。

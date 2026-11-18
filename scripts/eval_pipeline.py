@@ -5,7 +5,7 @@
 
 - `search_vector.search`: 実 API で作った埋め込みでコサイン類似度を計算し、`MIN_SIMILARITY` の下限と範囲の絞り込みは本物と同じ規則。
   本番の SQL（pgvector）そのものは通らない。
-- `search_pipeline._fetch_chunks`: 資料の写し（キーワード・グラフ側）を、手元の PDF から作ったチャンクで返す。
+- `search_pipeline._fetch_chunks`: 資料の写し（キーワード・グラフ側）を、手 PDF から作ったチャンクで返す。
 
     python -m scripts.eval_pipeline plan             # 資料・質問・固定する値を確定して evals/pipeline/plan.json に書く（API は呼ばない）
     python -m scripts.eval_pipeline embed            # 何を送るか・回数・概算費用を表示するだけ（API は呼ばない）

@@ -1,13 +1,13 @@
-# 元 PDF を R2 から読む本番への切り替え（R2 の配線）
+# PDF を R2 から読む本番への切り替え（R2 の配線）
 
-アプリ（Cloud Run サービス `docunavi`）の元 PDF の置き場を、イメージの中の `storage/pdf/` から Cloudflare R2 に切り替える手順です。
+アプリ（Cloud Run サービス `docunavi`）の PDF の置き場を、イメージの中の `storage/pdf/` から Cloudflare R2 に切り替える手順です。
 鍵の発行と入れ替えは [r2-key-issuer.md](r2-key-issuer.md)、コードは `app/r2_store.py`（読む側）と `ops/r2_wire/`（切り替える Job）。
 
 **状態（2026-10-21）: 本番は R2 構成で動いている。** 切り替え（`stage` → `promote`）は済んでいて、リビジョン `docunavi-00005-zl7`（タグ `r2new`。作成 02:32 JST）が 100% を受けていた
 （`promote` を実行した時刻は、サービスの監査ログからは取れていない。同日 21:14 の時点で 00005 が 100% だった）。直前のリビジョン `docunavi-00004-hj4` はタグ `r2prev` で 0% のまま残る。
 同日 21:17 JST に、タグ付きプレビュー（[deploy.md](deploy.md) の「タグ付きプレビュー」）の昇格で、100% は `docunavi-00009-voj`（イメージ `dc969b9`）に移った。
 00009 の環境変数・Secret の参照・R2 のボリュームは、00005 と同じ（`PDF_STORE` と `R2_*` の 4 つ、`r2-app-read` を `/secrets/r2` に）。
-**元の PDF は、本番の画面から R2 経由で開けた**（21:38、`/documents/2/file` が 200 で 0.28 秒。R2 のエラーログは 0 件）。
+**PDF は、本番の画面から R2 経由で開けた**（21:38、`/documents/2/file` が 200 で 0.28 秒。R2 のエラーログは 0 件）。
 下の手順は、切り替えの記録（上から順にあなたが実行し、私が結果を読んだ）。
 
 ## 設計
@@ -25,20 +25,20 @@
 
 1. **本番のイメージ（`cc5709c`）には、R2 を読むコードが入っていない。** R2 のコードは、そのあとのコミット（`ab95451` `2b8aeee` `efe3c97`）にある。
    配線だけしても、`PDF_STORE=r2` は無視される。先に、いまのコミットのイメージを配備する（手順 1）。`PDF_STORE` が未設定なら、動作は変わらない（`storage/pdf/` を読む）。
-2. **`/health` は、アプリが応答することと、モード・履歴の保存先の名前しか返さない（DB・Gemini・R2 には触れない。2026-11-14 に `app/api/routes.py` で確認）。** R2 の読み取りは `/health` では分からない。確認は、`r2-verify`（同じ形のボリュームで 6 件を読む）と、切り替えの後に画面で元の PDF を開くことで行う。
+2. **`/health` は、アプリが応答することと、モード・履歴の保存先の名前しか返さない（DB・Gemini・R2 には触れない。2026-11-14 に `app/api/routes.py` で確認）。** R2 の読み取りは `/health` では分からない。確認は、`r2-verify`（同じ形のボリュームで 6 件を読む）と、切り替えの後に画面で PDF を開くことで行う。
 3. **タグの URL（`r2new---…`）は API の確認用で、画面は通らない**（画面は Worker `docunavi-web` が本番の API に向く。タグ付き URL でのログインの戻りは未確認。[deploy.md](deploy.md)）。画面での確認は `promote` の後になる。問題があれば `rollback`（1 コマンド）。
 4. R2 を読めないときも、ローカルの PDF に切り替えない（食い違った版を見せないため）。
 
 ### PDF が R2 に無い・読めないとき（テスト済み）
 
-| 状況 | 元 PDF の API（`/documents/{id}/file`） | 資料一覧（`/documents/{id}/chunks`） | 検索・チャット |
+| 状況 | PDF の API（`/documents/{id}/file`） | 資料一覧（`/documents/{id}/chunks`） | 検索・チャット |
 |---|---|---|---|
 | R2 に無い | 404（固定文） | 200。`original_pdf: false` | 影響なし |
 | 名前は同じで中身が違う | 409（固定文） | 200。`original_pdf: false` | 影響なし |
 | R2 を読めない（鍵の失効・権限・通信・設定の不足） | 503（固定文。例外の文字列・鍵は出ない） | 200。`original_pdf: false` | 影響なし |
 
 テスト: `tests/test_r2_store.py`（`test_file_endpoint_*`、`test_the_document_screen_keeps_working_whatever_r2_answers`）、`tests/test_r2_store.py` の探索のテスト。
-つまり、R2 の障害は「元の PDF を開けない」だけで止まり、検索・チャット・資料一覧は動き続ける。
+つまり、R2 の障害は「PDF を開けない」だけで止まり、検索・チャット・資料一覧は動き続ける。
 
 ## 手順
 
@@ -92,8 +92,8 @@ env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud run jobs execute r2-wire
 
 ### 6. 切り替えの後の確認
 
-- あなた: 画面の「資料一覧」で、PDF のある資料を開き、元の PDF が表示されること（ここで初めて、本番が R2 から PDF を返すことが分かる）。
-- 私: ログに `R2 から元の PDF を読めませんでした` が出ていないこと。
+- あなた: 画面の「資料一覧」で、PDF のある資料を開き、PDF が表示されること（ここで初めて、本番が R2 から PDF を返すことが分かる）。
+- 私: ログに `R2 から PDF を読めませんでした` が出ていないこと。
 
 ### ロールバック
 

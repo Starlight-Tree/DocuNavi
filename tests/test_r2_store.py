@@ -1,4 +1,4 @@
-"""R2（S3 互換）の置き場（app/r2_store.py）と、それを使う元 PDF の配信・取り込み。S3 は偽のクライアントで、実 R2 にはつながない。
+"""R2（S3 互換）の置き場（app/r2_store.py）と、それを使う PDF の配信・取り込み。S3 は偽のクライアントで、実 R2 にはつながない。
 
 確かめるのは、PDF_STORE=r2 でも `storage/pdf/` と同じ規則（名前が完全一致・ハッシュが合うものだけ）で返すこと、R2 を読めないときは
 「見つからない」にせず 503 の固定文にして（ローカルへ切り替えない）、鍵の値をどこにも出さないこと、`r2://` の取り込みとアップロードの計画。
@@ -177,7 +177,7 @@ def test_etag_is_the_md5_of_the_object(s3) -> None:
     assert store.etag("cafe/none.pdf") is None
 
 
-# --- 元 PDF の探索（PDF_STORE=r2）------------------------------------------------------------------------------
+# --- PDF の探索（PDF_STORE=r2）------------------------------------------------------------------------------
 
 
 def test_finds_the_object_whose_name_and_hash_match(r2) -> None:
@@ -299,7 +299,7 @@ def test_the_document_screen_keeps_working_whatever_r2_answers(
     content_hash,
     error,  # noqa: F811
 ) -> None:
-    """PDF_STORE=r2 に切り替えたあと、PDF が R2 に無い・読めないときも、資料一覧の取得（/chunks）は 200 で、元 PDF の有無だけが変わる。"""
+    """PDF_STORE=r2 に切り替えたあと、PDF が R2 に無い・読めないときも、資料一覧の取得（/chunks）は 200 で、PDF の有無だけが変わる。"""
     use_pool(FakePool(document=[doc_row(source=source, content_hash=content_hash)], chunks=[chunk_row(0)]))
     r2.error = error
     res = client.get("/documents/1/chunks")

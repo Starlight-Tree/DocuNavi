@@ -1,4 +1,4 @@
-"""元 PDF の配信（GET /documents/{id}/file）と、その判定（app/pdf_originals.py）のテスト。実 DB・実 API は使わない。
+"""PDF の配信（GET /documents/{id}/file）と、その判定（app/pdf_originals.py）のテスト。実 DB・実 API は使わない。
 
 確かめるのは、名前とハッシュが DB と合う PDF だけを返すこと（同名で中身が違うファイルは返さない）、検証したバイト列をそのまま返すこと、
 `storage/pdf/` の外へ出る参照（`../`・絶対パス・シンボリックリンク）を拒むこと、認証、エラーの固定メッセージ、

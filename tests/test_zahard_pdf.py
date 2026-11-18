@@ -21,7 +21,7 @@ from tests.zahard_corpus import ROOT, ZAHARD_PDF_DIR, ZAHARD_TXT_DIR, zahard_uni
 LAYOUT = json.loads((ROOT / "evals" / "fixtures" / "zahard_pdf" / "layout.json").read_text(encoding="utf-8"))["files"]
 NAMES = ("ザーハード1", "ザーハード2", "ザーハード3")
 
-# 承認した PDF のバイト列。作り直したら、ここも更新する（DB の documents.content_hash と元 PDF の表示は、この内容に結び付く）
+# 承認した PDF のバイト列。作り直したら、ここも更新する（DB の documents.content_hash と PDF の表示は、この内容に結び付く）
 APPROVED_SHA256 = {
     "ザーハード1.pdf": "40e2d60dfe1bad1177ad4c39bcdfd8de70445b400001586aa868de40955309be",
     "ザーハード2.pdf": "88e1791f21f1aebba2e1797dfcbaf3f3ed2e0df5fb88955bc5e6f502a083c181",

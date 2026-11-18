@@ -1,4 +1,4 @@
-"""元 PDF の置き場（Cloudflare R2。S3 互換）の読み書き。
+"""PDF の置き場（Cloudflare R2。S3 互換）の読み書き。
 
 置き場の形は `storage/pdf/` と同じ。オブジェクトのキーは `<資料群>/<ファイル名>`（例: `cafe/menu.pdf`）。
 バケットは private のまま使う（公開 URL・r2.dev は使わない）。手順と設計は docs/r2-key-issuer.md。
@@ -259,7 +259,7 @@ def upload_plan(store: R2Store, root: Path) -> list[tuple[str, Path, str]]:
 
 
 def verify_originals(documents: Sequence[Mapping[str, Any]], find: Any) -> tuple[list[str], int]:
-    """DB の資料ごとに、R2 に元の PDF が（名前とハッシュで）見つかるかを確かめる。(表示する行, 問題の件数) を返す。
+    """DB の資料ごとに、R2 に PDF が（名前とハッシュで）見つかるかを確かめる。(表示する行, 問題の件数) を返す。
 
     `find` は `pdf_originals.find_original_in_r2` と同じ形（source, content_hash → 結果）。本番の `/documents/{id}/file` と同じ規則。
     """
@@ -314,7 +314,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         prog="python -m app.r2_store",
         description=(
             "upload: storage/pdf/ の PDF を R2 に置く（既定は計画の表示だけ。--apply で置く。読み書きのキーが要る）。"
-            "verify: DB の資料ごとに、R2 に元の PDF が一致して見つかるかを確かめる（読み取りのキーと D1_API_URL が要る）"
+            "verify: DB の資料ごとに、R2 に PDF が一致して見つかるかを確かめる（読み取りのキーと D1_API_URL が要る）"
         ),
     )
     parser.add_argument("action", choices=["upload", "verify"])

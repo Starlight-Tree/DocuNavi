@@ -44,7 +44,7 @@
 
 | 文書 | 状態 | 内容 |
 |---|---|---|
-| [r2-rollout.md](r2-rollout.md) | 記録 | 元 PDF を R2 から読む本番への切り替え |
+| [r2-rollout.md](r2-rollout.md) | 記録 | PDF を R2 から読む本番への切り替え |
 | [history-rewrite.md](history-rewrite.md) | 記録 | Git の履歴の書き換え（2026-10-25、2026-11-14）と、旧ハッシュの対応表 |
 | [ux-research.md](ux-research.md) | 記録 | UI/UX リサーチの記録 |
 
