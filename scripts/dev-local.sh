@@ -467,7 +467,7 @@ cmd_start() {
   (
     cd frontend
     NEXT_PUBLIC_AUTH_ENABLED=1 NEXT_PUBLIC_AUTH_BASE_URL= NEXT_PUBLIC_API_BASE_URL= NEXT_PUBLIC_STREAM_BASE_URL= \
-      API_PROXY_TARGET="http://127.0.0.1:${API_PORT}" AUTH_PROXY_TARGET="http://127.0.0.1:${WORKER_PORT}" NEXT_TELEMETRY_DISABLED=1 \
+      API_PROXY_TARGET="http://127.0.0.1:${API_PORT}" FILE_PROXY_TARGET="http://127.0.0.1:${API_PORT}" AUTH_PROXY_TARGET="http://127.0.0.1:${WORKER_PORT}" NEXT_TELEMETRY_DISABLED=1 \
       nohup npx next dev -H 0.0.0.0 -p "$WEB_PORT" >"$STATE/web.log" 2>&1 </dev/null 9>&- &
     echo $! >"$(pid_file web)"
   )

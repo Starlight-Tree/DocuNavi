@@ -1,4 +1,5 @@
 import type { ChunkItem, DocumentSummary } from '../api/documents';
+import { pdfFileName } from '../lib/pdfFileName';
 import { formatPages } from '../lib/sources';
 
 const STATUS_LABELS: Record<string, string> = { ready: '取り込み済み', failed: '取り込み失敗' };
@@ -42,13 +43,11 @@ export function displayName(document: DocumentSummary): string {
 }
 
 /**
- * PDF を保存するときのファイル名。資料名（題名。無ければ元のファイル名の末尾）に `.pdf` を付ける。
- * ファイル名に使えない文字（/ \ : * ? " < > |）は「_」にする。日本語はそのまま。
+ * PDF を保存するときのファイル名。資料名（題名。無ければ元のファイル名の末尾）に `.pdf` を付ける（規則は `lib/pdfFileName.ts`。
+ * 中継の Route Handler も同じ規則で整え直す）。
  */
 export function pdfDownloadName(document: DocumentSummary): string {
-  const base = document.title ?? document.source.split('/').pop() ?? document.source;
-  const safe = base.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim().replace(/\.pdf$/i, '');
-  return `${safe || 'document'}.pdf`;
+  return pdfFileName(document.title ?? document.source.split('/').pop() ?? document.source);
 }
 
 /** `showFile` を false にすると、ファイル名を出さない（一覧は、同じ題名の資料を見分けるときだけ出す）。 */

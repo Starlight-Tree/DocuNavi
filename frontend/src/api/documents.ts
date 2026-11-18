@@ -192,21 +192,11 @@ export async function fetchDocumentChunks(
 }
 
 /**
- * PDF（GET /documents/{id}/file）。認証付きの fetch で取り、Blob で返す（<iframe src> は Authorization を送れない）。
- * 404（ファイルが無い）と 409（内容が DB と違う）は、サーバーの文言ではなく「PDFは利用できません」にする。
+ * iframe に渡す PDF の URL。<iframe src> は Authorization を送れないので、認証ありの構成では、同じオリジンの中継
+ * （frontend の app/api/documents/{id}/file。Cookie から取った JWT で API を呼ぶ。ADR 0013）を指す。`name` は保存名の元（中継が整えて
+ * Content-Disposition にする）。認証なしの構成（`useRelay` が false）は、API をそのまま指す（認証が要らないので iframe が読める。保存名は API が決める）。
  */
-export async function fetchDocumentPdf(fetcher: Fetcher, id: number, signal?: AbortSignal): Promise<Blob> {
-  const init: RequestInit = { headers: { Accept: 'application/pdf' } };
-  if (signal) init.signal = signal;
-  let response: Response;
-  try {
-    response = await fetcher(endpoint(`/documents/${id}/file`), init);
-  } catch (error) {
-    if (error instanceof ChatApiError && (error.status === 404 || error.status === 409)) {
-      throw new ChatApiError(error.status, MSG_PDF_UNAVAILABLE);
-    }
-    throw error;
-  }
-  if (!(response.headers.get('Content-Type') ?? '').includes('application/pdf')) throw bad(response.status);
-  return response.blob();
+export function documentPdfUrl(id: number, name: string, useRelay: boolean): string {
+  if (!useRelay) return endpoint(`/documents/${id}/file`);
+  return `/api/documents/${id}/file?name=${encodeURIComponent(name)}`;
 }

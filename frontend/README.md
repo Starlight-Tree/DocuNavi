@@ -78,6 +78,7 @@ UI_MOCK=1 npm run dev        # http://localhost:3000/mock（?view=documents で�
 | `NEXT_PUBLIC_API_BASE_URL` | 空（相対 URL） | API のベース URL。**ビルド時に埋め込まれる**。本番（Worker）では、ビルドに使う `deploy-web.sh` が Cloud Run の URL を埋め込む。バックエンドの `CORS_ORIGINS` に、画面のオリジン（`docunavi-web.wataru-apps.workers.dev`）を入れる |
 | `NEXT_PUBLIC_STREAM_BASE_URL` | 空（`NEXT_PUBLIC_API_BASE_URL` を使う） | `/chat/stream` だけの接続先（Go の SSE 中継 [ops/sse-relay](../ops/sse-relay/README.md)）。**ビルド時に埋め込まれる**ので、変えるには再ビルド（再デプロイ）が要る。空に戻すと中継を通さない。ほかのエンドポイントは変わらない |
 | `API_PROXY_TARGET` | 未設定（転送しない） | 開発サーバーが API のパスを転送する先。**ビルド時に決まる**。`NEXT_PUBLIC_API_BASE_URL` を空にするときに使う |
+| `FILE_PROXY_TARGET` | 未設定（PDF の中継は 404） | 認証ありの構成で、PDF の中継（`/api/documents/{id}/file`。保存名を資料名にするため）が API を呼ぶ先。**ビルド時に決まる**。`API_PROXY_TARGET` とは別（そちらは rewrites を有効にする） |
 | `NEXT_PUBLIC_AUTH_ENABLED` / `NEXT_PUBLIC_AUTH_BASE_URL` | 空 | `1` か `true` で Google ログイン（Better Auth）を使う。**ビルド時に埋め込まれる**。認証の API は同じオリジンの `/api/auth/*`（`AUTH_PROXY_TARGET` の先へ中継）。`NEXT_PUBLIC_AUTH_BASE_URL` はテスト用の上書き |
 | `NEXT_DIST_DIR` | `.next` | ビルドの出力先。E2E が、認証なし・認証ありの 2 つのビルドを別のフォルダーに作るための切り替え |
 

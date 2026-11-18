@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { MSG_PDF_UNAVAILABLE } from '../api/documents';
+import { MSG_PDF_UNAVAILABLE, documentPdfUrl } from '../api/documents';
 import type { DocumentSummary } from '../api/documents';
 import { GRAPH_SOURCE } from '../api/graph';
-import { useDocumentChunks, useDocumentPdf } from '../hooks/useDocuments';
+import { useAuth } from '../auth/AuthContext';
+import { useDocumentChunks } from '../hooks/useDocuments';
 import { takePendingFocus, usePanelCiteSeq, usePanelCitationMiss, usePanelOpenSeq, usePanelSpan } from '../lib/panelSignal';
 import { locateSpan } from '../lib/sources';
 import type { DetailView } from '../lib/urlState';
@@ -17,21 +18,18 @@ export const MSG_EXTRACTED = 'PDFから抽出したテキストです。レイ�
 export const MSG_CITE_MISS = '出典の箇所を特定できなかったため、強調は付けていません。資料全体を読めます。';
 export const MSG_EXTRACTED_OTHER = '資料から抽出したテキストです。';
 
-type PdfState = ReturnType<typeof useDocumentPdf>[0];
-
 /**
- * PDF。ブラウザー内蔵の PDF 表示（iframe）に、認証付きで取った PDF の Blob URL を渡す。
- * PDF の取得はパネル本体が持つ（ヘッダーのダウンロードのアイコンも同じ Blob URL を使うため）。
+ * PDF。ブラウザー内蔵の PDF 表示（iframe）に、同じオリジンの URL を渡す（保存ボタンの名前が資料名になる。ADR 0013）。
+ * 失敗したときの表示は、中継が返す固定の HTML（iframe の中）。事前に `original_pdf` を確かめてから出すので、通常は届かない。
  */
-function OriginalPdf({ document, pdf, onRetry, page, cite }: { document: DocumentSummary; pdf: PdfState; onRetry: () => void; page: number | null; cite: number }) {
-  if (pdf.status !== 'ready') return <Status state={pdf} onRetry={onRetry} />;
+function OriginalPdf({ document, url, page, cite }: { document: DocumentSummary; url: string; page: number | null; cite: number }) {
   // ページの指定（#page=N）は、ブラウザー内蔵のビューアが読む。ページが変わったとき・出典を押し直したときだけ、
-  // iframe を作り直して確実に飛ばす（作り直しても Blob URL は取り直さない）。ほかの切り替えでは作り直さず、見ている位置を保つ
+  // iframe を作り直して確実に飛ばす。ほかの切り替えでは作り直さず、見ている位置を保つ
   return (
     <iframe
       key={`${page ?? 'top'}:${cite}`}
       className="pdf-frame"
-      src={page === null ? pdf.data.url : `${pdf.data.url}#page=${page}`}
+      src={page === null ? url : `${url}#page=${page}`}
       title={`${displayName(document)} の PDF`}
     />
   );
@@ -76,8 +74,9 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
   const [seen, setSeen] = useState<ReadonlySet<DetailView>>(new Set());
   if (state.status === 'ready' && !seen.has(mode)) setSeen(new Set(seen).add(mode));
 
-  // PDF は、初めて「PDF」を開くまで取らない。取ったあとは、表示が切り替わっても持ち続ける
-  const [pdf, reloadPdf] = useDocumentPdf(originalPdf && seen.has('pdf') ? document.id : null);
+  // PDF の URL。認証ありの構成は同じオリジンの中継、認証なしの構成は API を直接指す
+  const { client } = useAuth();
+  const pdfUrl = documentPdfUrl(document.id, pdfDownloadName(document), client !== null);
 
   // 利用者の操作で開いたときは、パネルへフォーカスを移す（戻る・進む・再読み込みで開いたときは動かさない）
   useEffect(() => {
@@ -119,10 +118,9 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
           <DocumentName document={document} showFile={false} />
         </h2>
         <span className="ws-panel-tools">
-          {mode === 'pdf' && pdf.status === 'ready' && (
-            // 内蔵ビューアの保存は Blob URL の ID が名前になる。ここは、資料名（題名）で保存する
-            // （取得済みの Blob をそのまま使う。追加の通信も権限の確認も増えない）
-            <a className="ws-icon-btn" href={pdf.data.url} download={pdfDownloadName(document)} aria-label="PDF をダウンロード" title="PDF をダウンロード（資料名で保存）">
+          {mode === 'pdf' && originalPdf && (
+            // 押すたびに、中継から PDF を 1 回取る（権限は API がそのつど確かめる）。保存名は資料名（題名）
+            <a className="ws-icon-btn" href={pdfUrl} download={pdfDownloadName(document)} aria-label="PDF をダウンロード" title="PDF をダウンロード（資料名で保存）">
               <DownloadIcon />
             </a>
           )}
@@ -166,7 +164,7 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
 
           {originalPdf && seen.has('pdf') && (
             <div className="ws-view-body" hidden={mode !== 'pdf'}>
-              <OriginalPdf document={document} pdf={pdf} onRetry={reloadPdf} page={page} cite={cite} />
+              <OriginalPdf document={document} url={pdfUrl} page={page} cite={cite} />
             </div>
           )}
           {hasGraph && seen.has('graph') && (

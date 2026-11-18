@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { openKnowledge, goChat } from './test/navigation';
 import { AuthProvider } from './auth/AuthContext';
@@ -472,37 +472,11 @@ describe('資料一覧: PDF', () => {
     configured: true,
     documents: [summary(1, 'tsubasa_dorm_rules.pdf', 1, 1, { title: 'つばさ大学学生寮 入寮規程' })],
   };
-  const PDF_BYTES = '%PDF-1.4 test';
-  const pdfResponse = () =>
-    new Response(new Blob([PDF_BYTES], { type: 'application/pdf' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/pdf' },
-    });
-
-  const createObjectURL = vi.fn<(blob: Blob) => string>();
-  const revokeObjectURL = vi.fn<(url: string) => void>();
-
-  // jsdom には Blob URL が無い。偽物は、このブロックの間ずっと入れておく（テストごとに外すと、外してから次のテストが
-  // 入れ直すまでの隙間に、前の画面の PDF 取得が終わって、Node の本物の URL.createObjectURL が jsdom の Blob を受けて落ちうる）
-  beforeAll(() => {
-    Object.assign(URL, { createObjectURL, revokeObjectURL });
-  });
-  beforeEach(() => {
-    let n = 0;
-    createObjectURL.mockReset().mockImplementation(() => `blob:test/${++n}`);
-    revokeObjectURL.mockReset();
-  });
-  afterAll(() => {
-    Reflect.deleteProperty(URL, 'createObjectURL');
-    Reflect.deleteProperty(URL, 'revokeObjectURL');
-  });
-
-  function routes(original: unknown = true, file: (call: number) => Response | Promise<Response> = pdfResponse) {
-    let fileCalls = 0;
+  // 画面は PDF を fetch しない（iframe の URL に渡すだけ）。/file が取りに来られたら、テストが落ちる
+  function routes(original: unknown = true) {
     return (url: string) => {
       if (url === '/documents') return jsonResponse(TITLED_LIST);
       if (url.endsWith('/chunks')) return jsonResponse(DETAIL(original));
-      if (url.endsWith('/file')) return file(++fileCalls);
       throw new Error(`想定外の取得: ${url}`);
     };
   }
@@ -512,61 +486,58 @@ describe('資料一覧: PDF', () => {
     await user.click(await screen.findByRole('button', { name: 'つばさ大学学生寮 入寮規程 を開く' }));
   }
 
-  it('PDFがあれば、PDFを先に表示する（Blob URL を iframe に渡し、抽出テキストは読み込まない）', async () => {
+  const SAVE_NAME = encodeURIComponent('つばさ大学学生寮 入寮規程.pdf');
+
+  it('PDFがあれば、PDFを先に表示する（iframe に URL を渡す。PDF は画面が fetch せず、抽出テキストは読み込まない）', async () => {
     const { calls } = installDocsFetch(routes());
-    const { user } = setup();
+    const { user } = setup(null);
 
     await openFirst(user);
 
     const frame = await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
-    expect(frame).toHaveAttribute('src', 'blob:test/1');
+    expect(frame).toHaveAttribute('src', '/documents/1/file'); // 認証なしの構成は、API をそのまま指す
     expect(frame).toBeVisible();
     expect(screen.getByRole('button', { name: 'PDF' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: '抽出テキスト' })).toHaveAttribute('aria-pressed', 'false');
     expect((await panel()).queryByRole('listitem')).not.toBeInTheDocument();
-    expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks', '/documents/1/file']);
-    expect(new Headers(calls[2]!.init.headers).get('Accept')).toBe('application/pdf');
-    const blob = createObjectURL.mock.calls[0]![0];
-    expect(blob.type).toBe('application/pdf');
-    expect(blob.size).toBe(PDF_BYTES.length);
+    expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
   });
 
-  it('「抽出テキスト」に切り替えるとチャンクが出て、「PDF」に戻すと PDF を取り直さずに同じ表示へ戻る', async () => {
+  it('ログイン中は、同じオリジンの中継を指し、保存名の元（資料名）を ?name= で渡す。アイコンも同じ URL', async () => {
     const { calls } = installDocsFetch(routes());
-    const { user } = setup();
+    const { user } = setup(fakeAuth());
+
     await openFirst(user);
-    await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
+
+    const frame = await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
+    expect(frame).toHaveAttribute('src', `/api/documents/1/file?name=${SAVE_NAME}`);
+    const link = await (await panel()).findByRole('link', { name: 'PDF をダウンロード' });
+    expect(link).toHaveAttribute('href', `/api/documents/1/file?name=${SAVE_NAME}`);
+    expect(link).toHaveAttribute('download', 'つばさ大学学生寮 入寮規程.pdf');
+    // トークンは中継が Cookie から取る。画面は PDF のために fetch もトークンの更新もしない
+    expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
+  });
+
+  it('「抽出テキスト」に切り替えるとチャンクが出て、「PDF」に戻すと同じ iframe が見える（作り直さない）', async () => {
+    installDocsFetch(routes());
+    const { user } = setup(null);
+    await openFirst(user);
+    const frame = await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
 
     await user.click(screen.getByRole('button', { name: '抽出テキスト' }));
 
     expect(await (await panel()).findAllByRole('listitem')).toHaveLength(1);
     expect(screen.getByRole('button', { name: '抽出テキスト' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTitle('つばさ大学学生寮 入寮規程 の PDF')).not.toBeVisible();
+    expect(frame).not.toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'PDF' }));
 
     expect((await panel()).queryByRole('listitem')).not.toBeInTheDocument();
-    expect(screen.getByTitle('つばさ大学学生寮 入寮規程 の PDF')).toBeVisible();
-    expect(calls.filter((c) => c.url.endsWith('/file'))).toHaveLength(1);
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(screen.getByTitle('つばさ大学学生寮 入寮規程 の PDF')).toBe(frame);
+    expect(frame).toBeVisible();
   });
 
-  it('Blob URL は表示中は解放せず、パネルを閉じるときに解放する', async () => {
-    installDocsFetch(routes());
-    const { user } = setup();
-    await openFirst(user);
-    await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
-    await user.click(screen.getByRole('button', { name: '抽出テキスト' }));
-    await user.click(screen.getByRole('button', { name: 'PDF' }));
-    expect(revokeObjectURL).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole('button', { name: 'パネルを閉じる' }));
-
-    expect(revokeObjectURL).toHaveBeenCalledTimes(1);
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:test/1');
-  });
-
-  it('PDFが無い資料は、切り替えを出さず「PDFは利用できません」と示し、抽出テキストを出す（PDF は取りに行かない）', async () => {
+  it('PDFが無い資料は、切り替えを出さず「PDFは利用できません」と示し、抽出テキストを出す（iframe も出さない）', async () => {
     const { calls } = installDocsFetch(routes(false));
     const { user } = setup();
 
@@ -576,8 +547,8 @@ describe('資料一覧: PDF', () => {
     expect(screen.getByText('PDFは利用できません。')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument();
     expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument();
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
-    expect(createObjectURL).not.toHaveBeenCalled();
   });
 
   it('original_pdf の項目が無い応答（古いサーバー）は、PDFなしとして読む', async () => {
@@ -598,77 +569,6 @@ describe('資料一覧: PDF', () => {
 
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
-  });
-
-  it('PDF が取れなかった（404/409）ときは「PDFは利用できません」と再試行を出し、抽出テキストへ切り替えて読める', async () => {
-    installDocsFetch(routes(true, () => errorResponse(409, 'PDF が、DB に保存された資料と一致しません。')));
-    const { user } = setup();
-
-    await openFirst(user);
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('PDFは利用できません。');
-    expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '再試行' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '抽出テキスト' }));
-
-    expect(await (await panel()).findAllByRole('listitem')).toHaveLength(1);
-  });
-
-  it('PDF の取得に失敗しても、再試行で取り直せる', async () => {
-    installDocsFetch(
-      routes(true, (call) =>
-        call === 1 ? errorResponse(503, '資料を取得できませんでした。しばらく待ってから再試行してください。') : pdfResponse(),
-      ),
-    );
-    const { user } = setup();
-    await openFirst(user);
-    expect(await screen.findByRole('alert')).toHaveTextContent('資料を取得できませんでした');
-
-    await user.click(screen.getByRole('button', { name: '再試行' }));
-
-    expect(await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF')).toHaveAttribute('src', 'blob:test/1');
-  });
-
-  it('PDF ではない本文が 200 で返っても、表示しない（想定外の応答）', async () => {
-    installDocsFetch(routes(true, () => jsonResponse({ detail: 'x' })));
-    const { user } = setup();
-
-    await openFirst(user);
-
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
-    expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
-    expect(createObjectURL).not.toHaveBeenCalled();
-  });
-
-  it('ログイン中は、PDF の取得にもトークンを付ける（401 なら 1 回更新して送り直す）', async () => {
-    const auth = fakeAuth();
-    const { calls } = installDocsFetch(
-      routes(true, (call) =>
-        call === 1 ? errorResponse(401, 'ログインが必要です。ログインし直してください。') : pdfResponse(),
-      ),
-    );
-    const { user } = setup(auth);
-
-    await openFirst(user);
-
-    await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
-    const files = calls.filter((c) => c.url.endsWith('/file'));
-    expect(files).toHaveLength(2);
-    expect(new Headers(files[0]!.init.headers).get('Authorization')).toBe('Bearer tok-1');
-    expect(new Headers(files[1]!.init.headers).get('Authorization')).toBe('Bearer tok-2');
-    expect(auth.refreshAccessToken).toHaveBeenCalledTimes(1);
-  });
-
-  it('ログインを使わない構成では、PDF の取得にトークンを付けない', async () => {
-    const { calls } = installDocsFetch(routes());
-    const { user } = setup(null);
-
-    await openFirst(user);
-
-    await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
-    const file = calls.find((c) => c.url.endsWith('/file'))!;
-    expect(new Headers(file.init.headers).get('Authorization')).toBeNull();
   });
 });
 

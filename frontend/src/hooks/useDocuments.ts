@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { fetchDocumentChunks, fetchDocumentPdf, fetchDocuments } from '../api/documents';
+import { useCallback } from 'react';
+import { fetchDocumentChunks, fetchDocuments } from '../api/documents';
 import type { DocumentDetail, DocumentList } from '../api/documents';
 import { fetchImpact, fetchRelationGraph } from '../api/graph';
 import type { Impact, RelationGraph } from '../api/graph';
@@ -24,33 +24,6 @@ export function useDocumentChunks(id: number | null): [Loaded<DocumentDetail>, (
     [fetcher, id],
   );
   return useLoaded(id === null ? null : load);
-}
-
-/**
- * PDF（GET /documents/{id}/file）を取って、表示用の Blob URL にする。id が null の間は何も取らない。
- * Blob URL は、PDF を取り直すとき・画面を離れるときに解放する（読み込み直後には解放しない。表示中のものが読めなくなる）。
- */
-export function useDocumentPdf(id: number | null): [Loaded<{ url: string }>, () => void] {
-  const fetcher = useAuthedJsonFetch();
-  const load = useCallback((signal: AbortSignal) => fetchDocumentPdf(fetcher, id as number, signal), [fetcher, id]);
-  const [state, reload] = useLoaded(id === null ? null : load);
-  const blob = state.status === 'ready' ? state.data : null;
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!blob) {
-      setUrl(null);
-      return;
-    }
-    const created = URL.createObjectURL(blob);
-    setUrl(created);
-    return () => URL.revokeObjectURL(created);
-  }, [blob]);
-
-  if (state.status === 'ready') {
-    return [url ? { status: 'ready', data: { url } } : { status: 'loading' }, reload];
-  }
-  return [state, reload];
 }
 
 /** 入寮規程の関係図（GET /documents/{id}/graph）。 */

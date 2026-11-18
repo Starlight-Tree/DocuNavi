@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 import type { DocumentSummary } from './api/documents';
 import { pdfDownloadName } from './components/documentDisplay';
@@ -66,7 +66,6 @@ const SOURCES = [
 ];
 
 let files: string[];
-let urlCount: number;
 
 /** `install` に渡すと、サーバーが出典のページを送らない（古い応答）。 */
 const NO_SOURCES = Symbol('no sources');
@@ -83,31 +82,16 @@ function install({ sources = SOURCES, list = LIST, context = CONTEXT }: { source
       if (url.endsWith('/doc-types')) return jsonResponse({ configured: false, doc_types: [] });
       if (url.includes('/chat/stream')) return replyResponse({ reply: '2 月 28 日までです。', context, sources: sources === NO_SOURCES ? undefined : sources });
       if (url === '/documents') return jsonResponse(list);
+      // 画面は PDF を fetch しない（iframe の URL に渡すだけ）。取りに来たら、files に残して、テストが落ちる
       if (url.endsWith('/file')) {
         files.push(url);
-        return new Response(new Blob(['%PDF-1.4'], { type: 'application/pdf' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/pdf' },
-        });
+        return new Response('unexpected', { status: 500 });
       }
       const detail = DETAIL[url];
       return detail ? jsonResponse(detail) : new Response('not found', { status: 404 });
     }),
   );
 }
-
-// 偽物は、ファイルの間ずっと入れておく。テストごとに外すと、外してから次のテストが入れ直すまでの隙間に、前の画面の
-// PDF 取得が終わって effect が走り、Node の本物の URL.createObjectURL が jsdom の Blob を受けて落ちる（負荷が高いと出る）
-beforeAll(() => {
-  Object.assign(URL, { createObjectURL: () => `blob:test/${++urlCount}`, revokeObjectURL: () => {} });
-});
-beforeEach(() => {
-  urlCount = 0;
-});
-afterAll(() => {
-  Reflect.deleteProperty(URL, 'createObjectURL');
-  Reflect.deleteProperty(URL, 'revokeObjectURL');
-});
 
 type User = ReturnType<typeof userEvent.setup>;
 
@@ -164,8 +148,8 @@ describe('出典を押して右のパネルを開く', () => {
 
     await user.click(panel.getByRole('button', { name: 'PDF' }));
 
-    expect(await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF')).toHaveAttribute('src', 'blob:test/1#page=3');
-    expect(files).toEqual(['/documents/7/file']);
+    expect(await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF')).toHaveAttribute('src', '/documents/7/file#page=3');
+    expect(files).toEqual([]);
   });
 
   it('出典がページを持たないときは、ページを推測せず、「PDF」は先頭から開く', async () => {
@@ -178,10 +162,10 @@ describe('出典を押して右のパネルを開く', () => {
     expect(window.location.search).toBe('?tab=chat&doc=7&view=text&chunk=1');
     await user.click(panel.getByRole('button', { name: 'PDF' }));
 
-    expect(await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF')).toHaveAttribute('src', 'blob:test/1');
+    expect(await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF')).toHaveAttribute('src', '/documents/7/file');
   });
 
-  it('同じ資料の中で表示を切り替えても、PDF は取り直さず作り直さない（見ている位置を保つ）', async () => {
+  it('同じ資料の中で表示を切り替えても、iframe は作り直さない（見ている位置を保つ）', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
@@ -196,7 +180,7 @@ describe('出典を押して右のパネルを開く', () => {
 
     expect(pdfFrame()).toBe(frame);
     expect(frame).toBeVisible();
-    expect(files).toHaveLength(1);
+    expect(files).toEqual([]);
   });
 
   it('別の出典を押したら、保持中の位置より新しい出典の位置を優先する（同じ出典を押し直しても、その位置へ戻す）', async () => {
@@ -207,39 +191,38 @@ describe('出典を押して右のパネルを開く', () => {
     const panel = await openCitation(user, 1);
     await user.click(panel.getByRole('button', { name: 'PDF' }));
     const first = await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF');
-    expect(first).toHaveAttribute('src', 'blob:test/1#page=3');
+    expect(first).toHaveAttribute('src', '/documents/7/file#page=3');
 
     await user.click((await chips())[0]!);
 
     await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=1&chunk=0'));
     await user.click(panel.getByRole('button', { name: 'PDF' }));
     const second = pdfFrame();
-    expect(second).toHaveAttribute('src', 'blob:test/1#page=1');
+    expect(second).toHaveAttribute('src', '/documents/7/file#page=1');
     expect(second).not.toBe(first);
 
     // 同じ出典を押し直すと、PDF の位置は出典のページへ戻る（作り直す）
     await user.click(panel.getByRole('button', { name: '抽出テキスト' }));
     await user.click((await chips())[0]!);
     await waitFor(() => expect(pdfFrame()).not.toBe(second));
-    expect(pdfFrame()).toHaveAttribute('src', 'blob:test/1#page=1');
-    expect(files).toHaveLength(1); // PDF そのものは取り直さない
+    expect(pdfFrame()).toHaveAttribute('src', '/documents/7/file#page=1');
+    expect(files).toEqual([]);
   });
 
-  it('PDF を開くと、ヘッダーに「PDF をダウンロード」のアイコンが出る。取得済みの Blob を、資料名で保存する（内蔵ビューアの保存名は Blob の ID になる）', async () => {
+  it('PDF を開くと、ヘッダーに「PDF をダウンロード」のアイコンが出る。資料名で保存する（URL は iframe と同じ）', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
     const panel = await openCitation(user, 1);
-    expect(panel.queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument(); // 抽出テキストのあいだは出さない（PDF を開くまで取らない）
-    expect(files).toHaveLength(0);
+    expect(panel.queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument(); // 抽出テキストのあいだは出さない（PDF を開くまで出さない）
 
     await user.click(panel.getByRole('button', { name: 'PDF' }));
 
     const link = await panel.findByRole('link', { name: 'PDF をダウンロード' });
-    expect(link).toHaveAttribute('href', 'blob:test/1');
+    expect(link).toHaveAttribute('href', '/documents/7/file');
     expect(link).toHaveAttribute('download', 'tsubasa_dorm_rules.pdf');
-    expect(files).toHaveLength(1); // 取り直さない
+    expect(files).toEqual([]);
   });
 
   it('ダウンロード名は資料名（題名）。階層つきのソースでも、ファイル名に使えない文字は「_」にして、日本語は保つ', () => {
@@ -274,7 +257,7 @@ describe('出典を押して右のパネルを開く', () => {
 });
 
 describe('パネルの拡大・縮小', () => {
-  it('CSS だけで広げる。同じ要素のまま、会話・未送信の文・PDF を作り直さない', async () => {
+  it('CSS だけで広げる。同じ要素のまま、会話・未送信の文・PDF の iframe を作り直さない', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
@@ -300,7 +283,7 @@ describe('パネルの拡大・縮小', () => {
     expect(aside).not.toHaveClass('ws-panel-expanded');
     expect(document.querySelector('.ws-main')).not.toHaveAttribute('inert');
     expect(pdfFrame()).toBe(frame);
-    expect(files).toHaveLength(1);
+    expect(files).toEqual([]);
     expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveValue('書きかけ');
   });
 

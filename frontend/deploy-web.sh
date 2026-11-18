@@ -9,6 +9,8 @@ export NEXT_PUBLIC_API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL:-https://docunavi-xe
 export NEXT_PUBLIC_STREAM_BASE_URL="${NEXT_PUBLIC_STREAM_BASE_URL:-https://docunavi-sse-relay-xe42miq4da-an.a.run.app}"
 # /api/auth/* を中継する先（データ用 Worker）
 export AUTH_PROXY_TARGET="${AUTH_PROXY_TARGET:-https://docunavi-api.wataru-apps.workers.dev}"
+# PDF の中継（/api/documents/*/file）が API を呼ぶ先（Cloud Run の API。NEXT_PUBLIC_API_BASE_URL と同じ値）
+export FILE_PROXY_TARGET="${FILE_PROXY_TARGET:-$NEXT_PUBLIC_API_BASE_URL}"
 npm ci --no-audit --no-fund --ignore-scripts
 if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then node_modules/.bin/wrangler whoami >/dev/null 2>&1 || node_modules/.bin/wrangler login; fi
 npm run build:cf
