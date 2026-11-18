@@ -102,18 +102,26 @@ check_vars() {
 }
 
 # --- Infisical（docunavi-local・dev・/）---------------------------------------------------------------------------------
-# ログイン済みのユーザーの権限で、プロジェクトを名前から探す（マシン ID の権限は使わない・広げない）。トークンは環境変数でだけ渡し、表示しない。
+# 読み取り（id / pull / llmkey）は、マシン ID（読み取り専用）→ ユーザーのログインの順に使う（2026-11-18 に変更。以前はユーザーのログインだけ）。書き込み（register 系の secrets set）はユーザーのログインだけ。トークンは環境変数でだけ渡し、表示しない。
 #   MODE=id   プロジェクト ID を標準出力に出す
 #   MODE=pull REQUIRED の 6 個を取り、OUT に権限 600 で書く（同じディレクトリの一時ファイルから置き換える。値は標準出力・標準エラーに出さない）
 #   MODE=llmkey GEMINI_API_KEY の値だけを標準出力に出す（呼び出し側が変数に受け、表示しない。無い・不正なら、理由を出して終了コード 1。何も書かない）
 infisical_py() {
-  local tok
+  local tok kind="マシン ID"
   command -v infisical >/dev/null 2>&1 || die "infisical コマンドがありません。"
+  # 読み取りは、まず開発コンテナのマシン ID（~/.infisical/identity。docunavi-local の Viewer＝読み取り専用）で取る。無いとき・失敗したときだけ、ユーザーのログインに戻る。
+  # 資格情報は環境変数でだけ渡す（コマンドラインに出さない）。サブシェルの中で読み込むので、このシェルには残らない。
+  tok=""
+  if [ -r "$HOME/.infisical/identity" ]; then
+    # 標準エラーはグループ全体で捨てる（identity が壊れていたときの断片や、bash -x の追跡に Client Secret が出ないように）
+    tok="$({ set -a; . "$HOME/.infisical/identity"; set +a; infisical login --method=universal-auth --plain --silent </dev/null; } 2>/dev/null)" || tok=""
+    case "$tok" in *[!A-Za-z0-9._-]*) tok="" ;; esac
+  fi
   # 未ログインのとき、CLI は終了コード 1 で、対話の選択画面の文字を標準出力に出す。終了コードと、トークンの文字種（英数字と . _ -）の両方で見分ける
-  tok="$(infisical user get token --plain --silent </dev/null 2>/dev/null)" || tok=""
-  case "$tok" in "" | *[!A-Za-z0-9._-]*) die "Infisical のユーザーログインがありません（または期限切れです）。開発コンテナの端末（vscode ユーザー）で infisical login を実行してください（ブラウザーでの承認が要ります）。" ;; esac
+  [ -n "$tok" ] || { tok="$(infisical user get token --plain --silent </dev/null 2>/dev/null)" || tok=""; kind="ユーザーのログイン"; }
+  case "$tok" in "" | *[!A-Za-z0-9._-]*) die "Infisical の資格情報がありません。マシン ID（~/.infisical/identity）が無いか失敗し、ユーザーログインもありません（または期限切れです）。開発コンテナの端末（vscode ユーザー）でマシン ID を置くか infisical login を実行してください（ブラウザーでの承認が要ります）。" ;; esac
   [ -n "$INFISICAL_PROJECT_ID" ] || die "INFISICAL_PROJECT_ID_LOCAL がありません。.dev-local/infisical-ids.env に書くか、環境変数で渡してください（docs/development.md の「Infisical のプロジェクト ID」）。"
-  INF_TOKEN="$tok" PROJECT_NAME="$INFISICAL_PROJECT_NAME" PROJECT_ID="$INFISICAL_PROJECT_ID" INF_ENV="$INFISICAL_ENV" REQUIRED="$REQUIRED_VARS" OUT="$DEV_VARS" MODE="$1" python3 -I - <<'PY'
+  INF_TOKEN="$tok" INF_AUTH="$kind" PROJECT_NAME="$INFISICAL_PROJECT_NAME" PROJECT_ID="$INFISICAL_PROJECT_ID" INF_ENV="$INFISICAL_ENV" REQUIRED="$REQUIRED_VARS" OUT="$DEV_VARS" MODE="$1" python3 -I - <<'PY'
 import json, os, sys, urllib.error, urllib.parse, urllib.request
 
 B = "https://app.infisical.com"
@@ -130,7 +138,12 @@ def get(path):
         return json.load(urllib.request.urlopen(req, timeout=20))
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
-            die(f"Infisical に拒否されました（HTTP {e.code}）。infisical login をやり直してください（プロジェクト {os.environ['PROJECT_NAME']} の権限も確認）。")
+            hint = (
+                "マシン ID（~/.infisical/identity）の権限と Client Secret の期限（TTL 30 日）を確認してください（Infisical の docunavi-local に Viewer で入っているか）。"
+                if os.environ["INF_AUTH"] == "マシン ID"
+                else "infisical login をやり直してください。"
+            )
+            die(f"Infisical に拒否されました（HTTP {e.code}。認証: {os.environ['INF_AUTH']}）。{hint}（プロジェクト {os.environ['PROJECT_NAME']} の権限も確認）")
         die(f"Infisical の応答が不正です（HTTP {e.code}）。")
     except Exception as e:  # 通信の失敗。URL・トークンは出さない
         die(f"Infisical につながりません（{type(e).__name__}）。")
@@ -147,8 +160,8 @@ if not projects:
     org_names = [o.get("name") for o in orgs.get("organizations", [])] if isinstance(orgs, dict) else []
     same_name = [p["id"] for p in allp if p.get("name") == name]
     die(
-        f"Infisical のプロジェクト {name}（ID {want_id}）が、ログイン中のユーザーから見えません。\n"
-        f"  確認の順: 1) ログイン中の組織: {org_names or '取得できません'}（別のアカウント・組織でログインしていないか。infisical user get / infisical org）\n"
+        f"Infisical のプロジェクト {name}（ID {want_id}）が、認証（{os.environ['INF_AUTH']}）から見えません。\n"
+        f"  確認の順: 1) 認証が {os.environ['INF_AUTH']} のとき: マシン ID が docunavi-local に入っているか（Viewer）。ユーザーのログインのとき: ログイン中の組織 {org_names or '取得できません'}（別のアカウント・組織でログインしていないか。infisical user get / infisical org。マシン ID では組織の一覧は 403 になる）\n"
         f"  2) 見えているプロジェクト: {[p.get('name') for p in allp]}（同じ名前の別 ID: {same_name or 'なし'}）\n"
         f"  3) 環境 {env}・パス / ・自分の権限（プロジェクトの Members に自分がいるか）。\n"
         "  新しい登録・追加・ローテーションは、自動では行いません。理由と影響を示して、ユーザーの承認を得てください。"

@@ -26,7 +26,7 @@
 - **DB:** 既定は `docunavi`（ローカルの Postgres、`host.docker.internal:5433`）。別の DB は `LOCAL_DB_NAME`。
   **スキーマの適用・DB の作成・削除は、スクリプトがしません。** 新しい DB は `db/migrations/` の SQL を、`0001_schema.sql` から番号順に、手で 1 回ずつ適用します（`0002` 以降は、既存の DB にも足す）。
   資料を取り込んだあとに、`db/seeds/classification.sql` も手で 1 回流します（対象・資料種別の語彙と初期 6 資料の分類。何度流しても安全）。流さないと `/targets` が空になり、入力欄の回答対象のチップが押せなくなります（2026-11-15 に発生）。
-- **`workers/api/.dev.vars`**（Git 管理外）は手で書きません。正本は Infisical の `docunavi-local`（環境 `dev`、パス `/`）で、`start`（または `vars`）が、ログイン済みのユーザーの権限で取り、権限 600 で作り直します（取れないときは理由を出して止まる）。
+- **`workers/api/.dev.vars`**（Git 管理外）は手で書きません。正本は Infisical の `docunavi-local`（環境 `dev`、パス `/`）で、`start`（または `vars`）が、開発コンテナのマシン ID（`~/.infisical/identity`。このプロジェクトの Viewer＝読み取り専用）で取り（無い・失敗したときだけ、ログイン済みのユーザーの権限に戻る）、権限 600 で作り直します（取れないときは理由を出して止まる）。
   キーは 6 つ: `BETTER_AUTH_SECRET` `BETTER_AUTH_URL`（`http://localhost:3000`） `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` `TEST_LOGIN_EMAIL` `TEST_LOGIN_TOKEN`（ランダム 32 文字以上）。
 - **`jwks` の暗号鍵:** Better Auth の署名鍵は `BETTER_AUTH_SECRET` で暗号化して `jwks` に保存されます。DB に別の秘密で暗号化された行が残っていると、`/api/auth/token` が 500（Worker のログに `Failed to decrypt private key`）になります。その DB の `jwks` の行を消す（次のトークン発行で作り直される）か、別の DB を使います。
 - **ホストのブラウザーで会話の履歴を見る手順**（画面のログインは Google だけなので、テスト用ログインの Cookie を手で入れる）:
@@ -59,15 +59,15 @@
 
 ローカルの画面（3000）のログインは Google です。ダミーの値では Google の画面でエラーになります。
 
-- **保存先（正本は Infisical）:** `docunavi-local`（ID は環境変数 `INFISICAL_PROJECT_ID_LOCAL`）、環境 `dev`、パス `/`。取得は `bash scripts/dev-local.sh vars`（`start` も先頭で同じことをする）。マシン ID（Viewer）はこのプロジェクトに入れません。
+- **保存先（正本は Infisical）:** `docunavi-local`（ID は環境変数 `INFISICAL_PROJECT_ID_LOCAL`）、環境 `dev`、パス `/`。取得は `bash scripts/dev-local.sh vars`（`start` も先頭で同じことをする）。読み取りは、開発コンテナのマシン ID（Viewer。2026-11-18 に追加）を先に使い、書き込み（`register` 系）はユーザーのログインだけです。
 - **再利用:** ローカルの起動・再設定は、まず Infisical を参照し、**同じ Client ID と Secret を使い回します。毎回 Secret を追加しません。** Secret の追加・ローテーション・無効化は自動でせず、理由と影響を示してユーザーの承認を得ます。実値は文書・メモリー・Git に書きません。
 - **本番との共用（2026-11-11 にユーザーが決定）:** 本番とローカルは、同じ OAuth クライアント（`docunavi-app`）の同じ Secret を共用します。保存先はローカルが `docunavi-local`、本番が `docunavi-prod`（ID は `INFISICAL_PROJECT_ID_PROD`）/ `prod` / `/` の `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET`。実行環境は本番 Worker `docunavi-api` の Secret と、ローカルの `.dev.vars` です。
   漏れる・失効する・更新するときの影響は両方に及びます。**更新は、Infisical の 2 か所と、本番 Worker・ローカルの `.dev.vars` をそろえて行います**（順序: Google で新 Secret → 両方の Infisical → 本番 Worker `wrangler secret put` → ローカル `register --overwrite`。本番のログインを確認してから旧 Secret を消す）。承認なしに追加・ローテーションしません。
 - **初回の設定（済んでいれば不要）:**
   1. Google Cloud の OAuth クライアント（<https://console.cloud.google.com/apis/credentials?project=docunavi-app>。実機では未確認の URL）に、承認済みのリダイレクト URI `http://localhost:3000/api/auth/callback/google` と、JavaScript 生成元 `http://localhost:3000` を**追加**する（既存の値は消さない。2026-11-11 に追加済み）。同意画面が「テスト」状態なら、自分のアカウントをテストユーザーに追加する。
-  2. 登録（開発コンテナの端末、vscode ユーザー。`infisical login` 済み）: `bash scripts/dev-local.sh register`。Client ID と Secret は `read -rs` で受け（表示されない）、権限 600 の一時ファイルを `infisical secrets set --file` に渡します（成功・失敗のどちらでも消す）。登録後に取得し直して一致を確かめ、`.dev.vars` を作り直します。
+  2. 登録（開発コンテナの端末、vscode ユーザー。`infisical login` 済み。書き込みはマシン ID では行えない）: `bash scripts/dev-local.sh register`。Client ID と Secret は `read -rs` で受け（表示されない）、権限 600 の一時ファイルを `infisical secrets set --file` に渡します（成功・失敗のどちらでも消す）。登録後に取得し直して一致を確かめ、`.dev.vars` を作り直します。
   3. `bash scripts/dev-local.sh start` のあと、ブラウザーで `http://localhost:3000` → Google でログイン。ログイン後にローカル DB の `user` `account` に行ができることを確かめる。
-- **取れないときの確認順（「Secret が無い」と即断しない）:** `vars` は、取れないとき次の確認材料を値なしで出します。(1) ログイン中のアカウントと組織（`infisical user get`、`infisical org`） (2) プロジェクト ID が見えているか (3) 環境 `dev`・パス `/`・いま入っているキー名（読めないキーは出ない = 権限を疑う） (4) 自分の権限、`infisical login` の期限切れ。それでも無い場合に限り、承認を得てから追加・ローテーションを検討します。
+- **取れないときの確認順（「Secret が無い」と即断しない）:** `vars` は、取れないとき次の確認材料を値なしで出します。(1) 認証の種類（メッセージに「マシン ID」か「ユーザーのログイン」と出る）。マシン ID なら、`docunavi-local` に Viewer で入っているか、Client Secret の期限（TTL 30 日）。ユーザーのログインなら、ログイン中のアカウントと組織（`infisical user get`、`infisical org`） (2) プロジェクト ID が見えているか (3) 環境 `dev`・パス `/`・いま入っているキー名（読めないキーは出ない = 権限を疑う） (4) 自分の権限、`infisical login` の期限切れ（ユーザーのログインのとき）。それでも無い場合に限り、承認を得てから追加・ローテーションを検討します。
 - **確認の状況（2026-11-11）:** 保存値の取得し直しと一致、`start` での起動、Google ログイン（ローカル DB に `account`・`user`・`session` ができ、`/threads` が 200）を確認済みです。未確認: 本番の Cloudflare で使われている Secret が新しいものであること（読み出せない）、`user_roles` は空（ローカルは `ACCESS_MODE=off`）。
 
 ### 開発コンテナの停止と切り替え

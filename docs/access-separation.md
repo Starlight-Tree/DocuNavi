@@ -1,7 +1,7 @@
 # 権限と資格情報の分離
 
 プロジェクト（DocuNavi と、別の個人プロジェクト星庭ジョブ `HoshiniwaJob`）ごとに、資格情報と権限を分ける方針と、DocuNavi 側の現状です。
-**状態（2026-11-15）:** 読み取りで確認した対応関係（GCP は IAM と一覧、Infisical は開発コンテナのマシン ID から見える範囲）。確認していない項目は「未確認」と書きます。
+**状態（2026-11-15。Infisical の `docunavi-local` の行は 2026-11-18 に更新）:** 読み取りで確認した対応関係（GCP は IAM と一覧、Infisical は開発コンテナのマシン ID から見える範囲）。確認していない項目は「未確認」と書きます。
 星庭ジョブ側の実装と作成の手順は、星庭ジョブのリポジトリの `docs/access-separation.md` にあります。
 
 ## 方針
@@ -34,7 +34,7 @@
 
 | プロジェクト | 内容 | 誰が読むか |
 |---|---|---|
-| `docunavi-local`（環境 `dev`） | ローカル開発用の値（Gemini のキーなど） | 利用者のログインだけ（マシン ID は入れない） |
+| `docunavi-local`（環境 `dev`） | ローカル開発用の値（Gemini のキーなど） | 読み取り: 開発コンテナのマシン ID（Viewer。2026-11-18 にユーザーの承認で追加）とユーザーのログイン。書き込み: ユーザーのログインだけ |
 | `docunavi-deploy`（環境 `prod`） | Cloudflare の API トークンと ID（デプロイ用） | GitHub Actions の OIDC のマシン ID `github-actions-deploy`（Viewer）。開発コンテナのマシン ID は入れない |
 | `docunavi-prod` | 本番の認証用の値 | 利用者のログイン |
 | GitHub App 用のプロジェクト | App の ID と秘密鍵 | 利用者のログインだけ（GitHub MCP のヘルパーが読む） |
@@ -42,7 +42,7 @@
 | `workers-ai-trial`（環境 `dev`） | Cloudflare の API トークン、無料枠の Gemini のキー | 開発コンテナのマシン ID（Viewer） |
 | `playwright-auth`（環境 `dev`） | 実ユーザーのセッション用（ルートは空） | 開発コンテナのマシン ID（Viewer） |
 
-開発コンテナのマシン ID（`docunavi-devcontainer`と推定）は、上の最後の 3 つだけが見えます。`docunavi-deploy` などは見えません。
+開発コンテナのマシン ID（`docunavi-devcontainer`と推定）は、上の `docunavi-local`（2026-11-18 に追加）と、最後の 3 つだけが見えます。`docunavi-deploy` などは見えません。
 
 ### MCP
 
