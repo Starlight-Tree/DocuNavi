@@ -27,10 +27,13 @@ interface FacetSelectProps<T extends string> {
 
 /** ラベルと、いまの値を並べたチップ。押すと選択肢が開く（実体は select）。選ぶと強調する。 */
 function FacetSelect<T extends string>({ label, value, options, onSelect }: FacetSelectProps<T>) {
+  // 幅が足りないと値は「…」で省略されるので、全文はホバーで見せる
+  const current = options.find((o) => (o.value ?? '') === (value ?? ''));
   return (
     <label className="document-filter-chip" data-active={value !== null}>
       <span className="document-filter-label">{label}</span>
       <select
+        title={current ? `${current.label} (${current.count})` : undefined}
         value={value ?? ''}
         onChange={(event) => onSelect(options.find((o) => o.value === event.target.value)?.value ?? null)}
       >
@@ -46,7 +49,7 @@ function FacetSelect<T extends string>({ label, value, options, onSelect }: Face
 
 /**
  * 資料一覧の、検索・絞り込み・並び替えと、件数。状態は持たない（URL が持つ）。
- * 操作は、検索・対象・資料種別・並び替え（検索欄とチップを 1 行に並べる。幅が足りなければ折り返す）。状態・ページ数・更新の欄は持たない（URL で指定された条件は、チップで見せて外せる）。
+ * 操作は、検索・対象・資料種別・並び替え（検索欄とチップを 1 行に並べる。840px 以上は折り返さず、検索欄を先に縮め、値は「…」で省略する）。状態・ページ数・更新の欄は持たない（URL で指定された条件は、チップで見せて外せる）。
  * キーワードの入力欄だけ、日本語の変換中の文字が URL の往復で崩れないよう、手元の文字を持ち、URL が外から変わったときに合わせる。
  */
 export function DocumentFilterBar({ filter, options, onChange, onClear }: DocumentFilterBarProps) {
@@ -87,6 +90,7 @@ export function DocumentFilterBar({ filter, options, onChange, onClear }: Docume
         <label className="document-filter-chip" data-active={filter.sort !== 'default'}>
           <span className="document-filter-label">並び替え</span>
           <select
+            title={SORT_LABELS[filter.sort]}
             value={filter.sort}
             onChange={(event) => onChange({ sort: SORT_KEYS.find((k) => k === event.target.value) ?? 'default' })}
           >

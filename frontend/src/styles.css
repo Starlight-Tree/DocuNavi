@@ -1545,7 +1545,7 @@ a.pdf-save {
   }
 }
 
-/* 一覧の検索・絞り込み・並び替え（1 行）。検索欄とチップ（ラベルと値）を並べる。幅が足りなければ折り返す */
+/* 一覧の検索・絞り込み・並び替え（1 行）。検索欄とチップ（ラベルと値）を並べる。840px 以上は折り返さず、検索欄を先に縮める（値が長ければチップの中で「…」）。それより狭いときは折り返す（4 つがほぼ自然な幅で入る下限） */
 .document-filter {
   display: flex;
   flex: none;
@@ -1564,6 +1564,17 @@ a.pdf-save {
 
 .document-filter-query {
   flex: 1 1 15rem;
+}
+
+@media (min-width: 840px) {
+  .document-filter {
+    flex-wrap: nowrap;
+  }
+
+  .document-filter-query {
+    flex: 1 4 12rem;
+    min-width: 8rem;
+  }
 }
 
 .document-filter-query input {
