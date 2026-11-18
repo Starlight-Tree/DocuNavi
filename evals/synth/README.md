@@ -34,6 +34,8 @@ python -m evals.synth verify                                # 全ページの「
 python -m evals.synth report --usd-per-hour <時間単価 USD>  # 実測の集計と、80 件・1,000 件への見積もりの補正
 ```
 
+表紙: `out/cover/<対象>/<資料の id>.jpg`（2:1・1200×600 の JPEG）があれば、`render` が先頭に表紙を 1 ページ足す（題名・画像・「初版｜2026年11月」。表紙にもページ番号以外の帯を入れる）。
+画像は Vertex の `gemini-3.1-flash-lite-image` で 1 枚ずつ作る（2026-11-18 に minato-coffee の 19 件。画像の生成は、この道具には入れていない）。既に PDF がある資料に表紙を足すときは、その PDF を消してから `render` する（本文が変わらないと作り直されないため）。
 出力先は `evals/synth/out/`（Git 管理外）。`--out-dir` で変えられるが、`storage/` `evals/corpora/` `evals/fixtures/` `app/` などの中は拒否される。
 reportlab は `requirements.txt` のとおり、一時的な仮想環境に入れる（アプリの依存には入れない）。
 

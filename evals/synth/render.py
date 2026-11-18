@@ -40,9 +40,20 @@ def _escape(text: str) -> str:
     return re.sub(r"\[\^(\d+)\]", r"<super>\1</super>", text)
 
 
+COVER_COLOPHON = "初版｜2026年11月"
+
+
 def render_pdf(
-    md: str, out_path: Path, *, font_path: Path, doc_id: str, title: str, bold_font_path: Path | None = None
+    md: str,
+    out_path: Path,
+    *,
+    font_path: Path,
+    doc_id: str,
+    title: str,
+    bold_font_path: Path | None = None,
+    cover_image: Path | None = None,
 ) -> None:
+    """`cover_image` があれば、先頭に表紙を 1 ページ足す（題名・画像（角を 1.5mm 丸く）・発行情報。全ページの帯は表紙にも入る）。"""
     try:
         from reportlab import rl_config
         from reportlab.lib import colors
@@ -50,10 +61,11 @@ def render_pdf(
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import ParagraphStyle
         from reportlab.lib.units import mm
+        from reportlab.lib.utils import ImageReader
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
         from reportlab.pdfgen import canvas
-        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+        from reportlab.platypus import Flowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     except ImportError as exc:
         raise RenderUnavailable(
             "reportlab がありません（evals/synth/requirements.txt を一時的な仮想環境へ入れる）"
@@ -94,7 +106,49 @@ def render_pdf(
     cell = style("cell", 9, 14)
     note = style("note", 8.5, 13, spaceAfter=2)
 
-    story: list = []
+    class _Cover(Flowable):
+        """表紙。枠いっぱいの 1 つの部品で、ページの絶対位置に描く（枠の内側の余白で左端がずれるのを避ける）。"""
+
+        def wrap(self, avail_width, avail_height):
+            return avail_width, avail_height
+
+        def draw(self):
+            page_w, page_h = A4
+            content_w = page_w - 40 * mm
+            canv = self.canv
+            canv.saveState()
+            canv.translate(-(20 * mm + 6), -(18 * mm + 6))  # 枠の左下（余白の内側）から、ページの左下へ
+            cover_title = style("cover_title", 22, 32)
+            cover_note = style("cover_note", 10, 16, textColor=colors.HexColor("#555555"))
+            # 題名の末尾の（…）は、副題として別の行にする（長い題名が、括弧の途中で折り返されないように）
+            matched = re.fullmatch(r"(.+?)\s*(（.*）)", title)
+            main, sub = (matched.group(1), matched.group(2)) if matched else (title, "")
+            y = page_h - 42 * mm
+            para = Paragraph(_escape(main), cover_title)
+            _, h = para.wrap(content_w, page_h)
+            para.drawOn(canv, 20 * mm, y - h)
+            y -= h
+            if sub:
+                sub_para = Paragraph(_escape(sub), style("cover_sub", 14, 22))
+                _, sh = sub_para.wrap(content_w, page_h)
+                sub_para.drawOn(canv, 20 * mm, y - 3 * mm - sh)
+                y -= 3 * mm + sh
+            y -= 14 * mm
+            img_w, img_h = ImageReader(str(cover_image)).getSize()
+            ih = content_w * img_h / img_w
+            clip = canv.beginPath()
+            clip.roundRect(20 * mm, y - ih, content_w, ih, 1.5 * mm)
+            canv.clipPath(clip, stroke=0, fill=0)
+            canv.drawImage(str(cover_image), 20 * mm, y - ih, width=content_w, height=ih)
+            canv.restoreState()
+            canv.saveState()
+            canv.translate(-(20 * mm + 6), -(18 * mm + 6))
+            note = Paragraph(_escape(COVER_COLOPHON), cover_note)
+            note.wrap(content_w, page_h)
+            note.drawOn(canv, 20 * mm, 24 * mm)
+            canv.restoreState()
+
+    story: list = [_Cover(), PageBreak()] if cover_image is not None else []
     for kind, value in markdown_subset.parse(md):
         if kind == "h1":
             story.append(Paragraph(_escape(str(value)), h1))
@@ -141,7 +195,8 @@ def render_pdf(
             for state in self._saved:
                 self.__dict__.update(state)
                 self.setFont(_FONT_NAME, 8)
-                self.drawRightString(width - 20 * mm, 10 * mm, f"{doc_id}  {self._pageNumber} / {total}")
+                if cover_image is None or self._pageNumber > 1:  # 表紙には、ページ番号を入れない
+                    self.drawRightString(width - 20 * mm, 10 * mm, f"{doc_id}  {self._pageNumber} / {total}")
                 super().showPage()
             super().save()
 

@@ -197,7 +197,17 @@ def cmd_render(args: argparse.Namespace) -> int:
     bold = Path(args.bold_font) if args.bold_font else None
 
     def renderer(md: str, out: Path, doc_id: str, title: str) -> None:
-        render_pdf(md, out, font_path=font, bold_font_path=bold, doc_id=doc_id, title=title)
+        # 表紙の画像は、out/cover/<対象>/<資料の id>.jpg があるときだけ付ける（Git 管理外。画像の生成は別の作業）
+        cover = Path(args.out_dir) / "cover" / out.parent.name / f"{doc_id}.jpg"
+        render_pdf(
+            md,
+            out,
+            font_path=font,
+            bold_font_path=bold,
+            doc_id=doc_id,
+            title=title,
+            cover_image=cover if cover.exists() else None,
+        )
 
     done = pipeline.render_pending(Path(args.out_dir), renderer)
     rows = pipeline.write_manifest(Path(args.out_dir))

@@ -128,6 +128,32 @@ def test_real_pdf_has_the_notice_on_every_page_and_in_the_metadata(tmp_path):
     assert again.read_bytes() == path.read_bytes()  # 同じ入力から同じバイト列
 
 
+def test_a_cover_adds_one_page_with_the_notice_the_title_and_the_image(tmp_path):
+    pytest.importorskip("reportlab")
+    pypdf = pytest.importorskip("pypdf")
+    from PIL import Image
+
+    from evals.synth.render import COVER_COLOPHON, DEFAULT_FONT
+
+    if not DEFAULT_FONT.exists():
+        pytest.skip("日本語フォントがない")
+    md = "# 題名です\n\n## 一\n\n洗濯機の運転が止まったときは、エラーコードを確かめてください。\n\n以上です。"
+    cover = tmp_path / "cover.jpg"
+    Image.new("RGB", (1200, 600), (120, 60, 30)).save(cover)
+    plain = tmp_path / "plain.pdf"
+    covered = tmp_path / "covered.pdf"
+    render_pdf(md, plain, font_path=DEFAULT_FONT, doc_id="demo-01", title="題名です（副題です）")
+    render_pdf(md, covered, font_path=DEFAULT_FONT, doc_id="demo-01", title="題名です（副題です）", cover_image=cover)
+    before, after = pypdf.PdfReader(str(plain)), pypdf.PdfReader(str(covered))
+    assert len(after.pages) == len(before.pages) + 1
+    assert all(NOTICE in (p.extract_text() or "") for p in after.pages)  # 表紙にも帯がある
+    first = after.pages[0].extract_text()
+    assert "題名です" in first and "副題です" in first and COVER_COLOPHON in first
+    assert "1 / " not in first  # 表紙にページ番号は無い
+    assert len(list(after.pages[0].images)) == 1
+    assert "題名です" in after.pages[1].extract_text()  # 本文は 2 ページ目から始まる
+
+
 def test_verify_flags_missing_notice_tampering_and_orphans(tmp_path):
     pytest.importorskip("pypdf")
     from evals.synth.ledger import Ledger
