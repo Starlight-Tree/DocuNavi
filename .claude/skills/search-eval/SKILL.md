@@ -12,12 +12,11 @@ description: 検索の評価と、実 API（質問の埋め込み・LLM）を使
 | 目的 | 道具 | API |
 |---|---|---|
 | BM25 の基準線、退行の検知 | `python -m scripts.eval_retrieval --mode bm25 …` | 使わない |
-| 上位件数・しきい値の数え上げ | `scripts/eval_topk.py`（保存済みの埋め込み） | 使わない |
 | 保存済みの埋め込みで 5 構成を測る | `python -m scripts.eval_pipeline run` | 使わない（`evals/results/pipeline_compare.json` を**上書きする**） |
 | ベクトル・ハイブリッドの比較 | `scripts/eval_vector.py` | `embed-queries --apply` だけ |
 | 検索の構成の比較（5 構成） | `scripts/eval_pipeline.py` | `embed --apply` だけ |
-| 回答の評価 | `scripts/eval_answers.py --run` | LLM を呼ぶ |
 
+- `eval_answers.py`（回答の評価）・`eval_topk.py`・`eval_search_compare.py` は d693e86 で削除済み。過去の結果は `evals/results/` に残る。
 - 実 API は課金される。**始める前に確認を取る。** 読むだけの調査と、API を使わない道具の実行は確認しなくてよい。
 - 既存の実測（`evals/results/`）で答えが出るなら、新しく測らない。
 
@@ -34,7 +33,7 @@ description: 検索の評価と、実 API（質問の埋め込み・LLM）を使
 ## 3. 実行する
 
 - キーは環境変数（`GEMINI_API_KEY`）からだけ読む。`.env` は開かない。値を表示・ログ・コミットしない。
-- 先に `plan` と、`--apply` なしの `embed` で、送る内容と回数を確かめる。API を呼ぶのは `--apply`（`eval_answers` は `--run`）だけ。
+- 先に `plan` と、`--apply` なしの `embed` で、送る内容と回数を確かめる。API を呼ぶのは `--apply` だけ。
 - SDK の再試行は無効にして、失敗も回数に数える。上限に達したら止めて報告する（上限を黙って上げない）。
 - 429 が出たら、続けずに止める。質問の間に待ち（`--pause-seconds`）を入れるのは、承認を得てから。
 - 結果を見たあとで値を変えない。調整が要るなら、測定に使った質問とは別の質問セットで行う。

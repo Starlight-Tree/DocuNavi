@@ -67,10 +67,10 @@
 | `results/baseline_bm25_menu.json` / `_menu_k2.json` | `--corpus evals/fixtures/menu`（k=5 / k=2。ファイルが 2 冊なので同じ結果。2026-10-18 に、折り返したセルの組み直しの後で取り直した） |
 | `results/baseline_bm25_guides.json` / `_guides_k2.json` | `--corpus evals/corpora/guides`（k=5 / k=2。ファイルが 2 冊なので同じ結果） |
 | `../scripts/eval_retrieval.py` | 採点の本体 |
-| `answers/questions.yaml` / `results/answers_20261018*.json` / `../scripts/eval_answers.py` | **回答の評価（実 API。ここだけ課金される）**。質問 10 問の選び方、実測の記録、実行の道具（「回答の評価（実 API）」） |
-| `answers/questions_research.yaml` / `../tests/test_eval_answers.py` | **検索が空のとき言い換えで検索し直すかを見る質問 14 問（2026-10-19 に固定）。1 回目の測定は、Gemini のレート制限（429）で失敗して判定できなかった**（`results/answers_research_before_20261019.json`・`_current_`・`answers_floor_cut_research_20261019.json`。呼び出し 24/36・15/70・5/20 回、完走した質問は変更前の n001〜n007 だけ）。2 回目（`_2_` のファイル、質問の間に 30 秒の待ち）は完走し 429 は出なかったが、基準 (a)(b) を満たさず「効果が確認できない」（結果は `docs/search-design.md`）。**この文面はその後 66fe9d7 ごと元に戻した**ので、いまのアプリでは `--wording current` と `before` は同じ文面になる（再検索の文面を試すときは、`--wording` の `current` に当たる文面を作り直す）。質問・正解・判定の基準・実行のコマンドは、ファイルの先頭。`--wording before` で変更前の文面に戻して比べる。`--pause-seconds` で質問の間に待ち、429 が出たら止まる |
+| `answers/questions.yaml` / `results/answers_20261018*.json` / `../scripts/eval_answers.py`（削除済み） | **回答の評価（実 API。ここだけ課金される）**。質問 10 問の選び方、実測の記録、実行の道具（「回答の評価（実 API）」） |
+| `answers/questions_research.yaml` / `../tests/test_eval_answers.py`（削除済み） | **検索が空のとき言い換えで検索し直すかを見る質問 14 問（2026-10-19 に固定）。1 回目の測定は、Gemini のレート制限（429）で失敗して判定できなかった**（`results/answers_research_before_20261019.json`・`_current_`・`answers_floor_cut_research_20261019.json`。呼び出し 24/36・15/70・5/20 回、完走した質問は変更前の n001〜n007 だけ）。2 回目（`_2_` のファイル、質問の間に 30 秒の待ち）は完走し 429 は出なかったが、基準 (a)(b) を満たさず「効果が確認できない」（結果は `docs/search-design.md`）。**この文面はその後 66fe9d7 ごと元に戻した**ので、いまのアプリでは `--wording current` と `before` は同じ文面になる（再検索の文面を試すときは、`--wording` の `current` に当たる文面を作り直す）。質問・正解・判定の基準・実行のコマンドは、ファイルの先頭。`--wording before` で変更前の文面に戻して比べる。`--pause-seconds` で質問の間に待ち、429 が出たら止まる |
 | `../tests/test_eval_retrieval.py` | 採点の道具のテストと、baseline からの退行の検知 |
-| `../scripts/eval_topk.py` / `results/topk_probe.json` / `../tests/test_eval_topk.py` | **上位件数（`TOP_K`）としきい値の現状の数え上げ**（実 API なし。保存済みの質問の埋め込みを使う）。結果の読み方は `docs/search-design.md` の「上位件数（`TOP_K`）としきい値の現状」 |
+| `../scripts/eval_topk.py` / `../tests/test_eval_topk.py`（削除済み）/ `results/topk_probe.json` | **上位件数（`TOP_K`）としきい値の現状の数え上げ**（実 API なし。保存済みの質問の埋め込みを使う）。結果の読み方は `docs/search-design.md` の「上位件数（`TOP_K`）としきい値の現状」 |
 | `../scripts/eval_vector.py` / `vector/plan.json` / `results/vector_dev.json` / `results/vector_final.json` / `../tests/test_eval_vector.py` | **ベクトル検索の比較**（BM25・ベクトル・ハイブリッド。質問の埋め込みだけ実 API）。分割・正解チャンク・結果・道具のテスト（「ベクトル検索の比較」） |
 
 ## 質問の書式
@@ -655,7 +655,7 @@ G4（menu も足した場面）でも同じ向きだった: 混ざりは旧 68 �
 ## 回答の評価（実 API、2026-10-18）
 
 検索の評価では測れない「LLM が資料に無いことをどう答えるか」を、実 API で 10 問だけ測った。**ここだけ LLM を呼ぶ（課金される）。**
-道具は `scripts/eval_answers.py`、質問の選び方は `evals/answers/questions.yaml`、記録は `results/answers_20261018.json`
+道具は `scripts/eval_answers.py`（d693e86 で削除済み。以下は当時の記録）、質問の選び方は `evals/answers/questions.yaml`、記録は `results/answers_20261018.json`
 （API が 504/503 で落ちた 4 問のやり直しは `answers_20261018_retry.json`）。`python -m scripts.eval_answers` は一覧を出すだけで、`--run` で初めて API を呼ぶ。
 
 **条件。** モデルは `gemini-3.1-flash-lite`。app と同じグラフ（全資料群・同じシステムプロンプトと検索ツール）を、`/chat` と同じ `ainvoke` で動かした
@@ -785,13 +785,13 @@ BM25 が返す本文（採点した文とその前後）に根拠があるかで
 ## 最終確認と、ベクトルでの回答の評価（2026-10-18。ベクトル検索に一本化する前の測定）
 
 方式を選んだ質問（68 問）とは別に、**52 問を固定して 1 回だけ**測った。質問は、別の subagent に書かせた 26 問（`evals/search_compare/final_questions_independent.yaml`）と
-Claude が書いた 26 問（`final_questions_claude.yaml`）。答えのある 38 問・資料外 14 問。道具は `scripts/eval_search_compare.py`
+Claude が書いた 26 問（`final_questions_claude.yaml`）。答えのある 38 問・資料外 14 問。道具は `scripts/eval_search_compare.py`（d693e86 で削除済み。以下は当時の記録）
 （`embed-queries` → `final`。5 経路: BM25・ベクトル・pgroonga・BM25 + ベクトル・pgroonga + ベクトル。結果は `evals/search_compare/final.json`、質問ファイルの sha256 を記録）。
 
 **結果: ベクトル単独が最良**（MRR 0.925、hit@1 32、hit@3 38/38）。BM25 は MRR 0.699、BM25 + ベクトルは 0.858、pgroonga + ベクトルは 0.862、pgroonga 単独は 0.670。
 選定用の質問で最良に見えた pgroonga + ベクトルは、再現しなかった。表と作成者別・新規チャンク別の内訳、限界は [docs/search-design.md](../docs/search-design.md)。
 
-**回答の評価（実 API、ベクトル検索、類似度の下限 0.65）。** `evals/answers/questions_vector.yaml` の 14 問（資料にない話題 11・答えのある 3）を、`scripts/eval_answers.py` で
+**回答の評価（実 API、ベクトル検索、類似度の下限 0.65）。** `evals/answers/questions_vector.yaml` の 14 問（資料にない話題 11・答えのある 3）を、`scripts/eval_answers.py`（削除済み）で
 LLM まで通した（`evals/results/answers_vector_20261018*.json`。使った呼び出しは 38/40 回）。資料にない話題の 11 問は全て断り、答えのある 3 問は断りすぎなかった
 （境界例が 1 問、a010）。`temperature` が 1.0 なので、傾向として読む。採点は Claude で、user は未確認。
 

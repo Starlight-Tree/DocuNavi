@@ -48,6 +48,6 @@
 
 ## 実 API と結果ファイル
 
-- 実 API を呼ぶのは、質問の埋め込み（`scripts/eval_vector.py` `scripts/eval_pipeline.py embed --apply`）と、回答の評価（`scripts/eval_answers.py`。LLM も呼ぶ）。始める前に、質問文・回数・概算費用を示して承認を得る。手順は `.claude/skills/search-eval/SKILL.md`。
+- 実 API を呼ぶのは、質問の埋め込み（`scripts/eval_vector.py` `scripts/eval_pipeline.py embed --apply`）だけ（回答の評価の `eval_answers.py` は d693e86 で削除済み。LLM を呼ぶ評価を作り直すときも同じ）。始める前に、質問文・回数・概算費用を示して承認を得る。手順は `.claude/skills/search-eval/SKILL.md`。
 - `results/` の既存の実測ファイルを上書きしない。取り直すときは `--out` で別名にする。記録として残すものがある（README の「ザーハードが .txt だった時代の実測」）。
 - 評価の数字を出したら、質問の数・上位何件・どの構成かを添える。確認していない構成の数字を「実測」と書かない。

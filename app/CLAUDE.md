@@ -24,7 +24,7 @@
 ## 型・データ
 
 - `app/` に `models/` は無い。検索の結果は `Hit`（NamedTuple。`search/types.py`）、資料の範囲は `Scope`、LangGraph の状態は `app/agents/state.py` の `AgentState`。
-- DB の表を変えるのは `workers/api/migrations/`（D1）と `db/migrations/`（Postgres。`db/migrate.py` で適用）だけ。アプリのコードから DDL を流さない。
+- DB の表を変えるのは `db/migrations/`（Postgres。`db/migrate.py` で適用）だけ（D1 の `workers/api/migrations/` は撤去済み）。アプリのコードから DDL を流さない。
 - `DB_BACKEND`（既定 `d1`）で DB を切り替える。アプリの SQL は SQLite の書き方のままで、`app/pg.py` の `translate()` が Postgres に直す。新しい SQL を足したら、`tests/test_history_pg_backend.py` に実行を足す（`PG_TEST_URL` が要る。CI は pgvector 入りの Postgres を使う）。
 
 ## テスト
