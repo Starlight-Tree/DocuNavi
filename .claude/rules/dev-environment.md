@@ -16,6 +16,11 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 - 実 API の呼び出し前に、質問文・回数・費用を示して承認を得る既存のルールは変わらない。
 - 本番の Cloud Run の LLM（Developer API キー）は、この方針に含まない。切り替えは別の決定で、事前に確認する（Vertex の LLM は 2026-11-09 の単発 5 回で Developer API の 2〜3 倍遅かった）。
 
+## ブラウザー操作（2026-11-18）
+
+- ブラウザーでの確認・実験は、ユーザーが `Claude` プロファイルで開いてある接続済みの Chrome（`mcp__claude-in-chrome__*`）で行う。接続が無いときは、起動せずにユーザーへ頼む（Chrome の起動・終了はユーザーの作業）
+- 別プロファイル・別ポートの Chrome（`--user-data-dir`、`--remote-debugging-port`、実行ファイルの直接起動）を、毎回新しく作らない。ホストの `~/.claude/settings.json` の PreToolUse フック（Bash）が止める
+
 ## 再ビルドの可能性・ツールの入れ場所
 
 詳細は [devcontainer.md](devcontainer.md)（`.devcontainer/**` を触るときに読み込まれる。2026-11-18 に分けた）。承認の要る点だけ、ここにも残す。
