@@ -11,6 +11,7 @@ import {
   MSG_NO_MATCH_LEGACY,
 } from './components/DocumentsView';
 import { fakeAuth } from './test/auth';
+import { fakePdf } from './test/fakePdf';
 import type { FakeAuth } from './test/auth';
 import { errorResponse, jsonResponse } from './test/helpers';
 
@@ -508,7 +509,7 @@ describe('資料一覧: PDF', () => {
     configured: true,
     documents: [summary(1, 'tsubasa_dorm_rules.pdf', 1, 1, { title: 'つばさ大学学生寮 入寮規程' })],
   };
-  // 画面は PDF を fetch しない（iframe の URL に渡すだけ）。/file が取りに来られたら、テストが落ちる
+  // 画面は PDF を fetch しない（PDF.js との境界は、テストでは差し替え済み）。/file が取りに来られたら、テストが落ちる
   function routes(original: unknown = true) {
     return (url: string) => {
       if (url === '/documents') return jsonResponse(TITLED_LIST);
@@ -524,15 +525,16 @@ describe('資料一覧: PDF', () => {
 
   const SAVE_NAME = encodeURIComponent('つばさ大学学生寮 入寮規程.pdf');
 
-  it('PDFがあれば、PDFを先に表示する（iframe に URL を渡す。PDF は画面が fetch せず、抽出テキストは読み込まない）', async () => {
+  it('PDFがあれば、PDFを先に表示する（PDF.js に URL を渡す。PDF は画面が fetch せず、抽出テキストは読み込まない）', async () => {
     const { calls } = installDocsFetch(routes());
     const { user } = setup(null);
 
     await openFirst(user);
 
-    const frame = await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
-    expect(frame).toHaveAttribute('src', '/documents/1/file'); // 認証なしの構成は、API をそのまま指す
-    expect(frame).toBeVisible();
+    const viewer = await screen.findByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' });
+    expect(fakePdf.opened).toEqual(['/documents/1/file']); // 認証なしの構成は、API をそのまま指す
+    expect(await screen.findByText('1 / 3')).toBeInTheDocument();
+    expect(viewer).toBeVisible();
     expect(screen.getByRole('button', { name: 'PDF' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: '抽出テキスト' })).toHaveAttribute('aria-pressed', 'false');
     expect((await panel()).queryByRole('listitem')).not.toBeInTheDocument();
@@ -545,18 +547,21 @@ describe('資料一覧: PDF', () => {
 
     await openFirst(user);
 
-    const frame = await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
-    expect(frame).toHaveAttribute('src', `/api/documents/1/file?name=${SAVE_NAME}`);
+    await screen.findByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' });
+    expect(fakePdf.opened).toEqual([`/api/documents/1/file?name=${SAVE_NAME}`]);
     expect((await panel()).queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument();
+    const save = (await panel()).getByRole('link', { name: 'PDF を保存' });
+    expect(save).toHaveAttribute('href', `/api/documents/1/file?name=${SAVE_NAME}`);
+    expect(save).toHaveAttribute('download', 'つばさ大学学生寮 入寮規程.pdf');
     // トークンは中継が Cookie から取る。画面は PDF のために fetch もトークンの更新もしない
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
   });
 
-  it('「抽出テキスト」に切り替えるとチャンクが出て、「PDF」に戻すと同じ iframe が見える（作り直さない）', async () => {
+  it('「抽出テキスト」に切り替えるとチャンクが出て、「PDF」に戻すと同じビューアが見える（開き直さない）', async () => {
     installDocsFetch(routes());
     const { user } = setup(null);
     await openFirst(user);
-    const frame = await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
+    const frame = await screen.findByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' });
 
     await user.click(screen.getByRole('button', { name: '抽出テキスト' }));
 
@@ -567,11 +572,12 @@ describe('資料一覧: PDF', () => {
     await user.click(screen.getByRole('button', { name: 'PDF' }));
 
     expect((await panel()).queryByRole('listitem')).not.toBeInTheDocument();
-    expect(screen.getByTitle('つばさ大学学生寮 入寮規程 の PDF')).toBe(frame);
+    expect(screen.getByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' })).toBe(frame);
     expect(frame).toBeVisible();
+    expect(fakePdf.opened).toHaveLength(1);
   });
 
-  it('PDFが無い資料は、切り替えを出さず「PDFは利用できません」と示し、抽出テキストを出す（iframe も出さない）', async () => {
+  it('PDFが無い資料は、切り替えを出さず「PDFは利用できません」と示し、抽出テキストを出す（ビューアも出さない）', async () => {
     const { calls } = installDocsFetch(routes(false));
     const { user } = setup();
 
@@ -580,8 +586,9 @@ describe('資料一覧: PDF', () => {
     expect(await (await panel()).findAllByRole('listitem')).toHaveLength(1);
     expect(screen.getByText('PDFは利用できません。')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument();
-    expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /の PDF$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument();
+    expect(fakePdf.opened).toEqual([]);
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
   });
 
@@ -602,7 +609,7 @@ describe('資料一覧: PDF', () => {
     await openFirst(user);
 
     expect(await screen.findByRole('alert')).toBeInTheDocument();
-    expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /の PDF$/ })).not.toBeInTheDocument();
   });
 });
 

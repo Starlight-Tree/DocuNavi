@@ -1071,14 +1071,151 @@ textarea {
   color: var(--text);
 }
 
-.pdf-frame {
-  display: block;
-  width: 100%;
-  height: 75vh;
-  min-height: 24rem;
+/* PDF ビューア（PDF.js）。ツールバーと、ページの絵（canvas）に透明な文字の層を重ねた 1 ページ */
+.pdf-viewer {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   background: var(--surface);
+}
+
+.pdf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
+  font-size: 0.85rem;
+}
+
+.pdf-tool {
+  min-width: 2rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.pdf-tool:hover:not(:disabled),
+.pdf-tool[aria-pressed='true'] {
+  background: var(--border);
+}
+
+.pdf-tool:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.45;
+}
+
+.pdf-fit {
+  font-size: 0.85rem;
+}
+
+a.pdf-save {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.pdf-pageno {
+  min-width: 4.5ch;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.pdf-sep {
+  width: 1px;
+  height: 1rem;
+  margin: 0 0.4rem;
+  background: var(--border);
+}
+
+.pdf-spacer {
+  flex: 1;
+}
+
+/* 灰色の地に白いページ（ダークでも、PDF の紙は白のまま） */
+.pdf-stage {
+  height: max(22rem, calc(100dvh - 18rem));
+  overflow: auto;
+  padding: 16px;
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+  scrollbar-gutter: stable;
+}
+
+.pdf-stage > [role='status'],
+.pdf-stage > .documents-error {
+  margin: 0 0 0.75rem;
+}
+
+.pdf-page {
+  position: relative;
+  margin: 0 auto;
+  isolation: isolate;
+  background: #fff;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.35);
+}
+
+.pdf-page:empty {
+  display: none;
+}
+
+.pdf-page canvas {
+  display: block;
+}
+
+/* 選択・検索のための、ページと同じ位置の透明な文字（PDF.js の text layer の CSS を、この画面に要る分だけ移した。Apache-2.0） */
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: clip;
+  color-scheme: only light;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  /* 黄色の強調を、下の絵（黒い文字）に乗算で重ねる。文字は読めたまま */
+  mix-blend-mode: multiply;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.pdf-text-layer > span,
+.pdf-text-layer > br {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+  user-select: text;
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.pdf-text-layer ::selection {
+  background: rgb(0 0 255 / 0.25);
+  color: transparent;
+}
+
+/* 出典の根拠の語句 */
+.pdf-text-layer mark.pdf-span-mark {
+  background: #ffe066;
+  color: transparent;
 }
 
 .documents-error {

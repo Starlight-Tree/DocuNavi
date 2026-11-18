@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 import type { DocumentSummary } from './api/documents';
 import { pdfDownloadName } from './components/documentDisplay';
+import { fakePdf } from './test/fakePdf';
 import { openKnowledge } from './test/navigation';
 import { jsonResponse, replyResponse } from './test/helpers';
 import { openSources } from './test/sources';
@@ -82,7 +83,7 @@ function install({ sources = SOURCES, list = LIST, context = CONTEXT }: { source
       if (url.endsWith('/doc-types')) return jsonResponse({ configured: false, doc_types: [] });
       if (url.includes('/chat/stream')) return replyResponse({ reply: '2 月 28 日までです。', context, sources: sources === NO_SOURCES ? undefined : sources });
       if (url === '/documents') return jsonResponse(list);
-      // 画面は PDF を fetch しない（iframe の URL に渡すだけ）。取りに来たら、files に残して、テストが落ちる
+      // 画面は PDF を fetch しない（PDF.js との境界は、テストでは差し替え済み）。取りに来たら、files に残して、テストが落ちる
       if (url.endsWith('/file')) {
         files.push(url);
         return new Response('unexpected', { status: 500 });
@@ -104,7 +105,9 @@ async function ask(user: User) {
 /** 「N 件のソース」を開いて、一覧の項目を返す。 */
 const chips = async () => within(await openSources()).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
 const findPanel = () => screen.findByRole('complementary', { name: /^資料:/ });
-const pdfFrame = () => screen.getByTitle('tsubasa_dorm_rules.pdf の PDF') as HTMLIFrameElement;
+const pdfViewer = () => screen.getByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
+/** ビューアが、そのページを描き終えて、ツールバーに「N / 総数」を出している。 */
+const atPage = (n: number, total = 3) => screen.findByText(`${n} / ${total}`);
 
 async function openCitation(user: User, index: number) {
   await user.click((await chips())[index]!);
@@ -144,12 +147,46 @@ describe('出典を押して右のパネルを開く', () => {
     const panel = await openCitation(user, 1);
     await panel.findByText('第5条 入寮の申込みは、2 月 28 日までに行う。');
     expect(files).toEqual([]);
-    expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
+    expect(fakePdf.opened).toEqual([]);
+    expect(screen.queryByRole('group', { name: /の PDF$/ })).not.toBeInTheDocument();
 
     await user.click(panel.getByRole('button', { name: 'PDF' }));
 
-    expect(await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF')).toHaveAttribute('src', '/documents/7/file#page=3');
+    await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
+    expect(await atPage(3)).toBeInTheDocument();
+    expect(fakePdf.opened).toEqual(['/documents/7/file']);
+    expect(fakePdf.renders.at(-1)?.page).toBe(3);
     expect(files).toEqual([]);
+  });
+
+  it('出典から「PDF」へ切り替えたら、出典のページを開き、根拠のチャンクの本文を PDF の文字の中で強調する', async () => {
+    fakePdf.pages = [['1 ページ目'], ['2 ページ目'], ['第5条 入寮の', '申込みは、2 月 28 日までに行う。', '第6条 別の条文です。']];
+    install();
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+    const panel = await openCitation(user, 1);
+
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
+
+    await atPage(3);
+    await waitFor(() => expect(document.querySelectorAll('mark.pdf-span-mark')).toHaveLength(2));
+    expect(Array.from(document.querySelectorAll('mark.pdf-span-mark')).map((m) => m.textContent)).toEqual(['第5条 入寮の', '申込みは、2 月 28 日までに行う。']);
+    expect(panel.queryByText(/PDF の文字から特定できなかった/)).not.toBeInTheDocument();
+  });
+
+  it('根拠のチャンクが PDF の文字の中に見つからないときは、強調せず、その旨を示す（ページは開く）', async () => {
+    install(); // 既定の PDF の文字には、この資料の本文が無い
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+    const panel = await openCitation(user, 1);
+
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
+
+    await atPage(3);
+    expect(await panel.findByText(/PDF の文字から特定できなかったため、強調は付けていません/)).toBeInTheDocument();
+    expect(document.querySelectorAll('mark.pdf-span-mark')).toHaveLength(0);
   });
 
   it('出典がページを持たないときは、ページを推測せず、「PDF」は先頭から開く', async () => {
@@ -162,54 +199,62 @@ describe('出典を押して右のパネルを開く', () => {
     expect(window.location.search).toBe('?tab=chat&doc=7&view=text&chunk=1');
     await user.click(panel.getByRole('button', { name: 'PDF' }));
 
-    expect(await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF')).toHaveAttribute('src', '/documents/7/file');
+    expect(await atPage(1)).toBeInTheDocument();
+    expect(fakePdf.renders.map((r) => r.page)).toEqual([1]);
   });
 
-  it('同じ資料の中で表示を切り替えても、iframe は作り直さない（見ている位置を保つ）', async () => {
+  it('同じ資料の中で表示を切り替えても、PDF は開き直さない（見ているページを保つ）', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
     const panel = await openCitation(user, 1);
     await user.click(panel.getByRole('button', { name: 'PDF' }));
-    const frame = await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF');
+    const viewer = await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
+    await atPage(3);
+    await user.click(panel.getByRole('button', { name: '前のページ' }));
+    await atPage(2);
 
     await user.click(panel.getByRole('button', { name: '抽出テキスト' }));
-    expect(frame).not.toBeVisible();
+    expect(viewer).not.toBeVisible();
     await user.click(panel.getByRole('button', { name: 'PDF' }));
 
-    expect(pdfFrame()).toBe(frame);
-    expect(frame).toBeVisible();
+    expect(pdfViewer()).toBe(viewer);
+    expect(viewer).toBeVisible();
+    expect(screen.getByText('2 / 3')).toBeVisible(); // 見ていたページのまま
+    expect(fakePdf.opened).toEqual(['/documents/7/file']);
     expect(files).toEqual([]);
   });
 
-  it('別の出典を押したら、保持中の位置より新しい出典の位置を優先する（同じ出典を押し直しても、その位置へ戻す）', async () => {
+  it('別の出典を押したら、見ているページより新しい出典のページを優先する（同じ出典を押し直しても、そのページへ戻す）', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
     const panel = await openCitation(user, 1);
     await user.click(panel.getByRole('button', { name: 'PDF' }));
-    const first = await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF');
-    expect(first).toHaveAttribute('src', '/documents/7/file#page=3');
+    const viewer = await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
+    await atPage(3);
 
     await user.click((await chips())[0]!);
 
     await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=1&chunk=0'));
     await user.click(panel.getByRole('button', { name: 'PDF' }));
-    const second = pdfFrame();
-    expect(second).toHaveAttribute('src', '/documents/7/file#page=1');
-    expect(second).not.toBe(first);
+    expect(await atPage(1)).toBeInTheDocument();
+    expect(pdfViewer()).toBe(viewer); // 開き直さず、同じビューアがページだけ移る
 
-    // 同じ出典を押し直すと、PDF の位置は出典のページへ戻る（作り直す）
+    // 見ているページを動かしても、同じ出典を押し直すと、出典のページへ戻る
+    await user.click(panel.getByRole('button', { name: '次のページ' }));
+    await atPage(2);
     await user.click(panel.getByRole('button', { name: '抽出テキスト' }));
     await user.click((await chips())[0]!);
-    await waitFor(() => expect(pdfFrame()).not.toBe(second));
-    expect(pdfFrame()).toHaveAttribute('src', '/documents/7/file#page=1');
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
+    expect(await atPage(1)).toBeInTheDocument();
+    expect(fakePdf.opened).toEqual(['/documents/7/file']);
     expect(files).toEqual([]);
   });
 
-  it('ヘッダーに独自のダウンロードアイコンは出さない（保存は PDF ビューアの保存ボタン。名前は中継が資料名にする）', async () => {
+  it('ヘッダーに独自のダウンロードアイコンは出さない。保存は、PDF ビューアのツールバーの「保存」（資料名のファイル名で保存する）', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
@@ -217,8 +262,11 @@ describe('出典を押して右のパネルを開く', () => {
     const panel = await openCitation(user, 1);
     await user.click(panel.getByRole('button', { name: 'PDF' }));
 
-    expect(await panel.findByTitle(/の PDF/)).toBeInTheDocument();
+    expect(await panel.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' })).toBeInTheDocument();
     expect(panel.queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument();
+    const save = panel.getByRole('link', { name: 'PDF を保存' });
+    expect(save).toHaveAttribute('href', '/documents/7/file');
+    expect(save).toHaveAttribute('download', 'tsubasa_dorm_rules.pdf');
     expect(files).toEqual([]);
   });
 
@@ -247,14 +295,14 @@ describe('出典を押して右のパネルを開く', () => {
 
     expect(window.location.search).toBe('?tab=documents&doc=8');
     const next = within(await findPanel());
-    expect(await next.findByTitle('cafe_store_guide.pdf の PDF')).toBeInTheDocument();
+    expect(await next.findByRole('group', { name: 'cafe_store_guide.pdf の PDF' })).toBeInTheDocument();
     expect(document.querySelectorAll('[data-focus="true"]')).toHaveLength(0);
-    expect(screen.queryByTitle('tsubasa_dorm_rules.pdf の PDF')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' })).not.toBeInTheDocument();
   });
 });
 
 describe('パネルの拡大・縮小', () => {
-  it('CSS だけで広げる。同じ要素のまま、会話・未送信の文・PDF の iframe を作り直さない', async () => {
+  it('CSS だけで広げる。同じ要素のまま、会話・未送信の文・PDF のビューアを作り直さない', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
@@ -262,7 +310,7 @@ describe('パネルの拡大・縮小', () => {
     await user.type(screen.getByRole('textbox', { name: 'メッセージ' }), '書きかけ');
     const panel = await openCitation(user, 1);
     await user.click(panel.getByRole('button', { name: 'PDF' }));
-    const frame = await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF');
+    const viewer = await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
     const aside = await findPanel();
     const message = screen.getByText('2 月 28 日までです。');
 
@@ -272,14 +320,15 @@ describe('パネルの拡大・縮小', () => {
     expect(aside).toHaveClass('ws-panel-expanded');
     expect(panel.getByRole('button', { name: '縮小' })).toHaveAttribute('aria-pressed', 'true');
     expect(document.querySelector('.ws-main')).toHaveAttribute('inert');
-    expect(pdfFrame()).toBe(frame);
+    expect(pdfViewer()).toBe(viewer);
     expect(screen.getByText('2 月 28 日までです。')).toBe(message);
 
     await user.click(panel.getByRole('button', { name: '縮小' }));
 
     expect(aside).not.toHaveClass('ws-panel-expanded');
     expect(document.querySelector('.ws-main')).not.toHaveAttribute('inert');
-    expect(pdfFrame()).toBe(frame);
+    expect(pdfViewer()).toBe(viewer);
+    expect(fakePdf.opened).toEqual(['/documents/7/file']);
     expect(files).toEqual([]);
     expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveValue('書きかけ');
   });
@@ -448,7 +497,7 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
     const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
     // 一覧から開いたときは、PDF（あれば）から。出典のハイライトに依存せず、資料全体を見る
-    await cafe.findByTitle('cafe_store_guide.pdf の PDF');
+    await cafe.findByRole('group', { name: 'cafe_store_guide.pdf の PDF' });
     expect(tabs(cafe)).toEqual(['抽出テキスト', 'PDF']);
     expect(cafe.queryByText(/関係図は/)).not.toBeInTheDocument();
   });
@@ -486,8 +535,8 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
     await openKnowledge(user);
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
     const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
-    await cafe.findByTitle('cafe_store_guide.pdf の PDF');
-    expect(cafe.queryByRole('status')).not.toBeInTheDocument();
+    await cafe.findByRole('group', { name: 'cafe_store_guide.pdf の PDF' });
+    expect(cafe.queryByText(/箇所を特定できなかった/)).not.toBeInTheDocument();
   });
 
   it('チャンクの先頭に、PDF のページラベル（表紙・目次・本文の番号）を出す。ラベルが無い資料は、通し番号のまま', async () => {

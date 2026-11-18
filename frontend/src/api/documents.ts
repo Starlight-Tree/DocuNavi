@@ -58,6 +58,8 @@ export interface DocumentDetail {
 }
 
 export const MSG_PDF_UNAVAILABLE = 'PDFは利用できません。';
+export const MSG_PDF_LOAD_FAILED = 'PDFを読み込めませんでした。しばらく待ってから再試行してください。';
+export const MSG_PDF_RENDER_FAILED = 'このページを表示できませんでした。再試行してください。';
 
 function bad(status: number): ChatApiError {
   return new ChatApiError(status, MSG_BAD_BODY);

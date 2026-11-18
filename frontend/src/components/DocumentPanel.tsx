@@ -11,29 +11,13 @@ import type { DetailView } from '../lib/urlState';
 import { DocumentName, displayName, pageLabel, pdfDownloadName } from './documentDisplay';
 import { CloseIcon, CollapseIcon, ExpandIcon } from './icons';
 import { RelationGraphView } from './RelationGraphView';
+import { PdfViewer } from './PdfViewer';
 import { Status } from './Status';
 
 export const PANEL_ID = 'ws-panel';
 export const MSG_EXTRACTED = 'PDFから抽出したテキストです。レイアウトや図は含まれません。';
 export const MSG_CITE_MISS = '出典の箇所を特定できなかったため、強調は付けていません。資料全体を読めます。';
 export const MSG_EXTRACTED_OTHER = '資料から抽出したテキストです。';
-
-/**
- * PDF。ブラウザー内蔵の PDF 表示（iframe）に、同じオリジンの URL を渡す（保存ボタンの名前が資料名になる。ADR 0013）。
- * 失敗したときの表示は、中継が返す固定の HTML（iframe の中）。事前に `original_pdf` を確かめてから出すので、通常は届かない。
- */
-function OriginalPdf({ document, url, page, cite }: { document: DocumentSummary; url: string; page: number | null; cite: number }) {
-  // ページの指定（#page=N）は、ブラウザー内蔵のビューアが読む。ページが変わったとき・出典を押し直したときだけ、
-  // iframe を作り直して確実に飛ばす。ほかの切り替えでは作り直さず、見ている位置を保つ
-  return (
-    <iframe
-      key={`${page ?? 'top'}:${cite}`}
-      className="pdf-frame"
-      src={page === null ? url : `${url}#page=${page}`}
-      title={`${displayName(document)} の PDF`}
-    />
-  );
-}
 
 interface DocumentPanelProps {
   /** 開く資料。別の資料に変わるときは、呼び出し側が `key` で作り直す（前の資料のページ・強調・関係図の選択を引き継がない）。 */
@@ -74,7 +58,7 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
   const [seen, setSeen] = useState<ReadonlySet<DetailView>>(new Set());
   if (state.status === 'ready' && !seen.has(mode)) setSeen(new Set(seen).add(mode));
 
-  // PDF の URL。認証ありの構成は同じオリジンの中継、認証なしの構成は API を直接指す
+  // PDF の URL（PDF.js が取る）。認証ありの構成は同じオリジンの中継（Cookie が付く。ADR 0013）、認証なしの構成は API を直接指す
   const { client } = useAuth();
   const pdfUrl = documentPdfUrl(document.id, pdfDownloadName(document), client !== null);
 
@@ -162,7 +146,15 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
 
           {originalPdf && seen.has('pdf') && (
             <div className="ws-view-body" hidden={mode !== 'pdf'}>
-              <OriginalPdf document={document} url={pdfUrl} page={page} cite={cite} />
+              <PdfViewer
+                title={name}
+                url={pdfUrl}
+                saveName={pdfDownloadName(document)}
+                page={page}
+                cite={cite}
+                span={span}
+                passage={chunk === null ? null : (state.data.chunks.find((item) => item.chunkIndex === chunk)?.content ?? null)}
+              />
             </div>
           )}
           {hasGraph && seen.has('graph') && (
