@@ -9,6 +9,7 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 | 目的 | コマンド |
 |---|---|
 | バックエンド起動 | `uvicorn app.main:app --reload`（`.env` が無い・キー未設定ならモックモード） |
+| まとめて検査 | `scripts/verify.sh [py\|frontend\|worker\|go\|all]`（CI と同じ読み取り検査。ビルド・E2E は含まない） |
 | バックエンドのテスト | `pytest`（`tests/conftest.py` がモックモードに固定し、検索も偽物に差し替える。実 API・DB は呼ばない） |
 | フロントエンド | `cd frontend && npm ci` の後 `npm run dev` / `npm test` / `npm run build` |
 | E2E（ブラウザー） | `cd frontend && npm run test:e2e`（偽の LLM・偽の検索の `tests/e2e_server.py`。実 API は呼ばない。初回だけ `npx playwright install chromium`）。手順は [docs/testing.md](docs/testing.md) |
@@ -61,6 +62,7 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 
 gcloud と gh には、誤操作や、取り込んだ文書に埋め込まれた指示による破壊的な操作を防ぐガードがある（PreToolUse フック `.claude/hooks/guard-cloud-cli.py`）。
 手順と層の説明は [.devcontainer/README.md](.devcontainer/README.md)（背景と手順の補足は、同じ README の「エージェント運用の補足」）。
+wrangler・infisical・prisma の書き込み系（配備・Secret・`migrate`・`db push`・値の表示）にも、同じ考えの小さなガードがある（`.claude/hooks/guard-deploy-cli.py`。確認に回す。止められたら回避しない。テストは `tests/test_guard_deploy_cli.py`）。
 
 - **止められたら、回避せず（別の書き方・スクリプト経由・別のツールで同じことをしない）、ユーザーに伝える。**
 - **フックが「確認」を返した操作は、ユーザーの承認なしに進めない。**
@@ -105,7 +107,7 @@ gcloud と gh には、誤操作や、取り込んだ文書に埋め込まれた
 - 401 が返ったら期限切れの可能性が高いので、ユーザーに更新を頼む。
 - **GitHub MCP（`github`。Actions の起動と監視だけ）:** 使うのは `actions_run_trigger`（`run_workflow`、`deploy.yml` を `main` で）と、`actions_list` `actions_get` `get_job_logs`（監視）。
   `rerun` `cancel` は、言葉で頼まれたときだけ（「y」だけでは足りない）。ヘルパー（`scripts/github-mcp-header.sh`）は実行せず、トークンを表示・保存しない。トークンの仕組み（GitHub App の installation トークン）は README の「エージェント運用の補足」。
-  **`deploy.yml` の起動は、そのたびに、対象のコミットと `workers/` `frontend/` の変更の有無を示して、利用者の明示の承認を得てから行う。前の承認は次に及ばない。** Environment「production」の必須レビュアーは外してある（経緯は `docs/deploy.md`）。この承認は会話の約束だけで、技術的な関門ではない。
+  **`deploy.yml` の起動は、そのたびに、対象のコミットと `workers/` `frontend/` の変更の有無を示して、利用者の明示の承認を得てから行う。前の承認は次に及ばない。** Environment「production」の必須レビュアーは外してある（経緯は `docs/deploy.md`）。この承認は会話の約束に加え、`mcp__github__actions_run_trigger` を `.claude/settings.json` の `ask` に入れて、起動のたびに確認が出るようにしてある（2026-11-19。ただし GitHub 側に必須レビュアーは無い）。
 
 ## Git
 
