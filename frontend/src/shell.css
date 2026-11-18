@@ -1760,9 +1760,46 @@ a.ws-icon-btn {
   padding: 0.5rem 0.75rem 0;
 }
 
-/* テーマの切り替えは、帯の右端（左には、閉じているときの再表示のボタン） */
-.ws-theme-toggle {
-  margin-left: auto;
+/* アカウントメニューの中のテーマ。ほかの項目と同じ 1 行（左に名前、右にアイコンの 3 択）。選択中は aria-checked */
+.ws-account-theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0.6rem;
+}
+
+.ws-account-theme-options {
+  display: flex;
+  gap: 0.1rem;
+}
+
+.ws-account-theme-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ws-account-theme-option:hover {
+  color: inherit;
+}
+
+.ws-account-theme-option[aria-checked='true'] {
+  background: var(--surface-muted);
+  color: inherit;
+}
+
+.ws-account-theme-option:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
 
 .ws-account {

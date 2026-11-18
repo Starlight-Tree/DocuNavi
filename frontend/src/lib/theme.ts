@@ -42,3 +42,18 @@ export function chooseTheme(theme: Theme): void {
     // 保存できない環境では、このページの間だけ有効
   }
 }
+
+/** 利用者の選択。保存が無ければ 'system'（OS に従う）。 */
+export function themeChoice(): Theme | 'system' {
+  return storedTheme() ?? 'system';
+}
+
+/** 選択を取り消して、OS の設定に従う状態へ戻す（保存を消し、`data-theme` も外す）。 */
+export function clearTheme(): void {
+  delete document.documentElement.dataset.theme;
+  try {
+    window.localStorage.removeItem(THEME_KEY);
+  } catch {
+    // 保存できない環境では、このページの間だけ有効
+  }
+}

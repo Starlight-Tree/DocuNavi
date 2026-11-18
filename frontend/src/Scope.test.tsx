@@ -1170,7 +1170,7 @@ describe('左サイドバーの開閉', () => {
 
       const rail = screen.getByRole('navigation', { name: 'サイドバー（縮小表示）' });
       expect(within(rail).getByRole('button', { name: 'サイドバーを開く' })).toHaveFocus();
-      // 帯は常設（テーマの切り替え用）。ただし、再表示のボタンはレールにあり、帯には出ない
+      // 帯は常設。ただし、再表示のボタンはレールにあり、帯には出ない
       expect(document.querySelector('.ws-main-bar')?.querySelector('button[aria-label="サイドバーを開く"]')).toBeNull();
       expect(within(rail).getByRole('link', { name: 'チャット' })).toHaveAttribute('aria-current', 'page');
       expect(within(rail).getByRole('button', { name: '新しい会話' })).toBeInTheDocument();

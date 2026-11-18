@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
+import { chooseTheme, clearTheme, themeChoice } from '../lib/theme';
+import type { Theme } from '../lib/theme';
 
 interface AccountMenuProps {
   /** ログイン中の利用者の表示名（メールアドレスなど）。ログインを使わない構成では渡さない（ボタンは「メニュー」になる）。 */
@@ -30,8 +32,49 @@ function PersonIcon() {
   );
 }
 
+/** テーマの 3 択のアイコン（線画。`PersonIcon` と同じ線の太さ・端の丸め）。名前は、ボタンの `aria-label` と `title`。 */
+function ThemeSvg({ children }: { children: ReactNode }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+const THEME_OPTIONS: ReadonlyArray<{ value: Theme | 'system'; label: string; icon: ReactNode }> = [
+  {
+    value: 'light',
+    label: 'ライト',
+    icon: (
+      <ThemeSvg>
+        <circle cx="10" cy="10" r="3.2" />
+        <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" />
+      </ThemeSvg>
+    ),
+  },
+  {
+    value: 'dark',
+    label: 'ダーク',
+    icon: (
+      <ThemeSvg>
+        <path d="M16.5 11.6A6.8 6.8 0 0 1 8.4 3.5a6.8 6.8 0 1 0 8.1 8.1z" />
+      </ThemeSvg>
+    ),
+  },
+  {
+    value: 'system',
+    label: 'システム',
+    icon: (
+      <ThemeSvg>
+        <rect x="2.5" y="3.5" width="15" height="10" rx="1.5" />
+        <path d="M7 17h6M10 13.5V17" />
+      </ThemeSvg>
+    ),
+  },
+];
+
 /**
- * サイドバー下部のアカウント。表示名のボタンを押すと、メニュー（ナレッジ・ログアウト）が上に開く。
+ * サイドバー下部のアカウント。表示名のボタンを押すと、メニュー（ナレッジ・テーマ・ログアウト）が上に開く。テーマ（ライト / ダーク / システム）は、ここで選ぶ（選ぶと localStorage に保存し、以後は OS より優先する。「システム」で OS に従う状態へ戻す）。
  * ログインを使わない構成でも、ナレッジへ行く入口として出す（表示名とログアウトは出さない）。
  * 開いたら先頭の項目にフォーカスを置く。↑↓ で移動、Esc で閉じてボタンへ戻る。メニューの外を押しても閉じる。
  */
@@ -41,13 +84,14 @@ export function AccountMenu({ label, image, email, onChangeName, onSignOut, onOp
   const [failedImage, setFailedImage] = useState<string | null>(null);
   const avatarUrl = signedIn && image && image.startsWith('https://') && image !== failedImage ? image : null;
   const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme | 'system'>(themeChoice);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
   useEffect(() => {
     if (!open) return;
-    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    menuRef.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus();
     const onPointer = (event: MouseEvent) => {
       const node = event.target as Node;
       if (!menuRef.current?.contains(node) && !buttonRef.current?.contains(node)) setOpen(false);
@@ -62,7 +106,7 @@ export function AccountMenu({ label, image, email, onChangeName, onSignOut, onOp
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const items = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const items = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])];
     const index = items.findIndex((n) => n === document.activeElement);
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -92,6 +136,31 @@ export function AccountMenu({ label, image, email, onChangeName, onSignOut, onOp
           >
             ナレッジ
           </button>
+          <div role="group" aria-label="テーマ" className="ws-account-theme">
+            <span className="ws-account-theme-label" aria-hidden="true">
+              テーマ
+            </span>
+            <span className="ws-account-theme-options">
+              {THEME_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={theme === option.value}
+                  aria-label={option.label}
+                  title={option.label}
+                  className="ws-account-theme-option"
+                  onClick={() => {
+                    if (option.value === 'system') clearTheme();
+                    else chooseTheme(option.value);
+                    setTheme(option.value);
+                  }}
+                >
+                  {option.icon}
+                </button>
+              ))}
+            </span>
+          </div>
           {signedIn && onChangeName && (
             <button
               type="button"
