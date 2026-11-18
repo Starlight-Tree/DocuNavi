@@ -96,6 +96,8 @@ html,
 body {
   height: 100%;
   margin: 0;
+  /* 端でのゴムのような伸び（下に空白が出る）を止める。スクロールするのは中の領域だけ */
+  overscroll-behavior: none;
 }
 
 body {

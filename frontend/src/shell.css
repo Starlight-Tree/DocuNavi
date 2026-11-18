@@ -1598,6 +1598,8 @@ a.ws-icon-btn {
   /* 画面が低くても、表が 0 にならない下限 */
   min-height: 6rem;
   overflow: auto;
+  /* 端まで来ても、ページ全体へスクロールを渡さない（下端の突き抜け・ゴムの伸びを防ぐ） */
+  overscroll-behavior: contain;
   /* 貼り付いた列見出しの下に、フォーカスした行が隠れないようにする（見出しの高さ分） */
   scroll-padding-top: 3rem;
   border: 1px solid var(--border);
