@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ThreadsState } from '../hooks/useThreads';
+import { TrashIcon } from './icons';
 
 interface ThreadSidebarProps {
   state: ThreadsState;
@@ -99,13 +100,14 @@ export function ThreadSidebar({ state, currentId, busy, onSelect, onDelete, onRe
                     type="button"
                     className="thread-delete"
                     aria-label={`「${thread.title}」を削除`}
+                    title="削除"
                     disabled={current && busy}
                     onClick={() => {
                       setDeleteError(null);
                       setConfirmingId(thread.threadId);
                     }}
                   >
-                    削除
+                    <TrashIcon />
                   </button>
                 )}
               </li>

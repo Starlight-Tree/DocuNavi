@@ -4,6 +4,7 @@ import type { Loaded } from '../hooks/useLoaded';
 import { takePanelOpener } from '../lib/panelSignal';
 import { useUrlState } from '../lib/urlState';
 import { DocumentPanel, PANEL_ID } from './DocumentPanel';
+import { CloseIcon } from './icons';
 import { Status } from './Status';
 
 interface PanelHostProps {
@@ -44,8 +45,8 @@ export function PanelHost({ list, onReload, expanded, onToggleExpand, onClosed }
       <aside id={PANEL_ID} className="ws-panel" aria-label="資料" tabIndex={-1}>
         <header className="ws-panel-head">
           <span className="ws-eyebrow">資料</span>
-          <button type="button" className="ws-icon-btn" aria-label="パネルを閉じる" onClick={close}>
-            ×
+          <button type="button" className="ws-icon-btn" aria-label="パネルを閉じる" title="閉じる" onClick={close}>
+            <CloseIcon />
           </button>
         </header>
         <Status state={list} onRetry={onReload} />

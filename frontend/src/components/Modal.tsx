@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode, RefObject } from 'react';
+import { CloseIcon } from './icons';
 
 interface ModalProps {
   title: string;
@@ -74,8 +75,8 @@ export function Modal({ title, description, initialFocus, closeOnBackdrop = true
           <h2 id={titleId} className="ws-modal-title">
             {title}
           </h2>
-          <button type="button" className="ws-icon-btn" aria-label="閉じる" onClick={onClose}>
-            ×
+          <button type="button" className="ws-icon-btn" aria-label="閉じる" title="閉じる" onClick={onClose}>
+            <CloseIcon />
           </button>
         </header>
         {description && (

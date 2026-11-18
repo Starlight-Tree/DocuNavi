@@ -10,6 +10,7 @@ import { takePendingFocus, usePanelCiteSeq, usePanelCitationMiss, usePanelOpenSe
 import { locateSpan } from '../lib/sources';
 import type { DetailView } from '../lib/urlState';
 import { DocumentName, UpdatedAt, displayName, pageLabel } from './documentDisplay';
+import { CloseIcon, CollapseIcon, ExpandIcon } from './icons';
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
 
@@ -112,11 +113,18 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
       <header className="ws-panel-head">
         <span className="ws-eyebrow">資料</span>
         <span className="ws-panel-tools">
-          <button type="button" className="btn btn-secondary btn-small" aria-pressed={expanded} onClick={onToggleExpand}>
-            {expanded ? '縮小' : '拡大'}
+          <button
+            type="button"
+            className="ws-icon-btn"
+            aria-label={expanded ? '縮小' : '拡大'}
+            title={expanded ? '縮小' : '拡大'}
+            aria-pressed={expanded}
+            onClick={onToggleExpand}
+          >
+            {expanded ? <CollapseIcon /> : <ExpandIcon />}
           </button>
-          <button type="button" className="ws-icon-btn" aria-label="パネルを閉じる" onClick={onClose}>
-            ×
+          <button type="button" className="ws-icon-btn" aria-label="パネルを閉じる" title="閉じる" onClick={onClose}>
+            <CloseIcon />
           </button>
         </span>
       </header>

@@ -14,6 +14,7 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZES, paginate } from '../lib/pagination';
 import type { PageSize } from '../lib/pagination';
 import { signalPanelOpen } from '../lib/panelSignal';
 import { DocumentFilterBar } from './DocumentFilterBar';
+import { CloseIcon } from './icons';
 import { SelectionMenu } from './SelectionMenu';
 import { DocumentName, UpdatedAt, displayName, statusName } from './documentDisplay';
 import { Status } from './Status';
@@ -382,8 +383,8 @@ export function DocumentsView({ state, onReload, selection, onClose }: Documents
     <main className="documents" aria-label="ナレッジ">
       <div className="docs-head">
         <h2 className="docs-title">ナレッジ</h2>
-        <button type="button" className="btn btn-secondary btn-small" onClick={onClose}>
-          <span aria-hidden="true">× </span>閉じる
+        <button type="button" className="ws-icon-btn" aria-label="閉じる" title="閉じる" onClick={onClose}>
+          <CloseIcon />
         </button>
       </div>
       <DocumentTable
