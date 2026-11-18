@@ -459,7 +459,7 @@ describe('資料一覧: 題名', () => {
   });
 });
 
-describe('資料一覧: 元PDF', () => {
+describe('資料一覧: PDF', () => {
   const OMIT = Symbol('omit');
   const DETAIL = (originalPdf: unknown) => ({
     document: summary(1, 'tsubasa_dorm_rules.pdf', 1, 1, { title: 'つばさ大学学生寮 入寮規程' }),
@@ -510,16 +510,16 @@ describe('資料一覧: 元PDF', () => {
     await user.click(await screen.findByRole('button', { name: 'つばさ大学学生寮 入寮規程 を開く' }));
   }
 
-  it('元PDFがあれば、元のPDFを先に表示する（Blob URL を iframe に渡し、抽出テキストは読み込まない）', async () => {
+  it('PDFがあれば、PDFを先に表示する（Blob URL を iframe に渡し、抽出テキストは読み込まない）', async () => {
     const { calls } = installDocsFetch(routes());
     const { user } = setup();
 
     await openFirst(user);
 
-    const frame = await screen.findByTitle('つばさ大学学生寮 入寮規程 の元PDF');
+    const frame = await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
     expect(frame).toHaveAttribute('src', 'blob:test/1');
     expect(frame).toBeVisible();
-    expect(screen.getByRole('button', { name: '元のPDF' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'PDF' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: '抽出テキスト' })).toHaveAttribute('aria-pressed', 'false');
     expect((await panel()).queryByRole('listitem')).not.toBeInTheDocument();
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks', '/documents/1/file']);
@@ -529,22 +529,22 @@ describe('資料一覧: 元PDF', () => {
     expect(blob.size).toBe(PDF_BYTES.length);
   });
 
-  it('「抽出テキスト」に切り替えるとチャンクが出て、「元のPDF」に戻すと PDF を取り直さずに同じ表示へ戻る', async () => {
+  it('「抽出テキスト」に切り替えるとチャンクが出て、「PDF」に戻すと PDF を取り直さずに同じ表示へ戻る', async () => {
     const { calls } = installDocsFetch(routes());
     const { user } = setup();
     await openFirst(user);
-    await screen.findByTitle('つばさ大学学生寮 入寮規程 の元PDF');
+    await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
 
     await user.click(screen.getByRole('button', { name: '抽出テキスト' }));
 
     expect(await (await panel()).findAllByRole('listitem')).toHaveLength(1);
     expect(screen.getByRole('button', { name: '抽出テキスト' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTitle('つばさ大学学生寮 入寮規程 の元PDF')).not.toBeVisible();
+    expect(screen.getByTitle('つばさ大学学生寮 入寮規程 の PDF')).not.toBeVisible();
 
-    await user.click(screen.getByRole('button', { name: '元のPDF' }));
+    await user.click(screen.getByRole('button', { name: 'PDF' }));
 
     expect((await panel()).queryByRole('listitem')).not.toBeInTheDocument();
-    expect(screen.getByTitle('つばさ大学学生寮 入寮規程 の元PDF')).toBeVisible();
+    expect(screen.getByTitle('つばさ大学学生寮 入寮規程 の PDF')).toBeVisible();
     expect(calls.filter((c) => c.url.endsWith('/file'))).toHaveLength(1);
     expect(createObjectURL).toHaveBeenCalledTimes(1);
   });
@@ -553,9 +553,9 @@ describe('資料一覧: 元PDF', () => {
     installDocsFetch(routes());
     const { user } = setup();
     await openFirst(user);
-    await screen.findByTitle('つばさ大学学生寮 入寮規程 の元PDF');
+    await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
     await user.click(screen.getByRole('button', { name: '抽出テキスト' }));
-    await user.click(screen.getByRole('button', { name: '元のPDF' }));
+    await user.click(screen.getByRole('button', { name: 'PDF' }));
     expect(revokeObjectURL).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'パネルを閉じる' }));
@@ -564,27 +564,27 @@ describe('資料一覧: 元PDF', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:test/1');
   });
 
-  it('元PDFが無い資料は、切り替えを出さず「元PDFは利用できません」と示し、抽出テキストを出す（PDF は取りに行かない）', async () => {
+  it('PDFが無い資料は、切り替えを出さず「PDFは利用できません」と示し、抽出テキストを出す（PDF は取りに行かない）', async () => {
     const { calls } = installDocsFetch(routes(false));
     const { user } = setup();
 
     await openFirst(user);
 
     expect(await (await panel()).findAllByRole('listitem')).toHaveLength(1);
-    expect(screen.getByText('元PDFは利用できません。')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '元のPDF' })).not.toBeInTheDocument();
-    expect(screen.queryByTitle(/の元PDF/)).not.toBeInTheDocument();
+    expect(screen.getByText('PDFは利用できません。')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
     expect(createObjectURL).not.toHaveBeenCalled();
   });
 
-  it('original_pdf の項目が無い応答（古いサーバー）は、元PDFなしとして読む', async () => {
+  it('original_pdf の項目が無い応答（古いサーバー）は、PDFなしとして読む', async () => {
     installDocsFetch(routes(OMIT));
     const { user } = setup();
 
     await openFirst(user);
 
-    expect(await screen.findByText('元PDFは利用できません。')).toBeInTheDocument();
+    expect(await screen.findByText('PDFは利用できません。')).toBeInTheDocument();
     expect((await panel()).getByRole('listitem')).toBeInTheDocument();
   });
 
@@ -595,17 +595,17 @@ describe('資料一覧: 元PDF', () => {
     await openFirst(user);
 
     expect(await screen.findByRole('alert')).toBeInTheDocument();
-    expect(screen.queryByTitle(/の元PDF/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
   });
 
-  it('PDF が取れなかった（404/409）ときは「元PDFは利用できません」と再試行を出し、抽出テキストへ切り替えて読める', async () => {
-    installDocsFetch(routes(true, () => errorResponse(409, '元の PDF が、DB に保存された資料と一致しません。')));
+  it('PDF が取れなかった（404/409）ときは「PDFは利用できません」と再試行を出し、抽出テキストへ切り替えて読める', async () => {
+    installDocsFetch(routes(true, () => errorResponse(409, 'PDF が、DB に保存された資料と一致しません。')));
     const { user } = setup();
 
     await openFirst(user);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('元PDFは利用できません。');
-    expect(screen.queryByTitle(/の元PDF/)).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('PDFは利用できません。');
+    expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '再試行' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '抽出テキスト' }));
@@ -625,7 +625,7 @@ describe('資料一覧: 元PDF', () => {
 
     await user.click(screen.getByRole('button', { name: '再試行' }));
 
-    expect(await screen.findByTitle('つばさ大学学生寮 入寮規程 の元PDF')).toHaveAttribute('src', 'blob:test/1');
+    expect(await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF')).toHaveAttribute('src', 'blob:test/1');
   });
 
   it('PDF ではない本文が 200 で返っても、表示しない（想定外の応答）', async () => {
@@ -635,7 +635,7 @@ describe('資料一覧: 元PDF', () => {
     await openFirst(user);
 
     expect(await screen.findByRole('alert')).toBeInTheDocument();
-    expect(screen.queryByTitle(/の元PDF/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
     expect(createObjectURL).not.toHaveBeenCalled();
   });
 
@@ -650,7 +650,7 @@ describe('資料一覧: 元PDF', () => {
 
     await openFirst(user);
 
-    await screen.findByTitle('つばさ大学学生寮 入寮規程 の元PDF');
+    await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
     const files = calls.filter((c) => c.url.endsWith('/file'));
     expect(files).toHaveLength(2);
     expect(new Headers(files[0]!.init.headers).get('Authorization')).toBe('Bearer tok-1');
@@ -664,7 +664,7 @@ describe('資料一覧: 元PDF', () => {
 
     await openFirst(user);
 
-    await screen.findByTitle('つばさ大学学生寮 入寮規程 の元PDF');
+    await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
     const file = calls.find((c) => c.url.endsWith('/file'))!;
     expect(new Headers(file.init.headers).get('Authorization')).toBeNull();
   });
@@ -685,7 +685,7 @@ describe('資料の詳細: 見出しと関係図の案内', () => {
     expect(inPanel.getByText('3 ページ').parentElement).toHaveTextContent(/更新 2026\/10\/18/);
   });
 
-  it('関係図の無い資料には、関係図のタブも案内の文も出さない（タブは「抽出テキスト」「元のPDF」だけ）', async () => {
+  it('関係図の無い資料には、関係図のタブも案内の文も出さない（タブは「抽出テキスト」「PDF」だけ）', async () => {
     installDocsFetch(routes);
     const { user } = setup();
     await openDocuments(user);
@@ -693,7 +693,7 @@ describe('資料の詳細: 見出しと関係図の案内', () => {
 
     const inPanel = await panel();
     const tabs = await inPanel.findByRole('group', { name: '表示の切り替え' });
-    expect(within(tabs).getAllByRole('button').map((b) => b.textContent)).toEqual(['抽出テキスト', '元のPDF']);
+    expect(within(tabs).getAllByRole('button').map((b) => b.textContent)).toEqual(['抽出テキスト', 'PDF']);
     expect(screen.queryByRole('button', { name: '関係図' })).not.toBeInTheDocument();
     expect(screen.queryByText(/入寮規程だけ/)).not.toBeInTheDocument();
   });

@@ -188,11 +188,11 @@ describe('関係図: タブ', () => {
     expect(screen.queryByRole('button', { name: '関係図' })).not.toBeInTheDocument();
   });
 
-  it('元PDFが使えない入寮規程にも出さない（サーバーは元の PDF から計算する）', async () => {
+  it('PDFが使えない入寮規程にも出さない（サーバーは PDF から計算する）', async () => {
     install(defaultRoute, false);
     await open(OPEN_DORM);
 
-    expect(await screen.findByText('元PDFは利用できません。')).toBeInTheDocument();
+    expect(await screen.findByText('PDFは利用できません。')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '関係図' })).not.toBeInTheDocument();
   });
 
@@ -240,7 +240,7 @@ describe('関係図: タブ', () => {
 });
 
 describe('関係図: 表示の切り替え', () => {
-  it('同じ資料の中で元のPDFへ切り替えて戻っても、関係図は取り直さず作り直さない（選んだ項も残る）。PDF は初めて開くまで取らない', async () => {
+  it('同じ資料の中で PDF へ切り替えて戻っても、関係図は取り直さず作り直さない（選んだ項も残る）。PDF は初めて開くまで取らない', async () => {
     const { calls } = install(defaultRoute);
     const user = await open(OPEN_DORM);
     await user.click(await screen.findByRole('button', { name: '関係図' }));
@@ -248,7 +248,7 @@ describe('関係図: 表示の切り替え', () => {
     await user.click(screen.getByRole('button', { name: '第13条 第1項|-' }));
     await screen.findByRole('button', { name: '第15条 第1項|direct' });
 
-    await user.click(screen.getByRole('button', { name: '元のPDF' }));
+    await user.click(screen.getByRole('button', { name: 'PDF' }));
     expect(canvas).not.toBeVisible();
     await user.click(screen.getByRole('button', { name: '関係図' }));
 
@@ -318,7 +318,7 @@ describe('関係図: 項を選ぶ', () => {
     expect(within(panel).getByText('影響が及ぶ条: 第15条、第17条')).toBeInTheDocument();
   });
 
-  it('「p.2」を押すと、元のPDF のそのページを開く（URL に page が付き、選んだ項は残る）', async () => {
+  it('「p.2」を押すと、PDF のそのページを開く（URL に page が付き、選んだ項は残る）', async () => {
     const { user } = await openGraph();
     await user.click(screen.getByRole('button', { name: '第13条 第1項|-' }));
     const panel = await screen.findByRole('complementary', { name: '選んだ項の詳細' });

@@ -1044,7 +1044,7 @@ textarea {
   font-weight: normal;
 }
 
-/* 表示の切り替え（元のPDF / 抽出テキスト / 関係図）。分割ボタンの形にする */
+/* 表示の切り替え（PDF / 抽出テキスト / 関係図）。分割ボタンの形にする */
 .view-switch {
   display: inline-flex;
   gap: 0.15rem;

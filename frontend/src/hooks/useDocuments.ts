@@ -27,7 +27,7 @@ export function useDocumentChunks(id: number | null): [Loaded<DocumentDetail>, (
 }
 
 /**
- * 元の PDF（GET /documents/{id}/file）を取って、表示用の Blob URL にする。id が null の間は何も取らない。
+ * PDF（GET /documents/{id}/file）を取って、表示用の Blob URL にする。id が null の間は何も取らない。
  * Blob URL は、PDF を取り直すとき・画面を離れるときに解放する（読み込み直後には解放しない。表示中のものが読めなくなる）。
  */
 export function useDocumentPdf(id: number | null): [Loaded<{ url: string }>, () => void] {
@@ -75,7 +75,7 @@ export type OpenSourceResult = 'opened' | 'notfound' | 'error';
 /**
  * チャットの出典（ファイル名と抜粋）から、資料を右のパネルに開く。画面（チャット・資料一覧）は移らない。
  * 資料の一覧からファイル名で資料を探し、「抽出テキスト」で根拠のチャンクを強調して開く。
- * - ページは、検索が返した値（knownPage）だけを持たせる。無いときは、推測したページを確定情報にしない（「元のPDF」は先頭から開く）。
+ * - ページは、検索が返した値（knownPage）だけを持たせる。無いときは、推測したページを確定情報にしない（「PDF」は先頭から開く）。
  * - 根拠のチャンクが見つからない・チャンクを取れないときも、資料は開く（何も強調しない）。
  * `opener` は押した要素。閉じたときにフォーカスを戻す先になる。
  */

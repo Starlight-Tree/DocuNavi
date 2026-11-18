@@ -51,11 +51,11 @@ export interface ChunkItem {
 export interface DocumentDetail {
   document: DocumentSummary;
   chunks: ChunkItem[];
-  /** 元の PDF を GET /documents/{id}/file で取れるか。項目が無い応答（古いサーバー）は false として読む。 */
+  /** PDF を GET /documents/{id}/file で取れるか。項目が無い応答（古いサーバー）は false として読む。 */
   originalPdf: boolean;
 }
 
-export const MSG_PDF_UNAVAILABLE = '元PDFは利用できません。';
+export const MSG_PDF_UNAVAILABLE = 'PDFは利用できません。';
 
 function bad(status: number): ChatApiError {
   return new ChatApiError(status, MSG_BAD_BODY);
@@ -192,8 +192,8 @@ export async function fetchDocumentChunks(
 }
 
 /**
- * 元の PDF（GET /documents/{id}/file）。認証付きの fetch で取り、Blob で返す（<iframe src> は Authorization を送れない）。
- * 404（ファイルが無い）と 409（内容が DB と違う）は、サーバーの文言ではなく「元PDFは利用できません」にする。
+ * PDF（GET /documents/{id}/file）。認証付きの fetch で取り、Blob で返す（<iframe src> は Authorization を送れない）。
+ * 404（ファイルが無い）と 409（内容が DB と違う）は、サーバーの文言ではなく「PDFは利用できません」にする。
  */
 export async function fetchDocumentPdf(fetcher: Fetcher, id: number, signal?: AbortSignal): Promise<Blob> {
   const init: RequestInit = { headers: { Accept: 'application/pdf' } };

@@ -30,14 +30,14 @@ function articleNumber(label: string | undefined): string | null {
   return label?.match(/^第\d+条/)?.[0] ?? null;
 }
 
-/** 「p.3」。押すと、元PDF のそのページを開く（根拠を原文で確かめる）。 */
+/** 「p.3」。押すと、PDF のそのページを開く（根拠を原文で確かめる）。 */
 function PageLink({ page }: { page: number }) {
   const { navigate } = useUrlState();
   return (
     <button
       type="button"
       className="page-link"
-      aria-label={`元PDF の ${page} ページを開く`}
+      aria-label={`PDF の ${page} ページを開く`}
       onClick={() => navigate({ view: 'pdf', page })}
     >
       {`p.${page}`}

@@ -114,7 +114,7 @@ describe('出典チップ', () => {
 
     await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&chunk=1'));
     const panel = await screen.findByRole('complementary', { name: '資料: tsubasa_dorm_rules.pdf' });
-    // この資料は元の PDF が無いので、切り替えは出ず、抽出テキストが開く
+    // この資料は PDF が無いので、切り替えは出ず、抽出テキストが開く
     expect(within(panel).getByText('資料から抽出したテキストです。')).toBeVisible();
     // 根拠のチャンクだけを強調する
     const marked = panel.querySelectorAll('[data-focus="true"]');

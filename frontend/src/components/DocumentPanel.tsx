@@ -18,7 +18,7 @@ export const MSG_EXTRACTED = 'PDFから抽出したテキストです。レイ�
 export const MSG_CITE_MISS = '出典の箇所を特定できなかったため、強調は付けていません。資料全体を読めます。';
 export const MSG_EXTRACTED_OTHER = '資料から抽出したテキストです。';
 
-/** 元の PDF。ブラウザー内蔵の PDF 表示（iframe）に、認証付きで取った PDF の Blob URL を渡す。 */
+/** PDF。ブラウザー内蔵の PDF 表示（iframe）に、認証付きで取った PDF の Blob URL を渡す。 */
 function OriginalPdf({ document, page, cite }: { document: DocumentSummary; page: number | null; cite: number }) {
   const [state, reload] = useDocumentPdf(document.id);
   if (state.status !== 'ready') return <Status state={state} onRetry={reload} />;
@@ -29,7 +29,7 @@ function OriginalPdf({ document, page, cite }: { document: DocumentSummary; page
       key={`${page ?? 'top'}:${cite}`}
       className="pdf-frame"
       src={page === null ? state.data.url : `${state.data.url}#page=${page}`}
-      title={`${displayName(document)} の元PDF`}
+      title={`${displayName(document)} の PDF`}
     />
   );
 }
@@ -37,9 +37,9 @@ function OriginalPdf({ document, page, cite }: { document: DocumentSummary; page
 interface DocumentPanelProps {
   /** 開く資料。別の資料に変わるときは、呼び出し側が `key` で作り直す（前の資料のページ・強調・関係図の選択を引き継がない）。 */
   document: DocumentSummary;
-  /** URL で指定された表示。無ければ null（元の PDF があれば PDF、無ければ抽出テキスト）。 */
+  /** URL で指定された表示。無ければ null（PDF があれば PDF、無ければ抽出テキスト）。 */
   view: DetailView | null;
-  /** 「元のPDF」で開くページ。出典が持つページだけ（推測しない）。 */
+  /** 「PDF」で開くページ。出典が持つページだけ（推測しない）。 */
   page: number | null;
   /** 抽出テキストで根拠として強調するチャンクの番号。見つからなければ null（何も強調しない）。 */
   chunk: number | null;
@@ -50,7 +50,7 @@ interface DocumentPanelProps {
 }
 
 /**
- * 右のパネル。資料の「元のPDF」「抽出テキスト」「関係図」を、タブで切り替えて見る。
+ * 右のパネル。資料の「PDF」「抽出テキスト」「関係図」を、タブで切り替えて見る。
  * 切り替えても閉じない（隠すだけ）ので、PDF の位置と関係図の視点は保たれる。ただし、初めて開くまでは読み込まない。
  * 拡大・縮小は CSS だけで行う（同じ要素のまま。PDF・関係図・チャットを作り直さない）。
  */
@@ -67,9 +67,9 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
     : null;
 
   const originalPdf = state.status === 'ready' && state.data.originalPdf;
-  // 関係図は入寮規程だけ。サーバーが元の PDF から計算するので、元の PDF が使えるときだけ出す
+  // 関係図は入寮規程だけ。サーバーが PDF から計算するので、PDF が使えるときだけ出す
   const hasGraph = originalPdf && document.source === GRAPH_SOURCE;
-  // 元の PDF があれば、それを先に見せる。無ければ抽出テキスト（切り替えは出さず、使えない旨を示す）
+  // PDF があれば、それを先に見せる。無ければ抽出テキスト（切り替えは出さず、使えない旨を示す）
   // 関係図が使えない資料に view=graph が付いていたら、PDF にする（URL が古い・手で書き換えられたとき）
   const mode: DetailView = originalPdf ? (view === 'graph' && !hasGraph ? 'pdf' : (view ?? 'pdf')) : 'text';
 
@@ -141,7 +141,7 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
                 抽出テキスト
               </button>
               <button type="button" className="btn btn-secondary" aria-pressed={mode === 'pdf'} onClick={() => onViewChange('pdf')}>
-                元のPDF
+                PDF
               </button>
               {hasGraph && (
                 <button type="button" className="btn btn-secondary" aria-pressed={mode === 'graph'} onClick={() => onViewChange('graph')}>

@@ -23,7 +23,7 @@ describe('parseUrlState', () => {
     });
   });
 
-  it('ページは、資料を開いているときに読む（表示が何でも残す。出典のページを、「元のPDF」に切り替えたときに使うため）', () => {
+  it('ページは、資料を開いているときに読む（表示が何でも残す。出典のページを、「PDF」に切り替えたときに使うため）', () => {
     expect(parseUrlState('?tab=documents&doc=3&view=pdf&page=2').page).toBe(2);
     expect(parseUrlState('?tab=documents&doc=3&view=text&page=2').page).toBe(2);
     expect(parseUrlState('?tab=documents&doc=3&page=2').page).toBe(2);

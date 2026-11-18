@@ -6,7 +6,7 @@ import { openKnowledge } from './test/navigation';
 import { jsonResponse, replyResponse } from './test/helpers';
 import { openSources } from './test/sources';
 
-// 出典を押して右のパネルを開く流れ（A 案）: 抽出テキストで根拠を強調し、「元のPDF」へ切り替えたら出典のページを開く。
+// 出典を押して右のパネルを開く流れ（A 案）: 抽出テキストで根拠を強調し、「PDF」へ切り替えたら出典のページを開く。
 // パネルの開閉・拡大・状態の保持・履歴・フォーカスを確かめる。
 
 const UPDATED = '2026-10-18T00:00:00+00:00';
@@ -118,7 +118,7 @@ async function ask(user: User) {
 /** 「N 件のソース」を開いて、一覧の項目を返す。 */
 const chips = async () => within(await openSources()).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
 const findPanel = () => screen.findByRole('complementary', { name: /^資料:/ });
-const pdfFrame = () => screen.getByTitle('tsubasa_dorm_rules.pdf の元PDF') as HTMLIFrameElement;
+const pdfFrame = () => screen.getByTitle('tsubasa_dorm_rules.pdf の PDF') as HTMLIFrameElement;
 
 async function openCitation(user: User, index: number) {
   await user.click((await chips())[index]!);
@@ -149,7 +149,7 @@ describe('出典を押して右のパネルを開く', () => {
     expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveValue('書きかけ');
   });
 
-  it('PDF は、「元のPDF」を初めて開くまで取らない。切り替えたら、出典のページを開く', async () => {
+  it('PDF は、「PDF」を初めて開くまで取らない。切り替えたら、出典のページを開く', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
@@ -158,15 +158,15 @@ describe('出典を押して右のパネルを開く', () => {
     const panel = await openCitation(user, 1);
     await panel.findByText('第5条 入寮の申込みは、2 月 28 日までに行う。');
     expect(files).toEqual([]);
-    expect(screen.queryByTitle(/の元PDF/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/の PDF/)).not.toBeInTheDocument();
 
-    await user.click(panel.getByRole('button', { name: '元のPDF' }));
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
 
-    expect(await screen.findByTitle('tsubasa_dorm_rules.pdf の元PDF')).toHaveAttribute('src', 'blob:test/1#page=3');
+    expect(await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF')).toHaveAttribute('src', 'blob:test/1#page=3');
     expect(files).toEqual(['/documents/7/file']);
   });
 
-  it('出典がページを持たないときは、ページを推測せず、「元のPDF」は先頭から開く', async () => {
+  it('出典がページを持たないときは、ページを推測せず、「PDF」は先頭から開く', async () => {
     install({ sources: NO_SOURCES });
     const user = userEvent.setup();
     render(<App />);
@@ -174,9 +174,9 @@ describe('出典を押して右のパネルを開く', () => {
 
     const panel = await openCitation(user, 1);
     expect(window.location.search).toBe('?tab=chat&doc=7&view=text&chunk=1');
-    await user.click(panel.getByRole('button', { name: '元のPDF' }));
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
 
-    expect(await screen.findByTitle('tsubasa_dorm_rules.pdf の元PDF')).toHaveAttribute('src', 'blob:test/1');
+    expect(await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF')).toHaveAttribute('src', 'blob:test/1');
   });
 
   it('同じ資料の中で表示を切り替えても、PDF は取り直さず作り直さない（見ている位置を保つ）', async () => {
@@ -185,12 +185,12 @@ describe('出典を押して右のパネルを開く', () => {
     render(<App />);
     await ask(user);
     const panel = await openCitation(user, 1);
-    await user.click(panel.getByRole('button', { name: '元のPDF' }));
-    const frame = await screen.findByTitle('tsubasa_dorm_rules.pdf の元PDF');
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
+    const frame = await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF');
 
     await user.click(panel.getByRole('button', { name: '抽出テキスト' }));
     expect(frame).not.toBeVisible();
-    await user.click(panel.getByRole('button', { name: '元のPDF' }));
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
 
     expect(pdfFrame()).toBe(frame);
     expect(frame).toBeVisible();
@@ -203,14 +203,14 @@ describe('出典を押して右のパネルを開く', () => {
     render(<App />);
     await ask(user);
     const panel = await openCitation(user, 1);
-    await user.click(panel.getByRole('button', { name: '元のPDF' }));
-    const first = await screen.findByTitle('tsubasa_dorm_rules.pdf の元PDF');
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
+    const first = await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF');
     expect(first).toHaveAttribute('src', 'blob:test/1#page=3');
 
     await user.click((await chips())[0]!);
 
     await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=1&chunk=0'));
-    await user.click(panel.getByRole('button', { name: '元のPDF' }));
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
     const second = pdfFrame();
     expect(second).toHaveAttribute('src', 'blob:test/1#page=1');
     expect(second).not.toBe(first);
@@ -241,9 +241,9 @@ describe('出典を押して右のパネルを開く', () => {
 
     expect(window.location.search).toBe('?tab=documents&doc=8');
     const next = within(await findPanel());
-    expect(await next.findByTitle('cafe_store_guide.pdf の元PDF')).toBeInTheDocument();
+    expect(await next.findByTitle('cafe_store_guide.pdf の PDF')).toBeInTheDocument();
     expect(document.querySelectorAll('[data-focus="true"]')).toHaveLength(0);
-    expect(screen.queryByTitle('tsubasa_dorm_rules.pdf の元PDF')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('tsubasa_dorm_rules.pdf の PDF')).not.toBeInTheDocument();
   });
 });
 
@@ -255,8 +255,8 @@ describe('パネルの拡大・縮小', () => {
     await ask(user);
     await user.type(screen.getByRole('textbox', { name: 'メッセージ' }), '書きかけ');
     const panel = await openCitation(user, 1);
-    await user.click(panel.getByRole('button', { name: '元のPDF' }));
-    const frame = await screen.findByTitle('tsubasa_dorm_rules.pdf の元PDF');
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
+    const frame = await screen.findByTitle('tsubasa_dorm_rules.pdf の PDF');
     const aside = await findPanel();
     const message = screen.getByText('2 月 28 日までです。');
 
@@ -428,22 +428,22 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
   const tabs = (panel: ReturnType<typeof within>) =>
     within(panel.getByRole('group', { name: '表示の切り替え' })).getAllByRole('button').map((b) => b.textContent);
 
-  it('タブは「抽出テキスト」「元のPDF」の順。関係図は、対応する資料（入寮規程）にだけ付く', async () => {
+  it('タブは「抽出テキスト」「PDF」の順。関係図は、対応する資料（入寮規程）にだけ付く', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
 
     const panel = await openCitation(user, 1);
-    expect(tabs(panel)).toEqual(['抽出テキスト', '元のPDF', '関係図']);
+    expect(tabs(panel)).toEqual(['抽出テキスト', 'PDF', '関係図']);
 
     // 関係図の無い資料（カフェ）には、タブも、案内の文も出さない
     await openKnowledge(user);
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
     const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
-    // 一覧から開いたときは、元のPDF（あれば）から。出典のハイライトに依存せず、資料全体を見る
-    await cafe.findByTitle('cafe_store_guide.pdf の元PDF');
-    expect(tabs(cafe)).toEqual(['抽出テキスト', '元のPDF']);
+    // 一覧から開いたときは、PDF（あれば）から。出典のハイライトに依存せず、資料全体を見る
+    await cafe.findByTitle('cafe_store_guide.pdf の PDF');
+    expect(tabs(cafe)).toEqual(['抽出テキスト', 'PDF']);
     expect(cafe.queryByText(/関係図は/)).not.toBeInTheDocument();
   });
 
@@ -484,7 +484,7 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
     await openKnowledge(user);
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
     const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
-    await cafe.findByTitle('cafe_store_guide.pdf の元PDF');
+    await cafe.findByTitle('cafe_store_guide.pdf の PDF');
     expect(cafe.queryByRole('status')).not.toBeInTheDocument();
   });
 

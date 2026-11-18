@@ -35,7 +35,7 @@
 <th width="15%">詳細</th>
 </tr>
 <tr><td>資料一覧</td><td>検索・グループ・対象・種別で絞って見る。状態を確認する</td><td>読み取り専用。分類の設定は運用者の SQL</td><td><a href="api.md">API</a></td></tr>
-<tr><td>閲覧</td><td>抽出テキストと元の PDF を切り替えて読む</td><td>PDF は 20 MiB まで。表示の確認は PC のブラウザーだけ</td><td><a href="api.md">API</a></td></tr>
+<tr><td>閲覧</td><td>抽出テキストと PDF を切り替えて読む</td><td>PDF は 20 MiB まで。表示の確認は PC のブラウザーだけ</td><td><a href="api.md">API</a></td></tr>
 <tr><td>関係図</td><td>入寮規程の条文の参照関係と、変更の影響範囲を見る</td><td><b>実験</b>。<b>入寮規程 1 資料だけ</b>。定義語は辞書の 4 語だけ</td><td><a href="api.md">API</a></td></tr>
 </table>
 
