@@ -7,9 +7,12 @@ import pytest
 
 from scripts import bm25_baseline as tools
 from scripts.bm25_baseline import TOP_K, load_chunks, search_chunks
-from tests.bm25_fixtures import no_pdfs, txt_dir  # noqa: F401  (フィクスチャ)
+from tests.bm25_fixtures import approved_pdfs, no_pdfs, txt_dir  # noqa: F401  (フィクスチャ)
 from tests.rag_eval_cases import ALL_CASES, RELATED_CASES, UNRELATED_CASES
 from tests.zahard_corpus import ZAHARD_FILES, zahard_texts
+
+# 置かれた Git 管理外の PDF（テスト用の資料群）に左右されないよう、承認済みの 3 資料群だけで測る
+pytestmark = pytest.mark.usefixtures("approved_pdfs")
 
 # 評価セットは 21 件と小さく、1 件の増減で 5% 動く。実測（hit@1 18/21, hit@2 19/21,
 # evidence 19/21）より 1 件分だけ余裕を持たせた下限で、大きな退行だけを検知する。

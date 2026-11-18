@@ -16,7 +16,7 @@
 
 ## synth/（テスト用の架空資料の一括生成）
 
-アプリの検索対象ではない。出力は `synth/out/`（Git 管理外）で、`storage/` `corpora/` `fixtures/` には置かない。GPU・有料の手順は承認が要る（`synth/README.md`、`synth/gpu/README.md`）。
+アプリの検索対象ではない。出力は `synth/out/`（Git 管理外）で、`corpora/` `fixtures/` には置かない。ローカルの画面で PDF を開くときだけ、`storage/pdf/synthetic-test/`（Git 管理外）に写す（`synth/README.md`）。GPU・有料の手順は承認が要る（`synth/README.md`、`synth/gpu/README.md`）。
 
 ## PDF の前提
 

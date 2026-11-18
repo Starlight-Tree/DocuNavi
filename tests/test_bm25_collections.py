@@ -14,7 +14,7 @@ import pytest
 from scripts import bm25_baseline as tools
 from scripts import eval_retrieval as ev
 from scripts.bm25_baseline import search_chunks, search_collections
-from tests.bm25_fixtures import txt_dir  # noqa: F401  (フィクスチャ)
+from tests.bm25_fixtures import approved_pdfs, txt_dir  # noqa: F401  (フィクスチャ)
 from tests.pdf_fixtures import build_pdf, paragraphs
 from tests.zahard_corpus import ZAHARD_FILES, ZAHARD_PDF_DIR
 
@@ -24,6 +24,9 @@ APP_CAFE = ROOT / "storage" / "pdf" / "cafe"
 EVAL_GUIDES = ROOT / "evals" / "corpora" / "guides"
 APP_GUIDES = ROOT / "storage" / "pdf" / "guides"
 GUIDES_PDFS = ("aoba_aw820_manual.pdf", "tsubasa_dorm_rules.pdf")
+
+# 置かれた Git 管理外の PDF（テスト用の資料群）に左右されないよう、承認済みの 3 資料群だけで測る
+pytestmark = pytest.mark.usefixtures("approved_pdfs")
 
 
 @pytest.fixture

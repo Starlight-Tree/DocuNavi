@@ -16,10 +16,15 @@ import pytest
 
 from scripts import bm25_baseline as tools
 from scripts import eval_retrieval as ev
+from tests.bm25_fixtures import approved_pdfs  # noqa: F401  (フィクスチャ)
 from tests.rag_eval_cases import ALL_CASES
 from tests.zahard_corpus import ZAHARD_PDF_DIR
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# 置かれた Git 管理外の PDF（テスト用の資料群）に左右されないよう、承認済みの 3 資料群だけで測る
+pytestmark = pytest.mark.usefixtures("approved_pdfs")
+
 RESULTS = ROOT / "evals" / "results"
 QUESTIONS = ROOT / "evals" / "questions.yaml"
 # ザーハードの PDF 版の baseline（storage/pdf/zahard/ の PDF を、取り込みと同じ経路で読んだ BM25 の実測）。

@@ -96,6 +96,11 @@ python -m evals.synth bench-report                       # 並べて、推奨の
 - 入れる場合は、承認を取ってから: 専用の collection `synthetic-test`（マニフェストの `collection`）を作り、どのロールにも付けない
   （`ACCESS_MODE=enforce` では見えない）。ただし MCP は運用者向けに全資料を検索できるので、これだけでは混ざる。
   取り込み側（`app/ingestion/`）に「PDF のメタデータに `DOCUNAVI-SYNTHETIC-TEST` があるものは、明示のフラグなしでは拒否」を足すことを提案する（`app/` の変更なので、承認後）。
+- **ローカルの画面で PDF を開くとき:** `out/pdf/` を `storage/pdf/synthetic-test/` に写す（`cp -r evals/synth/out/pdf/. storage/pdf/synthetic-test/`）。
+  アプリは `storage/pdf/<資料群>/<source>` を探し、DB の `source` が `minato-coffee/xxx.pdf` の形なので、この入れ子で見つかる。
+  `storage/pdf/synthetic-test/` は `.gitignore` で除外している（大きく、作り直すたびに履歴が膨らむため）。
+  検索の基準線のテスト（`test_bm25_*`・`test_eval_retrieval.py`）は、承認済みの 3 資料群（`cafe` `guides` `zahard`）の写しだけを使うので、置いても数字は動かない
+  （`tests/bm25_fixtures.py` の `approved_pdfs`）。本番の R2 へ上げるのは、承認を取って、リリースのときに別作業で行う。
 - 資料の分類（`target` `doc_type`）は、マニフェストに書いてある。`document_targets` `document_types` の語彙（4 + 4）の内側にしてある。
 
 ## 費用の見積もり（実測前の仮定）
