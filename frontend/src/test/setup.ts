@@ -1,12 +1,18 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterEach, beforeEach } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
+import { installStageWidth, resetFakePdf } from './fakePdf';
+
+// PDF.js（canvas・Worker が要る）との境界は、全テストで差し替える。実際の描画は、実ブラウザーで確かめる
+vi.mock('../api/pdfjs', async () => ({ openPdf: (await import('./fakePdf')).openPdf }));
+installStageWidth();
 
 // 既定の画面は資料一覧だが、テストの大半はチャットを扱うので、先頭の URL はチャットにする（既定を確かめるテストは '/' に置き直す）
 const START_URL = '/?tab=chat';
 
 beforeEach(() => {
   window.history.replaceState(null, '', START_URL);
+  resetFakePdf();
 });
 
 afterEach(() => {
