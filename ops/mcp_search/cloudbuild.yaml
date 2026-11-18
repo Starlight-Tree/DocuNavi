@@ -5,6 +5,9 @@
 # 置換変数: _IMAGE  ビルドしたイメージの名前（例: <REGION>-docker.pkg.dev/<PROJECT_ID>/<リポジトリ>/docunavi-mcp:<タグ>）
 steps:
   - name: gcr.io/cloud-builders/docker
+    # Dockerfile の `COPY --chmod` は BuildKit が必要（旧ビルダーでは失敗する）
+    env:
+      - DOCKER_BUILDKIT=1
     args:
       - build
       - --file
