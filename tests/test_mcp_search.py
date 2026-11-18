@@ -1,7 +1,8 @@
 """資料検索の MCP サーバー（ops/mcp_search/main.py）。実 API・実 DB は使わない。
 
 検索（`search_vector.search`）と DB のプールは偽物に差し替える。`mcp` パッケージが要るテスト（ツールの定義と、
-クライアントからの呼び出し）は、入っていない環境ではスキップする（アプリの依存には足さない）。
+クライアントからの呼び出し）は、入っていない環境ではスキップする。アプリの依存（requirements.in）には足さないが、
+開発・CI の依存（requirements-dev.in）には入れてあるので、CI では実行される。
 """
 
 import asyncio
