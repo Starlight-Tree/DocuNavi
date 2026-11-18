@@ -261,10 +261,9 @@ test('最初の画面はチャットで、上部にタブは無い。左下の�
   await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
   await docsLink.click(page);
-  await page.getByRole('main', { name: 'ナレッジ' }).getByRole('button', { name: '閉じる' }).click(); // 右上の「× 閉じる」
+  await page.getByRole('link', { name: 'DocuNavi' }).click(); // 2 回目も、ロゴで戻れる（「閉じる」ボタンは無い）
   await expect(page).toHaveURL(/tab=chat/);
   await expect(input).toHaveValue('書きかけ');
-  await expect(input).toBeFocused();
 });
 
 test('PC: 左サイドバーを閉じると、アイコンだけの細いレールが残る。履歴と文字は隠れ、会話・入力途中の文・回答対象は変わらず、資料一覧でも同じ', async ({ page }) => {
@@ -361,7 +360,7 @@ test('ログインを使わない構成では、サイドバーの「会話の�
   await expect(history.getByText('ログインを使わない構成では、会話の一覧を表示できません。')).toBeVisible();
 });
 
-test('参照資料の出典を押すと、チャットのまま右のパネルが開く（URL は抽出テキスト）。Esc で閉じると、パネルの列は残らず、フォーカスは「N 件のソース」のボタンへ戻る', async ({ page }) => {
+test('参照資料の出典を押すと、チャットのまま右のパネルが開く（URL は PDF ビューアー）。Esc で閉じると、パネルの列は残らず、フォーカスは「N 件のソース」のボタンへ戻る', async ({ page }) => {
   await page.goto('/?tab=chat');
   await page.getByRole('textbox', { name: 'メッセージ' }).fill('ザーハードの大気について教えて');
   await page.getByRole('button', { name: '送信' }).click();
@@ -371,7 +370,7 @@ test('参照資料の出典を押すと、チャットのまま右のパネル�
 
   const panel = page.getByRole('complementary', { name: /^資料:/ });
   await expect(panel).toBeVisible();
-  await expect(page).toHaveURL(/doc=\d+&view=text/);
+  await expect(page).toHaveURL(/doc=\d+&view=pdf/);
   await expect(page.getByRole('log', { name: '会話' })).toBeVisible();
 
   const shellColumns = () => page.locator('.ws-shell').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);

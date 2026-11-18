@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page, Route } from '@playwright/test';
-import { E2E_EMAIL, installAuthMock } from './support/auth-mock';
+import { E2E_NAME, installAuthMock } from './support/auth-mock';
 
 // 認証のシナリオ。実ブラウザー + 本物の Better Auth クライアント + 偽の認証サーバー（page.route）。
 // バックエンドは AUTH_MODE=off の偽のアプリ（トークンは検証しない）。実 Worker・実 Google は呼ばない。
@@ -60,7 +60,7 @@ async function mockListApis(page: Page) {
 async function signIn(page: Page) {
   await page.goto('/?tab=chat');
   await page.getByRole('button', { name: 'Google でログイン' }).click();
-  await expect(page.locator('.ws-account-name')).toHaveText(E2E_EMAIL);
+  await expect(page.locator('.ws-account-name')).toHaveText(E2E_NAME);
 }
 
 async function ask(page: Page, text: string) {
@@ -83,7 +83,7 @@ test('ログインして戻ると、ログイン前の画面の状態（資料�
   await signIn.click();
 
   // ログインして戻ると、メールアドレスが出て、絞り込みの付いた資料一覧が開く
-  await expect(page.locator('.ws-account-name')).toHaveText(E2E_EMAIL);
+  await expect(page.locator('.ws-account-name')).toHaveText(E2E_NAME);
   await expect(page.getByRole('main', { name: 'ナレッジ' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'カフェのメニュー を開く' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ザーハード設定資料 1 を開く' })).toHaveCount(0);
@@ -117,7 +117,7 @@ test('チャットが 401 を返したら、トークンを 1 回だけ取り直
 
   await expect(page.getByText(ANSWER)).toBeVisible();
   // ログインしたまま（ログイン画面にも、期限切れの案内にも戻らない）
-  await expect(page.locator('.ws-account-name')).toHaveText(E2E_EMAIL);
+  await expect(page.locator('.ws-account-name')).toHaveText(E2E_NAME);
   await expect(page.getByText(EXPIRED_NOTICE)).toHaveCount(0);
 
   // 取り直しは 1 回だけ。送り直しには、取り直して発行された新しいトークンが付いている

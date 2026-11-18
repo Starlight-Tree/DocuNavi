@@ -7,6 +7,8 @@ export const FAKE_AUTH_ORIGIN = 'https://auth.e2e.invalid';
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
 
 export const E2E_EMAIL = 'e2e-user@example.com';
+/** アカウントのボタンに出る表示名（メールアドレスは、メニューの先頭に出る）。 */
+export const E2E_NAME = 'E2E';
 const E2E_USER_ID = 'e2e-user-0000000001';
 
 export interface AuthCall {
@@ -88,7 +90,7 @@ export async function installAuthMock(context: BrowserContext, options: AuthMock
         const body = mock.signedIn
           ? {
               session: { id: 'e2e-session', userId: E2E_USER_ID },
-              user: { id: E2E_USER_ID, email: E2E_EMAIL, name: 'E2E', emailVerified: true },
+              user: { id: E2E_USER_ID, email: E2E_EMAIL, name: E2E_NAME, emailVerified: true },
             }
           : null;
         return route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify(body) });
