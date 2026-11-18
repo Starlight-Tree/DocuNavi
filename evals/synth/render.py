@@ -2,7 +2,7 @@
 
 reportlab と、埋め込める日本語の TrueType フォント（通常と太字の静的な TTF。既定は Noto Sans JP の Regular / Bold。
 `python -m evals.synth.make_fonts` で作る）が要る。アプリの依存には入れていない（`evals/synth/requirements.txt`）。
-全ページの上に「テスト用の架空資料」の帯を入れ、PDF のメタデータ（Subject・Keywords）にも印を入れる。
+PDF のメタデータ（Subject・Keywords）に印（MARKER）を入れる。ページの上の帯は入れない（見た目で架空と分かり、帯の文が全ページの検索の文字に混ざるため。2026-11-18、ユーザーが決定）。
 同じ入力・同じ reportlab・同じフォントなら、同じバイト列になる（作成日時を固定する）。
 reportlab は呼び出し時に読み込む（無い環境でも、このモジュールの定数と、他のモジュールは使える）。
 """
@@ -16,10 +16,6 @@ from evals.synth import markdown_subset
 
 MARKER = "DOCUNAVI-SYNTHETIC-TEST"
 NOTICE = "テスト用の架空資料"
-BANNER_LINES = (
-    f"【{NOTICE}】",
-    "検索の評価のために作った架空の内容です。実在の人物・団体・製品・数値とは関係ありません。",
-)
 FONT_DIR = Path(__file__).resolve().parent / "fonts"  # Git 管理外（OFL のフォント。make_fonts.py が作る）
 NOTO_REGULAR = FONT_DIR / "NotoSansJP-Regular.ttf"
 NOTO_BOLD = FONT_DIR / "NotoSansJP-Bold.ttf"
@@ -200,17 +196,6 @@ def render_pdf(
                 super().showPage()
             super().save()
 
-    def decorate(c: canvas.Canvas, _doc) -> None:
-        c.saveState()
-        c.setFillColor(colors.HexColor("#b00020"))
-        c.setFont(_FONT_NAME, 10)
-        c.drawString(20 * mm, height - 10 * mm, BANNER_LINES[0])
-        c.setFont(_FONT_NAME, 8)
-        c.drawString(20 * mm, height - 14 * mm, BANNER_LINES[1])
-        c.setStrokeColor(colors.HexColor("#b00020"))
-        c.line(20 * mm, height - 16 * mm, width - 20 * mm, height - 16 * mm)
-        c.restoreState()
-
     out_path.parent.mkdir(parents=True, exist_ok=True)
     doc = SimpleDocTemplate(
         str(out_path),
@@ -224,4 +209,4 @@ def render_pdf(
         subject=f"{MARKER} {NOTICE}",
         keywords=MARKER,
     )
-    doc.build(story, onFirstPage=decorate, onLaterPages=decorate, canvasmaker=_Canvas)
+    doc.build(story, canvasmaker=_Canvas)

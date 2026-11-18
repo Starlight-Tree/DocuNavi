@@ -1,4 +1,4 @@
-"""出力の点検（読み取りだけ）。台帳・本文・PDF・マニフェストが食い違っていないか、全ページに「テスト用の架空資料」が入っているかを確かめる。"""
+"""出力の点検（読み取りだけ）。台帳・本文・PDF・マニフェストが食い違っていないか、メタデータの印（DOCUNAVI-SYNTHETIC-TEST）があるかを確かめる。"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 from evals.synth.ledger import Ledger
 from evals.synth.pipeline import build_manifest, sha256_bytes
-from evals.synth.render import MARKER, NOTICE
+from evals.synth.render import MARKER
 
 
 def verify_output(out_dir: Path) -> list[str]:
@@ -38,9 +38,6 @@ def verify_output(out_dir: Path) -> list[str]:
             subject = (reader.metadata.subject if reader.metadata else None) or ""
             if MARKER not in subject:
                 problems.append(f"{doc_id}: メタデータ（Subject）に {MARKER} がありません")
-            for number, page in enumerate(reader.pages, start=1):
-                if NOTICE not in (page.extract_text() or ""):
-                    problems.append(f"{doc_id}: {number} ページ目に「{NOTICE}」がありません")
         except Exception as exc:
             problems.append(f"{doc_id}: PDF を読めません（{type(exc).__name__}）")
     for pdf in sorted((out_dir / "pdf").glob("*/*.pdf")) if (out_dir / "pdf").exists() else []:

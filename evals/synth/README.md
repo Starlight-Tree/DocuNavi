@@ -30,11 +30,11 @@ python -m evals.synth.gpu_worker --engine fake --requests out/requests/round-01.
 python -m evals.synth ingest --sample-per-target 2 --round 1
 python -m evals.synth.make_fonts   # 1 回だけ: Noto Sans JP の Regular/Bold（静的な TTF）を fonts/ に作る（fonttools が要る。Git 管理外）
 python -m evals.synth render                                # reportlab が要る。fonts/ があれば Noto Sans JP、無ければ IPA ゴシック（太字なし）
-python -m evals.synth verify                                # 全ページの「テスト用の架空資料」・ハッシュ・マニフェストの整合
+python -m evals.synth verify                                # メタデータの印・ハッシュ・マニフェストの整合
 python -m evals.synth report --usd-per-hour <時間単価 USD>  # 実測の集計と、80 件・1,000 件への見積もりの補正
 ```
 
-表紙: `out/cover/<対象>/<資料の id>.jpg`（2:1・1200×600 の JPEG）があれば、`render` が先頭に表紙を 1 ページ足す（題名・画像・「初版｜2026年11月」。表紙にもページ番号以外の帯を入れる）。
+表紙: `out/cover/<対象>/<資料の id>.jpg`（2:1・1200×600 の JPEG）があれば、`render` が先頭に表紙を 1 ページ足す（題名・画像・「初版｜2026年11月」。表紙にはページ番号を入れない）。
 画像は Vertex の `gemini-3.1-flash-lite-image` で 1 枚ずつ作る（2026-11-18 に minato-coffee の 19 件。画像の生成は、この道具には入れていない）。既に PDF がある資料に表紙を足すときは、その PDF を消してから `render` する（本文が変わらないと作り直されないため）。
 出力先は `evals/synth/out/`（Git 管理外）。`--out-dir` で変えられるが、`storage/` `evals/corpora/` `evals/fixtures/` `app/` などの中は拒否される。
 reportlab は `requirements.txt` のとおり、一時的な仮想環境に入れる（アプリの依存には入れない）。
@@ -87,8 +87,8 @@ python -m evals.synth bench-report                       # 並べて、推奨の
 **限界:** 数値を伴わない矛盾（言い換えで事実を変える、固有名の取り違え）は、見つからない。必要なら、あとから LLM の照合を足す（今は無い）。
 既存の資料には、bible に書いていない事実（例: 店舗一覧の住所）もある。bible と既存の資料の食い違いは、人が目で確かめる（未実施）。
 
-全 PDF に「テスト用の架空資料」の帯を全ページに入れ、メタデータにも `DOCUNAVI-SYNTHETIC-TEST` を入れる（`render.py`。`verify` が確かめる）。
-帯は各ページの文字として抽出されるので、取り込むと検索のチャンクにも入る（評価の資料としては許容。気になるなら、取り込み側で除く）。
+全 PDF のメタデータ（Subject・Keywords）に `DOCUNAVI-SYNTHETIC-TEST` を入れる（`render.py`。`verify` が確かめる）。
+ページの上の帯（「テスト用の架空資料」）は入れない（2026-11-18、ユーザーが決定。見た目で架空と分かり、帯の文が全ページの検索の文字に混ざるため）。
 
 ## 本番の検索に混ざらない分離
 

@@ -362,7 +362,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="太字の字体（静的な TrueType）。無ければ太字も通常の字体で描く",
     )
     add("manifest", cmd_manifest, "分類マニフェストを書く")
-    add("verify", cmd_verify, "台帳・本文・PDF・マニフェストの整合と、全ページの「テスト用の架空資料」を点検する")
+    add("verify", cmd_verify, "台帳・本文・PDF・マニフェストの整合と、メタデータの印を点検する")
     add("status", cmd_status, "対象ごとの状態の件数と費用の累計")
 
     p = add("bench-prepare", cmd_bench_prepare, "同時数の比較: 全試行で共有する依頼を書く（台帳には触れない）")

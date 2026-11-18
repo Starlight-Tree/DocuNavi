@@ -10,7 +10,7 @@ import pytest
 
 from evals.synth import batch, gpu_worker
 from evals.synth.cli import main
-from evals.synth.render import BANNER_LINES, MARKER, NOTICE, RenderUnavailable, render_pdf
+from evals.synth.render import MARKER, NOTICE, RenderUnavailable, render_pdf
 from evals.synth.verify import verify_output
 
 
@@ -120,9 +120,8 @@ def test_real_pdf_has_the_notice_on_every_page_and_in_the_metadata(tmp_path):
     render_pdf(md, path, font_path=DEFAULT_FONT, doc_id="demo-01", title="題名です")
     reader = pypdf.PdfReader(str(path))
     assert len(reader.pages) >= 2
-    assert all(NOTICE in (p.extract_text() or "") for p in reader.pages)
-    assert MARKER in (reader.metadata.subject or "")
-    assert BANNER_LINES[0] in reader.pages[0].extract_text()
+    assert not any(NOTICE in (p.extract_text() or "") for p in reader.pages)  # ページの上の帯は入れない
+    assert MARKER in (reader.metadata.subject or "")  # 印はメタデータに残す
     again = tmp_path / "y.pdf"
     render_pdf(md, again, font_path=DEFAULT_FONT, doc_id="demo-01", title="題名です")
     assert again.read_bytes() == path.read_bytes()  # 同じ入力から同じバイト列
@@ -146,7 +145,6 @@ def test_a_cover_adds_one_page_with_the_notice_the_title_and_the_image(tmp_path)
     render_pdf(md, covered, font_path=DEFAULT_FONT, doc_id="demo-01", title="題名です（副題です）", cover_image=cover)
     before, after = pypdf.PdfReader(str(plain)), pypdf.PdfReader(str(covered))
     assert len(after.pages) == len(before.pages) + 1
-    assert all(NOTICE in (p.extract_text() or "") for p in after.pages)  # 表紙にも帯がある
     first = after.pages[0].extract_text()
     assert "題名です" in first and "副題です" in first and COVER_COLOPHON in first
     assert "1 / " not in first  # 表紙にページ番号は無い
