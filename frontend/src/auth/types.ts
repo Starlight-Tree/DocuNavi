@@ -12,12 +12,23 @@ export interface AuthUser {
   image?: string | null | undefined;
 }
 
+/**
+ * トークンを取りに行ったが、通信の失敗・サーバーの一時的な不調で取れなかった（ログアウトしたとは限らない）。
+ * 「ログインしていない」（確かに未ログイン・セッション無効）を表す null とは区別する。投げられたら、ログイン画面へ戻さず、再試行を促す。
+ */
+export class TokenUnavailableError extends Error {
+  constructor() {
+    super('token unavailable');
+    this.name = 'TokenUnavailableError';
+  }
+}
+
 export interface AuthClient {
   /** いまのログイン中の利用者。ログインしていなければ null。 */
   getUser: () => Promise<AuthUser | null>;
-  /** 有効なアクセストークン。期限が近ければ、ここで更新してから返す。ログインしていなければ null。 */
+  /** 有効なアクセストークン。期限が近ければ、ここで更新してから返す。ログインしていなければ null。一時的な失敗は TokenUnavailableError を投げる。 */
   getAccessToken: () => Promise<string | null>;
-  /** 新しいアクセストークンを取り直して返す。取れなければ（セッションが無効なら）null。 */
+  /** 新しいアクセストークンを取り直して返す。セッションが無効なら null。一時的な失敗は TokenUnavailableError を投げる。 */
   refreshAccessToken: () => Promise<string | null>;
   /** ログイン状態の変化（ログイン・ログアウト・別タブでの変更・更新の失敗）を受け取る。戻り値で購読をやめる。 */
   onChange: (listener: (user: AuthUser | null) => void) => () => void;

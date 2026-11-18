@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { ChatApiError, MEMBERSHIP_REQUIRED_CODE } from '../api/chat';
 import type { chatFetch } from '../api/chat';
 import { fakeAuth } from '../test/auth';
-import { MSG_LOGIN_REQUIRED, createAuthedFetch } from './authFetch';
+import { MSG_AUTH_UNAVAILABLE, MSG_LOGIN_REQUIRED, createAuthedFetch } from './authFetch';
+import { TokenUnavailableError } from './types';
 
 type Fetch = typeof chatFetch;
 
@@ -106,6 +107,35 @@ describe('createAuthedFetch', () => {
 
     expect(base).not.toHaveBeenCalled();
     expect(expired).toHaveBeenCalledTimes(1);
+  });
+
+  it('トークンの取得が一時的に失敗しても、期限切れ（ログイン画面）にはしない。再試行を促すエラーにする', async () => {
+    const base = vi.fn<Fetch>(async () => OK());
+    const expired = vi.fn();
+    const auth = fakeAuth();
+    auth.getAccessToken.mockRejectedValue(new TokenUnavailableError());
+
+    await expect(createAuthedFetch(() => auth, expired, base)('/x')).rejects.toMatchObject({
+      status: 0,
+      message: MSG_AUTH_UNAVAILABLE,
+    });
+
+    expect(base).not.toHaveBeenCalled();
+    expect(expired).not.toHaveBeenCalled();
+  });
+
+  it('401 のあとの更新が一時的に失敗したときも、期限切れにはしない', async () => {
+    const base = vi.fn<Fetch>().mockRejectedValue(unauthorized());
+    const expired = vi.fn();
+    const auth = fakeAuth();
+    auth.refreshAccessToken.mockRejectedValue(new TokenUnavailableError());
+
+    await expect(createAuthedFetch(() => auth, expired, base)('/x')).rejects.toMatchObject({
+      status: 0,
+      message: MSG_AUTH_UNAVAILABLE,
+    });
+
+    expect(expired).not.toHaveBeenCalled();
   });
 
   it('401 以外の失敗では更新も期限切れの通知もしない', async () => {

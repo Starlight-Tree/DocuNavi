@@ -1,5 +1,5 @@
 import { createAuthClient } from 'better-auth/client';
-import type { AuthClient, AuthUser } from './types';
+import { TokenUnavailableError, type AuthClient, type AuthUser } from './types';
 
 /** アクセストークン（JWT）の exp（秒）。読めなければ 0（毎回取り直す）。 */
 function expiresAt(token: string): number {
@@ -11,6 +11,11 @@ function expiresAt(token: string): number {
   } catch {
     return 0;
   }
+}
+
+/** 4xx（ただし 408・429 を除く）は「セッションが無い・無効」。それ以外（通信の失敗・5xx・混雑）は、ログアウトとは限らない一時的な失敗。 */
+export function isSessionRejected(status: number | undefined): boolean {
+  return status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429;
 }
 
 /** 期限のこの秒数前になったら、使う前に取り直す。 */
@@ -32,8 +37,14 @@ export function createBetterAuth(baseURL: string): AuthClient {
     data?.user ? { email: data.user.email ?? null, name: data.user.name ?? null, image: data.user.image ?? null } : null;
 
   const requestToken = async (): Promise<string | null> => {
-    const { data } = await client.$fetch<{ token?: string }>('/token', { method: 'GET' });
-    const token = data?.token ?? null;
+    let result;
+    try {
+      result = await client.$fetch<{ token?: string }>('/token', { method: 'GET' });
+    } catch {
+      throw new TokenUnavailableError(); // 通信の失敗。キャッシュは残す（期限内のトークンは、まだ使える）
+    }
+    if (result.error && !isSessionRejected(result.error.status)) throw new TokenUnavailableError();
+    const token = result.data?.token ?? null;
     cached = token ? { token, exp: expiresAt(token) } : null;
     return token;
   };
