@@ -121,9 +121,9 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
         <span className="ws-eyebrow">資料</span>
         <span className="ws-panel-tools">
           {mode === 'pdf' && pdf.status === 'ready' && (
-            // 内蔵ビューアの保存は Blob URL の ID が名前になる。ここは、取り込んだ元のファイル名で保存する
+            // 内蔵ビューアの保存は Blob URL の ID が名前になる。ここは、資料名（題名）で保存する
             // （取得済みの Blob をそのまま使う。追加の通信も権限の確認も増えない）
-            <a className="ws-icon-btn" href={pdf.data.url} download={pdfDownloadName(document)} aria-label="PDF をダウンロード" title="PDF をダウンロード（元のファイル名で保存）">
+            <a className="ws-icon-btn" href={pdf.data.url} download={pdfDownloadName(document)} aria-label="PDF をダウンロード" title="PDF をダウンロード（資料名で保存）">
               <DownloadIcon />
             </a>
           )}
@@ -142,8 +142,9 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
           </button>
         </span>
       </header>
-      <h2 className="ws-panel-title">
-        <DocumentName document={document} />
+      {/* 取り込み用のファイルパスは利用者に意味が無いので、常時は出さない（重ねたときの説明にだけ残す） */}
+      <h2 className="ws-panel-title" title={document.title ? document.source : undefined}>
+        <DocumentName document={document} showFile={false} />
       </h2>
       <p className="document-meta">
         {groupName && <span>{groupName}</span>}

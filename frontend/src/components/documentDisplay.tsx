@@ -41,9 +41,14 @@ export function displayName(document: DocumentSummary): string {
   return document.title ?? document.source;
 }
 
-/** PDF を保存するときのファイル名。取り込んだ元のファイル名（日本語のまま）。拡張子が無ければ `.pdf` を付ける。 */
+/**
+ * PDF を保存するときのファイル名。資料名（題名。無ければ元のファイル名の末尾）に `.pdf` を付ける。
+ * ファイル名に使えない文字（/ \ : * ? " < > |）は「_」にする。日本語はそのまま。
+ */
 export function pdfDownloadName(document: DocumentSummary): string {
-  return /\.pdf$/i.test(document.source) ? document.source : `${document.source}.pdf`;
+  const base = document.title ?? document.source.split('/').pop() ?? document.source;
+  const safe = base.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim().replace(/\.pdf$/i, '');
+  return `${safe || 'document'}.pdf`;
 }
 
 /** `showFile` を false にすると、ファイル名を出さない（一覧は、同じ題名の資料を見分けるときだけ出す）。 */

@@ -2,6 +2,8 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+import type { DocumentSummary } from './api/documents';
+import { pdfDownloadName } from './components/documentDisplay';
 import { openKnowledge } from './test/navigation';
 import { jsonResponse, replyResponse } from './test/helpers';
 import { openSources } from './test/sources';
@@ -223,7 +225,7 @@ describe('出典を押して右のパネルを開く', () => {
     expect(files).toHaveLength(1); // PDF そのものは取り直さない
   });
 
-  it('PDF を開くと、ヘッダーに「PDF をダウンロード」のアイコンが出る。取得済みの Blob を、取り込んだ元のファイル名で保存する（内蔵ビューアの保存名は Blob の ID になる）', async () => {
+  it('PDF を開くと、ヘッダーに「PDF をダウンロード」のアイコンが出る。取得済みの Blob を、資料名で保存する（内蔵ビューアの保存名は Blob の ID になる）', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
@@ -238,6 +240,13 @@ describe('出典を押して右のパネルを開く', () => {
     expect(link).toHaveAttribute('href', 'blob:test/1');
     expect(link).toHaveAttribute('download', 'tsubasa_dorm_rules.pdf');
     expect(files).toHaveLength(1); // 取り直さない
+  });
+
+  it('ダウンロード名は資料名（題名）。階層つきのソースでも、ファイル名に使えない文字は「_」にして、日本語は保つ', () => {
+    const doc = (source: string, title: string | null) => ({ source, title }) as DocumentSummary;
+    expect(pdfDownloadName(doc('aoba-aw820/guide-01.pdf', 'あおば電機 AW-820 お手入れガイド（フィルターのお手入れ）'))).toBe('あおば電機 AW-820 お手入れガイド（フィルターのお手入れ）.pdf');
+    expect(pdfDownloadName(doc('a/b.pdf', '規程 第1/2版: 改定?'))).toBe('規程 第1_2版_ 改定_.pdf');
+    expect(pdfDownloadName(doc('aoba-aw820/guide-01.pdf', null))).toBe('guide-01.pdf'); // 題名が無ければ、ソースの末尾
   });
 
   it('資料一覧からの表示とタブの移動: パネルは作り直されず、別の資料へ移ると前の資料のページ・強調を引き継がない', async () => {

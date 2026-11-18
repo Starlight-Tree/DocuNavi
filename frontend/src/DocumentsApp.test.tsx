@@ -428,7 +428,7 @@ describe('資料一覧: 題名', () => {
     expect(rows.map((row) => row.querySelector('.document-file')?.textContent ?? null)).toEqual(['rules_v1.pdf', 'rules_v2.pdf', null]);
   });
 
-  it('「開く」ボタンの名前と詳細の見出しは題名、ファイル名は補助に出す', async () => {
+  it('「開く」ボタンの名前と詳細の見出しは題名。詳細の見出しにはファイル名を出さず、重ねたときの説明に残す', async () => {
     installDocsFetch((url) => jsonResponse(url === '/documents' ? TITLED : DETAIL));
     const { user } = setup();
     await openDocuments(user);
@@ -437,7 +437,8 @@ describe('資料一覧: 題名', () => {
 
     const heading = (await panel()).getByRole('heading', { level: 2 });
     expect(heading).toHaveTextContent('つばさ大学学生寮 入寮規程');
-    expect(heading).toHaveTextContent('tsubasa_dorm_rules.pdf');
+    expect(heading).not.toHaveTextContent('tsubasa_dorm_rules.pdf');
+    expect(heading).toHaveAttribute('title', 'tsubasa_dorm_rules.pdf');
   });
 
   it('title が文字列でも null でもない応答は、不正な応答として扱う', async () => {
