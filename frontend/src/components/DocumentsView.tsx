@@ -10,8 +10,7 @@ import type { Loaded } from '../hooks/useLoaded';
 import type { NavigateMode, UrlState } from '../lib/urlState';
 import { useUrlState } from '../lib/urlState';
 import { isSelectable, setShown, shownState, toggleOne } from '../lib/documentSelection';
-import { DEFAULT_PAGE_SIZE, PAGE_SIZES, paginate } from '../lib/pagination';
-import type { PageSize } from '../lib/pagination';
+import { PAGE_SIZE, paginate } from '../lib/pagination';
 import { signalPanelOpen } from '../lib/panelSignal';
 import { DocumentFilterBar } from './DocumentFilterBar';
 import { SelectionMenu } from './SelectionMenu';
@@ -88,15 +87,15 @@ function DocumentTable({
   const { state: catalogState } = useCollectionCatalog();
   const { targets: targetState, docTypes: docTypeState } = useClassificationCatalog();
   // ページ番号は、検索・絞り込み・並び替えの条件（key）とともに持つ。条件が変わったら 1 ページ目に戻す（選択は変えない）
-  const [paging, setPaging] = useState<{ key: string; page: number; size: PageSize }>({ key: '', page: 1, size: DEFAULT_PAGE_SIZE });
+  const [paging, setPaging] = useState<{ key: string; page: number }>({ key: '', page: 1 });
   const key = JSON.stringify([collection, filter]);
   // 条件が変わると、見える（有効な）ページは 1 に戻る。保存しているページ番号でなく、見えているページを見張る
   const visiblePage = paging.key === key ? paging.page : 1;
-  // 表だけがスクロールする（ページ送りは下端に固定）。ページ移動・表示件数・絞り込みの変更では、表のスクロールを先頭へ戻す（選択は変えない）
+  // 表だけがスクロールする（ページ送りは下端に固定）。ページ移動・絞り込みの変更では、表のスクロールを先頭へ戻す（選択は変えない）
   const wrapRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (wrapRef.current) wrapRef.current.scrollTop = 0;
-  }, [key, visiblePage, paging.size]);
+  }, [key, visiblePage]);
   if (state.status !== 'ready') return <Status state={state} onRetry={onRetry} />;
   if (!state.data.configured) return <p>{MSG_NOT_CONFIGURED}</p>;
   if (state.data.documents.length === 0) return <p>{MSG_NO_DOCUMENTS}</p>;
@@ -117,7 +116,7 @@ function DocumentTable({
 
   // 一覧の検索・絞り込みは表示を絞るだけで、選択は変えない。全選択・解除は、表示している資料だけに効く
   const allDocuments = state.data.documents;
-  const pageData = paginate(shown, visiblePage, paging.size);
+  const pageData = paginate(shown, visiblePage, PAGE_SIZE);
   const shownSelectable = shownState(shown, selection?.selected ?? new Set()).selectable;
   const shownChecked = shownState(shown, selection?.selected ?? new Set()).checked;
   const pageSelectable = shownState(pageData.rows, selection?.selected ?? new Set()).selectable;
@@ -160,7 +159,7 @@ function DocumentTable({
       )}
     </>
   );
-  const goTo = (page: number) => setPaging({ key, page, size: paging.size });
+  const goTo = (page: number) => setPaging({ key, page });
 
   return (
     <>
@@ -201,32 +200,23 @@ function DocumentTable({
       {shown.length > 0 && (
         <nav className="docs-pager" aria-label="ページ移動">
           <span className="docs-pager-range">
-            {pageData.from}–{pageData.to} 件目 / 全 {pageData.total} 件
+            {pageData.from}–{pageData.to} / {pageData.total} 件
           </span>
-          <label className="docs-pager-size">
-            表示件数
-            <select value={paging.size} onChange={(event) => setPaging({ key, page: 1, size: Number(event.target.value) as PageSize })}>
-              {PAGE_SIZES.map((n) => (
-                <option key={n} value={n}>
-                  {n} 件
-                </option>
-              ))}
-            </select>
-          </label>
           <span className="docs-pager-nav">
-            <button type="button" className="btn btn-secondary btn-small" disabled={pageData.page <= 1} onClick={() => goTo(pageData.page - 1)}>
-              前へ
+            <button type="button" className="docs-pager-btn" aria-label="前のページ" disabled={pageData.page <= 1} onClick={() => goTo(pageData.page - 1)}>
+              ‹
             </button>
             <span aria-live="polite">
-              {pageData.page} / {pageData.pageCount} ページ
+              {pageData.page} / {pageData.pageCount}
             </span>
             <button
               type="button"
-              className="btn btn-secondary btn-small"
+              className="docs-pager-btn"
+              aria-label="次のページ"
               disabled={pageData.page >= pageData.pageCount}
               onClick={() => goTo(pageData.page + 1)}
             >
-              次へ
+              ›
             </button>
           </span>
         </nav>

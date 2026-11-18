@@ -1523,11 +1523,36 @@ a.ws-icon-btn {
   color: var(--text-muted);
 }
 
-.docs-pager-size,
 .docs-pager-nav {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 枠なしの ‹ ›。押せる範囲は 2rem 四方で、見た目は静かにする */
+.docs-pager-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.docs-pager-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.docs-pager-btn:disabled {
+  color: var(--text-muted);
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* チェックボックスの列（見出し行は全選択・解除）。資料名の前に置く */

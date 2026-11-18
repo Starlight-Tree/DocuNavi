@@ -607,41 +607,34 @@ describe('資料一覧: ページ分けと選択', () => {
   };
   const rows = () => screen.getAllByRole('row').slice(1);
   const pager = () => screen.findByRole('navigation', { name: 'ページ移動' });
-  const next = async (user: User) => user.click(within(await pager()).getByRole('button', { name: '次へ' }));
+  const next = async (user: User) => user.click(within(await pager()).getByRole('button', { name: '次のページ' }));
   const summaryText = async () => {
     await screen.findByRole('button', { name: '選択' });
     return document.querySelector('.docs-summary')?.textContent;
   };
   const rowCheck = (name: string) => screen.findByRole('checkbox', { name: `${name} を回答に使う` });
 
-  it('既定は 25 件。下に表示範囲・総件数・前へ／次へが出て、25・50・100 件に切り替えられる', async () => {
+  it('1 ページは 25 件。下に表示範囲・総件数・‹ ›が出て、表示件数の切り替えは無い', async () => {
     install({ documents: many });
     const { user } = setup();
     await openKnowledge(user);
 
     await waitFor(() => expect(rows()).toHaveLength(25));
-    expect(await pager()).toHaveTextContent('1–25 件目 / 全 60 件');
-    expect(within(await pager()).getByText('1 / 3 ページ')).toBeInTheDocument();
-    expect(within(await pager()).getByRole('button', { name: '前へ' })).toBeDisabled();
+    expect(await pager()).toHaveTextContent('1–25 / 60 件');
+    expect(within(await pager()).getByText('1 / 3')).toBeInTheDocument();
+    expect(within(await pager()).getByRole('button', { name: '前のページ' })).toBeDisabled();
 
     await next(user);
-    expect(await pager()).toHaveTextContent('26–50 件目 / 全 60 件');
+    expect(await pager()).toHaveTextContent('26–50 / 60 件');
     await next(user);
-    expect(await pager()).toHaveTextContent('51–60 件目 / 全 60 件');
+    expect(await pager()).toHaveTextContent('51–60 / 60 件');
     expect(rows()).toHaveLength(10);
-    expect(within(await pager()).getByRole('button', { name: '次へ' })).toBeDisabled();
+    expect(within(await pager()).getByRole('button', { name: '次のページ' })).toBeDisabled();
 
-    const size = within(await pager()).getByRole('combobox', { name: '表示件数' });
-    expect(within(size).getAllByRole('option').map((o) => o.textContent)).toEqual(['25 件', '50 件', '100 件']);
-    await user.selectOptions(size, '50');
-    expect(rows()).toHaveLength(50);
-    expect(await pager()).toHaveTextContent('1–50 件目 / 全 60 件'); // 表示件数を変えたら 1 ページ目に戻る
-    await user.selectOptions(size, '100');
-    expect(rows()).toHaveLength(60);
-    expect(await pager()).toHaveTextContent('1–60 件目 / 全 60 件');
+    expect(within(await pager()).queryByRole('combobox')).toBeNull();
   });
 
-  it('ページを移動しても、表示件数を変えても、選択は保たれる。選択済み件数は全ページの合計', async () => {
+  it('ページを移動しても、選択は保たれる。選択済み件数は全ページの合計', async () => {
     install({ documents: many });
     const { user } = setup();
     await openKnowledge(user);
@@ -654,11 +647,9 @@ describe('資料一覧: ページ分けと選択', () => {
     await user.click(await rowCheck('資料 30.pdf'));
     expect(await summaryText()).toBe('60件の資料 · 58件を回答対象');
 
-    await user.click(within(await pager()).getByRole('button', { name: '前へ' }));
+    await user.click(within(await pager()).getByRole('button', { name: '前のページ' }));
     expect(await rowCheck('資料 01.pdf')).not.toBeChecked();
-    await user.selectOptions(within(await pager()).getByRole('combobox', { name: '表示件数' }), '100');
     expect(await rowCheck('資料 01.pdf')).not.toBeChecked();
-    expect(await rowCheck('資料 30.pdf')).not.toBeChecked();
     expect(await rowCheck('資料 02.pdf')).toBeChecked();
     expect(await summaryText()).toBe('60件の資料 · 58件を回答対象');
   });
@@ -712,7 +703,7 @@ describe('資料一覧: ページ分けと選択', () => {
     expect(wrap.scrollTop).toBe(0);
   });
 
-  it('ページ移動・表示件数・絞り込みを変えると、表のスクロールを先頭へ戻す（選択は保つ）', async () => {
+  it('ページ移動・絞り込みを変えると、表のスクロールを先頭へ戻す（選択は保つ）', async () => {
     install({ documents: many });
     const { user } = setup();
     await openKnowledge(user);
@@ -729,7 +720,7 @@ describe('資料一覧: ページ分けと選択', () => {
     expect(wrap.scrollTop).toBe(0);
 
     scrollDown();
-    await user.selectOptions(within(await pager()).getByRole('combobox', { name: '表示件数' }), '50');
+    await user.click(within(await pager()).getByRole('button', { name: '前のページ' }));
     expect(wrap.scrollTop).toBe(0);
 
     scrollDown();
@@ -789,11 +780,11 @@ describe('資料一覧: ページ分けと選択', () => {
 
     await next(user);
     await next(user);
-    expect(await pager()).toHaveTextContent('51–60 件目');
+    expect(await pager()).toHaveTextContent('51–60 / 60 件');
 
     // 絞り込み（対象）で 1 ページ目に戻る。30 件 → 25 件 + 5 件
     await user.selectOptions(await screen.findByRole('combobox', { name: '対象' }), 'zahard');
-    expect(await pager()).toHaveTextContent('1–25 件目 / 全 30 件');
+    expect(await pager()).toHaveTextContent('1–25 / 30 件');
     expect(await summaryText()).toBe('検索結果 30件 · 回答対象 60件');
 
     // 検索結果（30 件）だけを解除する。ほかの 30 件の選択は変わらない
@@ -804,11 +795,11 @@ describe('資料一覧: ページ分けと選択', () => {
     await user.keyboard('{Escape}');
 
     await next(user);
-    expect(await pager()).toHaveTextContent('26–30 件目 / 全 30 件');
+    expect(await pager()).toHaveTextContent('26–30 / 30 件');
 
     // 並び替えでも 1 ページ目に戻る
     await user.selectOptions(await screen.findByRole('combobox', { name: '並び替え' }), 'name');
-    expect(await pager()).toHaveTextContent('1–25 件目 / 全 30 件');
+    expect(await pager()).toHaveTextContent('1–25 / 30 件');
     expect(await summaryText()).toBe('検索結果 30件 · 回答対象 30件');
   });
 });

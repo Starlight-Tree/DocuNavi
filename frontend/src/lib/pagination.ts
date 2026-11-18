@@ -1,8 +1,7 @@
 /** 一覧のページ分け。React にも通信にも依存しない。 */
 
-export const PAGE_SIZES = [25, 50, 100] as const;
-export type PageSize = (typeof PAGE_SIZES)[number];
-export const DEFAULT_PAGE_SIZE: PageSize = 25;
+/** 1 ページの件数。切り替えは持たない（表は中でスクロールし、80 件前後なら 25 件で足りる）。 */
+export const PAGE_SIZE = 25;
 
 export interface Page<T> {
   /** このページの行。 */
