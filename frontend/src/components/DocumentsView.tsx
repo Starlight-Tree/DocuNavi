@@ -14,7 +14,6 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZES, paginate } from '../lib/pagination';
 import type { PageSize } from '../lib/pagination';
 import { signalPanelOpen } from '../lib/panelSignal';
 import { DocumentFilterBar } from './DocumentFilterBar';
-import { CloseIcon } from './icons';
 import { SelectionMenu } from './SelectionMenu';
 import { DocumentName, UpdatedAt, displayName, statusName } from './documentDisplay';
 import { Status } from './Status';
@@ -346,8 +345,6 @@ interface DocumentsViewProps {
   onReload: () => void;
   /** 回答に使う資料の選択。渡さなければ、選択の操作は出さない。 */
   selection?: DocumentSelection | undefined;
-  /** 「× 閉じる」。直前のチャットへ戻る。 */
-  onClose: () => void;
 }
 
 /**
@@ -355,7 +352,7 @@ interface DocumentsViewProps {
  * 開いている資料・絞り込み・並び替えは、URL が決める（戻る・再読み込み・共有で戻れる）。
  * 一覧の絞り込み（表示する資料を絞る）と、チャットの回答対象（回答に使う資料の選択）は、別のもの。
  */
-export function DocumentsView({ state, onReload, selection, onClose }: DocumentsViewProps) {
+export function DocumentsView({ state, onReload, selection }: DocumentsViewProps) {
   const { doc, target, docType, collection, query, status, pageBand, updatedBand, sort, navigate } = useUrlState();
   const filter: DocumentFilter = {
     query: query ?? '',
@@ -383,9 +380,6 @@ export function DocumentsView({ state, onReload, selection, onClose }: Documents
     <main className="documents" aria-label="ナレッジ">
       <div className="docs-head">
         <h2 className="docs-title">ナレッジ</h2>
-        <button type="button" className="ws-icon-btn" aria-label="閉じる" title="閉じる" onClick={onClose}>
-          <CloseIcon />
-        </button>
       </div>
       <DocumentTable
         state={state}

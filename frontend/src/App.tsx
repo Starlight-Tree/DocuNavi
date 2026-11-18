@@ -367,7 +367,6 @@ function ChatScreen() {
             state={documentList}
             onReload={reloadDocuments}
             selection={selection}
-            onClose={goChat}
           />
         )}
       </div>
