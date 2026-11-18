@@ -107,6 +107,26 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
           </h2>
         </div>
         <span className="ws-panel-tools">
+          {/* ほかの表示へ移るボタン（アイコンだけ。説明は title と aria-label）。いま開いている表示のボタンは出さない。「PDF から抽出したテキスト」という断り書きは、抽出テキストのボタンの説明にする */}
+          {originalPdf && (
+            <span className="view-links" role="group" aria-label="表示の切り替え">
+              {mode !== 'text' && (
+                <button type="button" className="ws-icon-btn" aria-label="抽出テキストを見る" title={MSG_EXTRACTED} onClick={() => onViewChange('text')}>
+                  <TextIcon />
+                </button>
+              )}
+              {mode !== 'pdf' && (
+                <button type="button" className="ws-icon-btn" aria-label="PDFを開く" title="PDFを開く" onClick={() => onViewChange('pdf')}>
+                  <FileIcon />
+                </button>
+              )}
+              {hasGraph && mode !== 'graph' && (
+                <button type="button" className="ws-icon-btn" aria-label="関係図を見る" title="関係図を見る" onClick={() => onViewChange('graph')}>
+                  <GraphIcon />
+                </button>
+              )}
+            </span>
+          )}
           <button
             type="button"
             className="ws-icon-btn"
@@ -126,31 +146,7 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
         <Status state={state} onRetry={reload} />
       ) : (
         <>
-          {originalPdf ? (
-            <div className="view-links" role="group" aria-label="表示の切り替え">
-              {/* いま開いている表示のボタンは出さない（ほかの表示へ移るためのボタンだけ）。「PDF から抽出したテキスト」という断り書きは、常時は出さず、ボタンのホバーの説明（title）にする */}
-              {mode !== 'text' && (
-                <button type="button" className="btn btn-secondary view-link" title={MSG_EXTRACTED} onClick={() => onViewChange('text')}>
-                  <TextIcon />
-                  抽出テキストを見る
-                </button>
-              )}
-              {mode !== 'pdf' && (
-                <button type="button" className="btn btn-secondary view-link" onClick={() => onViewChange('pdf')}>
-                  <FileIcon />
-                  PDFを開く
-                </button>
-              )}
-              {hasGraph && mode !== 'graph' && (
-                <button type="button" className="btn btn-secondary view-link" onClick={() => onViewChange('graph')}>
-                  <GraphIcon />
-                  関係図を見る
-                </button>
-              )}
-            </div>
-          ) : (
-            <p className="documents-summary">{MSG_PDF_UNAVAILABLE}</p>
-          )}
+          {!originalPdf && <p className="documents-summary">{MSG_PDF_UNAVAILABLE}</p>}
 
           {citationMiss && mode !== 'graph' && (
             <p className="chunk-miss" role="status">

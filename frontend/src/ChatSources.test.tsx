@@ -213,7 +213,7 @@ describe('出典チップ', () => {
     const panel = await screen.findByRole('complementary', { name: '資料: tsubasa_dorm_rules.pdf' });
     expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf');
     expect(await within(panel).findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' })).toBeVisible();
-    expect(within(panel).getByRole('status')).toHaveTextContent(MSG_CITE_MISS);
+    expect(within(panel).getByText(MSG_CITE_MISS)).toHaveAttribute('role', 'status');
   });
 
   it('資料一覧に無い出典は、開かずに、その旨を出す', async () => {

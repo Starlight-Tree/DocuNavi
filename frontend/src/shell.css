@@ -1340,11 +1340,6 @@
   gap: 0.35rem;
 }
 
-.ws-panel .view-links {
-  align-self: flex-start;
-  margin-bottom: 0;
-}
-
 .ws-view-body {
   display: flex;
   min-height: 0;

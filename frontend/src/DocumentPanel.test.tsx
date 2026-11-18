@@ -520,7 +520,7 @@ describe('パネルのフォーカス', () => {
 
 describe('資料ビューア: 表示の切り替え・メタ情報・根拠の特定', () => {
   const viewLinks = (panel: ReturnType<typeof within>) =>
-    within(panel.getByRole('group', { name: '表示の切り替え' })).getAllByRole('button').map((b) => b.textContent);
+    within(panel.getByRole('group', { name: '表示の切り替え' })).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
 
   it('切り替えのボタンは、いま開いていない表示へ移るものだけ（タブは無い）。関係図は、対応する資料（入寮規程）にだけ付く', async () => {
     install();

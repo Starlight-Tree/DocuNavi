@@ -1047,18 +1047,11 @@ textarea {
   font-weight: normal;
 }
 
-/* 表示の切り替え。いま開いていない表示へ移るボタン（アイコン＋文字）を並べる。タブではない */
+/* 表示の切り替え。ヘッダー右上の道具の並びに置く、いま開いていない表示へ移るアイコンのボタン。タブではない */
 .view-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0 0 1rem;
-}
-
-.view-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 /* PDF ビューア（PDF.js）。ツールバーと、ページの絵（canvas）に透明な文字の層を重ねた 1 ページ */

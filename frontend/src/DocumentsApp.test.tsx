@@ -680,14 +680,14 @@ describe('資料の詳細: 見出しと関係図の案内', () => {
 
     const inPanel = await panel();
     const links = await inPanel.findByRole('group', { name: '表示の切り替え' });
-    expect(within(links).getAllByRole('button').map((b) => b.textContent)).toEqual(['PDFを開く']);
+    expect(within(links).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['PDFを開く']);
     expect(screen.queryByRole('button', { name: '関係図を見る' })).not.toBeInTheDocument();
     expect(screen.queryByText(/入寮規程だけ/)).not.toBeInTheDocument();
 
     await user.click(within(links).getByRole('button', { name: 'PDFを開く' }));
 
     // PDF を開いたあとは、抽出テキストへ戻るボタンだけ（関係図は、この資料には無い）
-    expect(within(await inPanel.findByRole('group', { name: '表示の切り替え' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['抽出テキストを見る']);
+    expect(within(await inPanel.findByRole('group', { name: '表示の切り替え' })).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['抽出テキストを見る']);
     expect(screen.queryByRole('button', { name: '関係図を見る' })).not.toBeInTheDocument();
   });
 });
