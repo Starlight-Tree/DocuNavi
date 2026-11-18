@@ -3,13 +3,11 @@ import type { KeyboardEvent } from 'react';
 import { MSG_PDF_UNAVAILABLE } from '../api/documents';
 import type { DocumentSummary } from '../api/documents';
 import { GRAPH_SOURCE } from '../api/graph';
-import { useCollectionCatalog } from '../hooks/useCollections';
 import { useDocumentChunks, useDocumentPdf } from '../hooks/useDocuments';
-import { collectionLabel } from '../lib/collections';
 import { takePendingFocus, usePanelCiteSeq, usePanelCitationMiss, usePanelOpenSeq, usePanelSpan } from '../lib/panelSignal';
 import { locateSpan } from '../lib/sources';
 import type { DetailView } from '../lib/urlState';
-import { DocumentName, UpdatedAt, displayName, pageLabel, pdfDownloadName } from './documentDisplay';
+import { DocumentName, displayName, pageLabel, pdfDownloadName } from './documentDisplay';
 import { CloseIcon, CollapseIcon, DownloadIcon, ExpandIcon } from './icons';
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
@@ -66,10 +64,6 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
   const cite = usePanelCiteSeq();
   const span = usePanelSpan();
   const citationMiss = usePanelCitationMiss() === document.id && chunk === null;
-  const { state: catalog } = useCollectionCatalog();
-  const groupName = document.collection
-    ? collectionLabel(document.collection, catalog.status === 'ready' ? catalog.data.collections : undefined)
-    : null;
 
   const originalPdf = state.status === 'ready' && state.data.originalPdf;
   // 関係図は入寮規程だけ。サーバーが PDF から計算するので、PDF が使えるときだけ出す
@@ -117,8 +111,13 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
       tabIndex={-1}
       onKeyDown={handleKeyDown}
     >
-      <header className="ws-panel-head">
-        <span className="ws-eyebrow">資料</span>
+      {/* 最上段は、題名（左）とアイコン（右）。「資料」の見出し・取り込みの日付・ページ数・資料グループ名は出さない
+          （日付は取り込みの記録で、利用者の判断に使えない。ページ数は PDF のビューアが示す）。
+          取り込み用のファイルパスは、常時は出さず、題名に重ねたときの説明にだけ残す */}
+      <header className="ws-panel-head ws-panel-head-doc">
+        <h2 className="ws-panel-title" title={document.title ? `${name}\n${document.source}` : name}>
+          <DocumentName document={document} showFile={false} />
+        </h2>
         <span className="ws-panel-tools">
           {mode === 'pdf' && pdf.status === 'ready' && (
             // 内蔵ビューアの保存は Blob URL の ID が名前になる。ここは、資料名（題名）で保存する
@@ -142,17 +141,6 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
           </button>
         </span>
       </header>
-      {/* 取り込み用のファイルパスは利用者に意味が無いので、常時は出さない（重ねたときの説明にだけ残す） */}
-      <h2 className="ws-panel-title" title={document.title ? document.source : undefined}>
-        <DocumentName document={document} showFile={false} />
-      </h2>
-      <p className="document-meta">
-        {groupName && <span>{groupName}</span>}
-        {document.pages !== null && <span>{`${document.pages} ページ`}</span>}
-        <span>
-          更新 <UpdatedAt value={document.updatedAt} withTime />
-        </span>
-      </p>
       {state.status !== 'ready' ? (
         <Status state={state} onRetry={reload} />
       ) : (

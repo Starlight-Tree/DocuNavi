@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -473,20 +473,16 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
     expect(cafe.queryByText(/関係図は/)).not.toBeInTheDocument();
   });
 
-  it('資料名の下に、ページ数と更新日時を出す。更新日時の記録が無い資料は「記録なし」と出す（日時を作らない）', async () => {
-    install({ list: { configured: true, documents: [summary(7, 'tsubasa_dorm_rules.pdf'), summary(8, 'cafe_store_guide.pdf', { updated_at: null })] } });
+  it('パネルの最上段は題名とアイコンだけ。取り込みの日付・ページ数・「資料」の見出しは出さない', async () => {
+    install();
     window.history.replaceState(null, '', '/?tab=documents&doc=7');
     render(<App />);
 
     const panel = within(await findPanel());
-    expect((await panel.findByText('4 ページ')).parentElement).toHaveTextContent(/更新 2026\/10\/18/);
-
-    cleanup();
-    window.history.replaceState(null, '', '/?tab=documents&doc=8');
-    render(<App />);
-    const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
-    expect((await cafe.findByText('4 ページ')).parentElement).toHaveTextContent('更新 記録なし');
-    expect(cafe.getByText('記録なし')).toHaveAttribute('title', 'この資料には、更新日時の記録がありません');
+    expect(panel.getByRole('heading', { level: 2 })).toBeInTheDocument();
+    expect(panel.queryByText(/更新|取り込み/)).not.toBeInTheDocument();
+    expect(panel.queryByText(/\d+ ページ/)).not.toBeInTheDocument();
+    expect(panel.queryByText('資料')).not.toBeInTheDocument();
   });
 
   it('出典の根拠の箇所を特定できなかったときは、強調を付けず、その旨を示す。ほかの資料を開いたときは引き継がない', async () => {

@@ -871,6 +871,11 @@
   justify-content: space-between;
 }
 
+.ws-panel-head-doc {
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
 .ws-eyebrow {
   color: var(--text-muted);
   font-size: 0.75rem;
@@ -881,6 +886,18 @@
   margin: 0;
   font-size: 1.15rem;
   overflow-wrap: anywhere;
+}
+
+/* ヘッダーの題名は 2 行まで。切れたときは、ホバーの説明（title）で全文を見られる */
+.ws-panel-head-doc .ws-panel-title {
+  display: -webkit-box;
+  min-width: 0;
+  margin-top: 0.25rem;
+  overflow: hidden;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .ws-meta {
@@ -1303,6 +1320,7 @@
 }
 
 .ws-panel-tools {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -1311,10 +1329,6 @@
 .ws-panel .view-switch {
   align-self: flex-start;
   margin-bottom: 0;
-}
-
-.ws-panel .document-meta {
-  margin: 0;
 }
 
 .ws-view-body {

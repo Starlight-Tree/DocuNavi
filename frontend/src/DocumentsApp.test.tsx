@@ -428,7 +428,7 @@ describe('資料一覧: 題名', () => {
     expect(rows.map((row) => row.querySelector('.document-file')?.textContent ?? null)).toEqual(['rules_v1.pdf', 'rules_v2.pdf', null]);
   });
 
-  it('「開く」ボタンの名前と詳細の見出しは題名。詳細の見出しにはファイル名を出さず、重ねたときの説明に残す', async () => {
+  it('「開く」ボタンの名前と詳細の見出しは題名。詳細の見出しにはファイル名を出さず、重ねたときの説明（題名の全文とファイル名）に残す', async () => {
     installDocsFetch((url) => jsonResponse(url === '/documents' ? TITLED : DETAIL));
     const { user } = setup();
     await openDocuments(user);
@@ -438,7 +438,8 @@ describe('資料一覧: 題名', () => {
     const heading = (await panel()).getByRole('heading', { level: 2 });
     expect(heading).toHaveTextContent('つばさ大学学生寮 入寮規程');
     expect(heading).not.toHaveTextContent('tsubasa_dorm_rules.pdf');
-    expect(heading).toHaveAttribute('title', 'tsubasa_dorm_rules.pdf');
+    // 見出しは 2 行までで切れることがあるので、重ねると全文とファイル名を出す
+    expect(heading).toHaveAttribute('title', 'つばさ大学学生寮 入寮規程\ntsubasa_dorm_rules.pdf');
   });
 
   it('title が文字列でも null でもない応答は、不正な応答として扱う', async () => {
@@ -675,15 +676,16 @@ describe('資料の詳細: 見出しと関係図の案内', () => {
   const DETAIL = { document: summary(2, 'cafe_store_guide.pdf', 30, 28), chunks: [chunk(0, '本文')], original_pdf: true };
   const routes = (url: string) => jsonResponse(url === '/documents' ? LIST : DETAIL);
 
-  it('資料名の下に、ページ数と更新日を出す', async () => {
+  it('詳細パネルに、取り込みの日付・ページ数・資料グループ名は出さない（ページ数は PDF のビューアが示す）', async () => {
     installDocsFetch(routes);
     const { user } = setup();
     await openDocuments(user);
     await user.click(await screen.findByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
 
     const inPanel = await panel();
-    expect(await inPanel.findByText('3 ページ')).toBeInTheDocument();
-    expect(inPanel.getByText('3 ページ').parentElement).toHaveTextContent(/更新 2026\/10\/18/);
+    expect(await inPanel.findByRole('heading', { level: 2 })).toHaveTextContent('cafe_store_guide.pdf');
+    expect(inPanel.queryByText(/更新|取り込み/)).not.toBeInTheDocument();
+    expect(inPanel.queryByText('3 ページ')).not.toBeInTheDocument();
   });
 
   it('関係図の無い資料には、関係図のタブも案内の文も出さない（タブは「抽出テキスト」「PDF」だけ）', async () => {
