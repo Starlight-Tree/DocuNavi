@@ -113,9 +113,8 @@ test('資料一覧の対象の選択は一覧を絞るだけ。資料ごとの�
   const summary = page.locator('.docs-summary');
   await expect(summary).toHaveText('8件の資料');
   await expect(page.getByRole('checkbox', { name: '準備中の資料 を回答に使う' })).toBeDisabled();
-  await page.getByRole('button', { name: '選択', exact: true }).click();
-  await expect(page.getByRole('menuitem', { name: '全資料に戻す' })).toHaveCount(0); // 一部選択のときだけ出る
-  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: '選択', exact: true })).toHaveCount(0); // 「選択 ▾」のメニューは無い
+  await expect(page.getByRole('button', { name: '全資料に戻す' })).toHaveCount(0); // 一部選択のときだけ出る
 
   // 対象を選んでも、一覧が絞られるだけで、選択は変わらない。見出しのチェックはこのページだけに効く
   await targetSelect.selectOption('minato-coffee');
@@ -165,8 +164,7 @@ test('選んだ資料にザーハードが無ければ、その質問は該当�
 
   // 全資料に戻す（会話は選んだ資料の質問ごとの適用なので、確認は出ない）
   await docsLink.click(page);
-  await page.getByRole('button', { name: '選択', exact: true }).click();
-  await page.getByRole('menuitem', { name: '全資料に戻す' }).click();
+  await page.getByRole('button', { name: '全資料に戻す' }).click();
   await expect(page.getByRole('alertdialog')).toBeHidden();
   await expect(page.locator('.docs-summary')).toHaveText('8件の資料');
   await chatLink(page).click();
@@ -200,9 +198,8 @@ test('対象を選んだ会話で「全資料に戻す」を押すと、資料�
   await docsLink.click(page);
   // 対象を選んだ会話では、その対象の資料にチェックが付く
   await expect(page.locator('.docs-summary')).toHaveText('8件の資料 · 3件を回答対象');
-  const reset = page.getByRole('button', { name: '選択', exact: true }); // 確認を閉じたあと、フォーカスはこのメニューのボタンに戻る
+  const reset = page.getByRole('button', { name: '全資料に戻す' }); // 確認を閉じたあと、フォーカスはこのボタンに戻る
   await reset.click();
-  await page.getByRole('menuitem', { name: '全資料に戻す' }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog.getByRole('button', { name: 'いまの会話を続ける' })).toBeFocused();
 
@@ -212,7 +209,6 @@ test('対象を選んだ会話で「全資料に戻す」を押すと、資料�
   await expect(page).toHaveURL(/tab=documents/);
 
   await reset.click();
-  await page.getByRole('menuitem', { name: '全資料に戻す' }).click();
   await dialog.getByRole('button', { name: '新しい会話にする' }).click();
   await expect(page).toHaveURL(/tab=documents/); // 資料一覧に留まる
   await expect(page.locator('.docs-summary')).toHaveText('8件の資料');

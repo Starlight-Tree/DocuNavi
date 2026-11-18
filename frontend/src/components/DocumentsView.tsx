@@ -13,7 +13,6 @@ import { isSelectable, setShown, shownState, toggleOne } from '../lib/documentSe
 import { PAGE_SIZE, paginate } from '../lib/pagination';
 import { signalPanelOpen } from '../lib/panelSignal';
 import { DocumentFilterBar } from './DocumentFilterBar';
-import { SelectionMenu } from './SelectionMenu';
 import { DocumentName, UpdatedAt, displayName, statusName } from './documentDisplay';
 import { Status } from './Status';
 
@@ -117,11 +116,7 @@ function DocumentTable({
   // 一覧の検索・絞り込みは表示を絞るだけで、選択は変えない。全選択・解除は、表示している資料だけに効く
   const allDocuments = state.data.documents;
   const pageData = paginate(shown, visiblePage, PAGE_SIZE);
-  const shownSelectable = shownState(shown, selection?.selected ?? new Set()).selectable;
-  const shownChecked = shownState(shown, selection?.selected ?? new Set()).checked;
-  const pageSelectable = shownState(pageData.rows, selection?.selected ?? new Set()).selectable;
-  const pageChecked = shownState(pageData.rows, selection?.selected ?? new Set()).checked;
-  // 件数と回答対象は 1 行にまとめる。「全資料に戻す」は、一部だけ選んでいるときに限って出す
+  // 件数と回答対象は 1 行にまとめる。選択の操作は、行のチェックと見出しのチェック（このページ）だけ。「全資料に戻す」は、一部だけ選んでいるときに限って出す
   const searching = isFiltered(filter) || collection !== null;
   const answerCount = selection?.selected.size ?? 0;
   const partial = selection !== undefined && !selection.isAll;
@@ -132,30 +127,10 @@ function DocumentTable({
         {/* 初期状態（絞り込みなし・全選択）は、入力欄にも同じ内容が出るので、何も足さない。知らせるのは、一部だけ選んだとき・絞り込み中（選択は変わらない）だけ */}
         {selection && (searching || partial) && ` · ${searching ? `回答対象 ${answerCount}件` : `${answerCount}件を回答対象`}`}
       </p>
-      {selection && (
-        <SelectionMenu
-          items={[
-            {
-              key: 'page',
-              label: `このページ（${pageSelectable}件）を選択`,
-              disabled: pageSelectable === 0 || pageChecked === pageSelectable,
-              onSelect: () => selection.onChange(setShown(selection.selected, pageData.rows, true)),
-            },
-            {
-              key: 'all',
-              label: `検索結果すべて（${shownSelectable}件）を選択`,
-              disabled: shownSelectable === 0 || shownChecked === shownSelectable,
-              onSelect: () => selection.onChange(setShown(selection.selected, shown, true)),
-            },
-            {
-              key: 'clear',
-              label: '検索結果の選択を解除',
-              disabled: shownChecked === 0,
-              onSelect: () => selection.onChange(setShown(selection.selected, shown, false)),
-            },
-            ...(partial ? [{ key: 'reset', label: '全資料に戻す', onSelect: (trigger: HTMLElement) => selection.onReset(trigger) }] : []),
-          ]}
-        />
+      {selection && partial && (
+        <button type="button" className="docs-reset" onClick={(event) => selection.onReset(event.currentTarget)}>
+          全資料に戻す
+        </button>
       )}
     </>
   );

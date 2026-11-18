@@ -1475,46 +1475,18 @@ a.ws-icon-btn {
   padding: 0.6rem 0.9rem;
 }
 
-.selection-menu-wrap {
-  position: relative;
-}
-
-.selection-menu {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 0.3rem);
-  left: 0;
-  min-width: 15rem;
-  margin: 0;
-  padding: 0.3rem;
-  list-style: none;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.15);
-}
-
-.selection-menu-item {
-  width: 100%;
-  padding: 0.45rem 0.6rem;
+.docs-reset {
+  padding: 0;
   border: 0;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: var(--text);
+  background: none;
+  color: var(--accent);
   font: inherit;
-  text-align: left;
-  white-space: nowrap;
+  font-size: 0.85rem;
   cursor: pointer;
 }
 
-.selection-menu-item:hover:not(:disabled),
-.selection-menu-item:focus-visible {
-  background: var(--surface-muted);
-}
-
-.selection-menu-item:disabled {
-  color: var(--text-muted);
-  cursor: default;
+.docs-reset:hover {
+  text-decoration: underline;
 }
 
 .docs-ask-warning {
