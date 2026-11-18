@@ -38,7 +38,7 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 
 ## セキュリティの運用
 
-- **`SECURITY.md` を置いた**（2026-11-18。リポジトリは公開）。窓口は GitHub の Private Vulnerability Reporting で、**設定の有効化はユーザーが行う**（有効化の前は、報告画面が開かない。有効かは `gh api repos/Starlight-Tree/DocuNavi/private-vulnerability-reporting` の GET で読める）。対応はベストエフォートと明記してある。内容を変えるときは確認する。
+- **`SECURITY.md` を置いた**（2026-11-18。リポジトリは公開）。窓口は GitHub の Private Vulnerability Reporting で、同日に有効化した（ユーザーの依頼で、ホストの gh から。有効かは `gh api repos/Starlight-Tree/DocuNavi/private-vulnerability-reporting` の GET で読める）。対応はベストエフォートと明記してある。内容を変えるときは確認する。
 - **画面に渡してよいのは公開用の値だけ。** `NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。入れてよいのは API・中継・認証（Better Auth）の URL など、公開してよい値だけ。
   秘密鍵・`D1_API_TOKEN`・`GEMINI_API_KEY` は入れない。
 - **設定は環境変数で渡す。** 認証・DB・LLM の値をコード・文書・コミットに書かない。`.env` と `frontend/.env.local` は Git 管理外。
