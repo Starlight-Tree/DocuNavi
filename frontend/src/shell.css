@@ -223,6 +223,20 @@
   text-align: left;
 }
 
+/* 主役の塗りではなく、控えめな面にする（地の中で、いちばん目立つ色が、ここになりすぎない）。＋だけアクセント */
+.btn.ws-new {
+  background: var(--surface-muted);
+  font-weight: 600;
+}
+
+.btn.ws-new:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, var(--surface-muted));
+}
+
+.btn.ws-new > span {
+  color: var(--accent);
+}
+
 .ws-nav,
 .ws-history {
   margin: 0;
@@ -1567,6 +1581,8 @@ a.ws-icon-btn {
   height: 1rem;
   margin: 0;
   cursor: pointer;
+  /* 25 行分の既定の水色が、一覧の主役にならないよう、アクセントを面の色へ少し寄せる */
+  accent-color: color-mix(in srgb, var(--accent) 72%, var(--surface));
 }
 
 .documents-table .col-check input:disabled {
@@ -1660,17 +1676,19 @@ a.ws-icon-btn {
   box-shadow: inset 0 -1px 0 var(--border);
   color: var(--text-muted);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .documents-table th[scope='row'] {
   min-width: 9rem;
-  font-weight: 600;
+  font-weight: 400;
   overflow-wrap: anywhere;
 }
 
 .documents-table td {
+  /* 資料名（--text）より一段淡くして、強弱は太さではなく色でつける */
+  color: var(--text-body);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

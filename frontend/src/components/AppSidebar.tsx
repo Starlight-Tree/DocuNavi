@@ -179,7 +179,7 @@ export function AppSidebar({ view, mode, userLabel, userImage, userEmail, onChan
             </button>
           )}
         </div>
-        <button type="button" className="btn btn-primary ws-new" onClick={onNewConversation}>
+        <button type="button" className="btn btn-secondary ws-new" onClick={onNewConversation}>
           <span aria-hidden="true">＋ </span>新しい会話
         </button>
         {!knowledgeInMenu && (

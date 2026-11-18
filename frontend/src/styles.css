@@ -2,15 +2,15 @@
   color-scheme: light dark; /* 手動で選んだときは、下の data-theme が上書きする */
 
   /* 無彩色に近い灰色の地に、青を 1 色だけ。紫の塗りはやめ、枠線は薄くする */
-  --bg: #f6f7f5;
+  --bg: #f6f7f9;
   --surface: #ffffff;
-  --surface-muted: #eef0ed;
-  --text: #1f2421;
-  --text-muted: #5d6762;
+  --surface-muted: #eef0f3;
+  --text: #1f2328;
+  --text-muted: #5c6470;
   /* 回答の本文は少し淡く、強調だけ濃く（ダークは本文を少し暗く、強調を白く） */
-  --text-body: #4a504c;
-  --text-strong: #0f1311;
-  --border: #e0e4df;
+  --text-body: #4a515b;
+  --text-strong: #0f1216;
+  --border: #e1e4e9;
   --accent: #2c4fcf;
   --accent-text: #ffffff;
   --user-bg: #2c4fcf;
@@ -35,14 +35,14 @@
 /* ダークの値は、OS 追従（手動でライトを選んでいない間）と、手動でダークを選んだとき（data-theme）の 2 か所に、同じ内容を書く。CSS では共有できないので、変えるときは両方（theme.test.ts が一致を確かめる） */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #141715;
-    --surface: #1a1e1c;
-    --surface-muted: #232825;
-    --text: #e6eae7;
-    --text-muted: #9aa59f;
-    --text-body: #c4cbc6;
+    --bg: #15171b;
+    --surface: #1b1d21;
+    --surface-muted: #22252a;
+    --text: #e6e8eb;
+    --text-muted: #9aa1ab;
+    --text-body: #c3c8d0;
     --text-strong: #ffffff;
-    --border: #2e3532;
+    --border: #2a2e35;
     --accent: #8aa2ff;
     --accent-text: #101319;
     --user-bg: #3b55c9;
@@ -57,14 +57,14 @@
 }
 
 :root[data-theme='dark'] {
-  --bg: #141715;
-  --surface: #1a1e1c;
-  --surface-muted: #232825;
-  --text: #e6eae7;
-  --text-muted: #9aa59f;
-  --text-body: #c4cbc6;
+  --bg: #15171b;
+  --surface: #1b1d21;
+  --surface-muted: #22252a;
+  --text: #e6e8eb;
+  --text-muted: #9aa1ab;
+  --text-body: #c3c8d0;
   --text-strong: #ffffff;
-  --border: #2e3532;
+  --border: #2a2e35;
   --accent: #8aa2ff;
   --accent-text: #101319;
   --user-bg: #3b55c9;
