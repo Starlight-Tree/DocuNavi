@@ -266,7 +266,7 @@ data: [DONE]
   20 MiB を超えるファイルは返さない。
   - 存在しない `id` は 404。ファイルが無い・探せないときは 404（`PDF は利用できません。`）。
     名前の合うファイルはあるが内容が DB と違う（または DB にハッシュが無い）ときは 409（`PDF が、DB に保存された資料と一致しません。`）。
-  - 画面は、PDF を iframe（ブラウザー内蔵の PDF 表示）で見せる。認証ありの構成では、同じオリジンの中継（画面の Worker の `GET /api/documents/{id}/file?name=…`。Cookie から取った JWT を Bearer にして、この API を呼び、本文をそのまま返す。保存名は `name` を整えて `Content-Disposition` の `filename*` にする。[ADR 0013](decisions/0013-pdf-via-same-origin-relay.md)）を指す。この API の仕様は変わらず、Bearer だけを読む。認証なしの構成は、この API を直接指す。
+  - 画面は、PDF を PDF.js（`pdfjs-dist`。[ADR 0014](decisions/0014-pdfjs-viewer.md)。2026-11-19 までは iframe のブラウザー内蔵表示）で見せる。認証ありの構成では、同じオリジンの中継（画面の Worker の `GET /api/documents/{id}/file?name=…`。Cookie から取った JWT を Bearer にして、この API を呼び、本文をそのまま返す。保存名は `name` を整えて `Content-Disposition` の `filename*` にする。[ADR 0013](decisions/0013-pdf-via-same-origin-relay.md)）を指す。この API の仕様は変わらず、Bearer だけを読む。認証なしの構成は、この API を直接指す。
     PC のブラウザーだけを確かめている（スマホ・iOS は未確認）。
 - **認証:** `AUTH_MODE=required` のときは `/chat` と同じ（`Authorization: Bearer`、失敗は固定メッセージの 401）。資料ごとの閲覧権限はまだ無く、
   ログインした人は全員が全文を読めます。**`AUTH_MODE=off` は自分だけが使うローカル開発に限り、他の人が届く環境では `required` にしてください。**

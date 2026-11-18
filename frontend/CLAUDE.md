@@ -13,7 +13,7 @@ Cloudflare の Worker `docunavi-web`（OpenNext）が配信する画面。本番
 | コンポーネント | `src/components/` | 表示と入力。状態は props で受ける | `fetch`、環境変数、認証の SDK |
 | hooks | `src/hooks/` | 取得・状態・副作用。`api/` と `lib/` を組み合わせる | JSX |
 | 共通の部品 | `src/hooks/useLoaded.ts` | `Loaded<T>`（loading / error / ready）、`useLoaded`、`useAuthedJsonFetch`。資料・会話・資料グループ・対象と資料種別の hooks が共有する | 個別の API の知識 |
-| APIクライアント | `src/api/` | `fetch`、応答の検証、固定のエラー文、型（`chat` `collections` `classifications` `documents` `graph` `threads`） | React、状態 |
+| APIクライアント | `src/api/` | `fetch`、応答の検証、固定のエラー文、型（`chat` `collections` `classifications` `documents` `graph` `threads`）。PDF.js との境界 `pdfjs.ts`（`pdfjs-dist` を import してよいのは、このファイルだけ。テストでは `src/test/fakePdf.ts` に差し替わる） | React、状態 |
 | 認証 | `src/auth/` | Better Auth（`betterAuth.ts` だけが SDK を持つ）、トークン付き `fetch`（`authFetch.ts`）、ログイン状態（`AuthContext.tsx`） | チャットの知識 |
 | 純粋な関数 | `src/lib/` | 出典の取り出し、関係図の計算、URL・ストレージ、整形。React に依存しない（`markdown.tsx` を除く） | 通信 |
 | テスト | `src/**/*.test.ts(x)`、`src/test/`、`e2e/` | 単体・UI は Vitest（`fetch` を差し替える）。E2E は Playwright（偽の LLM・偽の検索） | 実 API |
@@ -31,7 +31,7 @@ Cloudflare の Worker `docunavi-web`（OpenNext）が配信する画面。本番
   対象と資料種別（`GET /doc-types`）の表示名・件数はサーバーが持つ（固定で持たない）。旧グループ（`collection`）の会話は、保存された範囲のまま続け、新しくは選べず、対象に自動で変えない。
   `useChat` の範囲は `{all | target | collection}`。対象と `collection` は同時に送らない（サーバーが 422）。旧 `?collection=` の URL は、資料一覧の「旧フィルター」として知らせ、解除できる（対象と同時なら AND）。
 - **二重送信を防ぐ**（`useChat.ts` の `pendingRef`）。**停止は切断**（サーバーが LLM 呼び出しを取り消す）。この 2 つを壊さない。
-- **依存を足さない・上げない**（`package.json` と `package-lock.json`）。変えるときは承認を得る。
+- **依存を足さない・上げない**（`package.json` と `package-lock.json`）。変えるときは承認を得る。`pdfjs-dist` は版を固定し（2026-11-19 に追加。[ADR 0014](../docs/decisions/0014-pdfjs-viewer.md)）、上げるときは `public/pdfjs/`（同梱の CMap・フォント・wasm のコピー）も同じ版に作り直す（手順は ADR 0014。`src/pdfjsAssets.test.ts` が食い違いを検出する）。
 - **デプロイしない。** 本番は、手動の `deploy.yml`（`workflow_dispatch` だけ。`main` で実行）で更新される。Environment「production」の必須レビュアーは 2026-11-15 に外してあり（許可するブランチは `main` だけ。`deploy.yml` 冒頭のコメントで確認、2026-11-18）、**技術的な承認の関門は無い。** 関門は会話の約束だけで、起動の前に、対象のコミットと `frontend/` `workers/` の変更の有無を示して、ユーザーの明示の承認を得る（そのたびに。前の承認は次に及ばない。ルートの [CLAUDE.md](../CLAUDE.md) の「Git」の「CI」）。`wrangler deploy` などの書き込み系を、自分で実行しない。
 
 ## 検査（変更したら実行する）
