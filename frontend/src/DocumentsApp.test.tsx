@@ -481,12 +481,12 @@ describe('資料パネル: 版', () => {
     return await screen.findByRole('complementary', { name: /^資料:/ });
   }
 
-  it('版があれば、題名の下に小さく出す（前後の空白は除く）', async () => {
+  it('版があれば、題名の上に小さく出す（前後の空白は除く）', async () => {
     const view = await open('  改訂 2 ');
 
     const revision = within(view).getByText('改訂 2');
     expect(revision).toHaveClass('ws-panel-revision');
-    expect(revision.previousElementSibling).toHaveClass('ws-panel-title');
+    expect(revision.nextElementSibling).toHaveClass('ws-panel-title');
   });
 
   it.each([null, '', '   ', undefined, 2, { a: 1 }])('版が %j のときは、何も出さない（項目が無い古い応答・不正な値でも資料は開ける）', async (value) => {
