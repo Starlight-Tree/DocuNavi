@@ -2,7 +2,7 @@
 
 全体の方針・禁止事項は、ルートの [CLAUDE.md](../CLAUDE.md)。使い方・環境変数・E2E・仕様メモは [README.md](README.md)。UI/UX の変更は、ルートの CLAUDE.md の「UI/UX」の節と `.claude/rules/ui-review.md`（モックの承認が先）。
 
-Cloudflare の Worker `docunavi-web`（OpenNext）が配信する画面。本番へは、`main` へのプッシュでは出ない（ユーザーが手動の `deploy.yml` を実行する）。API は別オリジン（Cloud Run の FastAPI。`/chat/stream` だけは Go の SSE 中継 `ops/sse-relay/`）。**画面はブラウザーだけで描く SPA**（`app/client-app.tsx` が `src/Root.tsx` を `ssr: false` で読む）。サーバー側の処理（Server Components の取得、Route Handlers、Server Actions）を足さない（例外: `app/api/auth/[...all]/route.ts`。`/api/auth/*` をデータ用 Worker へ中継するだけ）。
+Cloudflare の Worker `docunavi-web`（OpenNext）が配信する画面。本番へは、`main` へのプッシュでは出ない（ユーザーが手動の `deploy.yml` を実行する）。API は別オリジン（Cloud Run の FastAPI。`/chat/stream` だけは Go の SSE 中継 `ops/sse-relay/`）。**画面はブラウザーだけで描く SPA**（`app/client-app.tsx` が `src/Root.tsx` を `ssr: false` で読む）。サーバー側の処理（Server Components の取得、Route Handlers、Server Actions）を足さない（例外は 2 本だけ: `app/api/auth/[...all]/route.ts`＝`/api/auth/*` をデータ用 Worker へ中継するだけ。`app/api/documents/[id]/file/route.ts`＝PDF を、Cookie から取った JWT を Bearer にして API から取り、本文をそのまま返すだけ。権限は API が決める。[ADR 0013](../docs/decisions/0013-pdf-via-same-origin-relay.md)）。
 
 ## 層の境界（依存は上から下の一方向）
 
@@ -18,14 +18,14 @@ Cloudflare の Worker `docunavi-web`（OpenNext）が配信する画面。本番
 | 純粋な関数 | `src/lib/` | 出典の取り出し、関係図の計算、URL・ストレージ、整形。React に依存しない（`markdown.tsx` を除く） | 通信 |
 | テスト | `src/**/*.test.ts(x)`、`src/test/`、`e2e/` | 単体・UI は Vitest（`fetch` を差し替える）。E2E は Playwright（偽の LLM・偽の検索） | 実 API |
 
-- `components` と `lib` が `api` から import してよいのは、**型と定数だけ**（入力の上限、検証のパターンなど）。`fetch` は `api/` と `auth/` の中に閉じる。
+- `components` と `lib` が `api` から import してよいのは、**型と定数だけ**（入力の上限、検証のパターンなど）。`fetch` は `api/` と `auth/` の中に閉じる（中継の Route Handler を除く）。
 - `hooks` どうしで共有するものは `useLoaded.ts` に置く（以前は `useDocuments.ts` に同居していた。2026-11-01 に分けた）。
 - テストは対象の隣に置く（`foo.ts` と `foo.test.ts`）。画面をまたぐ統合のテストは `src/*.test.tsx`（`App` `AuthApp` `DocumentsApp` `Scope` `Threads` `RelationGraph` `ChatSources`）。共通の部品は `src/test/`。
 
 ## 守ること
 
-- **`NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。** 入れてよいのは API・中継・認証（Better Auth）の URL と、ログインの有効/無効の値だけ。秘密鍵・`D1_API_TOKEN`・`GEMINI_API_KEY` を入れない。読むのは `api/chat.ts`（API・中継の URL）と `auth/betterAuth.ts`（`NEXT_PUBLIC_AUTH_ENABLED` `NEXT_PUBLIC_AUTH_BASE_URL`）だけ。
-- **サーバーのエラー本文を画面に出さない。** 固定のメッセージにする（`api/` の `ChatApiError`）。ただし、サーバーが固定の日本語の `detail` を返す 401 / 403 / 413 / 429 / 500 / 502 / 503 / 504 は、その文をそのまま見せる（`api/chat.ts` の `SERVER_DETAIL_STATUSES`。413・429・503 は `ops/sse-relay/` の固定の文面と対）。
+- **`NEXT_PUBLIC_*` はバンドルに埋め込まれ、誰でも読める。** 入れてよいのは API・中継・認証（Better Auth）の URL と、ログインの有効/無効の値だけ。秘密鍵・`D1_API_TOKEN`・`GEMINI_API_KEY` を入れない。読むのは `api/chat.ts`（API・中継の URL）と `auth/betterAuth.ts`（`NEXT_PUBLIC_AUTH_ENABLED` `NEXT_PUBLIC_AUTH_BASE_URL`）だけ。中継の Route Handler が読むのは、ビルド時に埋め込む非公開名の中継先（`AUTH_PROXY_TARGET` と、新設する `FILE_PROXY_TARGET`）だけ（`next.config.ts` の `env`）。`NEXT_PUBLIC_*` は読まない。
+- **サーバーのエラー本文を画面に出さない。** 固定のメッセージにする（`api/` の `ChatApiError`）。ただし、サーバーが固定の日本語の `detail` を返す 401 / 403 / 413 / 429 / 500 / 502 / 503 / 504 は、その文をそのまま見せる（`api/chat.ts` の `SERVER_DETAIL_STATUSES`。413・429・503 は `ops/sse-relay/` の固定の文面と対）。PDF の Route Handler も、失敗時は API の本文を通さず、固定の日本語の HTML を返す。
 - **返答は HTML として解釈しない。** `dangerouslySetInnerHTML` を使わない。
 - **履歴・資料グループの権限はサーバーが決める。** 画面で隠すだけにしない。権限の単位は資料グループ（`collection`）のまま。チャットの質問対象は「対象」（`target`。`GET /targets`）で、検索は「見える資料 ∩ 対象」。
   対象と資料種別（`GET /doc-types`）の表示名・件数はサーバーが持つ（固定で持たない）。旧グループ（`collection`）の会話は、保存された範囲のまま続け、新しくは選べず、対象に自動で変えない。
