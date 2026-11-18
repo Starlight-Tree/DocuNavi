@@ -286,6 +286,8 @@ function DocumentRows({ documents, showTarget, openId, onOpen, selection }: Docu
                 type="button"
                 className="document-open"
                 aria-label={`${displayName(document)} を開く`}
+                // 長い名前は「…」で省略するので、全文は吹き出しで読めるようにする
+                title={displayName(document)}
                 onClick={(event) => {
                   event.stopPropagation();
                   onOpen(document, event.currentTarget);

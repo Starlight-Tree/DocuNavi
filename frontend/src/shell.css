@@ -1690,10 +1690,25 @@ a.ws-icon-btn {
   white-space: nowrap;
 }
 
+/* 資料名は 1 行にして、はみ出す分は「…」にする（表をすっきり保つ）。全文は、行のボタンの title と、開いた資料のパネルで読める。
+   表の幅の自動配分のまま省略するには、列に width: 100% と max-width: 0 を指定する（ほかの列は中身の幅になる） */
 .documents-table th[scope='row'] {
+  width: 100%;
   min-width: 9rem;
+  max-width: 0;
+  overflow: hidden;
   font-weight: 400;
-  overflow-wrap: anywhere;
+}
+
+.documents-table .document-open {
+  width: 100%;
+}
+
+.documents-table .document-name,
+.documents-table .document-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .documents-table td {
