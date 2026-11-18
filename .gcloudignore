@@ -1,0 +1,16 @@
+# `gcloud builds submit .` がアップロードするファイルの除外。.gitignore はルートのものしか読まれず、
+# 入れ子の .gitignore（frontend/.gitignore の `.env*.local`、workers/api/.gitignore の `.secrets/`）が効かないため、ここで明示する。
+# 秘密のファイルを Cloud Build のソース用バケットに置かない。
+#!include:.gitignore
+
+# 秘密・ローカルの設定（階層を問わない）
+**/.env
+**/.env.*
+!**/.env.example
+**/.secrets/
+**/.dev.vars
+**/.gcloud-token*
+
+# 画面は Cloudflare の Worker が配信する。API のイメージには要らない（.dockerignore と同じ）
+frontend/
+**/node_modules/
