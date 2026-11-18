@@ -7,7 +7,8 @@
     "types": ["node"],
     "strict": true,
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["src/node.ts", "src/auth.ts", "src/displayName.ts"]
+  "include": ["src/node.ts", "src/auth.ts", "src/displayName.ts", "src/authConfig.ts", "src/authConfig.test.ts"]
 }

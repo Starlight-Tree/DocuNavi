@@ -3,7 +3,7 @@
 #   scripts/verify.sh [py|frontend|worker|go|all]   既定は all。開発コンテナの中で、リポジトリのルートから実行する
 #   py        ruff format --check / ruff check / pytest（モックモード固定。実 API・DB は呼ばない）
 #   frontend  npm run typecheck / npm test（ビルドと E2E は含まない。`.next-verify` を作らないため）
-#   worker    workers/api の npm run typecheck
+#   worker    workers/api の npm run typecheck と npm test
 #   go        ops/sse-relay の go vet / go test -race（go が無ければ飛ばす）
 # py の 3 段は全部実行する。py が落ちたら、frontend 以降は実行しない。実行したものと結果は、終わりにまとめて表示する。
 set -uo pipefail
@@ -47,6 +47,7 @@ if [ "$FAILED" = 0 ] && want frontend; then
 fi
 if [ "$FAILED" = 0 ] && want worker; then
   run "workers/api typecheck" workers/api npm run typecheck
+  [ "$FAILED" = 0 ] && run "workers/api test" workers/api npm test
 fi
 if [ "$FAILED" = 0 ] && want go; then
   if command -v go >/dev/null 2>&1 && [ -d "$ROOT/ops/sse-relay" ]; then

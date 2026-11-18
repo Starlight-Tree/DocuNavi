@@ -77,6 +77,9 @@ jobs:
       - run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Typecheck
         run: npm run typecheck
+      # 設定値の検査（src/authConfig.ts）。Node の標準のテスト実行（node --test）で、依存は足さない
+      - name: Test
+        run: npm test
 
   workflow-lint:
     name: Workflow lint (actionlint, zizmor)

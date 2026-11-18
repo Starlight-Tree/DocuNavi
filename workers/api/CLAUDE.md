@@ -4,7 +4,7 @@
 
 Better Auth（ログイン・JWT 発行）を担う Cloudflare Worker。本番の認証を持つので、変更は小さく、検査してから出す。
 
-- 構成: `src/index.ts`（Worker の入口）、`src/auth.ts`（Better Auth の設定）、`src/displayName.ts`、`src/node.ts`（Node 用の起動。`Dockerfile.node` と `npm run build:node`）。設定は `wrangler.jsonc`（名前 `docunavi-api`、`HYPERDRIVE` の束縛、公開してよい `vars` だけ）。
+- 構成: `src/index.ts`（Worker の入口）、`src/auth.ts`（Better Auth の設定）、`src/authConfig.ts`（設定値の検査。`BETTER_AUTH_SECRET` などが無い・公開の既定値なら、`/api/auth/*` は 500 を返して動かさない。テストは `authConfig.test.ts`）、`src/displayName.ts`、`src/node.ts`（Node 用の起動。`Dockerfile.node` と `npm run build:node`）。設定は `wrangler.jsonc`（名前 `docunavi-api`、`HYPERDRIVE` の束縛、公開してよい `vars` だけ）。
 
 ## 守ること
 
@@ -18,6 +18,7 @@ Better Auth（ログイン・JWT 発行）を担う Cloudflare Worker。本番�
 ```bash
 cd workers/api
 npm run typecheck        # tsc --noEmit（本体と Node 用の 2 つ）
+npm test                 # node --test（設定値の検査。依存は足さない）
 ```
 
 ローカルで動かすときは `npm run dev`（`wrangler dev --local --port 8787`。ふだんは `scripts/dev-local.sh start` が起動する）。まとめて検査するときは `scripts/verify.sh worker`。

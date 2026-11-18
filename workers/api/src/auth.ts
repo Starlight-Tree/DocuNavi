@@ -2,6 +2,7 @@ import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { jwt } from 'better-auth/plugins';
 import type { Pool } from 'pg';
+import { authConfigProblem } from './authConfig';
 import { checkUpdateUserBody } from './displayName';
 
 /** Better Auth の設定に要る値。Worker（Env）と Node サービス（process.env）の両方から作る。 */
@@ -35,6 +36,8 @@ function sameSecret(a: string, b: string): boolean {
 }
 
 export function createAuth(env: AuthConfig, pool: Pool) {
+  const problem = authConfigProblem(env);
+  if (problem !== null) throw new Error(`auth config: ${problem}`);
   const allowedEmail = testLoginEmail(env);
   return betterAuth({
     database: pool,
