@@ -1453,10 +1453,17 @@ a.ws-icon-btn {
 .docs-head {
   display: flex;
   flex: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
   margin: 0 0 0.6rem;
+}
+
+/* 件数は見出しの横に、控えめに（太字にしない） */
+.docs-head .docs-summary {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 .docs-title {

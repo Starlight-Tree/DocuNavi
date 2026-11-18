@@ -1547,7 +1547,7 @@ a.pdf-save {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .document-filter-field {
@@ -1638,11 +1638,6 @@ a.pdf-save {
   gap: 0.35rem 0.75rem;
   min-height: 2.25rem;
   margin-bottom: 0.35rem;
-}
-
-.document-filter-result p {
-  margin: 0;
-  font-weight: 700;
 }
 
 .document-filter-empty {

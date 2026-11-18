@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
 import { QUERY_MAX_LENGTH, SORT_KEYS, SORT_LABELS, isFiltered, splitKeywords } from '../lib/documentFilter';
 import type { DocumentFilter, FacetOption, PageBand, UpdatedBand } from '../lib/documentFilter';
 
@@ -14,8 +13,6 @@ export interface DocumentFilterOptions {
 interface DocumentFilterBarProps {
   filter: DocumentFilter;
   options: DocumentFilterOptions;
-  /** 件数と回答対象を 1 行にまとめた表示（呼び出し側が組み立てる）。 */
-  summary: ReactNode;
   /** 条件を変える。`replace` は、入力の途中のように、履歴を増やしたくない変更。 */
   onChange: (next: Partial<DocumentFilter>, mode?: 'push' | 'replace') => void;
   onClear: () => void;
@@ -52,7 +49,7 @@ function FacetSelect<T extends string>({ label, value, options, onSelect }: Face
  * 操作は、検索・対象・資料種別・並び替え（検索欄とチップを 1 行に並べる。幅が足りなければ折り返す）。状態・ページ数・更新の欄は持たない（URL で指定された条件は、チップで見せて外せる）。
  * キーワードの入力欄だけ、日本語の変換中の文字が URL の往復で崩れないよう、手元の文字を持ち、URL が外から変わったときに合わせる。
  */
-export function DocumentFilterBar({ filter, options, summary, onChange, onClear }: DocumentFilterBarProps) {
+export function DocumentFilterBar({ filter, options, onChange, onClear }: DocumentFilterBarProps) {
   const [text, setText] = useState(filter.query);
   useEffect(() => {
     setText(filter.query);
@@ -101,26 +98,28 @@ export function DocumentFilterBar({ filter, options, summary, onChange, onClear 
           </select>
         </label>
       </section>
-      <div className="document-filter-result">
-        {summary}
-        {chips.length > 0 && (
-          <ul className="document-chips" aria-label="有効な条件">
-            {chips.map((chip) => (
-              <li key={chip.key} className="document-chip">
-                <span>{chip.text}</span>
-                <button type="button" aria-label={`${chip.text} を外す`} onClick={chip.clear}>
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {isFiltered(filter) && (
-          <button type="button" className="btn btn-secondary btn-small" onClick={onClear}>
-            条件をクリア
-          </button>
-        )}
-      </div>
+      {/* 有効な条件があるときだけ出る行（件数は見出しの横） */}
+      {(chips.length > 0 || isFiltered(filter)) && (
+        <div className="document-filter-result">
+          {chips.length > 0 && (
+            <ul className="document-chips" aria-label="有効な条件">
+              {chips.map((chip) => (
+                <li key={chip.key} className="document-chip">
+                  <span>{chip.text}</span>
+                  <button type="button" aria-label={`${chip.text} を外す`} onClick={chip.clear}>
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {isFiltered(filter) && (
+            <button type="button" className="btn btn-secondary btn-small" onClick={onClear}>
+              条件をクリア
+            </button>
+          )}
+        </div>
+      )}
     </>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useCollectionCatalog } from '../hooks/useCollections';
 import { classificationItems, useClassificationCatalog } from '../hooks/useClassifications';
 import type { DocumentList, DocumentSummary } from '../api/documents';
@@ -70,6 +71,8 @@ interface DocumentTableProps {
   /** 開いている資料（右のパネル）の ID。その行を示す。 */
   openId: number | null;
   onOpen: (document: DocumentSummary, opener: Element | null) => void;
+  /** 画面の見出し。読み込み中・エラーのときも出す（件数は、一覧が読めてから、見出しの横に添える）。 */
+  title: ReactNode;
 }
 
 function DocumentTable({
@@ -82,6 +85,7 @@ function DocumentTable({
   onRetry,
   openId,
   onOpen,
+  title,
 }: DocumentTableProps) {
   const { state: catalogState } = useCollectionCatalog();
   const { targets: targetState, docTypes: docTypeState } = useClassificationCatalog();
@@ -95,9 +99,15 @@ function DocumentTable({
   useEffect(() => {
     if (wrapRef.current) wrapRef.current.scrollTop = 0;
   }, [key, visiblePage]);
-  if (state.status !== 'ready') return <Status state={state} onRetry={onRetry} />;
-  if (!state.data.configured) return <p>{MSG_NOT_CONFIGURED}</p>;
-  if (state.data.documents.length === 0) return <p>{MSG_NO_DOCUMENTS}</p>;
+  const head = (summary?: ReactNode) => (
+    <div className="docs-head">
+      {title}
+      {summary}
+    </div>
+  );
+  if (state.status !== 'ready') return <>{head()}<Status state={state} onRetry={onRetry} /></>;
+  if (!state.data.configured) return <>{head()}<p>{MSG_NOT_CONFIGURED}</p></>;
+  if (state.data.documents.length === 0) return <>{head()}<p>{MSG_NO_DOCUMENTS}</p></>;
 
   const labelGroups = catalogState.status === 'ready' ? catalogState.data.collections : undefined;
   const targetItems = classificationItems(targetState);
@@ -138,10 +148,10 @@ function DocumentTable({
 
   return (
     <>
+      {head(summary)}
       <DocumentFilterBar
         filter={filter}
         options={facetOptions(documents, filter, context, statusName)}
-        summary={summary}
         onChange={onFilterChange}
         onClear={() => onFilterChange({ ...EMPTY_FILTER, sort: filter.sort })}
       />
@@ -349,10 +359,8 @@ export function DocumentsView({ state, onReload, selection }: DocumentsViewProps
 
   return (
     <main className="documents" aria-label="ナレッジ">
-      <div className="docs-head">
-        <h2 className="docs-title">ナレッジ</h2>
-      </div>
       <DocumentTable
+        title={<h2 className="docs-title">ナレッジ</h2>}
         state={state}
         collection={collection}
         onClearCollection={() => navigate({ collection: null })}
