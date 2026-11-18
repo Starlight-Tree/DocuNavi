@@ -895,6 +895,8 @@ describe('資料一覧: 対象と資料種別', () => {
 
     const banner = screen.getByText(/旧フィルターが有効です/).closest('.legacy-filter') as HTMLElement;
     expect(within(banner).getByText(/旧グループ「店舗案内（旧）」/)).toBeInTheDocument();
+    // 固定の領域（絞り込みの欄）ではなく、表の包み（スクロールする領域）の中に出す
+    expect(banner.closest('.documents-table-wrap')).not.toBeNull();
     expect(names()).toHaveLength(1);
 
     await user.click(within(banner).getByRole('button', { name: '旧フィルターを解除' }));

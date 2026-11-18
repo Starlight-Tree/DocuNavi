@@ -19,8 +19,6 @@ interface DocumentFilterBarProps {
   /** 条件を変える。`replace` は、入力の途中のように、履歴を増やしたくない変更。 */
   onChange: (next: Partial<DocumentFilter>, mode?: 'push' | 'replace') => void;
   onClear: () => void;
-  /** 絞り込みの欄と件数の行の間に置くもの（旧フィルターの表示など）。 */
-  notice?: ReactNode;
 }
 
 interface FacetSelectProps<T extends string> {
@@ -30,9 +28,10 @@ interface FacetSelectProps<T extends string> {
   onSelect: (value: T | null) => void;
 }
 
+/** ラベルと、いまの値を並べたチップ。押すと選択肢が開く（実体は select）。選ぶと強調する。 */
 function FacetSelect<T extends string>({ label, value, options, onSelect }: FacetSelectProps<T>) {
   return (
-    <label className="document-filter-field">
+    <label className="document-filter-chip" data-active={value !== null}>
       <span className="document-filter-label">{label}</span>
       <select
         value={value ?? ''}
@@ -50,10 +49,10 @@ function FacetSelect<T extends string>({ label, value, options, onSelect }: Face
 
 /**
  * 資料一覧の、検索・絞り込み・並び替えと、件数。状態は持たない（URL が持つ）。
- * 操作は、検索・対象・資料種別・並び替え。状態・ページ数・更新の欄は持たない（URL で指定された条件は、チップで見せて外せる）。
+ * 操作は、検索・対象・資料種別・並び替え（検索欄とチップを 1 行に並べる。幅が足りなければ折り返す）。状態・ページ数・更新の欄は持たない（URL で指定された条件は、チップで見せて外せる）。
  * キーワードの入力欄だけ、日本語の変換中の文字が URL の往復で崩れないよう、手元の文字を持ち、URL が外から変わったときに合わせる。
  */
-export function DocumentFilterBar({ filter, options, summary, onChange, onClear, notice }: DocumentFilterBarProps) {
+export function DocumentFilterBar({ filter, options, summary, onChange, onClear }: DocumentFilterBarProps) {
   const [text, setText] = useState(filter.query);
   useEffect(() => {
     setText(filter.query);
@@ -73,12 +72,13 @@ export function DocumentFilterBar({ filter, options, summary, onChange, onClear,
     <>
       <section className="document-filter" aria-label="資料の検索・絞り込み・並び替え">
         <label className="document-filter-field document-filter-query">
-          <span className="document-filter-label">資料名で検索（空白で AND）</span>
+          <span className="visually-hidden">資料名で検索（空白で AND）</span>
           <input
             type="search"
             value={text}
             maxLength={QUERY_MAX_LENGTH}
-            placeholder="資料名・ファイル名・対象"
+            placeholder="資料名・ファイル名・対象で検索"
+            title="空白で区切ると、すべてを含む資料だけに絞ります（AND）"
             onChange={(event) => {
               setText(event.target.value);
               onChange({ query: event.target.value }, 'replace');
@@ -87,7 +87,7 @@ export function DocumentFilterBar({ filter, options, summary, onChange, onClear,
         </label>
         <FacetSelect label="対象" value={filter.target} options={options.target} onSelect={(target) => onChange({ target })} />
         <FacetSelect label="資料種別" value={filter.docType} options={options.docType} onSelect={(docType) => onChange({ docType })} />
-        <label className="document-filter-field">
+        <label className="document-filter-chip" data-active={filter.sort !== 'default'}>
           <span className="document-filter-label">並び替え</span>
           <select
             value={filter.sort}
@@ -101,7 +101,6 @@ export function DocumentFilterBar({ filter, options, summary, onChange, onClear,
           </select>
         </label>
       </section>
-      {notice}
       <div className="document-filter-result">
         {summary}
         {chips.length > 0 && (

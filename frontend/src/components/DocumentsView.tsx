@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCollectionCatalog } from '../hooks/useCollections';
 import { classificationItems, useClassificationCatalog } from '../hooks/useClassifications';
 import type { DocumentList, DocumentSummary } from '../api/documents';
@@ -89,6 +89,14 @@ function DocumentTable({
   const { targets: targetState, docTypes: docTypeState } = useClassificationCatalog();
   // ページ番号は、検索・絞り込み・並び替えの条件（key）とともに持つ。条件が変わったら 1 ページ目に戻す（選択は変えない）
   const [paging, setPaging] = useState<{ key: string; page: number; size: PageSize }>({ key: '', page: 1, size: DEFAULT_PAGE_SIZE });
+  const key = JSON.stringify([collection, filter]);
+  // 条件が変わると、見える（有効な）ページは 1 に戻る。保存しているページ番号でなく、見えているページを見張る
+  const visiblePage = paging.key === key ? paging.page : 1;
+  // 表だけがスクロールする（ページ送りは下端に固定）。ページ移動・表示件数・絞り込みの変更では、表のスクロールを先頭へ戻す（選択は変えない）
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (wrapRef.current) wrapRef.current.scrollTop = 0;
+  }, [key, visiblePage, paging.size]);
   if (state.status !== 'ready') return <Status state={state} onRetry={onRetry} />;
   if (!state.data.configured) return <p>{MSG_NOT_CONFIGURED}</p>;
   if (state.data.documents.length === 0) return <p>{MSG_NO_DOCUMENTS}</p>;
@@ -109,8 +117,7 @@ function DocumentTable({
 
   // 一覧の検索・絞り込みは表示を絞るだけで、選択は変えない。全選択・解除は、表示している資料だけに効く
   const allDocuments = state.data.documents;
-  const key = JSON.stringify([collection, filter]);
-  const pageData = paginate(shown, paging.key === key ? paging.page : 1, paging.size);
+  const pageData = paginate(shown, visiblePage, paging.size);
   const shownSelectable = shownState(shown, selection?.selected ?? new Set()).selectable;
   const shownChecked = shownState(shown, selection?.selected ?? new Set()).checked;
   const pageSelectable = shownState(pageData.rows, selection?.selected ?? new Set()).selectable;
@@ -163,65 +170,66 @@ function DocumentTable({
         summary={summary}
         onChange={onFilterChange}
         onClear={() => onFilterChange({ ...EMPTY_FILTER, sort: filter.sort })}
-        notice={
-          collection !== null && (
-            <div className="legacy-filter" role="status">
-              <p>
-                <strong>旧フィルターが有効です:</strong> 旧グループ「{collectionLabel(collection, labelGroups)}」の資料だけを表示しています
-                （URL の <code>collection={collection}</code>）。
-                {(filter.target !== null || filter.docType !== null) && ' 対象・資料種別の選択とあわせて、すべてに当てはまる資料だけが出ます。'}
-              </p>
-              <button type="button" className="btn btn-secondary btn-small" onClick={onClearCollection}>
-                旧フィルターを解除
-              </button>
-            </div>
-          )
-        }
       />
-      {selection && selection.selected.size === 0 && (
-        <div className="docs-ask" role="group" aria-label="回答に使う資料">
-          <span className="docs-ask-warning" role="status">
-            {MSG_NOTHING_SELECTED}
-          </span>
-        </div>
-      )}
-      {shown.length === 0 ? (
-        <p className="document-filter-empty">{collection !== null ? MSG_NO_MATCH_LEGACY : MSG_NO_MATCH}</p>
-      ) : (
-        <>
+      {/* 表の包み。ここだけがスクロールし、列見出しは上に残る。旧フィルターの知らせと「選ばれていない」の警告は、固定の領域に置かず、表と一緒にスクロールさせる */}
+      <div className="documents-table-wrap" ref={wrapRef}>
+        {collection !== null && (
+          <div className="legacy-filter" role="status">
+            <p>
+              <strong>旧フィルターが有効です:</strong> 旧グループ「{collectionLabel(collection, labelGroups)}」の資料だけを表示しています
+              （URL の <code>collection={collection}</code>）。
+              {(filter.target !== null || filter.docType !== null) && ' 対象・資料種別の選択とあわせて、すべてに当てはまる資料だけが出ます。'}
+            </p>
+            <button type="button" className="btn btn-secondary btn-small" onClick={onClearCollection}>
+              旧フィルターを解除
+            </button>
+          </div>
+        )}
+        {selection && selection.selected.size === 0 && (
+          <div className="docs-ask" role="group" aria-label="回答に使う資料">
+            <span className="docs-ask-warning" role="status">
+              {MSG_NOTHING_SELECTED}
+            </span>
+          </div>
+        )}
+        {shown.length === 0 ? (
+          <p className="document-filter-empty">{collection !== null ? MSG_NO_MATCH_LEGACY : MSG_NO_MATCH}</p>
+        ) : (
           <DocumentRows documents={pageData.rows} showTarget={filter.target === null} openId={openId} onOpen={onOpen} selection={selection} />
-          <nav className="docs-pager" aria-label="ページ移動">
-            <span className="docs-pager-range">
-              {pageData.from}–{pageData.to} 件目 / 全 {pageData.total} 件
+        )}
+      </div>
+      {shown.length > 0 && (
+        <nav className="docs-pager" aria-label="ページ移動">
+          <span className="docs-pager-range">
+            {pageData.from}–{pageData.to} 件目 / 全 {pageData.total} 件
+          </span>
+          <label className="docs-pager-size">
+            表示件数
+            <select value={paging.size} onChange={(event) => setPaging({ key, page: 1, size: Number(event.target.value) as PageSize })}>
+              {PAGE_SIZES.map((n) => (
+                <option key={n} value={n}>
+                  {n} 件
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="docs-pager-nav">
+            <button type="button" className="btn btn-secondary btn-small" disabled={pageData.page <= 1} onClick={() => goTo(pageData.page - 1)}>
+              前へ
+            </button>
+            <span aria-live="polite">
+              {pageData.page} / {pageData.pageCount} ページ
             </span>
-            <label className="docs-pager-size">
-              表示件数
-              <select value={paging.size} onChange={(event) => setPaging({ key, page: 1, size: Number(event.target.value) as PageSize })}>
-                {PAGE_SIZES.map((n) => (
-                  <option key={n} value={n}>
-                    {n} 件
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="docs-pager-nav">
-              <button type="button" className="btn btn-secondary btn-small" disabled={pageData.page <= 1} onClick={() => goTo(pageData.page - 1)}>
-                前へ
-              </button>
-              <span aria-live="polite">
-                {pageData.page} / {pageData.pageCount} ページ
-              </span>
-              <button
-                type="button"
-                className="btn btn-secondary btn-small"
-                disabled={pageData.page >= pageData.pageCount}
-                onClick={() => goTo(pageData.page + 1)}
-              >
-                次へ
-              </button>
-            </span>
-          </nav>
-        </>
+            <button
+              type="button"
+              className="btn btn-secondary btn-small"
+              disabled={pageData.page >= pageData.pageCount}
+              onClick={() => goTo(pageData.page + 1)}
+            >
+              次へ
+            </button>
+          </span>
+        </nav>
       )}
     </>
   );
@@ -249,93 +257,91 @@ function DocumentRows({ documents, showTarget, openId, onOpen, selection }: Docu
   const state = selection ? shownState(documents, selection.selected) : null;
   const allChecked = state !== null && state.selectable > 0 && state.checked === state.selectable;
   return (
-    <div className="documents-table-wrap">
-      <table className="documents-table">
-        <thead>
-          <tr>
-            {selection && state && (
-              <th scope="col" className="col-check">
+    <table className="documents-table">
+      <thead>
+        <tr>
+          {selection && state && (
+            <th scope="col" className="col-check">
+              <input
+                type="checkbox"
+                aria-label={`このページの ${state.selectable} 件を全選択・解除`}
+                title="このページの資料だけが対象です"
+                checked={allChecked}
+                disabled={state.selectable === 0}
+                ref={(input) => {
+                  if (input) input.indeterminate = state.checked > 0 && !allChecked;
+                }}
+                onChange={() => selection.onChange(setShown(selection.selected, documents, !allChecked))}
+              />
+            </th>
+          )}
+          <th scope="col">資料名</th>
+          {showTarget && <th scope="col">対象</th>}
+          <th scope="col">資料種別</th>
+          <th scope="col" className="col-num">
+            ページ数
+          </th>
+          <th scope="col">更新日時</th>
+        </tr>
+      </thead>
+      <tbody>
+        {documents.map((document) => (
+          // 行のどこを押しても開く（マウス用）。キーボードと読み上げには、資料名のボタンを使う
+          <tr
+            key={document.id}
+            className="documents-row"
+            aria-current={document.id === openId ? 'true' : undefined}
+            onClick={(event) => onOpen(document, event.currentTarget.querySelector('.document-open'))}
+          >
+            {selection && (
+              // チェックは資料を開かない（行のクリックに伝えない）
+              <td className="col-check" onClick={(event) => event.stopPropagation()}>
                 <input
                   type="checkbox"
-                  aria-label={`このページの ${state.selectable} 件を全選択・解除`}
-                  title="このページの資料だけが対象です"
-                  checked={allChecked}
-                  disabled={state.selectable === 0}
-                  ref={(input) => {
-                    if (input) input.indeterminate = state.checked > 0 && !allChecked;
-                  }}
-                  onChange={() => selection.onChange(setShown(selection.selected, documents, !allChecked))}
+                  aria-label={`${displayName(document)} を回答に使う`}
+                  title={isSelectable(document) ? undefined : '取り込みが終わると選べます'}
+                  checked={selection.selected.has(document.id)}
+                  disabled={!isSelectable(document)}
+                  onChange={() => selection.onChange(toggleOne(selection.selected, document.id))}
                 />
-              </th>
+              </td>
             )}
-            <th scope="col">資料名</th>
-            {showTarget && <th scope="col">対象</th>}
-            <th scope="col">資料種別</th>
-            <th scope="col" className="col-num">
-              ページ数
+            <th scope="row">
+              <button
+                type="button"
+                className="document-open"
+                aria-label={`${displayName(document)} を開く`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpen(document, event.currentTarget);
+                }}
+              >
+                <DocumentName document={document} showFile={(names.get(displayName(document)) ?? 0) > 1} />
+              </button>
+              <DocumentStatus document={document} />
             </th>
-            <th scope="col">更新日時</th>
+            {showTarget && (
+              <td data-target={document.target ?? undefined}>
+                {document.target ? classificationLabel(document.target, targetItems) : <span className="doc-missing">{UNCLASSIFIED_LABEL}</span>}
+              </td>
+            )}
+            <td data-doc-type={document.docType ?? undefined}>
+              {document.docType ? classificationLabel(document.docType, docTypeItems) : <span className="doc-missing">{UNCLASSIFIED_LABEL}</span>}
+            </td>
+            <td className="col-num">
+              {document.pages ?? (
+                <span className="doc-missing" title="ページ数の記録がありません">
+                  —
+                </span>
+              )}
+            </td>
+            <td>
+              <UpdatedAt value={document.updatedAt} />
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {documents.map((document) => (
-            // 行のどこを押しても開く（マウス用）。キーボードと読み上げには、資料名のボタンを使う
-            <tr
-              key={document.id}
-              className="documents-row"
-              aria-current={document.id === openId ? 'true' : undefined}
-              onClick={(event) => onOpen(document, event.currentTarget.querySelector('.document-open'))}
-            >
-              {selection && (
-                // チェックは資料を開かない（行のクリックに伝えない）
-                <td className="col-check" onClick={(event) => event.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    aria-label={`${displayName(document)} を回答に使う`}
-                    title={isSelectable(document) ? undefined : '取り込みが終わると選べます'}
-                    checked={selection.selected.has(document.id)}
-                    disabled={!isSelectable(document)}
-                    onChange={() => selection.onChange(toggleOne(selection.selected, document.id))}
-                  />
-                </td>
-              )}
-              <th scope="row">
-                <button
-                  type="button"
-                  className="document-open"
-                  aria-label={`${displayName(document)} を開く`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onOpen(document, event.currentTarget);
-                  }}
-                >
-                  <DocumentName document={document} showFile={(names.get(displayName(document)) ?? 0) > 1} />
-                </button>
-                <DocumentStatus document={document} />
-              </th>
-              {showTarget && (
-                <td data-target={document.target ?? undefined}>
-                  {document.target ? classificationLabel(document.target, targetItems) : <span className="doc-missing">{UNCLASSIFIED_LABEL}</span>}
-                </td>
-              )}
-              <td data-doc-type={document.docType ?? undefined}>
-                {document.docType ? classificationLabel(document.docType, docTypeItems) : <span className="doc-missing">{UNCLASSIFIED_LABEL}</span>}
-              </td>
-              <td className="col-num">
-                {document.pages ?? (
-                  <span className="doc-missing" title="ページ数の記録がありません">
-                    —
-                  </span>
-                )}
-              </td>
-              <td>
-                <UpdatedAt value={document.updatedAt} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

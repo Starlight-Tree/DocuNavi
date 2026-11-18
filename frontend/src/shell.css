@@ -1313,7 +1313,7 @@
   width: 100%;
   max-width: 72rem;
   margin-inline: auto;
-  padding: 0.75rem 1.5rem 2rem;
+  padding: 0.75rem 1.5rem 0.5rem;
 }
 
 /* 右のパネルを開いている間は、一覧の余白を詰める（表の幅を確保する） */
@@ -1402,6 +1402,12 @@ a.ws-icon-btn {
     min-height: 70dvh;
   }
 
+  /* 積んだ配置では、ページ全体がスクロールする。一覧は画面 1 枚の高さにして、表だけをスクロールさせる（ページ送りに届くように） */
+  .ws-main > .documents {
+    height: 100dvh;
+    flex: none;
+  }
+
   .ws-panel {
     position: fixed;
     z-index: 5;
@@ -1432,6 +1438,7 @@ a.ws-icon-btn {
 
 .docs-head {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -1450,8 +1457,8 @@ a.ws-icon-btn {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem 1rem;
-  margin: 0 0 0.75rem;
-  padding: 0.5rem 0;
+  margin: 0;
+  padding: 0.6rem 0.9rem;
 }
 
 .selection-menu-wrap {
@@ -1503,6 +1510,7 @@ a.ws-icon-btn {
 
 .docs-pager {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
@@ -1584,8 +1592,14 @@ a.ws-icon-btn {
   vertical-align: 1px;
 }
 
+/* 一覧で、いつも見えるのは、見出し・絞り込み・ページ送り。表の包みだけがスクロールする（列見出しは上に残る） */
 .documents-table-wrap {
-  overflow-x: auto;
+  flex: 1;
+  /* 画面が低くても、表が 0 にならない下限 */
+  min-height: 6rem;
+  overflow: auto;
+  /* 貼り付いた列見出しの下に、フォーカスした行が隠れないようにする（見出しの高さ分） */
+  scroll-padding-top: 3rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -1610,6 +1624,13 @@ a.ws-icon-btn {
 }
 
 .documents-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* border-collapse では、貼り付いた見出しの下線が消える。線は影で描く */
+  border-bottom: 0;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 700;
@@ -1685,14 +1706,10 @@ a.ws-icon-btn {
   font-size: 0.85rem;
 }
 
-/* 一覧の絞り込みの欄。選択肢の長さで幅が決まるので、上限を置く（右のパネルを開いた幅でも、2 行に収める） */
-.document-filter-field select {
-  max-width: 10rem;
-}
-
-/* 対象の表示名は長いことがある（「あおば電機 AW-820」など）。主な操作の欄は、少し広く取る */
-.document-filter > .document-filter-field select {
-  max-width: 14rem;
+/* 一覧の絞り込みで 0 件のとき。表の包みの中に出すので、枠は包みのものを使う */
+.documents-table-wrap > .document-filter-empty {
+  border: 0;
+  border-radius: 0;
 }
 
 /* 旧フィルター（?collection=）が有効なときの知らせ。黙って捨てず、解除できる */
@@ -1702,7 +1719,7 @@ a.ws-icon-btn {
   align-items: center;
   justify-content: space-between;
   gap: 0.4rem 1rem;
-  margin: 0 0 0.6rem;
+  margin: 0.6rem;
   padding: 0.55rem 0.9rem;
   border: 1px solid var(--ws-wait, var(--border));
   border-radius: var(--radius);

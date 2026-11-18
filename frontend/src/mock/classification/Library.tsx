@@ -148,7 +148,7 @@ export function LibraryMock({ filter, onFilterChange, legacy, onClearLegacy, onA
   const askLabel = askTarget === null ? 'すべての資料' : label(TARGETS, askTarget);
 
   return (
-    <main className="documents" aria-label="資料一覧">
+    <main className="documents cm-library" aria-label="資料一覧">
       <h2 className="docs-title">資料</h2>
 
       <section className="document-filter cm-filter" aria-label="資料の検索と絞り込み">

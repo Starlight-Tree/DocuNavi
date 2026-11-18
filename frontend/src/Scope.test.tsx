@@ -663,6 +663,90 @@ describe('資料一覧: ページ分けと選択', () => {
     expect(await summaryText()).toBe('60件の資料 · 58件を回答対象');
   });
 
+  it('表の包みだけがスクロールする。ページ送りは包みの外（下端に固定）、列見出しは包みの中（上に貼り付く）', async () => {
+    install({ documents: many });
+    const { user } = setup();
+    await openKnowledge(user);
+    await waitFor(() => expect(rows()).toHaveLength(25));
+
+    const wrap = document.querySelector('.documents-table-wrap') as HTMLElement;
+    expect(wrap).not.toBeNull();
+    expect(wrap).toContainElement(screen.getByRole('table'));
+    expect(wrap).toContainElement(screen.getAllByRole('columnheader')[0] ?? null);
+    expect(wrap).not.toContainElement(await pager());
+    expect(wrap.parentElement).toBe(document.querySelector('main.documents'));
+  });
+
+  it('「選ばれていない」の警告は、固定の領域でなく、表の包み（スクロールする領域）の中に出る。絞り込み中のチップは強調される', async () => {
+    install({ documents: many });
+    const { user } = setup();
+    await openKnowledge(user);
+    await waitFor(() => expect(rows()).toHaveLength(25));
+    const wrap = document.querySelector('.documents-table-wrap') as HTMLElement;
+    const chip = (name: string) => screen.getByRole('combobox', { name }).closest('.document-filter-chip') as HTMLElement;
+    expect(chip('対象').dataset.active).toBe('false');
+    expect(chip('並び替え').dataset.active).toBe('false');
+
+    await chooseItem(user, '検索結果の選択を解除');
+    // 同じ文は、ほかの場所（入力欄の近く）にも出る。ここでは、表の包みの中にあることだけを見る
+    expect(await within(wrap).findByText('回答に使う資料が 1 件も選ばれていないため、質問は送れません。')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: '対象' }), 'zahard');
+    expect(chip('対象').dataset.active).toBe('true');
+    expect(chip('資料種別').dataset.active).toBe('false');
+    await user.selectOptions(screen.getByRole('combobox', { name: '並び替え' }), 'name');
+    expect(chip('並び替え').dataset.active).toBe('true');
+  });
+
+  it('絞り込みを変えたあとの最初のページ移動でも、表のスクロールを先頭へ戻す', async () => {
+    install({ documents: many });
+    const { user } = setup();
+    await openKnowledge(user);
+    await waitFor(() => expect(rows()).toHaveLength(25));
+    const wrap = document.querySelector('.documents-table-wrap') as HTMLElement;
+
+    await next(user); // 2 ページ目
+    await user.selectOptions(screen.getByRole('combobox', { name: '対象' }), 'minato-coffee'); // 条件が変わり、見えるページは 1 に戻る
+    wrap.scrollTop = 400;
+    await next(user); // 保存しているページ番号は変わらず 2 のまま。それでも、見えるページは 1 → 2 になる
+    expect(wrap.scrollTop).toBe(0);
+  });
+
+  it('ページ移動・表示件数・絞り込みを変えると、表のスクロールを先頭へ戻す（選択は保つ）', async () => {
+    install({ documents: many });
+    const { user } = setup();
+    await openKnowledge(user);
+    await waitFor(() => expect(rows()).toHaveLength(25));
+    const wrap = document.querySelector('.documents-table-wrap') as HTMLElement;
+    const scrollDown = () => {
+      wrap.scrollTop = 400;
+      expect(wrap.scrollTop).toBe(400); // jsdom がスクロール位置を覚えていることの確認（これが崩れたら、下の検証は意味を持たない）
+    };
+
+    await user.click(await rowCheck('資料 01.pdf'));
+    scrollDown();
+    await next(user);
+    expect(wrap.scrollTop).toBe(0);
+
+    scrollDown();
+    await user.selectOptions(within(await pager()).getByRole('combobox', { name: '表示件数' }), '50');
+    expect(wrap.scrollTop).toBe(0);
+
+    scrollDown();
+    await user.type(screen.getByRole('searchbox', { name: /資料名で検索/ }), '資料 0');
+    expect(wrap.scrollTop).toBe(0);
+
+    scrollDown();
+    await user.selectOptions(screen.getByRole('combobox', { name: '対象' }), 'zahard');
+    expect(wrap.scrollTop).toBe(0);
+
+    // 選択は、スクロールを戻しても変わらない
+    await user.clear(screen.getByRole('searchbox', { name: /資料名で検索/ }));
+    await user.selectOptions(screen.getByRole('combobox', { name: '対象' }), '');
+    expect(await rowCheck('資料 01.pdf')).not.toBeChecked();
+    expect(await summaryText()).toBe('60件の資料 · 59件を回答対象');
+  });
+
   it('見出しのチェックは「このページ」だけ。メニューの「検索結果すべて」は全ページに効く。「このページ」はそのページだけに効く', async () => {
     install({ documents: many });
     const { user } = setup();

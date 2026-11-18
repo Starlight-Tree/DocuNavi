@@ -981,10 +981,13 @@ textarea {
 /* ---- 資料一覧 ---- */
 
 .documents {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
   padding: 1rem;
-  overflow-y: auto;
+  /* 全体はスクロールさせない。表（.documents-table-wrap）だけがスクロールし、ページ送りは下端に残る */
+  overflow: hidden;
 }
 
 .documents-title {
@@ -1535,17 +1538,14 @@ a.pdf-save {
   }
 }
 
-/* 一覧の検索・絞り込み・並び替え（1 行）。種別のカードは大きな分類、ここは細かい条件。幅が足りなければ折り返す */
+/* 一覧の検索・絞り込み・並び替え（1 行）。検索欄とチップ（ラベルと値）を並べる。幅が足りなければ折り返す */
 .document-filter {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.5rem 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 0.5rem;
-  padding: 0.6rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
 }
 
 .document-filter-field {
@@ -1556,7 +1556,57 @@ a.pdf-save {
 }
 
 .document-filter-query {
-  flex: 1 1 11rem;
+  flex: 1 1 15rem;
+}
+
+.document-filter-query input {
+  width: 100%;
+}
+
+/* 対象・資料種別・並び替え。ラベルと値を並べたチップで、実体は select。値を選んでいる間は強調する */
+.document-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 2.4rem;
+  padding: 0 0.3rem 0 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* キーボードで触れているときだけ、全体と同じ色の輪を出す（マウスで押したときは出さない） */
+.document-filter-chip:has(select:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.document-filter-chip select {
+  min-width: 0;
+  max-width: 11rem;
+  align-self: stretch;
+  padding: 0 0.15rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.document-filter-chip select:focus {
+  outline: none;
+}
+
+.document-filter-chip[data-active='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  font-weight: 600;
 }
 
 .document-filter-label {
@@ -1580,6 +1630,7 @@ a.pdf-save {
 
 .document-filter-result {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem 0.75rem;

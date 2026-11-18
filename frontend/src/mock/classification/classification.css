@@ -253,3 +253,26 @@
 .cm-empty {
   margin-inline: var(--chat-pad);
 }
+
+/* 本物の資料一覧は、表だけがスクロールする固定の配置（styles.css の .documents）。この試作は従来どおり、画面全体がスクロールする */
+main.documents.cm-library {
+  display: block;
+  overflow-y: auto;
+}
+
+.cm-library .document-filter {
+  align-items: flex-end;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.cm-library .docs-ask {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.cm-library .legacy-filter {
+  margin: 0 0 0.6rem;
+}
