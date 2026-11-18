@@ -9,7 +9,7 @@ The sample documents (`storage/pdf/`) are fictional.
 
 | Chat with cited sources | Document list and filters |
 |---|---|
-| ![Chat screen](docs/images/chat.png) | ![Document list](docs/images/documents.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/chat-dark.png"><img alt="Chat screen: an answer with a button that opens its cited sources" src="docs/images/chat.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/documents-dark.png"><img alt="Document list with search, filters, sorting and a pager" src="docs/images/documents.png"></picture> |
 
 ## Features
 

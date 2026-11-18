@@ -9,7 +9,7 @@
 
 | 出典つきのチャット | 資料の一覧と絞り込み |
 |---|---|
-| ![チャット画面](docs/images/chat.png) | ![資料一覧](docs/images/documents.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/chat-dark.png"><img alt="チャット画面。回答と、根拠の資料を開く「N 件のソース」ボタン" src="docs/images/chat.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/documents-dark.png"><img alt="資料の一覧。検索・絞り込み・並び替えとページ送り" src="docs/images/documents.png"></picture> |
 
 ## 特徴
 
