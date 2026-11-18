@@ -180,7 +180,7 @@ flowchart LR
 
 `AUTH_MODE=required` のときの流れです（仕様は [configuration.md](configuration.md) の「ログイン（認証）」）。ブラウザーが Better Auth でログインして
 アクセストークン（JWT）を受け取り、API にはそのトークンだけを送ります。バックエンドは、Better Auth が公開する鍵（`{AUTH_BASE_URL}/api/auth/jwks`）で署名を検証します。
-`/api/auth/*` は、画面の Worker `docunavi-web` が認証用 Worker へ中継するので、Cookie は画面と同じオリジンに置かれます。
+`/api/auth/*` は、画面の Worker `docunavi-web` が認証用 Worker へ中継するので、Cookie は画面と同じオリジンに置かれます。PDF も、画面の Worker の `/api/documents/{id}/file` が、その Cookie から取った JWT で Cloud Run の API を呼んで中継します（iframe は Authorization を送れないため。保存名を資料名にできる。[ADR 0013](decisions/0013-pdf-via-same-origin-relay.md)。実装済み・配備は未実施）。
 
 ```mermaid
 sequenceDiagram

@@ -6,6 +6,7 @@
 ## 現状（2026-11-18）
 
 - **構成:** 画面は Worker `docunavi-web`、認証は Worker `docunavi-api`（Better Auth）、API は Cloud Run の FastAPI、DB は Prisma Postgres `docunavi-prod`（Free・東京・pgvector）、PDF 原本は R2。[architecture.md](architecture.md)。
+- **PDF の保存名を資料名にする中継**（[decisions/0013](decisions/0013-pdf-via-same-origin-relay.md)）: 実装済み・コミット済み（2026-11-18）、**配備は未実施**。配備後の手動確認（Cloudflare 上で Cookie が付くか、保存名、`#page=N`、CPU・1102）は未了。
 - **Prisma Free は上限で止まっている。来月まで放置する**（月 200,000 操作。止まることは利用者が受け入れ済み。[decisions/0012](decisions/0012-accept-prisma-free-limit-and-cut-operations.md)）。2026-11-15 の Console で 197,536 / 200,000（利用者の貼り付け、等級 A）。2026-11-18 の引き継ぎの記録では本番 API は 503（この文書では再確認していない）。更新は **2026-12-01**。それまで放置し、Prisma を呼ぶ確認は増やさない。**未確認:** 認証が止まり画面から使えなくなるか、超過時が課金か停止か。未追跡のローカルメモ `ops/HANDOFF_prisma_usage.md` は記録として引用しない（12-01 後に削除予定）。
 - **本番 DB の件数**（2026-11-09、読み取り、等級 A）: `documents` 80、`chunks` 2,313（すべて埋め込み済み）、`user` 2 行（人数ではない）。
 - **取り込み:** 同期は週 1 回（日曜 00:00 JST）。`docunavi-ingest-queue-every-5min` は一時停止。「続けて聞く」の質問の自動生成は配備済みで有効（[architecture.md](architecture.md)。Job 経由の実行は未確認）。
