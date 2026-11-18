@@ -9,8 +9,8 @@ import { collectionLabel } from '../lib/collections';
 import { takePendingFocus, usePanelCiteSeq, usePanelCitationMiss, usePanelOpenSeq, usePanelSpan } from '../lib/panelSignal';
 import { locateSpan } from '../lib/sources';
 import type { DetailView } from '../lib/urlState';
-import { DocumentName, UpdatedAt, displayName, pageLabel } from './documentDisplay';
-import { CloseIcon, CollapseIcon, ExpandIcon } from './icons';
+import { DocumentName, UpdatedAt, displayName, pageLabel, pdfDownloadName } from './documentDisplay';
+import { CloseIcon, CollapseIcon, DownloadIcon, ExpandIcon } from './icons';
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
 
@@ -19,17 +19,21 @@ export const MSG_EXTRACTED = 'PDFから抽出したテキストです。レイ�
 export const MSG_CITE_MISS = '出典の箇所を特定できなかったため、強調は付けていません。資料全体を読めます。';
 export const MSG_EXTRACTED_OTHER = '資料から抽出したテキストです。';
 
-/** PDF。ブラウザー内蔵の PDF 表示（iframe）に、認証付きで取った PDF の Blob URL を渡す。 */
-function OriginalPdf({ document, page, cite }: { document: DocumentSummary; page: number | null; cite: number }) {
-  const [state, reload] = useDocumentPdf(document.id);
-  if (state.status !== 'ready') return <Status state={state} onRetry={reload} />;
+type PdfState = ReturnType<typeof useDocumentPdf>[0];
+
+/**
+ * PDF。ブラウザー内蔵の PDF 表示（iframe）に、認証付きで取った PDF の Blob URL を渡す。
+ * PDF の取得はパネル本体が持つ（ヘッダーのダウンロードのアイコンも同じ Blob URL を使うため）。
+ */
+function OriginalPdf({ document, pdf, onRetry, page, cite }: { document: DocumentSummary; pdf: PdfState; onRetry: () => void; page: number | null; cite: number }) {
+  if (pdf.status !== 'ready') return <Status state={pdf} onRetry={onRetry} />;
   // ページの指定（#page=N）は、ブラウザー内蔵のビューアが読む。ページが変わったとき・出典を押し直したときだけ、
   // iframe を作り直して確実に飛ばす（作り直しても Blob URL は取り直さない）。ほかの切り替えでは作り直さず、見ている位置を保つ
   return (
     <iframe
       key={`${page ?? 'top'}:${cite}`}
       className="pdf-frame"
-      src={page === null ? state.data.url : `${state.data.url}#page=${page}`}
+      src={page === null ? pdf.data.url : `${pdf.data.url}#page=${page}`}
       title={`${displayName(document)} の PDF`}
     />
   );
@@ -78,6 +82,9 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
   const [seen, setSeen] = useState<ReadonlySet<DetailView>>(new Set());
   if (state.status === 'ready' && !seen.has(mode)) setSeen(new Set(seen).add(mode));
 
+  // PDF は、初めて「PDF」を開くまで取らない。取ったあとは、表示が切り替わっても持ち続ける
+  const [pdf, reloadPdf] = useDocumentPdf(originalPdf && seen.has('pdf') ? document.id : null);
+
   // 利用者の操作で開いたときは、パネルへフォーカスを移す（戻る・進む・再読み込みで開いたときは動かさない）
   useEffect(() => {
     if (takePendingFocus()) ref.current?.focus({ preventScroll: true });
@@ -113,6 +120,13 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
       <header className="ws-panel-head">
         <span className="ws-eyebrow">資料</span>
         <span className="ws-panel-tools">
+          {mode === 'pdf' && pdf.status === 'ready' && (
+            // 内蔵ビューアの保存は Blob URL の ID が名前になる。ここは、取り込んだ元のファイル名で保存する
+            // （取得済みの Blob をそのまま使う。追加の通信も権限の確認も増えない）
+            <a className="ws-icon-btn" href={pdf.data.url} download={pdfDownloadName(document)} aria-label="PDF をダウンロード" title="PDF をダウンロード（元のファイル名で保存）">
+              <DownloadIcon />
+            </a>
+          )}
           <button
             type="button"
             className="ws-icon-btn"
@@ -163,7 +177,7 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
 
           {originalPdf && seen.has('pdf') && (
             <div className="ws-view-body" hidden={mode !== 'pdf'}>
-              <OriginalPdf document={document} page={page} cite={cite} />
+              <OriginalPdf document={document} pdf={pdf} onRetry={reloadPdf} page={page} cite={cite} />
             </div>
           )}
           {hasGraph && seen.has('graph') && (

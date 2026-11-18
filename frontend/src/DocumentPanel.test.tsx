@@ -223,6 +223,23 @@ describe('出典を押して右のパネルを開く', () => {
     expect(files).toHaveLength(1); // PDF そのものは取り直さない
   });
 
+  it('PDF を開くと、ヘッダーに「PDF をダウンロード」のアイコンが出る。取得済みの Blob を、取り込んだ元のファイル名で保存する（内蔵ビューアの保存名は Blob の ID になる）', async () => {
+    install();
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+    const panel = await openCitation(user, 1);
+    expect(panel.queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument(); // 抽出テキストのあいだは出さない（PDF を開くまで取らない）
+    expect(files).toHaveLength(0);
+
+    await user.click(panel.getByRole('button', { name: 'PDF' }));
+
+    const link = await panel.findByRole('link', { name: 'PDF をダウンロード' });
+    expect(link).toHaveAttribute('href', 'blob:test/1');
+    expect(link).toHaveAttribute('download', 'tsubasa_dorm_rules.pdf');
+    expect(files).toHaveLength(1); // 取り直さない
+  });
+
   it('資料一覧からの表示とタブの移動: パネルは作り直されず、別の資料へ移ると前の資料のページ・強調を引き継がない', async () => {
     install();
     const user = userEvent.setup();

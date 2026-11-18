@@ -41,6 +41,11 @@ export function displayName(document: DocumentSummary): string {
   return document.title ?? document.source;
 }
 
+/** PDF を保存するときのファイル名。取り込んだ元のファイル名（日本語のまま）。拡張子が無ければ `.pdf` を付ける。 */
+export function pdfDownloadName(document: DocumentSummary): string {
+  return /\.pdf$/i.test(document.source) ? document.source : `${document.source}.pdf`;
+}
+
 /** `showFile` を false にすると、ファイル名を出さない（一覧は、同じ題名の資料を見分けるときだけ出す）。 */
 export function DocumentName({ document, showFile = true }: { document: DocumentSummary; showFile?: boolean }) {
   return (

@@ -1328,6 +1328,10 @@
   height: max(24rem, calc(100dvh - 15rem));
 }
 
+a.ws-icon-btn {
+  text-decoration: none;
+}
+
 /* 抽出テキストで、出典の根拠にしたチャンク */
 .chunk-focus {
   border-left: 4px solid var(--accent);

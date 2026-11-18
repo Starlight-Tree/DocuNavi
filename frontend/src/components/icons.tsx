@@ -24,6 +24,15 @@ export function CloseIcon() {
   );
 }
 
+/** 下向きの矢印と受け皿（ダウンロード）。 */
+export function DownloadIcon() {
+  return (
+    <svg {...BASE}>
+      <path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16.5h12" />
+    </svg>
+  );
+}
+
 /** 外向きの矢印（拡大）。 */
 export function ExpandIcon() {
   return (
