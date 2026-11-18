@@ -522,17 +522,33 @@ def test_verify_does_not_read_local_files_and_ignores_documents_that_are_not_rea
 @pytest.mark.parametrize(
     "override, message",
     [
-        ({"has_vector": False}, "埋め込みが無い、または古い"),
-        ({"model": "other-model"}, "埋め込みが無い、または古い"),
-        ({"dims": 3072}, "埋め込みが無い、または古い"),
-        ({"input_hash": "stale"}, "埋め込みが無い、または古い"),
+        ({"model": "other-model"}, "古い埋め込み"),
+        ({"dims": 3072}, "古い埋め込み"),
+        ({"input_hash": "stale"}, "古い埋め込み"),
         ({"content": None}, "チャンクがありません"),
     ],
 )
-def test_verify_rejects_a_ready_document_without_current_embeddings(monkeypatch, override, message):
+def test_verify_rejects_a_ready_document_with_stale_embeddings_or_no_chunks(monkeypatch, override, message):
     with pytest.raises(search_vector.VectorSearchError, match=message) as info:
         run_verify(doc_rows(**override), monkeypatch)
     assert "a.pdf" in str(info.value)
+
+
+def test_verify_tolerates_chunks_that_are_not_embedded_yet_but_warns(monkeypatch, caplog):
+    # 取り込み直後（embed の完了前）に起動した新しいインスタンスを、落とさない。検索の SQL は、埋め込みの無いチャンクをもともと除く
+    rows = doc_rows() + doc_rows(id=2, source="new.pdf", has_vector=False, model=None, dims=None, input_hash=None)
+    with caplog.at_level("WARNING", logger="app.search_vector"):
+        run_verify(rows, monkeypatch)
+    assert any("埋め込みがまだ無い" in r.getMessage() for r in caplog.records)
+    assert "new.pdf" not in caplog.text  # 資料名は出さない（件数だけ）
+
+
+def test_verify_tolerates_a_partly_embedded_document(monkeypatch):
+    # 同じ資料の一部のチャンクだけ、埋め込みがまだ無い
+    rows = doc_rows() + doc_rows(
+        has_vector=False, model=None, dims=None, input_hash=None, heading="別", content="別の本文"
+    )
+    run_verify(rows, monkeypatch)
 
 
 def test_verify_rejects_a_database_without_searchable_documents(monkeypatch):
@@ -540,6 +556,9 @@ def test_verify_rejects_a_database_without_searchable_documents(monkeypatch):
         run_verify([], monkeypatch)
     with pytest.raises(search_vector.VectorSearchError, match="検索できる資料が DB にありません"):
         run_verify(doc_rows(status="failed"), monkeypatch)
+    # ready でも、埋め込みが 1 つも無ければ、検索できる資料は無い
+    with pytest.raises(search_vector.VectorSearchError, match="検索できる資料が DB にありません"):
+        run_verify(doc_rows(has_vector=False, model=None, dims=None, input_hash=None), monkeypatch)
 
 
 def test_verify_requires_the_database(monkeypatch):

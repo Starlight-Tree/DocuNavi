@@ -256,6 +256,11 @@ def check_rows(rows: Sequence[Mapping[str, Any]]) -> None:
     """起動時の検査の結果（`VERIFY_SQL` の行）を判定する。合っていなければ VectorSearchError（起動を止める）。
 
     資料が 1 件も無いときに 1 行だけ返る、`id` が NULL の行（アクセス制御の検査と 1 本にまとめたとき）は、資料として数えない。
+
+    止めるのは、検索を誤らせる状態だけ: チャンクが無い資料、別のモデル・次元・入力の古い埋め込みがあるチャンク、
+    検索できる（現在の埋め込みを持つチャンクのある）資料が 1 件も無いこと。
+    埋め込みがまだ無いチャンク（取り込み直後、`embed` の完了前）は、検索の SQL がもともと除く（`embedding IS NOT NULL`）ので、
+    警告にとどめる。止めると、その間にコールドスタート・スケールアウトした新しいインスタンスが起動できない。
     """
     by_document: dict[Any, list[Mapping[str, Any]]] = {}
     for row in rows:
@@ -266,16 +271,35 @@ def check_rows(rows: Sequence[Mapping[str, Any]]) -> None:
             "検索できる資料が DB にありません（python -m app.ingestion --apply と python -m app.ingestion.embed --apply で取り込む）"
         )
     problems: list[str] = []
+    pending: dict[str, int] = {}
+    searchable = 0
     for doc_rows in by_document.values():
         name = doc_rows[0]["source"]
         if any(r["content"] is None for r in doc_rows):
             problems.append(f"{name}: チャンクがありません")
-        elif any(not _embedding_is_current(r) for r in doc_rows):
-            problems.append(f"{name}: 埋め込みが無い、または古いチャンクがあります")
+            continue
+        if any(r["has_vector"] and not _embedding_is_current(r) for r in doc_rows):
+            problems.append(f"{name}: 古い埋め込み（別のモデル・次元・入力）のチャンクがあります")
+            continue
+        waiting = sum(1 for r in doc_rows if not r["has_vector"])
+        if waiting:
+            pending[name] = waiting
+        if waiting < len(doc_rows):
+            searchable += 1
     if problems:
         raise VectorSearchError(
             "資料の埋め込みが DB と合っていません（python -m app.ingestion.embed --apply で更新）: "
             + "; ".join(sorted(problems))
+        )
+    if pending:
+        logger.warning(
+            "埋め込みがまだ無いチャンクがあります（検索の対象外。python -m app.ingestion.embed --apply で埋め込む）: %d 資料 / %d チャンク",
+            len(pending),
+            sum(pending.values()),
+        )
+    if searchable == 0:
+        raise VectorSearchError(
+            "検索できる資料が DB にありません（埋め込みが 1 つも無い。python -m app.ingestion.embed --apply で埋め込む）"
         )
 
 
