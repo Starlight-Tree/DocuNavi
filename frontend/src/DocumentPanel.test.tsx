@@ -9,7 +9,8 @@ import { openKnowledge } from './test/navigation';
 import { jsonResponse, replyResponse } from './test/helpers';
 import { openSources } from './test/sources';
 
-// 出典を押して右のパネルを開く流れ（A 案）: 抽出テキストで根拠を強調し、「PDF」へ切り替えたら出典のページを開く。
+// 出典を押して右のパネルを開く流れ: PDF で出典のページを開き、根拠のチャンクを PDF の文字の中で強調する。「抽出テキストを見る」で抽出テキストへ移る。
+// 資料一覧から開くときの既定は抽出テキスト。表示の切り替えはボタン（開いていない表示へ移るものだけ）で行う。
 // パネルの開閉・拡大・状態の保持・履歴・フォーカスを確かめる。
 
 const UPDATED = '2026-10-18T00:00:00+00:00';
@@ -108,6 +109,8 @@ const findPanel = () => screen.findByRole('complementary', { name: /^資料:/ })
 const pdfViewer = () => screen.getByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
 /** ビューアが、そのページを描き終えて、ツールバーに「N / 総数」を出している。 */
 const atPage = (n: number, total = 3) => screen.findByText(`${n} / ${total}`);
+const CITE_MISS = '出典の箇所を特定できなかったため、強調は付けていません。資料全体を読めます。';
+const CHUNK_5 = '第5条 入寮の申込みは、2 月 28 日までに行う。';
 
 async function openCitation(user: User, index: number) {
   await user.click((await chips())[index]!);
@@ -115,7 +118,7 @@ async function openCitation(user: User, index: number) {
 }
 
 describe('出典を押して右のパネルを開く', () => {
-  it('チャットのまま、抽出テキストで根拠のチャンクを強調する。会話と未送信の文は残る', async () => {
+  it('チャットのまま、PDF で出典のページを開く。抽出テキストへ移ると根拠のチャンクを強調する。会話と未送信の文は残る', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
@@ -124,33 +127,42 @@ describe('出典を押して右のパネルを開く', () => {
 
     const panel = await openCitation(user, 1);
 
-    expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=3&chunk=1');
-    expect(panel.getByRole('button', { name: '抽出テキスト' })).toHaveAttribute('aria-pressed', 'true');
-    // 「PDF から抽出したテキスト」の断り書きは、常時は出さず、タブのホバーの説明（title）にする
-    expect(panel.getByRole('button', { name: '抽出テキスト' })).toHaveAccessibleDescription('PDFから抽出したテキストです。レイアウトや図は含まれません。');
+    // 出典からは PDF で開く（原本で根拠を確かめる）。表示のタブは無く、開いていない表示へ移るボタンだけが並ぶ
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=3&chunk=1');
+    const viewer = await panel.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
+    expect(viewer).toBeVisible();
+    expect(panel.queryByRole('button', { name: 'PDFを開く' })).not.toBeInTheDocument();
+    const toText = panel.getByRole('button', { name: '抽出テキストを見る' });
+    expect(panel.getByRole('group', { name: '表示の切り替え' }).querySelector('[aria-pressed]')).toBeNull();
+    // 「PDF から抽出したテキスト」の断り書きは、常時は出さず、ボタンのホバーの説明（title）にする
+    expect(toText).toHaveAccessibleDescription('PDFから抽出したテキストです。レイアウトや図は含まれません。');
     expect(panel.queryByText('PDFから抽出したテキストです。レイアウトや図は含まれません。')).not.toBeInTheDocument();
+    // 抽出テキストは、押すまで出さない（チャンクの強調も、抽出テキストの表示のときだけ）
+    expect(document.querySelectorAll('[data-focus="true"]')).toHaveLength(0);
     // 根拠の箇所が見つかったときは、「特定できなかった」とは出さない
     expect(panel.queryByText(/箇所を特定できなかった/)).not.toBeInTheDocument();
+
+    await user.click(toText);
+
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=3&chunk=1');
+    expect(panel.getByRole('button', { name: 'PDFを開く' })).toBeInTheDocument();
+    expect(panel.queryByRole('button', { name: '抽出テキストを見る' })).not.toBeInTheDocument();
     const marked = document.querySelectorAll('[data-focus="true"]');
     expect(marked).toHaveLength(1);
-    expect(marked[0]).toHaveTextContent('第5条 入寮の申込みは、2 月 28 日までに行う。');
+    expect(marked[0]).toHaveTextContent(CHUNK_5);
+    expect(marked[0]).toBeVisible();
+    expect(viewer).not.toBeVisible(); // 隠すだけで、残す
     expect(screen.getByRole('log', { name: '会話' })).toBeVisible();
     expect(screen.getByRole('textbox', { name: 'メッセージ' })).toHaveValue('書きかけ');
   });
 
-  it('PDF は、「PDF」を初めて開くまで取らない。切り替えたら、出典のページを開く', async () => {
+  it('出典から開くと、PDF を取って出典のページを開く', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
 
-    const panel = await openCitation(user, 1);
-    await panel.findByText('第5条 入寮の申込みは、2 月 28 日までに行う。');
-    expect(files).toEqual([]);
-    expect(fakePdf.opened).toEqual([]);
-    expect(screen.queryByRole('group', { name: /の PDF$/ })).not.toBeInTheDocument();
-
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
+    await openCitation(user, 1);
 
     await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
     expect(await atPage(3)).toBeInTheDocument();
@@ -159,15 +171,35 @@ describe('出典を押して右のパネルを開く', () => {
     expect(files).toEqual([]);
   });
 
-  it('出典から「PDF」へ切り替えたら、出典のページを開き、根拠のチャンクの本文を PDF の文字の中で強調する', async () => {
+  it('PDF は、「PDFを開く」か view=pdf で初めて開くまで取らない。押したら、出典のページを開く', async () => {
+    install();
+    window.history.replaceState(null, '', '/?tab=chat&doc=7&view=text&page=3&chunk=1');
+    const user = userEvent.setup();
+    render(<App />);
+
+    const panel = within(await findPanel());
+    await panel.findByText(CHUNK_5);
+    expect(files).toEqual([]);
+    expect(fakePdf.opened).toEqual([]);
+    expect(screen.queryByRole('group', { name: /の PDF$/ })).not.toBeInTheDocument();
+
+    await user.click(panel.getByRole('button', { name: 'PDFを開く' }));
+
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=3&chunk=1');
+    await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
+    expect(await atPage(3)).toBeInTheDocument();
+    expect(fakePdf.opened).toEqual(['/documents/7/file']);
+    expect(fakePdf.renders.at(-1)?.page).toBe(3);
+    expect(files).toEqual([]);
+  });
+
+  it('出典から開くと、出典のページを開き、根拠のチャンクの本文を PDF の文字の中で強調する', async () => {
     fakePdf.pages = [['1 ページ目'], ['2 ページ目'], ['第5条 入寮の', '申込みは、2 月 28 日までに行う。', '第6条 別の条文です。']];
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
     const panel = await openCitation(user, 1);
-
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
 
     await atPage(3);
     await waitFor(() => expect(document.querySelectorAll('mark.pdf-span-mark')).toHaveLength(2));
@@ -182,22 +214,19 @@ describe('出典を押して右のパネルを開く', () => {
     await ask(user);
     const panel = await openCitation(user, 1);
 
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
-
     await atPage(3);
     expect(await panel.findByText(/PDF の文字から特定できなかったため、強調は付けていません/)).toBeInTheDocument();
     expect(document.querySelectorAll('mark.pdf-span-mark')).toHaveLength(0);
   });
 
-  it('出典がページを持たないときは、ページを推測せず、「PDF」は先頭から開く', async () => {
+  it('出典がページを持たないときは、ページを推測せず、PDF は先頭から開く', async () => {
     install({ sources: NO_SOURCES });
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
 
-    const panel = await openCitation(user, 1);
-    expect(window.location.search).toBe('?tab=chat&doc=7&view=text&chunk=1');
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
+    await openCitation(user, 1);
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&chunk=1');
 
     expect(await atPage(1)).toBeInTheDocument();
     expect(fakePdf.renders.map((r) => r.page)).toEqual([1]);
@@ -209,16 +238,18 @@ describe('出典を押して右のパネルを開く', () => {
     render(<App />);
     await ask(user);
     const panel = await openCitation(user, 1);
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
     const viewer = await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
     await atPage(3);
     await user.click(panel.getByRole('button', { name: '前のページ' }));
     await atPage(2);
 
-    await user.click(panel.getByRole('button', { name: '抽出テキスト' }));
+    await user.click(panel.getByRole('button', { name: '抽出テキストを見る' }));
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=3&chunk=1');
     expect(viewer).not.toBeVisible();
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
+    expect(await panel.findByText(CHUNK_5)).toBeVisible();
+    await user.click(panel.getByRole('button', { name: 'PDFを開く' }));
 
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=3&chunk=1');
     expect(pdfViewer()).toBe(viewer);
     expect(viewer).toBeVisible();
     expect(screen.getByText('2 / 3')).toBeVisible(); // 見ていたページのまま
@@ -232,24 +263,25 @@ describe('出典を押して右のパネルを開く', () => {
     render(<App />);
     await ask(user);
     const panel = await openCitation(user, 1);
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
     const viewer = await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
     await atPage(3);
 
     await user.click((await chips())[0]!);
 
-    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=1&chunk=0'));
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
+    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=1&chunk=0'));
     expect(await atPage(1)).toBeInTheDocument();
     expect(pdfViewer()).toBe(viewer); // 開き直さず、同じビューアがページだけ移る
 
     // 見ているページを動かしても、同じ出典を押し直すと、出典のページへ戻る
     await user.click(panel.getByRole('button', { name: '次のページ' }));
     await atPage(2);
-    await user.click(panel.getByRole('button', { name: '抽出テキスト' }));
+    await user.click(panel.getByRole('button', { name: '抽出テキストを見る' }));
+    expect(viewer).not.toBeVisible();
     await user.click((await chips())[0]!);
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
+    // 出典から開くと PDF に戻り、出典のページへ移る
+    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=1&chunk=0'));
     expect(await atPage(1)).toBeInTheDocument();
+    expect(viewer).toBeVisible();
     expect(fakePdf.opened).toEqual(['/documents/7/file']);
     expect(files).toEqual([]);
   });
@@ -260,7 +292,6 @@ describe('出典を押して右のパネルを開く', () => {
     render(<App />);
     await ask(user);
     const panel = await openCitation(user, 1);
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
 
     expect(await panel.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' })).toBeInTheDocument();
     expect(panel.queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument();
@@ -277,27 +308,36 @@ describe('出典を押して右のパネルを開く', () => {
     expect(pdfDownloadName(doc('aoba-aw820/guide-01.pdf', null))).toBe('guide-01.pdf'); // 題名が無ければ、ソースの末尾
   });
 
-  it('資料一覧からの表示とタブの移動: パネルは作り直されず、別の資料へ移ると前の資料のページ・強調を引き継がない', async () => {
+  it('資料一覧からの表示と画面の移動: パネルは作り直されず、別の資料を一覧から開くと、抽出テキストで開き、前の資料のページ・強調を引き継がない', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
-    await openCitation(user, 1);
+    const panel = await openCitation(user, 1);
     const panelBefore = await findPanel();
+    await panel.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
 
     await openKnowledge(user);
 
-    expect(window.location.search).toBe('?tab=documents&doc=7&view=text&page=3&chunk=1');
-    expect(await findPanel()).toBe(panelBefore); // タブを移っても、同じパネルのまま
+    expect(window.location.search).toBe('?tab=documents&doc=7&view=pdf&page=3&chunk=1');
+    expect(await findPanel()).toBe(panelBefore); // 画面を移っても、同じパネルのまま
+    expect(pdfViewer()).toBeVisible();
+    // 根拠のチャンクの強調は、抽出テキストへ移ると出る
+    await user.click(panel.getByRole('button', { name: '抽出テキストを見る' }));
     expect(document.querySelectorAll('[data-focus="true"]')).toHaveLength(1);
 
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
 
+    // 一覧から開いたときの既定は抽出テキスト（view の指定なし）。PDF は、開くまで取らない
     expect(window.location.search).toBe('?tab=documents&doc=8');
     const next = within(await findPanel());
-    expect(await next.findByRole('group', { name: 'cafe_store_guide.pdf の PDF' })).toBeInTheDocument();
+    expect(await next.findByText('カフェの営業時間は、午前 9 時から午後 5 時までです。')).toBeVisible();
+    expect(next.getByRole('button', { name: 'PDFを開く' })).toBeInTheDocument();
+    expect(next.queryByRole('button', { name: '抽出テキストを見る' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'cafe_store_guide.pdf の PDF' })).not.toBeInTheDocument();
     expect(document.querySelectorAll('[data-focus="true"]')).toHaveLength(0);
     expect(screen.queryByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' })).not.toBeInTheDocument();
+    expect(fakePdf.opened).toEqual(['/documents/7/file']);
   });
 });
 
@@ -309,7 +349,6 @@ describe('パネルの拡大・縮小', () => {
     await ask(user);
     await user.type(screen.getByRole('textbox', { name: 'メッセージ' }), '書きかけ');
     const panel = await openCitation(user, 1);
-    await user.click(panel.getByRole('button', { name: 'PDF' }));
     const viewer = await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
     const aside = await findPanel();
     const message = screen.getByText('2 月 28 日までです。');
@@ -372,7 +411,7 @@ describe('パネルと履歴', () => {
 
     window.history.forward();
     expect(await findPanel()).toBeInTheDocument();
-    expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=3&chunk=1');
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=3&chunk=1');
   });
 
   it('URL で開いたとき（戻る・進む・再読み込み）は、フォーカスを奪わない', async () => {
@@ -479,27 +518,36 @@ describe('パネルのフォーカス', () => {
   });
 });
 
-describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
-  const tabs = (panel: ReturnType<typeof within>) =>
+describe('資料ビューア: 表示の切り替え・メタ情報・根拠の特定', () => {
+  const viewLinks = (panel: ReturnType<typeof within>) =>
     within(panel.getByRole('group', { name: '表示の切り替え' })).getAllByRole('button').map((b) => b.textContent);
 
-  it('タブは「抽出テキスト」「PDF」の順。関係図は、対応する資料（入寮規程）にだけ付く', async () => {
+  it('切り替えのボタンは、いま開いていない表示へ移るものだけ（タブは無い）。関係図は、対応する資料（入寮規程）にだけ付く', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
 
+    // 出典からは PDF で開く。PDF のボタンは出ない
     const panel = await openCitation(user, 1);
-    expect(tabs(panel)).toEqual(['抽出テキスト', 'PDF', '関係図']);
+    expect(viewLinks(panel)).toEqual(['抽出テキストを見る', '関係図を見る']);
 
-    // 関係図の無い資料（カフェ）には、タブも、案内の文も出さない
+    await user.click(panel.getByRole('button', { name: '抽出テキストを見る' }));
+    expect(viewLinks(panel)).toEqual(['PDFを開く', '関係図を見る']);
+
+    // 関係図の無い資料（カフェ）には、関係図のボタンも、案内の文も出さない
     await openKnowledge(user);
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
     const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
-    // 一覧から開いたときは、PDF（あれば）から。出典のハイライトに依存せず、資料全体を見る
-    await cafe.findByRole('group', { name: 'cafe_store_guide.pdf の PDF' });
-    expect(tabs(cafe)).toEqual(['抽出テキスト', 'PDF']);
+    // 一覧から開いたときは、抽出テキストから。PDF は、ボタンを押すまで開かない
+    await cafe.findByText('カフェの営業時間は、午前 9 時から午後 5 時までです。');
+    expect(viewLinks(cafe)).toEqual(['PDFを開く']);
     expect(cafe.queryByText(/関係図は/)).not.toBeInTheDocument();
+    expect(cafe.queryByRole('group', { name: 'cafe_store_guide.pdf の PDF' })).not.toBeInTheDocument();
+
+    await user.click(cafe.getByRole('button', { name: 'PDFを開く' }));
+    expect(await cafe.findByRole('group', { name: 'cafe_store_guide.pdf の PDF' })).toBeVisible();
+    expect(viewLinks(cafe)).toEqual(['抽出テキストを見る']);
   });
 
   it('パネルの最上段は題名とアイコンだけ。取り込みの日付・ページ数・「資料」の見出しは出さない', async () => {
@@ -514,7 +562,7 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
     expect(panel.queryByText('資料')).not.toBeInTheDocument();
   });
 
-  it('出典の根拠の箇所を特定できなかったときは、強調を付けず、その旨を示す。ほかの資料を開いたときは引き継がない', async () => {
+  it('出典の根拠の箇所を特定できなかったときは、強調を付けず、本文の外にその旨を示す（PDF・抽出テキスト。関係図では出さない）。ほかの資料を開いたときは引き継がない', async () => {
     // 抜粋が、資料のどのチャンクとも合わない（ページは、サーバーが返した値がある）
     install({ context: '[tsubasa_dorm_rules.pdf]\n全く別の文章が、ここに入っています。', sources: [{ name: 'tsubasa_dorm_rules.pdf', page: 2, page_end: null, weak: false }] });
     const user = userEvent.setup();
@@ -524,18 +572,31 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
     const panel = await openCitation(user, 0);
 
     // ページは、サーバーが返した値（2）だけを持つ。箇所は推測せず、何も強調しない
-    expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=2');
-    expect(await panel.findByRole('status')).toHaveTextContent('出典の箇所を特定できなかったため、強調は付けていません');
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=2');
+    const viewer = await panel.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
+    // PDF の表示でも出る。PDF ビューアの外（ボタン群の下）にある
+    const notice = await panel.findByRole('status');
+    expect(notice).toHaveTextContent(CITE_MISS);
+    expect(viewer.contains(notice)).toBe(false);
+    expect(panel.getByRole('group', { name: '表示の切り替え' }).compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.querySelectorAll('mark.pdf-span-mark')).toHaveLength(0);
+
+    // 抽出テキストでも出る。何も強調せず、資料全体は読める（2 つのチャンクが出る）
+    await user.click(panel.getByRole('button', { name: '抽出テキストを見る' }));
+    expect(await panel.findByRole('status')).toHaveTextContent(CITE_MISS);
     expect(document.querySelectorAll('[data-focus="true"]')).toHaveLength(0);
     expect(panel.queryByText('根拠の箇所')).not.toBeInTheDocument();
-    // 資料全体は読める（2 つのチャンクが出る）
     expect(panel.getAllByRole('listitem')).toHaveLength(2);
+
+    // 関係図では出さない
+    await user.click(panel.getByRole('button', { name: '関係図を見る' }));
+    expect(panel.queryByText(CITE_MISS)).not.toBeInTheDocument();
 
     // 資料一覧から別の資料を開いたときは、この案内を引き継がない
     await openKnowledge(user);
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
     const cafe = within(await screen.findByRole('complementary', { name: '資料: cafe_store_guide.pdf' }));
-    await cafe.findByRole('group', { name: 'cafe_store_guide.pdf の PDF' });
+    await cafe.findByText('カフェの営業時間は、午前 9 時から午後 5 時までです。');
     expect(cafe.queryByText(/箇所を特定できなかった/)).not.toBeInTheDocument();
   });
 
@@ -555,6 +616,7 @@ describe('資料ビューア: タブ・メタ情報・根拠の特定', () => {
       render(<App />);
       await ask(user);
       const panel = await openCitation(user, 0);
+      await user.click(await panel.findByRole('button', { name: '抽出テキストを見る' }));
       expect(await panel.findByText('p.i')).toBeInTheDocument();
       expect(panel.getByText('p.1')).toBeInTheDocument();
       expect(panel.getByText('p.5')).toBeInTheDocument();

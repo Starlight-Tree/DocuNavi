@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+import { MSG_CITE_MISS } from './components/DocumentPanel';
 import { EXAMPLE_QUESTIONS } from './components/MessageList';
 import { followUpQuestions } from './lib/followUps';
 import { findSourceChunk, findSourcePage } from './lib/sources';
@@ -39,18 +40,21 @@ const DETAIL = {
   ],
 };
 
-function installAnswerFetch(list: unknown = LIST) {
+function installAnswerFetch(list: unknown = LIST, detail: unknown = DETAIL) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'gemini' });
     if (url.includes('/chat/stream')) return replyResponse({ reply: '2 月 28 日までです。', context: CONTEXT });
     if (url === '/documents') return jsonResponse(list);
-    if (url === '/documents/7/chunks') return jsonResponse(DETAIL);
+    if (url === '/documents/7/chunks') return jsonResponse(detail);
     return new Response('not found', { status: 404 });
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
+
+/** 原本の PDF がある資料の詳細（`original_pdf: true`）。 */
+const DETAIL_WITH_PDF = { ...DETAIL, original_pdf: true };
 
 async function ask(user: ReturnType<typeof userEvent.setup>) {
   await user.type(await screen.findByRole('textbox', { name: 'メッセージ' }), '申込みはいつ？');
@@ -101,7 +105,7 @@ describe('findSourceChunk', () => {
 });
 
 describe('出典チップ', () => {
-  it('回答の下に、出典ごとのチップを出し、押すと資料を右のパネルに開く（チャットのまま。抽出テキストで根拠を強調する）', async () => {
+  it('回答の下に、出典ごとのチップを出し、押すと資料を右のパネルに開く（チャットのまま。PDF が無い資料は、抽出テキストで根拠を強調する）', async () => {
     installAnswerFetch();
     const user = userEvent.setup();
     render(<App />);
@@ -112,9 +116,11 @@ describe('出典チップ', () => {
 
     await user.click(chips[1]!);
 
-    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&chunk=1'));
+    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&chunk=1'));
     const panel = await screen.findByRole('complementary', { name: '資料: tsubasa_dorm_rules.pdf' });
-    // この資料は PDF が無いので、切り替えは出ず、抽出テキストが開く
+    // この資料は PDF が無いので、表示を移るボタンは出ず、PDF は使えない旨が出て、抽出テキストが開く
+    expect(within(panel).queryByRole('group', { name: '表示の切り替え' })).not.toBeInTheDocument();
+    expect(within(panel).getByText('PDFは利用できません。')).toBeInTheDocument();
     expect(within(panel).getByText('資料から抽出したテキストです。')).toBeVisible();
     // 根拠のチャンクだけを強調する
     const marked = panel.querySelectorAll('[data-focus="true"]');
@@ -145,10 +151,69 @@ describe('出典チップ', () => {
     await user.click((await sourceChips())[0]!);
 
     const panel = await screen.findByRole('complementary', { name: '資料: tsubasa_dorm_rules.pdf' });
-    expect(window.location.search).toBe('?tab=chat&doc=7&view=text');
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf');
     expect(panel.querySelector('[data-focus="true"]')).toBeNull();
     expect(within(panel).queryByText('根拠の箇所')).not.toBeInTheDocument();
     expect(within(panel).getAllByRole('listitem')).toHaveLength(2);
+    // 特定できなかった旨は、本文の外（ボタン群の下）に出る
+    expect(within(panel).getByRole('status')).toHaveTextContent(MSG_CITE_MISS);
+  });
+
+  it('PDF がある資料は、出典から PDF で開く（根拠のチャンクを特定できる）。抽出テキストは読み込まず、「抽出テキストを見る」で移れる', async () => {
+    installAnswerFetch(LIST, DETAIL_WITH_PDF);
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    await user.click((await sourceChips())[1]!);
+
+    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&chunk=1'));
+    const panel = await screen.findByRole('complementary', { name: '資料: tsubasa_dorm_rules.pdf' });
+    expect(await within(panel).findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' })).toBeVisible();
+    // いま開いている PDF のボタンは出ず、ほかの表示（抽出テキスト・関係図。この資料は入寮規程）へ移るボタンだけがある
+    const links = within(panel).getByRole('group', { name: '表示の切り替え' });
+    expect(within(links).getByRole('button', { name: '抽出テキストを見る' })).not.toHaveAttribute('aria-pressed');
+    expect(within(links).queryByRole('button', { name: 'PDFを開く' })).not.toBeInTheDocument();
+    expect(within(links).getByRole('button', { name: '関係図を見る' })).not.toHaveAttribute('aria-pressed');
+    // 抽出テキストは、まだ開いていないので読み込まず、強調・「根拠の箇所」も出ない
+    expect(within(panel).queryByRole('listitem')).not.toBeInTheDocument();
+    expect(panel.querySelector('[data-focus="true"]')).toBeNull();
+    expect(within(panel).queryByText('根拠の箇所')).not.toBeInTheDocument();
+    // チャンクを特定できているので、特定できなかった旨は出ない
+    expect(within(panel).queryByText(MSG_CITE_MISS)).not.toBeInTheDocument();
+
+    // 「抽出テキストを見る」で移ると、根拠のチャンクを強調した抽出テキストが見え、PDF は隠れる（そのボタンは消え、「PDFを開く」が出る）
+    await user.click(within(links).getByRole('button', { name: '抽出テキストを見る' }));
+    await waitFor(() => expect(window.location.search).toContain('view=text'));
+    expect(panel.querySelector('[data-focus="true"]')).toHaveTextContent('第5条 入寮の申込みは、2 月 28 日までに行う。');
+    expect(within(panel).getByText('根拠の箇所')).toBeVisible();
+    expect(within(panel).getByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF', hidden: true })).not.toBeVisible();
+    expect(within(panel).queryByRole('button', { name: '抽出テキストを見る' })).not.toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'PDFを開く' })).toBeInTheDocument();
+  });
+
+  it('PDF がある資料で、根拠のチャンクが見つからないときも PDF で開く。特定できなかった旨を、ボタンの下に出す', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/health')) return jsonResponse({ status: 'ok', mode: 'gemini' });
+      if (url.includes('/chat/stream')) {
+        return replyResponse({ reply: '回答です。', context: '[tsubasa_dorm_rules.pdf]\n全く別の文章が、ここに入っています。' });
+      }
+      if (url === '/documents') return jsonResponse(LIST);
+      if (url === '/documents/7/chunks') return jsonResponse(DETAIL_WITH_PDF);
+      return new Response('not found', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+    await ask(user);
+
+    await user.click((await sourceChips())[0]!);
+
+    const panel = await screen.findByRole('complementary', { name: '資料: tsubasa_dorm_rules.pdf' });
+    expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf');
+    expect(await within(panel).findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' })).toBeVisible();
+    expect(within(panel).getByRole('status')).toHaveTextContent(MSG_CITE_MISS);
   });
 
   it('資料一覧に無い出典は、開かずに、その旨を出す', async () => {
@@ -234,7 +299,7 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     await user.click((await sourceChips())[1]!);
 
     // 抜粋の突き合わせなら 3 ページ（chunks 側の値）になる。サーバーの値（1）が使われる
-    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=1&chunk=1'));
+    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=1&chunk=1'));
   });
 
   it('sources が無い（古い応答）ときは、ページを出さず、押すと根拠のチャンクだけ突き合わせて開く（ページは推測して持たせない）', async () => {
@@ -247,7 +312,7 @@ describe('出典カードのページ（サーバーが検索で返した値）'
     expect(within(cards[0]!).queryByText(/^p\./)).not.toBeInTheDocument();
     await user.click(cards[1]!);
 
-    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&chunk=1'));
+    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&chunk=1'));
   });
 
   it('sources と出典が合わない（件数が違う）ときは、ずれたページを出さない', async () => {
@@ -423,7 +488,7 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
       expect(screen.queryByText(/\[2\]/)).not.toBeInTheDocument();
       const region = await openSources();
       await user.click(within(region).getAllByRole('button', { name: /を右のパネルで開く/ })[1]!);
-      await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=3&chunk=1'));
+      await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=3&chunk=1'));
     });
 
     it('根拠の語句つき・同じ番号が続く引用も、すべて本文から消す（「2 2 2」と並ばない）', async () => {
@@ -477,7 +542,7 @@ describe('参照資料（コピーの隣のボタンから開く一覧）', () =
     const region = await openSources();
     await user.click(within(region).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ })[3]!);
 
-    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=text&page=4'));
+    await waitFor(() => expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=4'));
     expect(screen.getByRole('log', { name: '会話' })).toBeVisible();
   });
 

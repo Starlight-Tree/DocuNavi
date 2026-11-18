@@ -47,7 +47,7 @@ export type OpenSourceResult = 'opened' | 'notfound' | 'error';
 
 /**
  * チャットの出典（ファイル名と抜粋）から、資料を右のパネルに開く。画面（チャット・資料一覧）は移らない。
- * 資料の一覧からファイル名で資料を探し、「抽出テキスト」で根拠のチャンクを強調して開く。
+ * 資料の一覧からファイル名で資料を探し、「PDF」で開く（原本で根拠を確かめる）。根拠のチャンクが分かれば、PDF 上でその箇所を強調する。
  * - ページは、検索が返した値（knownPage）だけを持たせる。無いときは、推測したページを確定情報にしない（「PDF」は先頭から開く）。
  * - 根拠のチャンクが見つからない・チャンクを取れないときも、資料は開く（何も強調しない）。
  * `opener` は押した要素。閉じたときにフォーカスを戻す先になる。
@@ -77,7 +77,7 @@ export function useOpenSource(): (
           // 根拠の箇所が分からなくても、資料は開く
         }
         signalPanelOpen(opener ?? null, true, chunk === null ? document.id : null, chunk === null ? null : (options?.span ?? null));
-        navigate({ doc: document.id, view: 'text', page: knownPage ?? null, chunk, item: null });
+        navigate({ doc: document.id, view: 'pdf', page: knownPage ?? null, chunk, item: null });
         return 'opened';
       } catch {
         return 'error';

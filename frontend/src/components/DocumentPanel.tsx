@@ -9,7 +9,7 @@ import { takePendingFocus, usePanelCiteSeq, usePanelCitationMiss, usePanelOpenSe
 import { locateSpan } from '../lib/sources';
 import type { DetailView } from '../lib/urlState';
 import { DocumentName, displayName, pageLabel, pdfDownloadName } from './documentDisplay';
-import { CloseIcon, CollapseIcon, ExpandIcon } from './icons';
+import { CloseIcon, CollapseIcon, ExpandIcon, FileIcon, GraphIcon, TextIcon } from './icons';
 import { RelationGraphView } from './RelationGraphView';
 import { PdfViewer } from './PdfViewer';
 import { Status } from './Status';
@@ -22,7 +22,7 @@ export const MSG_EXTRACTED_OTHER = '資料から抽出したテキストです�
 interface DocumentPanelProps {
   /** 開く資料。別の資料に変わるときは、呼び出し側が `key` で作り直す（前の資料のページ・強調・関係図の選択を引き継がない）。 */
   document: DocumentSummary;
-  /** URL で指定された表示。無ければ null（PDF があれば PDF、無ければ抽出テキスト）。 */
+  /** URL で指定された表示。無ければ null（既定は抽出テキスト）。 */
   view: DetailView | null;
   /** 「PDF」で開くページ。出典が持つページだけ（推測しない）。 */
   page: number | null;
@@ -35,7 +35,8 @@ interface DocumentPanelProps {
 }
 
 /**
- * 右のパネル。資料の「PDF」「抽出テキスト」「関係図」を、タブで切り替えて見る。
+ * 右のパネル。資料の「抽出テキスト」「PDF」「関係図」のうち、いま開いている 1 つを出し、ほかの表示へはボタンで移る（タブは置かない）。
+ * 既定は抽出テキスト（ナレッジとして取り込んだ内容。運用者が取り込みの結果を確かめる）。チャットの出典からは PDF で開く（原本で根拠を確かめる）。
  * 切り替えても閉じない（隠すだけ）ので、PDF の位置と関係図の視点は保たれる。ただし、初めて開くまでは読み込まない。
  * 拡大・縮小は CSS だけで行う（同じ要素のまま。PDF・関係図・チャットを作り直さない）。
  */
@@ -50,9 +51,9 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
   const originalPdf = state.status === 'ready' && state.data.originalPdf;
   // 関係図は入寮規程だけ。サーバーが PDF から計算するので、PDF が使えるときだけ出す
   const hasGraph = originalPdf && document.source === GRAPH_SOURCE;
-  // PDF があれば、それを先に見せる。無ければ抽出テキスト（切り替えは出さず、使えない旨を示す）
-  // 関係図が使えない資料に view=graph が付いていたら、PDF にする（URL が古い・手で書き換えられたとき）
-  const mode: DetailView = originalPdf ? (view === 'graph' && !hasGraph ? 'pdf' : (view ?? 'pdf')) : 'text';
+  // 既定は抽出テキスト。PDF が無い資料は、いつも抽出テキスト（切り替えは出さず、使えない旨を示す）
+  // 関係図が使えない資料に view=graph が付いていたら、抽出テキストにする（URL が古い・手で書き換えられたとき）
+  const mode: DetailView = originalPdf ? (view === 'graph' && !hasGraph ? 'text' : (view ?? 'text')) : 'text';
 
   // 一度でも開いた表示。開いた表示は、切り替えても隠すだけで残す。まだ開いていない表示は、読み込まない
   const [seen, setSeen] = useState<ReadonlySet<DetailView>>(new Set());
@@ -126,22 +127,35 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
       ) : (
         <>
           {originalPdf ? (
-            <div className="view-switch" role="group" aria-label="表示の切り替え">
-              {/* 「PDF から抽出したテキスト」という断り書きは、常時は出さず、このタブのホバーの説明（title）にする */}
-              <button type="button" className="btn btn-secondary" aria-pressed={mode === 'text'} title={MSG_EXTRACTED} onClick={() => onViewChange('text')}>
-                抽出テキスト
-              </button>
-              <button type="button" className="btn btn-secondary" aria-pressed={mode === 'pdf'} onClick={() => onViewChange('pdf')}>
-                PDF
-              </button>
-              {hasGraph && (
-                <button type="button" className="btn btn-secondary" aria-pressed={mode === 'graph'} onClick={() => onViewChange('graph')}>
-                  関係図
+            <div className="view-links" role="group" aria-label="表示の切り替え">
+              {/* いま開いている表示のボタンは出さない（ほかの表示へ移るためのボタンだけ）。「PDF から抽出したテキスト」という断り書きは、常時は出さず、ボタンのホバーの説明（title）にする */}
+              {mode !== 'text' && (
+                <button type="button" className="btn btn-secondary view-link" title={MSG_EXTRACTED} onClick={() => onViewChange('text')}>
+                  <TextIcon />
+                  抽出テキストを見る
+                </button>
+              )}
+              {mode !== 'pdf' && (
+                <button type="button" className="btn btn-secondary view-link" onClick={() => onViewChange('pdf')}>
+                  <FileIcon />
+                  PDFを開く
+                </button>
+              )}
+              {hasGraph && mode !== 'graph' && (
+                <button type="button" className="btn btn-secondary view-link" onClick={() => onViewChange('graph')}>
+                  <GraphIcon />
+                  関係図を見る
                 </button>
               )}
             </div>
           ) : (
             <p className="documents-summary">{MSG_PDF_UNAVAILABLE}</p>
+          )}
+
+          {citationMiss && mode !== 'graph' && (
+            <p className="chunk-miss" role="status">
+              {MSG_CITE_MISS}
+            </p>
           )}
 
           {originalPdf && seen.has('pdf') && (
@@ -164,11 +178,6 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
           )}
           {seen.has('text') && (
             <div className="ws-view-body" hidden={mode !== 'text'}>
-              {citationMiss && (
-                <p className="chunk-miss" role="status">
-                  {MSG_CITE_MISS}
-                </p>
-              )}
               {!originalPdf && <p className="documents-summary">{MSG_EXTRACTED_OTHER}</p>}
               <ol className="chunk-list">
                 {state.data.chunks.map((item) => {

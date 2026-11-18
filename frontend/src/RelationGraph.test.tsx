@@ -170,13 +170,15 @@ function defaultRoute(url: string): Response {
   throw new Error(`想定外の取得: ${url}`);
 }
 
-describe('関係図: タブ', () => {
-  it('入寮規程には「関係図」が出る。開くまでは、グラフを取らない', async () => {
+describe('関係図: ボタン', () => {
+  it('入寮規程には「関係図を見る」が出る（既定は抽出テキストなので、「抽出テキストを見る」は出ない）。開くまでは、グラフを取らない', async () => {
     const { calls } = install(defaultRoute);
     await open(OPEN_DORM);
 
-    expect(await screen.findByRole('button', { name: '関係図' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '関係図' })).toHaveAttribute('aria-pressed', 'false');
+    expect(await screen.findByRole('button', { name: '関係図を見る' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PDFを開く' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '抽出テキストを見る' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('canvas')).not.toBeInTheDocument();
     expect(calls()).toEqual([]);
   });
 
@@ -184,8 +186,8 @@ describe('関係図: タブ', () => {
     install(defaultRoute);
     await open('カフェ手引き を開く');
 
-    expect(await screen.findByRole('button', { name: '抽出テキスト' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '関係図' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'PDFを開く' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '関係図を見る' })).not.toBeInTheDocument();
   });
 
   it('PDFが使えない入寮規程にも出さない（サーバーは PDF から計算する）', async () => {
@@ -193,18 +195,22 @@ describe('関係図: タブ', () => {
     await open(OPEN_DORM);
 
     expect(await screen.findByText('PDFは利用できません。')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '関係図' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '関係図を見る' })).not.toBeInTheDocument();
   });
 
   it('開くと、GET /documents/3/graph を 1 回だけ取り、注意書きと、選択欄・凡例を出す', async () => {
     const { calls } = install(defaultRoute);
     const user = await open(OPEN_DORM);
 
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
 
     expect(await screen.findByText(MSG_GRAPH_NOTE)).toBeInTheDocument();
     expect(calls()).toEqual(['/documents/3/graph']);
-    expect(screen.getByRole('button', { name: '関係図' })).toHaveAttribute('aria-pressed', 'true');
+    // 開いている表示のボタンは出ない。ほかの表示へ移るボタンだけが残る
+    expect(screen.queryByRole('button', { name: '関係図を見る' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '抽出テキストを見る' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PDFを開く' })).toBeInTheDocument();
+    expect(window.location.search).toContain('view=graph');
     expect(screen.getByRole('list', { name: '凡例' })).toHaveTextContent('直接（1 ホップ）');
     expect(screen.getByRole('list', { name: '凡例' })).toHaveTextContent('間接（2 ホップ）');
     expect(screen.getByText(MSG_NO_SELECTION)).toBeInTheDocument();
@@ -213,7 +219,7 @@ describe('関係図: タブ', () => {
   it('図に渡すのは、依存の辺に出てくる項だけ。依存のない項は、選択欄に「図にない」として残る', async () => {
     install(defaultRoute);
     const user = await open(OPEN_DORM);
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
 
     const canvas = await screen.findByTestId('canvas');
     const labels = within(canvas)
@@ -227,12 +233,12 @@ describe('関係図: タブ', () => {
   it('パネルを閉じて、また開いたときは、関係図を取り直す', async () => {
     const { calls } = install(defaultRoute);
     const user = await open(OPEN_DORM);
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
     await screen.findByTestId('canvas');
 
     await user.click(screen.getByRole('button', { name: 'パネルを閉じる' }));
     await user.click(await screen.findByRole('button', { name: OPEN_DORM }));
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
     await screen.findByTestId('canvas');
 
     expect(calls()).toEqual(['/documents/3/graph', '/documents/3/graph']);
@@ -243,15 +249,20 @@ describe('関係図: 表示の切り替え', () => {
   it('同じ資料の中で PDF へ切り替えて戻っても、関係図は取り直さず作り直さない（選んだ項も残る）。PDF は初めて開くまで取らない', async () => {
     const { calls } = install(defaultRoute);
     const user = await open(OPEN_DORM);
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
     const canvas = await screen.findByTestId('canvas');
     await user.click(screen.getByRole('button', { name: '第13条 第1項|-' }));
     await screen.findByRole('button', { name: '第15条 第1項|direct' });
 
-    await user.click(screen.getByRole('button', { name: 'PDF' }));
+    await user.click(screen.getByRole('button', { name: 'PDFを開く' }));
     expect(canvas).not.toBeVisible();
-    await user.click(screen.getByRole('button', { name: '関係図' }));
+    expect(window.location.search).toContain('view=pdf');
+    expect(screen.queryByRole('button', { name: 'PDFを開く' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '関係図を見る' }));
 
+    expect(window.location.search).toContain('view=graph');
+    expect(screen.queryByRole('button', { name: '関係図を見る' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PDFを開く' })).toBeInTheDocument();
     expect(screen.getByTestId('canvas')).toBe(canvas);
     expect(canvas).toBeVisible();
     expect(canvas).toHaveAttribute('data-selected', 'a13p1');
@@ -261,7 +272,7 @@ describe('関係図: 表示の切り替え', () => {
   it('別の資料へ切り替えると、前の資料の関係図の選択を引き継がない', async () => {
     install(defaultRoute);
     const user = await open(OPEN_DORM);
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
     await screen.findByTestId('canvas');
     await user.click(screen.getByRole('button', { name: '第13条 第1項|-' }));
     await screen.findByRole('button', { name: '第15条 第1項|direct' });
@@ -271,7 +282,7 @@ describe('関係図: 表示の切り替え', () => {
 
     expect(window.location.search).toBe('?tab=documents&doc=4');
     expect(screen.queryByTestId('canvas')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '関係図' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '関係図を見る' })).not.toBeInTheDocument();
   });
 });
 
@@ -279,7 +290,7 @@ describe('関係図: 項を選ぶ', () => {
   async function openGraph() {
     const harness = install(defaultRoute);
     const user = await open(OPEN_DORM);
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
     await screen.findByTestId('canvas');
     return { user, ...harness };
   }
@@ -337,7 +348,7 @@ describe('関係図: 項を選ぶ', () => {
       return jsonResponse({ ...IMPACT, node: 'a19p1', start: ['a19p1'], impacted: [], articles: [], edges: [] });
     });
     const user = await open(OPEN_DORM);
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
     await screen.findByTestId('canvas');
 
     await user.selectOptions(within(screen.getByRole('region', { name: '関係図' })).getByRole('combobox'), '第19条 第1項（図にない）');
@@ -368,7 +379,7 @@ describe('関係図: 項を選ぶ', () => {
       return impactCalls === 1 ? errorResponse(500, message) : jsonResponse(IMPACT);
     });
     const user = await open(OPEN_DORM);
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
     await screen.findByTestId('canvas');
 
     await user.click(screen.getByRole('button', { name: '第13条 第1項|-' }));
@@ -392,7 +403,7 @@ describe('関係図: 取得の失敗', () => {
     });
     const user = await open(OPEN_DORM);
 
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(message);
     await user.click(screen.getByRole('button', { name: '再試行' }));
@@ -403,7 +414,7 @@ describe('関係図: 取得の失敗', () => {
     install(() => new Response('Internal Server Error postgresql://user:pw@host/db', { status: 500 }));
     const user = await open(OPEN_DORM);
 
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('HTTP 500');
@@ -420,7 +431,7 @@ describe('関係図: 取得の失敗', () => {
     install(() => jsonResponse(body));
     const user = await open(OPEN_DORM);
 
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('想定外の応答');
   });
@@ -429,7 +440,7 @@ describe('関係図: 取得の失敗', () => {
     install(() => jsonResponse({ ...GRAPH, edges: [edge('same_chapter', 'a13', 'ch3', '第3章')] }));
     const user = await open(OPEN_DORM);
 
-    await user.click(await screen.findByRole('button', { name: '関係図' }));
+    await user.click(await screen.findByRole('button', { name: '関係図を見る' }));
 
     expect(await screen.findByText('関係を表示できる項がありません。')).toBeInTheDocument();
   });

@@ -1047,28 +1047,18 @@ textarea {
   font-weight: normal;
 }
 
-/* 表示の切り替え（PDF / 抽出テキスト / 関係図）。分割ボタンの形にする */
-.view-switch {
-  display: inline-flex;
-  gap: 0.15rem;
+/* 表示の切り替え。いま開いていない表示へ移るボタン（アイコン＋文字）を並べる。タブではない */
+.view-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
   margin: 0 0 1rem;
-  padding: 0.15rem;
-  border-radius: 0.65rem;
-  background: var(--surface-muted);
 }
 
-.view-switch .btn {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text-muted);
-}
-
-/* 選択中も字幅は変えない（太字にすると、隣のボタンが動く）。面と枠で示す */
-.view-switch .btn[aria-pressed='true'] {
-  border-color: var(--border);
-  background: var(--surface);
-  box-shadow: 0 0 0 1px var(--border);
-  color: var(--text);
+.view-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 /* PDF ビューア（PDF.js）。ツールバーと、ページの絵（canvas）に透明な文字の層を重ねた 1 ページ */

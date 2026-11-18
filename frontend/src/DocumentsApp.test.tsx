@@ -525,18 +525,37 @@ describe('資料一覧: PDF', () => {
 
   const SAVE_NAME = encodeURIComponent('つばさ大学学生寮 入寮規程.pdf');
 
-  it('PDFがあれば、PDFを先に表示する（PDF.js に URL を渡す。PDF は画面が fetch せず、抽出テキストは読み込まない）', async () => {
+  it('PDFがあっても、既定は抽出テキスト。PDF は「PDFを開く」を押すまで読み込まない（PDF.js も開かない）。いま開いている表示のボタンは出ない', async () => {
     const { calls } = installDocsFetch(routes());
     const { user } = setup(null);
 
     await openFirst(user);
 
+    expect(await (await panel()).findAllByRole('listitem')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'PDFを開く' })).not.toHaveAttribute('aria-pressed');
+    expect(screen.queryByRole('button', { name: '抽出テキストを見る' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '関係図を見る' })).toBeInTheDocument(); // 入寮規程（PDF あり）だけ、関係図へ移れる
+    expect(screen.queryByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' })).not.toBeInTheDocument();
+    expect(fakePdf.opened).toEqual([]);
+    expect(window.location.search).toBe('?tab=documents&doc=1');
+    expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
+  });
+
+  it('「PDFを開く」でPDFを表示する（PDF.js に URL を渡す。PDF は画面が fetch しない）。抽出テキストは隠れ、「抽出テキストを見る」が出る', async () => {
+    const { calls } = installDocsFetch(routes());
+    const { user } = setup(null);
+    await openFirst(user);
+    await (await panel()).findAllByRole('listitem');
+
+    await user.click(screen.getByRole('button', { name: 'PDFを開く' }));
+
     const viewer = await screen.findByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' });
     expect(fakePdf.opened).toEqual(['/documents/1/file']); // 認証なしの構成は、API をそのまま指す
     expect(await screen.findByText('1 / 3')).toBeInTheDocument();
     expect(viewer).toBeVisible();
-    expect(screen.getByRole('button', { name: 'PDF' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: '抽出テキスト' })).toHaveAttribute('aria-pressed', 'false');
+    expect(window.location.search).toBe('?tab=documents&doc=1&view=pdf');
+    expect(screen.queryByRole('button', { name: 'PDFを開く' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '抽出テキストを見る' })).not.toHaveAttribute('aria-pressed');
     expect((await panel()).queryByRole('listitem')).not.toBeInTheDocument();
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
   });
@@ -546,6 +565,7 @@ describe('資料一覧: PDF', () => {
     const { user } = setup(fakeAuth());
 
     await openFirst(user);
+    await user.click(await screen.findByRole('button', { name: 'PDFを開く' }));
 
     await screen.findByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' });
     expect(fakePdf.opened).toEqual([`/api/documents/1/file?name=${SAVE_NAME}`]);
@@ -557,24 +577,45 @@ describe('資料一覧: PDF', () => {
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
   });
 
-  it('「抽出テキスト」に切り替えるとチャンクが出て、「PDF」に戻すと同じビューアが見える（開き直さない）', async () => {
+  it('「PDFを開く」でPDFに移り、「抽出テキストを見る」で戻るとチャンクが見え、もう一度「PDFを開く」で同じビューアが見える（開き直さない）', async () => {
     installDocsFetch(routes());
     const { user } = setup(null);
     await openFirst(user);
-    const frame = await screen.findByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' });
+    await (await panel()).findAllByRole('listitem');
 
-    await user.click(screen.getByRole('button', { name: '抽出テキスト' }));
+    await user.click(screen.getByRole('button', { name: 'PDFを開く' }));
+    const frame = await screen.findByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' });
+    expect(frame).toBeVisible();
+    expect((await panel()).queryByRole('listitem')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '抽出テキストを見る' }));
 
     expect(await (await panel()).findAllByRole('listitem')).toHaveLength(1);
-    expect(screen.getByRole('button', { name: '抽出テキスト' })).toHaveAttribute('aria-pressed', 'true');
+    expect(window.location.search).toBe('?tab=documents&doc=1&view=text');
+    expect(screen.queryByRole('button', { name: '抽出テキストを見る' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PDFを開く' })).toBeInTheDocument();
     expect(frame).not.toBeVisible();
 
-    await user.click(screen.getByRole('button', { name: 'PDF' }));
+    await user.click(screen.getByRole('button', { name: 'PDFを開く' }));
 
     expect((await panel()).queryByRole('listitem')).not.toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' })).toBe(frame);
     expect(frame).toBeVisible();
+    expect(window.location.search).toBe('?tab=documents&doc=1&view=pdf');
     expect(fakePdf.opened).toHaveLength(1);
+  });
+
+  it('URL に view=pdf があれば、PDFで開く（抽出テキストは、切り替えるまで読み込まない）', async () => {
+    window.history.replaceState(null, '', '/?tab=documents&doc=1&view=pdf');
+    installDocsFetch(routes());
+    setup(null);
+
+    const viewer = await screen.findByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' });
+    expect(viewer).toBeVisible();
+    expect(fakePdf.opened).toEqual(['/documents/1/file']);
+    expect((await panel()).queryByRole('listitem')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '抽出テキストを見る' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'PDFを開く' })).not.toBeInTheDocument();
   });
 
   it('PDFが無い資料は、切り替えを出さず「PDFは利用できません」と示し、抽出テキストを出す（ビューアも出さない）', async () => {
@@ -585,7 +626,9 @@ describe('資料一覧: PDF', () => {
 
     expect(await (await panel()).findAllByRole('listitem')).toHaveLength(1);
     expect(screen.getByText('PDFは利用できません。')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: '表示の切り替え' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'PDFを開く' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '抽出テキストを見る' })).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: /の PDF$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument();
     expect(fakePdf.opened).toEqual([]);
@@ -629,17 +672,23 @@ describe('資料の詳細: 見出しと関係図の案内', () => {
     expect(inPanel.queryByText('3 ページ')).not.toBeInTheDocument();
   });
 
-  it('関係図の無い資料には、関係図のタブも案内の文も出さない（タブは「抽出テキスト」「PDF」だけ）', async () => {
+  it('関係図の無い資料には、関係図のボタンも案内の文も出さない（いま開いていない表示への「PDFを開く」だけ）', async () => {
     installDocsFetch(routes);
     const { user } = setup();
     await openDocuments(user);
     await user.click(await screen.findByRole('button', { name: 'cafe_store_guide.pdf を開く' }));
 
     const inPanel = await panel();
-    const tabs = await inPanel.findByRole('group', { name: '表示の切り替え' });
-    expect(within(tabs).getAllByRole('button').map((b) => b.textContent)).toEqual(['抽出テキスト', 'PDF']);
-    expect(screen.queryByRole('button', { name: '関係図' })).not.toBeInTheDocument();
+    const links = await inPanel.findByRole('group', { name: '表示の切り替え' });
+    expect(within(links).getAllByRole('button').map((b) => b.textContent)).toEqual(['PDFを開く']);
+    expect(screen.queryByRole('button', { name: '関係図を見る' })).not.toBeInTheDocument();
     expect(screen.queryByText(/入寮規程だけ/)).not.toBeInTheDocument();
+
+    await user.click(within(links).getByRole('button', { name: 'PDFを開く' }));
+
+    // PDF を開いたあとは、抽出テキストへ戻るボタンだけ（関係図は、この資料には無い）
+    expect(within(await inPanel.findByRole('group', { name: '表示の切り替え' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['抽出テキストを見る']);
+    expect(screen.queryByRole('button', { name: '関係図を見る' })).not.toBeInTheDocument();
   });
 });
 
