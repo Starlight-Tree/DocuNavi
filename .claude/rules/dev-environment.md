@@ -19,7 +19,8 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 ## ブラウザー操作（2026-11-18）
 
 - ブラウザーでの確認・実験は、ユーザーが `Claude` プロファイルで開いてある接続済みの Chrome（`mcp__claude-in-chrome__*`）で行う。接続が無いときは、起動せずにユーザーへ頼む（Chrome の起動・終了はユーザーの作業）
-- 別プロファイル・別ポートの Chrome（`--user-data-dir`、`--remote-debugging-port`、実行ファイルの直接起動）を、毎回新しく作らない。ホストの `~/.claude/settings.json` の PreToolUse フック（Bash）が止める
+- 別プロファイル・別ポートの Chrome（`--user-data-dir`、`--remote-debugging-port`、実行ファイルの直接起動）を、毎回新しく作らない。ホストの `~/.claude/settings.json` の PreToolUse フック（Bash）が止める（2026-11-19 に、`--remote-debugging-pipe` と `open -a` での起動も止めるよう広げた）
+- 接続先のブラウザーを切り替えない（`select_browser` `switch_browser`。ホストの `permissions.deny` に入れた）。接続は、Claude プロファイルに入れた拡張の 1 台だけ。複数台が見えたら、選ばずにユーザーへ伝える
 
 ## 再ビルドの可能性・ツールの入れ場所
 
