@@ -848,7 +848,7 @@ textarea {
   margin: 0 0 0.5rem;
   color: var(--text-muted);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .thread-sidebar-note,
@@ -899,9 +899,14 @@ textarea {
   border: 0;
   border-radius: 0.5rem;
   background: none;
-  color: var(--text);
+  /* 並んだ題名は一段淡く、開いている会話だけ濃くする（暗い地の明るい文字は、実際より太く見える） */
+  color: var(--text-body);
   text-align: left;
   cursor: pointer;
+}
+
+.thread-item[data-current='true'] .thread-open:not(:disabled) {
+  color: var(--text);
 }
 
 .thread-open:disabled {

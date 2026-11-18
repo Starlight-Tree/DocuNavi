@@ -226,7 +226,7 @@
 /* 主役の塗りではなく、控えめな面にする（地の中で、いちばん目立つ色が、ここになりすぎない）。＋だけアクセント */
 .btn.ws-new {
   background: var(--surface-muted);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .btn.ws-new:hover:not(:disabled) {
