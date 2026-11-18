@@ -113,10 +113,21 @@ describe('チャット UI: 送受信', () => {
     expect(document.querySelector('img')).toBeNull();
   });
 
-  it('動作モードをバッジで表示する', async () => {
+  it('動作モードがモックのときだけ、バッジで表示する', async () => {
     installFetch(() => replyResponse());
     setup();
     expect(await screen.findByText('モック')).toBeInTheDocument();
+  });
+
+  it('本物の LLM（gemini）のときは、バッジを出さない', async () => {
+    installFetch(() => replyResponse({ mode: 'gemini' }));
+    const { user } = setup();
+    await screen.findByText('モック'); // 起動時の /health はモック。回答が届くまでは、そのバッジが出る
+    await sendMessage(user, 'こんにちは');
+    await within(screen.getByRole('log')).findByText('こんにちは');
+    await waitFor(() => expect(screen.queryByText('モック')).not.toBeInTheDocument());
+    expect(document.querySelector('.mode-badge')).toBeNull();
+    expect(screen.queryByText('Gemini')).not.toBeInTheDocument();
   });
 });
 

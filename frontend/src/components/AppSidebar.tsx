@@ -39,9 +39,9 @@ interface AppSidebarProps {
   onExpand?: (() => void) | undefined;
 }
 
+/** 動作モードのバッジ。出すのは、ふだんと違うモード（ダミー応答の「モック」など）だけ。本物の LLM（gemini）は、利用者に知らせることが無いので出さない。 */
 const MODE_LABELS: Record<string, { label: string; hint: string }> = {
   mock: { label: 'モック', hint: 'LLM を呼ばないダミー応答で動作しています' },
-  gemini: { label: 'Gemini', hint: 'Gemini（本物の LLM）で動作しています' },
 };
 
 /** サイドバーを畳む・開くボタンの絵（左に縦線のある四角）。 */
@@ -136,7 +136,7 @@ function inApp(action: () => void) {
  * `knowledgeInMenu` でないとき（UI モック）は、上部に画面の切り替え（チャット / 資料）を出す。
  */
 export function AppSidebar({ view, mode, userLabel, userImage, userEmail, onChangeName, onSignOut, onNewConversation, onCollapse, collapseRef, onGoChat, onGoDocuments, knowledgeInMenu, history, documentCount, rail, railToggleRef, onExpand }: AppSidebarProps) {
-  const modeInfo = mode ? (MODE_LABELS[mode] ?? { label: mode, hint: `モード: ${mode}` }) : null;
+  const modeInfo = mode && mode !== 'gemini' ? (MODE_LABELS[mode] ?? { label: mode, hint: `モード: ${mode}` }) : null;
   return (
     <div className="ws-sidebar">
       {rail && onExpand && (
