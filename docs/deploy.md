@@ -484,6 +484,23 @@ done
 
 指標の値が増えることの確認は、`scripts/prod_smoke_chat.py --stream`（[testing.md](testing.md) の「本番の /chat の自動テスト」。1 回送るごとに `chat_requests_total` が 1 増える）で行います（未確認）。失敗時の `status` が本番のログで文字列になることは、本番で失敗が起きるまで受動確認です（コードとテストでは文字列）。
 
+## GitHub Actions のデプロイ用の秘密（OIDC・Infisical・Cloudflare）
+
+2026-11-08 に決めた構成です（2026-11-18 に `.claude/rules/secrets.md` から移した。本文は変えていない。方針の要約は `secrets.md` に残してある）。
+`.github/workflows/deploy.yml` が、GitHub の OIDC で Infisical にログインし、Cloudflare の API トークンを実行時に取る。GitHub には Cloudflare の秘密を置かない。
+
+- Infisical: プロジェクト `docunavi-deploy`（環境 `prod`）。秘密は `CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` だけ。ほかの用途の秘密を入れない
+  （無料プランは復元ができないので、プロジェクトを分けて影響を限る）。`docunavi-devcontainer` は、このプロジェクトに入れない（MCP から届くため）。
+- マシン ID `github-actions-deploy`（OIDC Auth、プロジェクトの Viewer）:
+  - Discovery URL・Issuer: `https://token.actions.githubusercontent.com`
+  - Subject: `repo:Starlight-Tree@154563471/DocuNavi@892933857:environment:production`（数値 ID つき。リポジトリの改名・移管で変わる）
+  - Audience: `https://github.com/Starlight-Tree`、Access Token TTL: 600 秒
+- Cloudflare の API トークン: アカウントに限定。権限は Workers Scripts: Edit と D1: Edit から始め、足りなければ足す。有効期限は 90 日。
+  期限前に作り直し、Infisical の値を更新する。IP 制限は、GitHub のランナーの IP が不定なので使えない。
+  現在のトークン `docunavi-github-actions-deploy` は 2026-11-08 に作成し、**期限は 2027-02-06**（作り直しは 2027-01 中）。
+- GitHub: Environment `production`（必須レビュアーは 2026-11-15 に外した〔非公開の無料プランでは効かず、2026-11-09 に承認なしで始まった。公開後は効くことを確認したが、毎回の承認が煩雑なため〕。許可するブランチは `main` だけ。承認は起動前の会話で取る）、Variable `INFISICAL_IDENTITY_ID`（公開してよい ID）。
+- 無料プランで OIDC Auth が使えることは、ユーザーが判断した（公式の文書では確認できていない。2026-11-08）。使えなくなったら、この経路は止まる。
+
 ## 続き
 
 次の段階は [roadmap.md](roadmap.md) を参照してください。

@@ -32,7 +32,7 @@ Cloudflare の Worker `docunavi-web`（OpenNext）が配信する画面。本番
   `useChat` の範囲は `{all | target | collection}`。対象と `collection` は同時に送らない（サーバーが 422）。旧 `?collection=` の URL は、資料一覧の「旧フィルター」として知らせ、解除できる（対象と同時なら AND）。
 - **二重送信を防ぐ**（`useChat.ts` の `pendingRef`）。**停止は切断**（サーバーが LLM 呼び出しを取り消す）。この 2 つを壊さない。
 - **依存を足さない・上げない**（`package.json` と `package-lock.json`）。変えるときは承認を得る。
-- **デプロイしない。** 本番は、ユーザーが手動で実行する `deploy.yml`（Environment の承認つき）で更新される。`wrangler deploy` などの書き込み系を、自分で実行しない。
+- **デプロイしない。** 本番は、手動の `deploy.yml`（`workflow_dispatch` だけ。`main` で実行）で更新される。Environment「production」の必須レビュアーは 2026-11-15 に外してあり（許可するブランチは `main` だけ。`deploy.yml` 冒頭のコメントで確認、2026-11-18）、**技術的な承認の関門は無い。** 関門は会話の約束だけで、起動の前に、対象のコミットと `frontend/` `workers/` の変更の有無を示して、ユーザーの明示の承認を得る（そのたびに。前の承認は次に及ばない。ルートの [CLAUDE.md](../CLAUDE.md) の「Git」の「CI」）。`wrangler deploy` などの書き込み系を、自分で実行しない。
 
 ## 検査（変更したら実行する）
 

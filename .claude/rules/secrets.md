@@ -22,18 +22,11 @@
   ログアウトされる恐れがある。保存済みの値は使わず、毎回新しく書き出してもらう。
 - playwright-auth の Client Secret は 2026-12-02 に期限切れ。期限前にローテーションする。
 
-## GitHub Actions のデプロイ用（2026-11-08 に決定）
+## GitHub Actions のデプロイ用（2026-11-08 に決定。詳細は移した）
 
-`.github/workflows/deploy.yml` が、GitHub の OIDC で Infisical にログインし、Cloudflare の API トークンを実行時に取る。GitHub には Cloudflare の秘密を置かない。
+`.github/workflows/deploy.yml` は、GitHub の OIDC で Infisical（`docunavi-deploy`）にログインし、Cloudflare の API トークンを実行時に取る。
+マシン ID・Subject・Audience・トークンの権限と期限・Environment の設定は、[docs/deploy.md](../../docs/deploy.md) の「GitHub Actions のデプロイ用の秘密（OIDC・Infisical・Cloudflare）」（2026-11-18 に、ここから移した）。守ること:
 
-- Infisical: プロジェクト `docunavi-deploy`（環境 `prod`）。秘密は `CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` だけ。ほかの用途の秘密を入れない
-  （無料プランは復元ができないので、プロジェクトを分けて影響を限る）。`docunavi-devcontainer` は、このプロジェクトに入れない（MCP から届くため）。
-- マシン ID `github-actions-deploy`（OIDC Auth、プロジェクトの Viewer）:
-  - Discovery URL・Issuer: `https://token.actions.githubusercontent.com`
-  - Subject: `repo:Starlight-Tree@154563471/DocuNavi@892933857:environment:production`（数値 ID つき。リポジトリの改名・移管で変わる）
-  - Audience: `https://github.com/Starlight-Tree`、Access Token TTL: 600 秒
-- Cloudflare の API トークン: アカウントに限定。権限は Workers Scripts: Edit と D1: Edit から始め、足りなければ足す。有効期限は 90 日。
-  期限前に作り直し、Infisical の値を更新する。IP 制限は、GitHub のランナーの IP が不定なので使えない。
-  現在のトークン `docunavi-github-actions-deploy` は 2026-11-08 に作成し、**期限は 2027-02-06**（作り直しは 2027-01 中）。
-- GitHub: Environment `production`（必須レビュアーは 2026-11-15 に外した〔非公開の無料プランでは効かず、2026-11-09 に承認なしで始まった。公開後は効くことを確認したが、毎回の承認が煩雑なため〕。許可するブランチは `main` だけ。承認は起動前の会話で取る）、Variable `INFISICAL_IDENTITY_ID`（公開してよい ID）。
-- 無料プランで OIDC Auth が使えることは、ユーザーが判断した（公式の文書では確認できていない。2026-11-08）。使えなくなったら、この経路は止まる。
+- GitHub には Cloudflare の秘密を置かない。
+- `docunavi-deploy` には `CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` 以外の秘密を入れない（無料プランは復元ができないので、プロジェクトを分けて影響を限る）。`docunavi-devcontainer` は入れない。
+- Cloudflare の API トークン `docunavi-github-actions-deploy` の期限は **2027-02-06**。期限前（2027-01 中）に作り直し、Infisical の値を更新する。

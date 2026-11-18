@@ -216,6 +216,51 @@ gcloud などが書けなくなるおそれがあるためです）。読み取�
 | エージェントに PR の作成まで任せたい | 書き込み専用の短期トークンを、読み取り用とは別に持つ。実行は人間の承認を残す |
 | 90 日の更新も負担になった | GitHub App 化を検討する |
 
+## エージェント運用の補足（gcloud・gh・MCP）
+
+2026-11-18 に、ルートの [CLAUDE.md](../CLAUDE.md) の「gcloud」「MCP の接続」「gh」の節から、手順と背景の説明をここへ移した（本文は変えていない）。
+**禁止と承認の規則は CLAUDE.md に残してある**（止められたら回避しない・フックの「確認」は承認なしに進めない・ガードを外さない・読み取りだけ実行する・トークンを出さない、など）。ここは、その背景と手順の補足。
+
+### gcloud（ユーザーのログイン + ガード）の補足
+
+- 開発コンテナの gcloud には、**ユーザー自身のアカウントでログインしている**（ユーザーが決定。「開発環境の gcloud（ログインとガード）」）。
+- 日常の ID は、環境変数 `CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`（`.devcontainer/devcontainer.json` の `containerEnv`）による、閲覧専用の `docunavi-viewer`（`docunavi-ops` のサービスアカウント。書き込みは設計上 403）へのなりすまし。
+  コンテナの再ビルド前は未設定のことがある。その場合も、エージェントは自分では設定せず、ユーザーに伝える。
+- 書き込みのコマンドに、誰の権限で動かすかを明示する方法は、準備は `env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT`、
+  日常のデプロイは `--impersonate-service-account=agent-deployer@…`（「書き込みをするとき」）。
+- ログインの起動（引数なしの `gcloud auth login`）は、フックが毎回「確認」を返す。ブラウザーでの選択と承認は、ユーザーが行う。
+  開発コンテナにはブラウザーが無く、ユーザーのブラウザーへ戻れるかは未確認。届かなければ、ユーザーが自分の端末でログインする。
+- ログイン後にエージェントが実行するのは、`docunavi-viewer` の権限で読める範囲（ビルド・Cloud Run・ログの閲覧）だけ。
+  `gcloud builds …` は `--billing-project=docunavi-app` を付ける（付けないと API が `docunavi-ops` に数えられて失敗する）。
+  課金（`gcloud billing projects describe`）と有効な API の一覧（`gcloud services list`）は `docunavi-viewer` の権限外なので、
+  ユーザー自身の権限（`env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud …`）で、ユーザーが実行する。
+- 外さないと実行できない書き込みは、エージェントは自分では外さず、コマンドを提示してユーザーに実行してもらう。
+- ログアウト（`gcloud auth revoke --all`）は、毎回の作業の終わりには求めない（ユーザーが決定）。促すのは、長期に使わないとき、共有の端末、不審な挙動のときだけ。
+  日常の ID を固定していると素のままでは失敗することがある。失敗したら、ユーザーに実行してもらう。ログインはボリュームに残る（2026-10-21 から。再ビルドでも消えない）。
+  コンテナの中にはユーザー自身のログイン（リフレッシュトークン）が残る（フックを通らない経路では読める。上の「限界」）。SA のキーは作らない・保存しない。
+
+### gh（読み取り専用のトークン + ガード）の補足
+
+- 開発コンテナの gh には、**このリポジトリだけの読み取り専用トークン**（`Actions` と `Metadata`）を置く。再ビルドしても残る（`GH_CONFIG_DIR=~/.gh-config`。「開発環境の GitHub CLI（gh）」）。
+- 使うのは `gh run list/view`、`gh pr view`、`gh ruleset view` など。`gh api` は許可リストに無く、毎回確認が出る（GET だけ使う）。
+  コンテナの中でのユーザー自身の gh ログインは勧めない（`GH_CONFIG_DIR` を共有するため、フル権限のトークンがエージェントから読めてしまう）。
+- 401 が返ったら期限切れの可能性が高いので、ユーザーに更新を頼む。
+
+### GitHub MCP（`github`。Actions の起動と監視だけ）の補足
+
+- user スコープ。トークンは GitHub App（`docunavi-agent-actions`）の installation トークン（このリポジトリだけ、`Actions: write` `Metadata: read`、1 時間）で、
+  `headersHelper`（`scripts/github-mcp-header.sh`）が、Infisical（`docunavi-github`）の秘密鍵から作る。App の作成は `scripts/github-app-setup.py`（ホストで 1 回）。機能は `actions` だけに絞る。
+- エージェントが使うのは `actions_run_trigger`（`run_workflow`、`deploy.yml` を `main` で）と、`actions_list` `actions_get` `get_job_logs`（監視）。
+  `rerun` `cancel` は、言葉で頼まれたときだけ（「y」だけでは足りない）。ヘルパーはエージェントが実行せず、トークンを表示・保存しない。
+- Environment「production」の必須レビュアーは外してある（許可するブランチは `main` だけ。経緯は `docs/deploy.md`）。`deploy.yml` の起動の承認は、会話の約束だけで、技術的な関門ではない（承認の規則は CLAUDE.md の「Git」の「CI」）。
+
+### MCP の接続（app-docunavi）の補足
+
+- 非公開の `docunavi-mcp` へは、`headersHelper`（`scripts/mcp-auth-header.sh`）で直接つなぐ。ローカルプロキシは使わない。診断と経緯は [docs/mcp-tool-design.md](../docs/mcp-tool-design.md)。
+- ヘルパーは Claude Code が実行する。ガードのフックも確認も通らず、ユーザー自身の権限で動く（標準出力が ID トークンになるので、エージェントは実行しない）。
+- 画面の Authenticate を押すと、ヘッダー無しの OAuth 探索になり、403 で失敗する。
+- 旧プロキシ `scripts/mcp-proxy.sh` を実行するときは、実行前に `git diff 399f592 -- scripts/mcp-proxy.sh` が空であることを確かめる。自動再起動ループは足さない。
+
 ## 開発環境のブラウザー確認（Playwright MCP）
 
 開発コンテナには、エージェントが画面を開いて確認するための Playwright MCP が入ります。資料一覧や PDF の表示、チャットの出典、

@@ -17,18 +17,12 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 - 本番の Cloud Run の LLM（Developer API キー）は、この方針に含まない。切り替えは別の決定で、事前に確認する（Vertex の LLM は 2026-11-09 の単発 5 回で Developer API の 2〜3 倍遅かった）。
 - ADC が使えるかは、gcloud のガードで確かめられない。呼んで失敗したらユーザーに伝える。
 
-## 再ビルドの可能性
+## 再ビルドの可能性・ツールの入れ場所
 
-- 開発コンテナの定義は、このリポジトリのファイルだけで完結させる。星庭ジョブなど他のプロジェクトのフォルダーは、載せない（権限と資格情報をプロジェクトごとに分けるため。docs/access-separation.md）。
-- `devcontainer.json`・`.devcontainer/docker-compose.yml`・`.devcontainer/Dockerfile` に、ホストの絶対パス・別プロジェクトのファイル・外部のアカウント（GCP プロジェクト ID など）を足す変更は、事前にユーザーに確認する
+詳細は [devcontainer.md](devcontainer.md)（`.devcontainer/**` を触るときに読み込まれる。2026-11-18 に分けた）。承認の要る点だけ、ここにも残す。
+
+- `devcontainer.json`・`.devcontainer/docker-compose.yml`・`.devcontainer/Dockerfile` に、ホストの絶対パス・別プロジェクトのファイル（星庭ジョブのフォルダーなど）・外部のアカウント（GCP プロジェクト ID など）を足す変更は、事前にユーザーに確認する。定義はこのリポジトリのファイルだけで完結させる
 - 再ビルドはホスト側の作業。承認なしに実行しない
-
-## ツールの入れ場所（2026-10-31）
-
-- gcloud・gh・Go・docker-cli・Playwright のライブラリーは、`.devcontainer/Dockerfile`（イメージのビルド時）に入れる。`postCreateCommand` に apt の導入を足さない（作成のたびに毎回走り、キャッシュされない）
-- Chromium の本体は、名前付きボリューム `playwright-browsers` のまま（`install-playwright.sh` が取得と起動確認を行う）
-- Node の feature はイメージの後に入るので、npm で入れるものは Dockerfile に移せない。Vercel の CLI・MCP・プラグインは入れない（本番は Cloudflare）
-- `install-gh.sh`・`install-go.sh` は残してある（`postCreateCommand` からは呼ばない）。Go の版とハッシュは `install-go.sh` と Dockerfile の両方にあるので、上げるときは両方を合わせる
 
 ## ルール・メモリーの置き場所
 

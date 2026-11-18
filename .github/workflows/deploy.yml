@@ -6,7 +6,7 @@ name: Deploy
 #   公開後の 2026-11-15 に設定して承認待ちで止まることを確認したが、毎回の承認が煩雑なので外した。
 #   承認は、起動する前に、利用者の明示の承認を得る（CLAUDE.md の「CI」）。OIDC の Subject は environment:production に固定してある。
 # ・Cloudflare の API トークンは GitHub に置かない。GitHub の OIDC トークンで Infisical にログインし、実行時に取る。
-#   Infisical のマシン ID は、Subject を environment:production に固定している（設定の値は .claude/rules/secrets.md）。
+#   Infisical のマシン ID は、Subject を environment:production に固定している（設定の値は docs/deploy.md の「GitHub Actions のデプロイ用の秘密」）。
 # ・Worker の秘密（wrangler secret put）は扱わない。値を変えるときだけ、手元で workers/api/deploy.sh を使う。
 # ・アクションは、改ざんされたタグを掴まないよう、コミット SHA で固定している（コメントは対応するタグ）。
 
