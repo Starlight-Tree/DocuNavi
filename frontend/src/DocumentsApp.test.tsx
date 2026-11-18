@@ -1019,7 +1019,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(select('並び替え')).toHaveValue('default');
     expect(screen.queryByRole('button', { name: /^フィルター/ })).not.toBeInTheDocument();
     for (const name of ['状態', 'ページ数', '更新']) expect(screen.queryByRole('combobox', { name })).not.toBeInTheDocument();
-    expect(result()).toHaveTextContent('5件の資料 · すべて回答対象');
+    expect(result()).toHaveTextContent('5件の資料');
     expect(names()).toHaveLength(5);
     expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
     // 既定の並びはサーバーの順のまま
@@ -1088,7 +1088,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(files()).toEqual(['ザーハード2.pdf', 'ザーハード1.pdf', 'cafe_store_guide.pdf', 'つばさ大学学生寮 入寮規程', 'aoba_aw820_manual.pdf']);
     expect(window.location.search).toBe('?tab=documents&sort=updated');
     // 並び替えでは件数も絞り込みの有無も変わらない
-    expect(result()).toHaveTextContent('5件の資料 · すべて回答対象');
+    expect(result()).toHaveTextContent('5件の資料');
     expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
 
     await user.selectOptions(select('並び替え'), 'pages');

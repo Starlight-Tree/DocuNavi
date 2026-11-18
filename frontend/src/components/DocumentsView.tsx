@@ -129,8 +129,8 @@ function DocumentTable({
     <>
       <p role="status" className="docs-summary">
         {searching ? `検索結果 ${shown.length}件` : `${allDocuments.length}件の資料`}
-        {selection &&
-          ` · ${searching ? `回答対象 ${answerCount}件` : partial ? `${answerCount}件を回答対象` : 'すべて回答対象'}`}
+        {/* 初期状態（絞り込みなし・全選択）は、入力欄にも同じ内容が出るので、何も足さない。知らせるのは、一部だけ選んだとき・絞り込み中（選択は変わらない）だけ */}
+        {selection && (searching || partial) && ` · ${searching ? `回答対象 ${answerCount}件` : `${answerCount}件を回答対象`}`}
       </p>
       {selection && (
         <SelectionMenu

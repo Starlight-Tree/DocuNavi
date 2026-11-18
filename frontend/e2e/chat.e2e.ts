@@ -111,7 +111,7 @@ test('資料一覧の対象の選択は一覧を絞るだけ。資料ごとの�
 
   // 既定は全資料が対象（検索できる 7 件。取り込み中の 1 件は選べない）
   const summary = page.locator('.docs-summary');
-  await expect(summary).toHaveText('8件の資料 · すべて回答対象');
+  await expect(summary).toHaveText('8件の資料');
   await expect(page.getByRole('checkbox', { name: '準備中の資料 を回答に使う' })).toBeDisabled();
   await page.getByRole('button', { name: '選択', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: '全資料に戻す' })).toHaveCount(0); // 一部選択のときだけ出る
@@ -168,7 +168,7 @@ test('選んだ資料にザーハードが無ければ、その質問は該当�
   await page.getByRole('button', { name: '選択', exact: true }).click();
   await page.getByRole('menuitem', { name: '全資料に戻す' }).click();
   await expect(page.getByRole('alertdialog')).toBeHidden();
-  await expect(page.locator('.docs-summary')).toHaveText('8件の資料 · すべて回答対象');
+  await expect(page.locator('.docs-summary')).toHaveText('8件の資料');
   await chatLink(page).click();
   await expect(targetButton(page)).toContainText('すべての資料');
 });
@@ -215,7 +215,7 @@ test('対象を選んだ会話で「全資料に戻す」を押すと、資料�
   await page.getByRole('menuitem', { name: '全資料に戻す' }).click();
   await dialog.getByRole('button', { name: '新しい会話にする' }).click();
   await expect(page).toHaveURL(/tab=documents/); // 資料一覧に留まる
-  await expect(page.locator('.docs-summary')).toHaveText('8件の資料 · すべて回答対象');
+  await expect(page.locator('.docs-summary')).toHaveText('8件の資料');
   await chatLink(page).click();
   await expect(targetButton(page)).toContainText('すべての資料');
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeHidden();

@@ -393,7 +393,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     const { user } = setup();
     await openDocuments(user);
 
-    expect(await summaryText()).toBe('4件の資料 · すべて回答対象');
+    expect(await summaryText()).toBe('4件の資料');
     for (const name of ['ザーハード1.pdf', 'ザーハード2.pdf', 'cafe_store_guide.pdf', 'field_note.pdf']) {
       expect(await rowCheck(name)).toBeChecked();
     }
@@ -449,7 +449,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
 
     // 全体で全選択すると、全部に戻る（保存の形は「絞らない」）
     await user.click(await headerCheck('このページの 4 件を全選択・解除'));
-    expect(await summaryText()).toBe('4件の資料 · すべて回答対象');
+    expect(await summaryText()).toBe('4件の資料');
     expect(await menuLabels(user)).not.toContain('全資料に戻す');
   });
 
@@ -502,7 +502,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     await chooseItem(user, '全資料に戻す');
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    expect(await summaryText()).toBe('4件の資料 · すべて回答対象');
+    expect(await summaryText()).toBe('4件の資料');
     expect(await menuLabels(user)).not.toContain('全資料に戻す');
     await goChat(user);
     expect(await menuButton()).toHaveTextContent('すべての資料');
@@ -541,7 +541,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
 
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: '新しい会話にする' }));
-    expect(await summaryText()).toBe('4件の資料 · すべて回答対象');
+    expect(await summaryText()).toBe('4件の資料');
     await goChat(user);
     expect(await menuButton()).toHaveTextContent('すべての資料');
     expect(chatBodies).toHaveLength(1);
@@ -572,7 +572,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     await user.click(screen.getByRole('button', { name: '新しい会話' }));
 
     await openDocuments(user);
-    expect(await summaryText()).toBe('4件の資料 · すべて回答対象');
+    expect(await summaryText()).toBe('4件の資料');
   });
 
   it('取り込み中・失敗の資料は、チェックできず、数にも入らない（全選択でも入らない）', async () => {
@@ -589,7 +589,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     const { user } = setup();
     await openDocuments(user);
 
-    expect(await summaryText()).toBe('3件の資料 · すべて回答対象');
+    expect(await summaryText()).toBe('3件の資料');
     expect(await rowCheck('ザーハード2.pdf')).toBeDisabled();
     expect(await rowCheck('cafe_store_guide.pdf')).toBeDisabled();
     expect(await menuLabels(user)).not.toContain('全資料に戻す');
@@ -638,7 +638,7 @@ describe('資料一覧: ページ分けと選択', () => {
     install({ documents: many });
     const { user } = setup();
     await openKnowledge(user);
-    expect(await summaryText()).toBe('60件の資料 · すべて回答対象');
+    expect(await summaryText()).toBe('60件の資料');
 
     await user.click(await rowCheck('資料 01.pdf'));
     expect(await summaryText()).toBe('60件の資料 · 59件を回答対象');
@@ -749,7 +749,7 @@ describe('資料一覧: ページ分けと選択', () => {
     await chooseItem(user, '検索結果の選択を解除');
     expect(await summaryText()).toBe('60件の資料 · 0件を回答対象');
     await chooseItem(user, '検索結果すべて（60件）を選択');
-    expect(await summaryText()).toBe('60件の資料 · すべて回答対象');
+    expect(await summaryText()).toBe('60件の資料');
     await user.click(await screen.findByRole('button', { name: '選択' }));
     expect(await screen.findByRole('menuitem', { name: '検索結果すべて（60件）を選択' })).toBeDisabled();
   });
