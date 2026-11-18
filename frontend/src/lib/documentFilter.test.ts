@@ -44,6 +44,7 @@ function doc(id: number, source: string, extra: Partial<DocumentSummary> = {}): 
     collection: null,
     target: null,
     docType: null,
+    revision: null,
     status: 'ready',
     failureReason: null,
     pages: 3,

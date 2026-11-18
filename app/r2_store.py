@@ -217,6 +217,10 @@ def default_store() -> R2Store:
 # --- 取り込み・アップロード用 ---------------------------------------------------------------------------------
 
 
+_REVISIONS = "revisions.csv"  # app/ingestion/revisions.py の REVISIONS_FILE と同じ（取り込みの層を import しない）
+_CSV_TYPE = "text/csv; charset=utf-8"
+
+
 def download_collection(
     store: R2Store, collection: str, target: Path, max_bytes: int, only: str | None = None
 ) -> list[Path]:
@@ -241,14 +245,18 @@ def download_collection(
 
 
 def upload_plan(store: R2Store, root: Path) -> list[tuple[str, Path, str]]:
-    """`root/<資料群>/<ファイル>.pdf` を、R2 の `<資料群>/<ファイル>.pdf` に置く計画。(キー, パス, 状態) の一覧。
+    """`root/<資料群>/<ファイル>.pdf`（と、資料群の直下の版の一覧 `revisions.csv`）を、R2 の同じキーに置く計画。(キー, パス, 状態) の一覧。
 
     状態は new（無い）・changed（中身が違う）・same（同じ。上書きしない）。比較は MD5（R2 の ETag）。
     """
     plan: list[tuple[str, Path, str]] = []
-    for path in sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() == ".pdf"):
+    # 版の一覧は、資料群ごとに PDF より先に置く（新しい版の PDF が、古い版のラベルのまま取り込まれる時間を作らない）
+    candidates = [p for p in root.rglob("*") if p.is_file() and (p.suffix.lower() == ".pdf" or p.name == _REVISIONS)]
+    for path in sorted(candidates, key=lambda p: (p.parent.as_posix(), p.name != _REVISIONS, p.name)):
         relative = path.relative_to(root).as_posix()
         if "/" not in relative:  # 資料群のディレクトリの直下に置く決まり
+            continue
+        if path.name == _REVISIONS and relative.count("/") != 1:  # 版の一覧は、資料群の直下の 1 つだけ
             continue
         remote = store.etag(relative)
         state = (
@@ -335,13 +343,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         for key, path, state in plan:
             print(f"{state:8} {key}")
             if args.apply and state != "same":
-                store.put(key, path.read_bytes())
+                store.put(key, path.read_bytes(), _CSV_TYPE if path.name == _REVISIONS else "application/pdf")
     except Exception as exc:  # noqa: BLE001 - 例外の文字列に接続先が入りうる。クラス名だけを出す
         print(f"R2 の操作に失敗しました（{type(exc).__name__}）。", file=sys.stderr)
         return 1
     changes = sum(1 for _, _, state in plan if state != "same")
     suffix = "" if args.apply else "（確認だけ。何も置いていません。--apply で置きます）"
-    print(f"PDF {len(plan)} 件、置く対象 {changes} 件{suffix}")
+    print(f"ファイル {len(plan)} 件（PDF と版の一覧）、置く対象 {changes} 件{suffix}")
     return 0
 
 

@@ -240,7 +240,7 @@ data: [DONE]
 
 ```json
 {"configured": true, "documents": [{"id": 1, "source": "tsubasa_dorm_rules.pdf",
-  "title": "つばさ大学学生寮 入寮規程", "collection": "guides", "target": "tsubasa-dorm", "doc_type": "regulation", "status": "ready", "failure_reason": null,
+  "title": "つばさ大学学生寮 入寮規程", "collection": "guides", "target": "tsubasa-dorm", "doc_type": "regulation", "revision": "改訂 2", "status": "ready", "failure_reason": null,
   "pages": 3, "updated_at": "2026-10-18T09:00:00Z", "chunk_count": 3, "embedded_count": 3}]}
 ```
 
@@ -251,6 +251,9 @@ data: [DONE]
   日本語の表示名（設定資料・店舗案内・規程・取扱説明書）は画面が持ち、API は名前だけを返します。一覧の絞り込みも画面側で行います。
 - **`target` / `doc_type`:** 資料の対象（`documents.target`）と資料種別（`documents.doc_type`）の識別名。未分類は `null`。表示名は `GET /targets` と `GET /doc-types`。
   閲覧権限は変えない（権限は `collection` が決める）。一覧の絞り込みは画面側で行う。
+- **`revision`:** 資料の版（「初版」「改訂 2」「2026年4月1日時点」など。`documents.revision`）。取り込みが、資料群のディレクトリに並べた `revisions.csv` から保存します
+  （人が明示した値だけ。PDF の本文・メタデータや LLM からは推測しない）。無い資料は `null`。空白だけ・40 文字を超える値も `null` として返します。画面はパネルの題名の下に小さく出し、`null` なら何も出しません。
+  運用は「改訂が出たら、旧版の PDF を置き換えて消す」ので、版は現行の版を示すラベルです（同じ題名の版違いは併存しません）。
 - **`GET /documents`:** 文書ごとの情報とチャンク数、埋め込み済みの数。`configured` が `false` のときは、`DATABASE_URL` が空で資料の DB を
   使っていません（モックモードなど）（エラーではなく 200。`documents` は空）。`configured: true` で `documents` が空なら、DB はあるが文書が 0 件です。
 - **`GET /documents/{id}/chunks`:** その文書のチャンクを `chunk_index` 順に、`page`・`page_end`・`page_label`・`page_end_label`（PDF のページラベル。無ければ `null`）・`kind`・`heading`・`content`（全文）・

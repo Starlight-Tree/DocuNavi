@@ -876,6 +876,19 @@
   gap: 0.5rem;
 }
 
+.ws-panel-titles {
+  min-width: 0;
+}
+
+/* 題名の下の版（初版・改訂 2 など）。小さく、控えめに */
+.ws-panel-revision {
+  margin: 0.1rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .ws-eyebrow {
   color: var(--text-muted);
   font-size: 0.75rem;

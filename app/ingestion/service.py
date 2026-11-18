@@ -2,13 +2,14 @@
 
 import hashlib
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from app.ingestion.chunker import chunk_pages
 from app.ingestion.pdf_parser import IngestionError, extract_pages, extract_title
-from app.ingestion.repository import DocumentState, Repository, diff_counts
+from app.ingestion.repository import KEEP_REVISION, DocumentState, Repository, Revision, _KeepRevision, diff_counts
+from app.ingestion.revisions import match_key
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,12 @@ class DocumentReport:
         None  # 保存する資料群の名前（入力のディレクトリ名、または --collection。決まらなければ None）
     )
     saved: bool = False  # 保存の SQL を流したか（変更のない文書は、読むだけで流さない）
+    revision_kept: bool = (
+        False  # True = 一覧が無いので、保存済みの版に触れない（revision=None の「版なしにする」と区別する）
+    )
+    revision: str | None = (
+        None  # 保存する版（revisions.csv の値。None = 版なしにする、または一覧が無くて触れない（revision_kept））
+    )
 
 
 # 資料群の名前の形。DB の制約（workers/api/migrations/0001_schema.sql）と同じ
@@ -54,7 +61,12 @@ def source_name(path: Path, root: Path) -> str:
 
 
 def _is_current(
-    state: DocumentState | None, file_hash: str, pages: int, title: str | None, collection: str | None
+    state: DocumentState | None,
+    file_hash: str,
+    pages: int,
+    title: str | None,
+    collection: str | None,
+    revision: Revision = KEEP_REVISION,
 ) -> bool:
     """保存済みの行が、今回保存する値と同じか（同じなら保存の SQL は要らない）。"""
     return (
@@ -64,11 +76,18 @@ def _is_current(
         and state.pages == pages
         and state.title == title
         and (collection is None or state.collection == collection)
+        and (isinstance(revision, _KeepRevision) or state.revision == revision)
     )
 
 
 def ingest_file(
-    path: Path, source: str, repo: Repository, *, apply: bool, collection: str | None = None
+    path: Path,
+    source: str,
+    repo: Repository,
+    *,
+    apply: bool,
+    collection: str | None = None,
+    revision: Revision = KEEP_REVISION,
 ) -> DocumentReport:
     try:
         file_hash = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -94,14 +113,19 @@ def ingest_file(
         status = "updated" if apply else "would_update"
 
     saved = False
-    if apply and not (
-        stored == new_hashes and _is_current(repo.document_state(source), file_hash, len(pages), title, collection)
-    ):
+    state = repo.document_state(source) if apply and stored == new_hashes else None
+    content_current = stored == new_hashes and _is_current(state, file_hash, len(pages), title, collection)
+    if apply and not content_current:
         # 変更があるとき（チャンク・ファイル・ページ数・題名・資料群のどれか）と、直前に failed と記録されていたとき（ready に戻す）だけ保存する。
         # 変更のない文書を毎回書き直すと、毎時の突き合わせが全チャンクの UPDATE を流す（2026-11-10 のログから推計で約 2,700 本 / 回。実測は --watch）
         # 題名は PDF の /Title をそのまま渡す。PDF に題名が無ければ None で、保存済みの題名も消える（PDF が正）
         # 資料群は、決まっているときだけ上書きする（None なら、保存済みの値を残す）
-        repo.save(source, file_hash, len(pages), chunks, title=title, collection=collection)
+        # 版は、一覧（revisions.csv）があるときだけ渡す。渡さなければ、保存済みの版に触れない
+        repo.save(source, file_hash, len(pages), chunks, title=title, collection=collection, revision=revision)
+        saved = True
+    elif apply and not _is_current(state, file_hash, len(pages), title, collection, revision):
+        # 版だけが変わったとき: チャンクの行は書き直さず、版の UPDATE を 1 本だけ流す
+        repo.set_revision(source, None if isinstance(revision, _KeepRevision) else revision)
         saved = True
 
     return DocumentReport(
@@ -115,14 +139,35 @@ def ingest_file(
         title=title,
         collection=collection,
         saved=saved,
+        revision=None if isinstance(revision, _KeepRevision) else revision,
+        revision_kept=isinstance(revision, _KeepRevision),
     )
 
 
 def ingest(
-    paths: Iterable[Path], root: Path, repo: Repository, *, apply: bool, collection: str | None = None
+    paths: Iterable[Path],
+    root: Path,
+    repo: Repository,
+    *,
+    apply: bool,
+    collection: str | None = None,
+    revisions: Mapping[str, str] | None = None,
 ) -> list[DocumentReport]:
-    """collection を渡さなければ、入力のディレクトリ名（`collection_name`）を資料群の名前にする。"""
+    """collection を渡さなければ、入力のディレクトリ名（`collection_name`）を資料群の名前にする。
+
+    revisions を渡したとき（版の一覧がある）は、一覧にある資料にその版を、無い資料には版なしを保存する（一覧が正）。
+    渡さない（None。一覧が無い）ときは、保存済みの版に触れない。"""
     name = collection if collection is not None else collection_name(root)
     files = [(p, source_name(p, root)) for p in paths]
     repo.prefetch([source for _, source in files])  # 文書ごとに読まず、まとめて 2 本で読む
-    return [ingest_file(p, source, repo, apply=apply, collection=name) for p, source in files]
+    return [
+        ingest_file(
+            p,
+            source,
+            repo,
+            apply=apply,
+            collection=name,
+            revision=KEEP_REVISION if revisions is None else revisions.get(match_key(source)),
+        )
+        for p, source in files
+    ]

@@ -461,6 +461,42 @@ describe('資料一覧: 題名', () => {
   });
 });
 
+describe('資料パネル: 版', () => {
+  const NAME = 'つばさ大学学生寮 入寮規程';
+  function routes(revision: unknown) {
+    const extra = revision === undefined ? {} : { revision };
+    const doc = summary(1, 'tsubasa_dorm_rules.pdf', 1, 1, { title: NAME, ...extra });
+    return (url: string) => {
+      if (url === '/documents') return jsonResponse({ configured: true, documents: [doc] });
+      if (url.endsWith('/chunks')) return jsonResponse({ document: doc, chunks: [chunk(0, '第1条 この規程は…')], original_pdf: false });
+      throw new Error(`想定外の取得: ${url}`);
+    };
+  }
+  async function open(revision: unknown) {
+    installDocsFetch(routes(revision));
+    const { user } = setup(null);
+    await openDocuments(user);
+    await user.click(await screen.findByRole('button', { name: `${NAME} を開く` }));
+    await (await panel()).findAllByRole('listitem');
+    return await screen.findByRole('complementary', { name: /^資料:/ });
+  }
+
+  it('版があれば、題名の下に小さく出す（前後の空白は除く）', async () => {
+    const view = await open('  改訂 2 ');
+
+    const revision = within(view).getByText('改訂 2');
+    expect(revision).toHaveClass('ws-panel-revision');
+    expect(revision.previousElementSibling).toHaveClass('ws-panel-title');
+  });
+
+  it.each([null, '', '   ', undefined, 2, { a: 1 }])('版が %j のときは、何も出さない（項目が無い古い応答・不正な値でも資料は開ける）', async (value) => {
+    const view = await open(value);
+
+    expect(within(view).getByRole('heading', { name: NAME })).toBeInTheDocument();
+    expect(view.querySelector('.ws-panel-revision')).toBeNull();
+  });
+});
+
 describe('資料一覧: PDF', () => {
   const OMIT = Symbol('omit');
   const DETAIL = (originalPdf: unknown) => ({

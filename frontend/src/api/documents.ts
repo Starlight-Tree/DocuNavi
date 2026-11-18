@@ -18,6 +18,8 @@ export interface DocumentSummary {
   target: string | null;
   /** 資料種別の識別名（setting / manual など）。未分類、または項目が無い応答（古いサーバー）は null。 */
   docType: string | null;
+  /** 資料の版（「初版」「改訂 2」「2026年4月1日時点」など）。無い資料、項目が無い応答（古いサーバー）、文字列でない値は null。 */
+  revision: string | null;
   status: string;
   failureReason: string | null;
   pages: number | null;
@@ -103,6 +105,8 @@ function parseSummary(value: unknown): DocumentSummary | null {
     collection: collection?.trim() || null,
     target: target?.trim() || null,
     docType: docType?.trim() || null,
+    // 表示だけの項目なので、形が悪くても資料ごと捨てず、版なしとして読む
+    revision: typeof value.revision === 'string' ? value.revision.trim() || null : null,
     status: value.status,
     failureReason,
     pages,

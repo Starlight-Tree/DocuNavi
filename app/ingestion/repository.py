@@ -29,6 +29,17 @@ KEEP_TITLE = _KeepTitle()
 Title = str | None | _KeepTitle
 
 
+class _KeepRevision:
+    """`save()` に版を渡さなかった印。保存済みの版をそのまま残す（None を渡すと「版なし」として消す）。"""
+
+    def __repr__(self) -> str:
+        return "KEEP_REVISION"
+
+
+KEEP_REVISION = _KeepRevision()
+Revision = str | None | _KeepRevision
+
+
 @dataclass(frozen=True)
 class DocumentState:
     """保存済みの文書の行（チャンクを除く）。変更のない文書の保存を省く判断に使う。"""
@@ -38,6 +49,7 @@ class DocumentState:
     pages: int
     title: str | None
     collection: str | None
+    revision: str | None = None
 
 
 class Repository(Protocol):
@@ -59,12 +71,17 @@ class Repository(Protocol):
         *,
         title: Title = KEEP_TITLE,
         collection: str | None = None,
+        revision: Revision = KEEP_REVISION,
     ) -> None:
         """文書を ready にし、チャンクを入れ替える（ハッシュが同じチャンクの行は残す）。
 
         題名: 渡さない（KEEP_TITLE）なら保存済みのまま、文字列ならそれに、None なら題名なしにする。
         資料群（collection）: 文字列ならそれに上書きし、None（渡さない）なら保存済みのまま（消さない）。
+        版（revision）: 渡さない（KEEP_REVISION）なら保存済みのまま、文字列ならそれに、None なら版なしにする。
         """
+
+    def set_revision(self, source: str, revision: str | None) -> None:
+        """版だけを変える（チャンクには触れない。SQL は 1 本）。文書が無ければ何もしない。"""
 
     def mark_failed(self, source: str, document_hash: str, reason: str) -> None:
         """取り込みの失敗を記録する。以前のチャンクは消さない（黙って検索対象から外さない）。"""
@@ -87,6 +104,7 @@ class MemoryRepository:
             doc.get("pages", 0),
             doc.get("title"),
             doc.get("collection"),
+            doc.get("revision"),
         )
 
     def stored_hashes(self, source: str) -> list[str] | None:
@@ -102,9 +120,11 @@ class MemoryRepository:
         *,
         title: Title = KEEP_TITLE,
         collection: str | None = None,
+        revision: Revision = KEEP_REVISION,
     ) -> None:
         previous = self.documents.get(source, {}).get("title")
         previous_collection = self.documents.get(source, {}).get("collection")
+        previous_revision = self.documents.get(source, {}).get("revision")
         self.documents[source] = {
             "content_hash": document_hash,
             "status": "ready",
@@ -112,8 +132,13 @@ class MemoryRepository:
             "pages": pages,
             "title": previous if isinstance(title, _KeepTitle) else title,
             "collection": collection if collection is not None else previous_collection,
+            "revision": previous_revision if isinstance(revision, _KeepRevision) else revision,
             "chunks": list(chunks),
         }
+
+    def set_revision(self, source: str, revision: str | None) -> None:
+        if source in self.documents:
+            self.documents[source]["revision"] = revision
 
     def mark_failed(self, source: str, document_hash: str, reason: str) -> None:
         doc = self.documents.setdefault(source, {"chunks": [], "pages": 0})
@@ -141,7 +166,7 @@ class D1Repository:
         # チャンクの無い文書も 1 行返る（LEFT JOIN。chunk_hash が NULL）
         rows = self._db.execute(
             "SELECT d.id AS id, d.source AS source, d.content_hash AS content_hash, d.status AS status, d.pages AS pages, "
-            "d.title AS title, d.collection AS collection, c.content_hash AS chunk_hash "
+            "d.title AS title, d.collection AS collection, d.revision AS revision, c.content_hash AS chunk_hash "
             "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id "
             "WHERE d.source IN (SELECT value FROM json_each(?)) ORDER BY d.id, c.chunk_index",
             (json.dumps(names),),
@@ -152,7 +177,7 @@ class D1Repository:
             source = row["source"]
             if source not in self._hashes:
                 self._states[source] = DocumentState(
-                    row["content_hash"], row["status"], row["pages"], row["title"], row["collection"]
+                    row["content_hash"], row["status"], row["pages"], row["title"], row["collection"], row["revision"]
                 )
                 self._hashes[source] = []
             if row["chunk_hash"] is not None:
@@ -166,12 +191,14 @@ class D1Repository:
         if source in self._states:
             return self._states[source]
         rows = self._db.execute(
-            "SELECT content_hash, status, pages, title, collection FROM documents WHERE source = ?", (source,)
+            "SELECT content_hash, status, pages, title, collection, revision FROM documents WHERE source = ?", (source,)
         )
         if not rows:
             return None
         row = rows[0]
-        return DocumentState(row["content_hash"], row["status"], row["pages"], row["title"], row["collection"])
+        return DocumentState(
+            row["content_hash"], row["status"], row["pages"], row["title"], row["collection"], row["revision"]
+        )
 
     def stored_hashes(self, source: str) -> list[str] | None:
         if source in self._states:
@@ -193,9 +220,10 @@ class D1Repository:
         *,
         title: Title = KEEP_TITLE,
         collection: str | None = None,
+        revision: Revision = KEEP_REVISION,
     ) -> None:
         self._forget(source)
-        doc_id = self._upsert_document(source, document_hash, "ready", None, pages, title, collection)
+        doc_id = self._upsert_document(source, document_hash, "ready", None, pages, title, collection, revision)
         existing = self._db.execute(
             "SELECT id, content_hash FROM chunks WHERE document_id = ? ORDER BY chunk_index", (doc_id,)
         )
@@ -268,6 +296,13 @@ class D1Repository:
         if leftover:
             self._db.vectors_delete([str(row_id) for row_id in leftover])
 
+    def set_revision(self, source: str, revision: str | None) -> None:
+        self._forget(source)
+        self._db.execute(
+            "UPDATE documents SET revision = ?, updated_at = unixepoch() * 1000 WHERE source = ? RETURNING id",
+            (revision, source),
+        )
+
     def mark_failed(self, source: str, document_hash: str, reason: str) -> None:
         self._forget(source)
         self._upsert_document(source, document_hash, "failed", reason, None, KEEP_TITLE)
@@ -281,14 +316,17 @@ class D1Repository:
         pages: int | None,
         title: Title,
         collection: str | None = None,
+        revision: Revision = KEEP_REVISION,
     ) -> int:
-        # 題名は、渡されたとき（文字列・None）だけ上書きする。渡されない（KEEP_TITLE）なら、保存済みのまま
+        # 題名・版は、渡されたとき（文字列・None）だけ上書きする。渡されない（KEEP_*）なら、保存済みのまま
         keep = isinstance(title, _KeepTitle)
         new_title = None if keep else title
+        keep_revision = isinstance(revision, _KeepRevision)
+        new_revision = None if keep_revision else revision
         rows = self._db.execute(
             """
-            INSERT INTO documents (source, content_hash, status, failure_reason, pages, title, collection)
-            VALUES (?, ?, ?, ?, COALESCE(?, 0), ?, ?)
+            INSERT INTO documents (source, content_hash, status, failure_reason, pages, title, collection, revision)
+            VALUES (?, ?, ?, ?, COALESCE(?, 0), ?, ?, ?)
             ON CONFLICT (source) DO UPDATE SET
                 content_hash = excluded.content_hash,
                 status = excluded.status,
@@ -296,10 +334,23 @@ class D1Repository:
                 pages = COALESCE(?, documents.pages),
                 title = CASE WHEN ? THEN documents.title ELSE excluded.title END,
                 collection = COALESCE(excluded.collection, documents.collection),
+                revision = CASE WHEN ? THEN documents.revision ELSE excluded.revision END,
                 updated_at = unixepoch() * 1000
             RETURNING id
             """,
-            (source, document_hash, status, reason, pages, new_title, collection, pages, keep),
+            (
+                source,
+                document_hash,
+                status,
+                reason,
+                pages,
+                new_title,
+                collection,
+                new_revision,
+                pages,
+                keep,
+                keep_revision,
+            ),
         )
         return rows[0]["id"]
 

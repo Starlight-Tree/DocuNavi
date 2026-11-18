@@ -10,6 +10,7 @@ function doc(id: number, target: string | null, status = 'ready', collection: st
     collection,
     target,
     docType: null,
+    revision: null,
     status,
     failureReason: null,
     pages: 1,

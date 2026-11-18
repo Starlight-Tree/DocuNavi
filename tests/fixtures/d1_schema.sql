@@ -40,6 +40,7 @@ CREATE TABLE documents (
   collection     TEXT CHECK (collection IS NULL OR (length(collection) BETWEEN 1 AND 40 AND collection NOT GLOB '*[^A-Za-z0-9_-]*')),
   target         TEXT REFERENCES document_targets (name) ON UPDATE RESTRICT ON DELETE RESTRICT,
   doc_type       TEXT REFERENCES document_types (name) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  revision       TEXT CHECK (revision IS NULL OR length(revision) BETWEEN 1 AND 40),
   suggested_questions TEXT,
   suggestions_hash    TEXT,
   suggestions_at      INTEGER,

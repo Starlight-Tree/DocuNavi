@@ -47,7 +47,7 @@ _DETAIL_ORIGINAL_UNAVAILABLE = "PDF を取得できませんでした。しば�
 
 _LIST_SQL = (
     "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, "
-    "d.target AS target, d.doc_type AS doc_type, d.status AS status, "
+    "d.target AS target, d.doc_type AS doc_type, d.revision AS revision, d.status AS status, "
     "d.failure_reason AS failure_reason, d.pages AS pages, d.updated_at AS updated_at, "
     "count(c.id) AS chunk_count, count(c.embedding_model) AS embedded_count, "
     "EXISTS (SELECT 1 FROM document_images i WHERE i.document_id = d.id AND i.kind = 'hero' AND i.status = 'approved') "
@@ -58,7 +58,7 @@ _LIST_SQL = (
 )
 _DOCUMENT_SQL = (
     "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, "
-    "d.target AS target, d.doc_type AS doc_type, d.status AS status, "
+    "d.target AS target, d.doc_type AS doc_type, d.revision AS revision, d.status AS status, "
     "d.failure_reason AS failure_reason, d.pages AS pages, d.updated_at AS updated_at, "
     "d.content_hash AS content_hash "
     "FROM documents d WHERE d.id = %(id)s"
@@ -89,6 +89,8 @@ class DocumentSummary(BaseModel):
     # 表示名は GET /targets・GET /doc-types が持つ。閲覧権限は変えない（権限は collection だけが決める）
     target: str | None = None
     doc_type: str | None = None
+    # 資料の版（「初版」「改訂 2」「2026年4月1日時点」など。取り込みの版の一覧 revisions.csv の値）。無い資料は null で、画面は何も出さない
+    revision: str | None = None
     status: str
     failure_reason: str | None = None
     pages: int | None = None
@@ -146,6 +148,14 @@ def _collection(value: object) -> str | None:
     return value if isinstance(value, str) and _COLLECTION_PATTERN.fullmatch(value) else None
 
 
+def _revision(value: object) -> str | None:
+    """資料の版。空白だけ・長すぎる（40 文字超）値は、版なしと同じに扱う。"""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text if 0 < len(text) <= 40 else None
+
+
 def _classification(value: object) -> str | None:
     """対象・資料種別の名前。文字列で、DB の制約と同じ形のときだけ返す。それ以外は未分類と同じ。"""
     return value if isinstance(value, str) and _CLASSIFICATION_PATTERN.fullmatch(value) else None
@@ -166,6 +176,7 @@ def _summary(row: dict[str, Any]) -> DocumentSummary:
         collection=_collection(row.get("collection")),
         target=_classification(row.get("target")),
         doc_type=_classification(row.get("doc_type")),
+        revision=_revision(row.get("revision")),
         status=row["status"],
         failure_reason=row.get("failure_reason"),
         pages=row.get("pages"),

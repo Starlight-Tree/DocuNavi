@@ -110,13 +110,17 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
       tabIndex={-1}
       onKeyDown={handleKeyDown}
     >
-      {/* 最上段は、題名（左）とアイコン（右）。「資料」の見出し・取り込みの日付・ページ数・資料グループ名は出さない
+      {/* 最上段は、題名（左。その下に版）とアイコン（右）。「資料」の見出し・取り込みの日付・ページ数・資料グループ名は出さない
           （日付は取り込みの記録で、利用者の判断に使えない。ページ数は PDF のビューアが示す）。
           取り込み用のファイルパスは、常時は出さず、題名に重ねたときの説明にだけ残す */}
       <header className="ws-panel-head ws-panel-head-doc">
-        <h2 className="ws-panel-title" title={document.title ? `${name}\n${document.source}` : name}>
-          <DocumentName document={document} showFile={false} />
-        </h2>
+        <div className="ws-panel-titles">
+          <h2 className="ws-panel-title" title={document.title ? `${name}\n${document.source}` : name}>
+            <DocumentName document={document} showFile={false} />
+          </h2>
+          {/* 版（「初版」「改訂 2」など）。取り込みの版の一覧の値で、無い資料には何も出さない */}
+          {document.revision && <p className="ws-panel-revision">{document.revision}</p>}
+        </div>
         <span className="ws-panel-tools">
           <button
             type="button"

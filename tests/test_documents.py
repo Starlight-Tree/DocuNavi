@@ -297,3 +297,27 @@ def test_off_needs_no_token(client, use_pool, monkeypatch):
     monkeypatch.setenv("AUTH_MODE", "off")
     use_pool(FakePool(summaries=[summary_row()]))
     assert client.get("/documents").status_code == 200
+
+
+# --- 版（documents.revision）--------------------------------------------------------------------------------
+
+
+def test_the_api_returns_the_revision_and_treats_blank_or_missing_as_null(client, use_pool):
+    use_pool(
+        FakePool(
+            summaries=[
+                {**summary_row(1), "revision": "改訂 2"},
+                {**summary_row(2, "b.pdf"), "revision": "  初版 "},
+                {**summary_row(3, "c.pdf"), "revision": "   "},
+                {**summary_row(4, "d.pdf"), "revision": "版" * (40 + 1)},
+                summary_row(5, "e.pdf"),  # 行に revision が無い
+            ]
+        )
+    )
+    revisions = [d["revision"] for d in client.get("/documents").json()["documents"]]
+    assert revisions == ["改訂 2", "初版", None, None, None]
+
+
+def test_both_queries_select_the_revision():
+    assert "d.revision AS revision" in documents._LIST_SQL
+    assert "d.revision AS revision" in documents._DOCUMENT_SQL

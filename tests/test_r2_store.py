@@ -92,7 +92,7 @@ class FakeS3:
 
     def put_object(self, Bucket, Key, Body, ContentType):  # noqa: N803
         self._check()
-        assert ContentType == "application/pdf"
+        assert ContentType == ("text/csv; charset=utf-8" if Key.endswith("/revisions.csv") else "application/pdf")
         self.objects[Key] = Body
         self.puts.append(Key)
 
@@ -408,6 +408,31 @@ def test_upload_plan_classifies_new_same_and_changed(tmp_path) -> None:
         ("cafe/new.pdf", "new"),
         ("guides/g.pdf", "changed"),
     ]  # top.pdf と .txt は対象外
+
+
+def test_upload_plan_includes_the_revisions_list_only_directly_under_a_collection(tmp_path) -> None:
+    local = make_local(tmp_path)
+    (local / "cafe" / "revisions.csv").write_bytes(b"source,revision\n")
+    (local / "cafe" / "sub").mkdir()
+    (local / "cafe" / "sub" / "revisions.csv").write_bytes(b"source,revision\n")  # 深い所のものは対象外
+    (local / "revisions.csv").write_bytes(b"source,revision\n")  # 資料群の外も対象外
+    plan = r2_store.upload_plan(r2_store.R2Store(FakeS3({"cafe/a.pdf": PDF_A}), "b"), local)
+    assert [(k, state) for k, _, state in plan] == [
+        ("cafe/revisions.csv", "new"),  # 版の一覧は、同じ資料群の PDF より先
+        ("cafe/a.pdf", "same"),
+        ("cafe/new.pdf", "new"),
+        ("guides/g.pdf", "new"),
+    ]
+
+
+def test_upload_apply_puts_the_revisions_list_as_csv(tmp_path, monkeypatch) -> None:
+    local = make_local(tmp_path)
+    (local / "cafe" / "revisions.csv").write_bytes("source,revision\na.pdf,初版\n".encode())
+    s3 = FakeS3({"cafe/a.pdf": PDF_A, "guides/g.pdf": PDF_A})
+    monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(s3, "b"))
+    assert r2_store.main(["upload", "--input", str(local), "--apply"]) == 0
+    assert sorted(s3.puts) == ["cafe/new.pdf", "cafe/revisions.csv"]
+    assert s3.objects["cafe/revisions.csv"] == "source,revision\na.pdf,初版\n".encode()
 
 
 def test_upload_defaults_to_a_dry_run(tmp_path, monkeypatch, capsys) -> None:
