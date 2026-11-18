@@ -9,7 +9,7 @@ import { takePendingFocus, usePanelCiteSeq, usePanelCitationMiss, usePanelOpenSe
 import { locateSpan } from '../lib/sources';
 import type { DetailView } from '../lib/urlState';
 import { DocumentName, displayName, pageLabel, pdfDownloadName } from './documentDisplay';
-import { CloseIcon, CollapseIcon, DownloadIcon, ExpandIcon } from './icons';
+import { CloseIcon, CollapseIcon, ExpandIcon } from './icons';
 import { RelationGraphView } from './RelationGraphView';
 import { Status } from './Status';
 
@@ -118,12 +118,6 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
           <DocumentName document={document} showFile={false} />
         </h2>
         <span className="ws-panel-tools">
-          {mode === 'pdf' && originalPdf && (
-            // 押すたびに、中継から PDF を 1 回取る（権限は API がそのつど確かめる）。保存名は資料名（題名）
-            <a className="ws-icon-btn" href={pdfUrl} download={pdfDownloadName(document)} aria-label="PDF をダウンロード" title="PDF をダウンロード（資料名で保存）">
-              <DownloadIcon />
-            </a>
-          )}
           <button
             type="button"
             className="ws-icon-btn"

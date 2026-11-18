@@ -209,19 +209,16 @@ describe('出典を押して右のパネルを開く', () => {
     expect(files).toEqual([]);
   });
 
-  it('PDF を開くと、ヘッダーに「PDF をダウンロード」のアイコンが出る。資料名で保存する（URL は iframe と同じ）', async () => {
+  it('ヘッダーに独自のダウンロードアイコンは出さない（保存は PDF ビューアの保存ボタン。名前は中継が資料名にする）', async () => {
     install();
     const user = userEvent.setup();
     render(<App />);
     await ask(user);
     const panel = await openCitation(user, 1);
-    expect(panel.queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument(); // 抽出テキストのあいだは出さない（PDF を開くまで出さない）
-
     await user.click(panel.getByRole('button', { name: 'PDF' }));
 
-    const link = await panel.findByRole('link', { name: 'PDF をダウンロード' });
-    expect(link).toHaveAttribute('href', '/documents/7/file');
-    expect(link).toHaveAttribute('download', 'tsubasa_dorm_rules.pdf');
+    expect(await panel.findByTitle(/の PDF/)).toBeInTheDocument();
+    expect(panel.queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument();
     expect(files).toEqual([]);
   });
 

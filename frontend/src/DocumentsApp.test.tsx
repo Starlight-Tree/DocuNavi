@@ -503,7 +503,7 @@ describe('資料一覧: PDF', () => {
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
   });
 
-  it('ログイン中は、同じオリジンの中継を指し、保存名の元（資料名）を ?name= で渡す。アイコンも同じ URL', async () => {
+  it('ログイン中は、同じオリジンの中継を指し、保存名の元（資料名）を ?name= で渡す', async () => {
     const { calls } = installDocsFetch(routes());
     const { user } = setup(fakeAuth());
 
@@ -511,9 +511,7 @@ describe('資料一覧: PDF', () => {
 
     const frame = await screen.findByTitle('つばさ大学学生寮 入寮規程 の PDF');
     expect(frame).toHaveAttribute('src', `/api/documents/1/file?name=${SAVE_NAME}`);
-    const link = await (await panel()).findByRole('link', { name: 'PDF をダウンロード' });
-    expect(link).toHaveAttribute('href', `/api/documents/1/file?name=${SAVE_NAME}`);
-    expect(link).toHaveAttribute('download', 'つばさ大学学生寮 入寮規程.pdf');
+    expect((await panel()).queryByRole('link', { name: 'PDF をダウンロード' })).not.toBeInTheDocument();
     // トークンは中継が Cookie から取る。画面は PDF のために fetch もトークンの更新もしない
     expect(calls.map((c) => c.url)).toEqual(['/documents', '/documents/1/chunks']);
   });
