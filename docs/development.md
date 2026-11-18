@@ -105,6 +105,16 @@ Infisical CLI がプロジェクトを選ぶ `.infisical.yaml` も Git 管理外
 
 手順は [testing.md](testing.md)（pytest・Vitest・E2E・実 API の検証・本番の `/chat` の自動テスト）。
 
+## push 前の確認とコマンドの癖（2026-11-17〜18 に CI を落とした経験から）
+
+- **Python:** 変えたファイル単位で `ruff format --check` と `ruff check` を実行する（省いて CI の format が落ちた）。コンテナの ruff は CI と版が違い、`ops/setup_agent_vault.py` を誤って違反と出すので、これは無視する。
+- **Dockerfile やその行を固定するテスト**（`tests/test_migrate.py` など）を変えたら、push 前に全体のテストを実行する（実行せずに push して Backend tests が落ちた）。テストはコンテナで実行する（ホストの `.venv/bin/python` はコンテナのパスを指して動かない）。
+- **ワークフロー（`.github/workflows`）:** push 前に YAML をパースし（`ruby -ryaml -e 'YAML.load_file("…")'`）、actionlint を実行する（下の「依存の更新」の `requirements-lint.txt`、または `docker run --rm -v "$PWD":/repo -w /repo rhysd/actionlint:latest`）。`: ` を含む値は引用符で囲む（省いて CI が 0 ジョブで失敗した）。
+- **`gcloud run jobs update --args`:** 区切り文字 `^@^` は、メールの `@` と衝突する。メールを含むなら `^#^` を使う。zsh では `$P` の単語分割が効かないので、配列 `"${P[@]}"` を使う。
+- **Infisical の削除:** 既定の種類（personal）では失敗する。`--type shared` を付け、本番は `.dev-local/infisical-ids.env` の `INFISICAL_PROJECT_ID_PROD` を `--projectId` に渡す。Infisical MCP は読み取りだけ（`list-secrets`）。
+- **ホストで wrangler を使う:** `workers/api/node_modules` が Linux 用なので、`cd /tmp && npx wrangler@4.158.0 …` の形で実行する（検証環境の画面の配備だけ。本番へは使わない）。
+- **コミットの件名:** 72 文字以内。`python3 scripts/check_commit_messages.py --subject "…"` で確かめる。`&&` でつなぐと検査が失敗したときコミットが作られないので、結果を確かめる。
+
 ## 依存の更新
 
 - **Python:** `requirements.txt` と `requirements-dev.txt` は、`requirements.in` / `requirements-dev.in` から [uv](https://docs.astral.sh/uv/) で生成した固定ファイルです（Python 3.14、全プラットフォーム向け）。直接は編集せず、`.in` を編集して次を実行します。

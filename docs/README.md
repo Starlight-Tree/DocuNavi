@@ -45,6 +45,7 @@
 | 文書 | 状態 | 内容 |
 |---|---|---|
 | [r2-rollout.md](r2-rollout.md) | 記録 | PDF を R2 から読む本番への切り替え |
+| [alloydb-test-env.md](alloydb-test-env.md) | 設計メモ | 検証環境（AlloyDB Express）の再作成の名前・手順・落とし穴（本番の移行ではない） |
 | [history-rewrite.md](history-rewrite.md) | 記録 | Git の履歴の書き換え（2026-10-25、2026-11-14）と、旧ハッシュの対応表 |
 | [ux-research.md](ux-research.md) | 記録 | UI/UX リサーチの記録 |
 
