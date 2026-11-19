@@ -70,7 +70,7 @@
 - **失敗したとき。** クエリの埋め込みや DB の問い合わせが失敗したら、別の経路には戻らず、`/chat`・`/chat/stream` が 503（固定文）を返し、WARNING を 1 行残します（例外の型の名前だけ）。埋め込みは 1 回だけ試し（SDK の再試行なし）、待つ上限は約 10 秒です。
 - **評価用の PDF の写し。** `storage/pdf/cafe/` と `storage/pdf/guides/` の PDF は、`evals/corpora/` の同名のファイルと同じです（`tests/test_bm25_collections.py` が一致を確かめる）。差し替えるときは、両方を更新し、評価の baseline を取り直します。
   `storage/pdf/zahard/` の 3 冊は、元の .txt を PDF にしたものです（2026-11-15 から、表紙・目次・見出し・ページラベルを足し、題名を内容が分かる名前にしました。ファイル名は同じ。[evals/fixtures/zahard_pdf/README.md](../evals/fixtures/zahard_pdf/README.md)。見た目の目視は未確認）。
-  2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は、reportlab 製の 1 冊でしか試しておらず、実物で確かめるまでアプリには置きません（`evals/fixtures/two_column/`）。
+  2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は、取り込みに組み込み済みです。試したのは、reportlab 製の 1 冊（`evals/fixtures/two_column/`）と、`storage/pdf/` の 90 ファイル・433 ページ（2 段と判定したページは 0 件。2026-11-20 に読み取りだけで確認）だけです。外部の道具で作った 2 段組みは未確認です。
 - **BM25 の基準線。** ローカルの PDF を読む以前の BM25 は、アプリから外し、評価用に `scripts/bm25_baseline.py` に残しました（`SEARCH_SCOPE` はこの基準線だけが読む）。ハイブリッドのキーワード側は、別の実装（`app/search/keyword.py`。DB の `chunks` の写しを読む）で、アプリはこの基準線を import しません。
 - **確かめていないこと。** 画面が使う `/chat/stream` を、本物の LLM と DB で通した確認。LLM が書く検索クエリでの精度（評価は質問文のまま）。質問ごとの追加の遅延と費用（評価では、埋め込みの API は 1.1〜1.4 秒）。
 

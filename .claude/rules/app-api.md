@@ -53,5 +53,5 @@ paths:
 - `app/agents/studio.py` と `langgraph.json`: LangSmith Studio（`langgraph dev`）用の入口で、ローカル開発専用。本番（Postgres の Cloud Run）は import せず、`LANGSMITH_*` も渡さない。手順は `docs/development.md`
 - `storage/pdf/<名前>/`: PDF の資料（`cafe` `guides` `zahard`）。検索は DB を読むので、PDF を足しても `python -m app.ingestion` と
   `python -m app.ingestion.embed` をするまで検索には出ない。`cafe` `guides` は `evals/corpora/<同じ名前>/` の写し（作り直したら両方を更新）、`zahard` は .txt から作った PDF（`docs/configuration.md` の「評価用の PDF の写し」）。
-  2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は実物で確かめるまでアプリには置かない
+  2 段組みの読み順の組み直し（`pdf_parser._split_columns`）は、取り込みに組み込み済み（複数の条件を満たしたページだけ。1 段組みは従来と同じ結果）。試したのは、reportlab 製の 1 冊（`evals/fixtures/two_column/`）と、`storage/pdf/` の 90 ファイル・433 ページ（2 段と判定したページは 0 件。2026-11-20 に読み取りだけで確認）だけ。外部の道具（Word・Google Docs など）で作った 2 段組みは未確認
 - `storage/chunk/` は空でアプリは読まない。`scripts/bm25_baseline.py` は評価の基準線で、アプリは import しない。`frontend/` の `.next*/` と `node_modules/` は Git 管理外
