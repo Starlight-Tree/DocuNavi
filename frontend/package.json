@@ -47,5 +47,9 @@
     "typescript": "^7.0.2",
     "vitest": "^5.0.4",
     "wrangler": "4.158.0"
+  },
+  "overrides": {
+    "glob": "^14.0.2",
+    "minimatch": "^11.0.1"
   }
 }
