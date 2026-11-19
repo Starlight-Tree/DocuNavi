@@ -1692,19 +1692,29 @@ a.ws-icon-btn {
   white-space: nowrap;
 }
 
-/* 並び替えの列名。見た目は列名のまま（ボタンの枠・背景は出さない）。並べている列だけ矢印が出る。矢印の幅は常に確保して、押しても列の幅が動かない */
+/* 並び替えの列名。ボタンが列名のセル全体を占める（文字の上だけでなく、セルのどこを押しても並び替わる）。見た目は列名のまま（枠・背景は出さず、触れたときだけ薄く色が付く）。
+   並べている列だけ矢印が出る。矢印の幅は常に確保して、押しても列の幅が動かない */
+.documents-table thead th:has(> .th-sort) {
+  padding: 0;
+}
+
 .th-sort {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.15rem 0.3rem;
-  margin: -0.15rem -0.3rem;
+  padding: 0.6rem 0.65rem;
   border: 0;
-  border-radius: 0.35rem;
   background: none;
   color: inherit;
   font: inherit;
+  text-align: left;
   cursor: pointer;
+}
+
+/* 数の列は、数と同じく右にそろえる */
+.col-num .th-sort {
+  justify-content: flex-end;
 }
 
 .th-sort:hover {
@@ -1714,7 +1724,7 @@ a.ws-icon-btn {
 
 .th-sort:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 .documents-table th[aria-sort='ascending'] .th-sort,
@@ -1726,6 +1736,20 @@ a.ws-icon-btn {
   display: inline-block;
   width: 0.8em;
   text-align: center;
+}
+
+.th-sort-arrow::after {
+  content: attr(data-arrow);
+}
+
+/* 並べていない列の矢印は、触れたとき・フォーカスしたときだけ、薄く出す */
+.th-sort-arrow[data-on='false']::after {
+  opacity: 0;
+}
+
+.th-sort:hover .th-sort-arrow[data-on='false']::after,
+.th-sort:focus-visible .th-sort-arrow[data-on='false']::after {
+  opacity: 0.5;
 }
 
 /* 資料名は 1 行にして、はみ出す分は「…」にする（表をすっきり保つ）。全文は、行のボタンの title と、開いた資料のパネルで読める。

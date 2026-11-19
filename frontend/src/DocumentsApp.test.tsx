@@ -1016,7 +1016,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(select('対象')).toHaveAttribute('data-value', '');
     expect(select('資料種別')).toHaveAttribute('data-value', '');
     expect(queryFacetButton('並び替え')).toBeNull();
-    for (const name of ['資料名', 'ページ数', '更新日時']) expect(screen.getByRole('columnheader', { name })).toHaveAttribute('aria-sort', 'none');
+    for (const name of ['資料名', 'ページ数', '更新日時']) expect(screen.getByRole('columnheader', { name })).not.toHaveAttribute('aria-sort');
     expect(screen.queryByRole('button', { name: /^フィルター/ })).not.toBeInTheDocument();
     for (const name of ['状態', 'ページ数', '更新']) expect(queryFacetButton(name)).not.toBeInTheDocument();
     expect(result()).toHaveTextContent('5件の資料');
@@ -1084,7 +1084,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     install();
     const user = await openList();
     const header = (name: string) => screen.getByRole('columnheader', { name });
-    expect(header('資料名')).toHaveAttribute('aria-sort', 'none');
+    expect(header('資料名')).not.toHaveAttribute('aria-sort');
     expect(screen.queryByRole('combobox', { name: '並び替え' })).not.toBeInTheDocument();
 
     await user.click(within(header('更新日時')).getByRole('button'));
@@ -1102,12 +1102,12 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     // 別の列を押すと、その列の最初の向き（ページ数は多い順）。前の列の印は消える
     await user.click(within(header('ページ数')).getByRole('button'));
     expect(header('ページ数')).toHaveAttribute('aria-sort', 'descending');
-    expect(header('更新日時')).toHaveAttribute('aria-sort', 'none');
+    expect(header('更新日時')).not.toHaveAttribute('aria-sort');
     expect(files().slice(0, 3)).toEqual(['aoba_aw820_manual.pdf', 'cafe_store_guide.pdf', 'つばさ大学学生寮 入寮規程']);
 
     await user.click(within(header('ページ数')).getByRole('button'));
     await user.click(within(header('ページ数')).getByRole('button'));
-    expect(header('ページ数')).toHaveAttribute('aria-sort', 'none');
+    expect(header('ページ数')).not.toHaveAttribute('aria-sort');
     expect(files()[0]).toBe('aoba_aw820_manual.pdf');
     expect(window.location.search).toBe('?tab=documents');
   });

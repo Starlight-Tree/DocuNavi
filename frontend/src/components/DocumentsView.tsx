@@ -230,13 +230,14 @@ interface DocumentRowsProps {
 function SortableHeader({ column, sort, onSort, className, children }: { column: SortColumn; sort: SortKey; onSort: (column: SortColumn) => void; className?: string; children: ReactNode }) {
   const state = sortState(sort);
   const current = state?.column === column ? state.direction : undefined;
+  // 並べていない列は、触れたとき・フォーカスしたときだけ、最初に押したときの向きの薄い矢印を出す（押せると分かる）。矢印は CSS（::after）で描くので、文字として読まれない。`aria-sort` は並べている列だけに付ける
+  const arrowOf = (direction: 'ascending' | 'descending') => (direction === 'ascending' ? '↑' : '↓');
+  const first = sortState(nextSort('default', column))?.direction ?? 'descending';
   return (
-    <th scope="col" className={className} aria-sort={current ?? 'none'}>
+    <th scope="col" className={className} aria-sort={current}>
       <button type="button" className="th-sort" onClick={() => onSort(column)}>
         {children}
-        <span className="th-sort-arrow" aria-hidden="true">
-          {current === 'ascending' ? '↑' : current === 'descending' ? '↓' : ''}
-        </span>
+        <span className="th-sort-arrow" aria-hidden="true" data-arrow={arrowOf(current ?? first)} data-on={current !== undefined} />
       </button>
     </th>
   );
