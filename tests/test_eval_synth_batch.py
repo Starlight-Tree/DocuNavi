@@ -23,7 +23,7 @@ BIBLES = load_all(Path(__file__).resolve().parents[1] / "evals" / "synth" / "bib
 def sample_briefs(per_target: int = 2):
     briefs, counts = [], {}
     for b in build_plan(BIBLES, 20):
-        if b.target.startswith("lune-"):
+        if b.target.startswith(("lune-", "hoshizora-", "arca-", "oasis-")):
             continue  # 8 件の固定の試料（4 対象 × 2）。リューネ工房の新製品は、別の bible のテストで見る
         counts[b.target] = counts.get(b.target, 0) + 1
         if counts[b.target] <= per_target:

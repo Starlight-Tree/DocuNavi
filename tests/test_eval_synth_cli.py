@@ -14,14 +14,14 @@ from evals.synth.render import MARKER, NOTICE, RenderUnavailable, render_pdf
 from evals.synth.verify import verify_output
 
 
-# 試料の固定（4 対象 × 2 件 = 8 件）。リューネ工房の新製品（lune-*）は、別の bible のテストで見る
+# 試料の固定（4 対象 × 2 件 = 8 件）。リューネ工房の新製品（lune-*）と学校（hoshizora-kg・arca-*・oasis-high）は、別の bible のテストで見る
 ORIGINAL_TARGETS = ["--target", "zahard", "--target", "minato-coffee", "--target", "tsubasa-dorm", "--target", "aoba-aw820"]
 
 
 def test_cli_batch_flow_with_the_fake_engine(tmp_path, capsys):
     out = str(tmp_path / "out")
     assert main(["plan", *ORIGINAL_TARGETS, "--out-dir", out]) == 0
-    assert "計 59 件" in capsys.readouterr().out
+    assert "計 44 件" in capsys.readouterr().out
 
     sample = [*ORIGINAL_TARGETS, "--sample-per-target", "2", "--out-dir", out]
     assert main(["prepare", *sample, "--max-requests", "8", "--usd-per-hour", "3", "--max-total-cost-usd", "50"]) == 0

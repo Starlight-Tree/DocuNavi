@@ -1,0 +1,143 @@
+# アルカ第一小学校（架空。アルカ市の発着場エリアにある市立の小学校）の共通設定。2026-11-19 に新しく作った。アルカ市の学校の並び（world-chain）の 1 校。
+# 事実（facts）にある数値・日付・時刻だけが、生成した本文に出てよい。足す・直すと version が変わる。
+target: arca-elem
+label: アルカ第一小学校
+existing_documents: 0
+documents: 5
+revision: 2026年11月1日改訂
+premise: アルカ市の発着場エリアにある市立のアルカ第一小学校（1 年生から 6 年生）。児童は、乗り合い便の停留所から集団で登校する。問い合わせ先は、学校の事務室。
+contacts: []
+forbidden: [東京大学, 早稲田, 慶應, 京都大学, 文部科学省, ザーハリアン]
+extra_numbers: []
+
+facts:
+  - {id: world-city, tags: [core], text: "この学校は、アルカ市にある。アルカ市は、居住区・発着場・岩山・遺跡の 4 つのエリアに分かれている。"}
+  - {id: world-air, tags: [core], text: "この星の厳しい環境に合わせて、校舎のすべての部屋に、空気を整える設備を備えている。校舎の中では、マスクなしで過ごせる。"}
+  - {id: world-chain, tags: [core], text: "ほしぞら幼稚園、アルカ第一小学校、アルカ中央中学校、オアシス高等学校、ザーハード大学は、アルカ市の学校の並びで、進学の道がつながっている。"}
+  - {id: school-outline, tags: [core], text: "アルカ第一小学校は、アルカ市の発着場エリアにある市立の小学校で、1 年生から 6 年生までの児童が通う。校長を置き、学校の運営は、校長が行う。"}
+  - {id: capacity, tags: [core, admit], text: "全校の定員は 504 名。各学年は 3 学級で、1 学級の定員は 28 名。"}
+  - {id: location, tags: [core, safety], text: "学校は、発着場エリアの乗り合い便の停留所「アルカ発着場前」から、歩いて 8 分の場所にある。校舎は 3 階建てで、運動場と体育館がある。"}
+  - {id: office-hours, tags: [core, rules, admit, fee], text: "事務室の受付時間は、月曜日から金曜日の午前 8 時 30 分から午後 4 時 30 分まで。土曜日、日曜日、祝日と、年末年始はお休み。"}
+
+  - {id: rules-definition, tags: [rules], text: "児童とは、本校に在籍する者をいう。保護者とは、児童の親権を行う者をいう。"}
+  - {id: rules-term, tags: [rules], text: "修業年限は 6 年で、学年は 4 月 1 日に始まり、翌年の 3 月 31 日に終わる。"}
+  - {id: rules-semesters, tags: [rules, life], text: "学期は 3 学期制で、1 学期は 4 月 8 日から 7 月 18 日、2 学期は 9 月 1 日から 12 月 22 日、3 学期は 1 月 8 日から 3 月 20 日。"}
+  - {id: rules-days, tags: [rules], text: "年間の授業日数は 200 日を目安とする。授業は月曜日から金曜日に行い、土曜日と日曜日には行わない。"}
+  - {id: rules-period, tags: [rules, life], text: "授業は、1 コマ 45 分とする。1 校時は午前 8 時 40 分に始まる。"}
+  - {id: rules-promotion, tags: [rules], text: "進級は、学年の終わりに、校長が決める。原則として、全員が進級する。"}
+  - {id: rules-graduation, tags: [rules], text: "卒業は、6 年間の課程を修めた児童について、校長が卒業式で認める。卒業した児童には、卒業証書を渡す。"}
+  - {id: rules-absence, tags: [rules, life], text: "欠席や遅刻をするときは、当日の午前 8 時までに、学校の連絡システムに入力して知らせる。システムが使えないときは、事務室の受付が始まったあとに連絡する。"}
+  - {id: rules-late, tags: [rules], text: "遅刻は、朝の会の開始に間に合わなかった場合とする。遅刻した児童は、事務室で受付をしてから、教室へ入る。"}
+  - {id: rules-suspension, tags: [rules, safety], text: "感染症にかかったときは、校長が出席停止とする。出席停止の日は、欠席として数えない。"}
+  - {id: rules-prohibited, tags: [rules, life], text: "学校へ持ち込んではいけない物は、現金、ゲーム機、刃物、危険な薬品、個人の通信端末。学習用の端末は、学校が貸し出す。"}
+  - {id: rules-no-corporal, tags: [rules], text: "教職員は、児童に体罰を行わない。指導は、口頭で行い、必要なときは保護者に連絡する。"}
+  - {id: rules-bullying, tags: [rules, safety], text: "いじめを受けたときや見たときは、担任か相談窓口の教員に伝える。学校は、伝えた児童が不利にならないように守る。相談窓口は、事務室の隣の相談室に置く。"}
+  - {id: rules-transfer-out, tags: [rules], text: "転出するときは、転出する日の 14 日前までに事務室へ届け出る。学校は、在学証明書を交付する。"}
+  - {id: rules-amend, tags: [rules], text: "学則の改正は、学校運営会議の議を経て、校長が行う。改正は、新しい学年の始まりの日から施行し、前もって家庭へ知らせる。"}
+
+  - {id: admit-target, tags: [admit], text: "入学できる児童は、入学する年の 4 月 1 日までに満 6 歳になり、アルカ市の発着場エリアか居住区エリアに住んでいる子。"}
+  - {id: admit-quota, tags: [admit], text: "1 年生の募集人数は 84 名。希望者が募集人数を超えたときは、抽選で決める。"}
+  - {id: admit-session, tags: [admit], text: "入学説明会は、11 月 15 日の午後 2 時から、体育館で行う。保護者 1 名の参加が必要。"}
+  - {id: admit-apply, tags: [admit], text: "入学願書は、12 月 1 日から 12 月 15 日までに、事務室へ提出する。受付は、午前 9 時から午後 4 時まで。"}
+  - {id: admit-docs, tags: [admit], text: "願書には、住民票の写し 1 通、予防接種の記録、保護者の同意書を添える。住民票の写しは、発行から 3 か月以内のもの。"}
+  - {id: admit-lottery, tags: [admit], text: "抽選は、12 月 18 日に行う。結果は、同じ日の午後 5 時に、連絡システムで知らせる。"}
+  - {id: admit-health, tags: [admit, safety], text: "入学前の健康診断は、1 月 18 日に体育館で行う。受付は、午前 10 時に始める。"}
+  - {id: admit-notice, tags: [admit], text: "入学の通知は、2 月 5 日に、郵送と連絡システムで届ける。"}
+  - {id: admit-procedure, tags: [admit, fee], text: "入学の手続きは、2 月 20 日までに、事務室で行う。書類は、入学承諾書と、給食費の口座振替の依頼書。"}
+  - {id: admit-decline, tags: [admit], text: "手続きの期限を過ぎても手続きがないときは、入学を辞退したものとする。辞退するときは、事務室へ前もって連絡する。"}
+  - {id: admit-prep, tags: [admit], text: "新入生の準備会は、3 月 14 日の午前 10 時から行う。上履きと筆記用具を持って来る。"}
+  - {id: admit-ceremony, tags: [admit, life], text: "入学式は、4 月 7 日の午前 10 時から体育館で行う。受付は、午前 9 時 30 分に始める。"}
+  - {id: admit-first-days, tags: [admit, life], text: "授業は、入学式の翌日から始まる。最初の 1 週間は、1 年生だけ、下校が午前 11 時 30 分になる。"}
+  - {id: admit-transfer-in, tags: [admit], text: "転入は、学期の途中でも申し込める。希望する日の 10 日前までに、在学証明書を持って、事務室へ申し込む。"}
+  - {id: admit-outside, tags: [admit], text: "通学区域の外に住む子は、原則として入学できない。ただし、引っ越しが決まっているときは、住民票を移す予定を示す書類で申し込める。"}
+
+  - {id: fee-tuition, tags: [fee], text: "授業料は、市立の学校なので、かからない。入学金もかからない。教科書は、学校が無償で配る。"}
+  - {id: fee-lunch, tags: [fee, life], text: "給食費は、月額 4,200 円。1 か月を 20 食分として定めており、1 食あたりは 210 円。"}
+  - {id: fee-material, tags: [fee], text: "教材費は、年額 12,000 円。ドリルやノート、理科の実験の材料に使う。"}
+  - {id: fee-bus, tags: [fee, life], text: "乗り合い便の児童用の定期券は、月額 1,800 円。通学に乗り合い便を使う児童が、学校を通じて買う。"}
+  - {id: fee-trip, tags: [fee, life], text: "遠足・校外学習費は、年額 3,600 円。春の遠足と秋の校外学習の費用に使う。"}
+  - {id: fee-council, tags: [fee], text: "児童会費は月額 300 円、保護者会費は月額 500 円。"}
+  - {id: fee-uniform, tags: [fee], text: "制服の価格は、定められていない。体操服・上履き・帽子は、学校が指定した店で買い、価格は店ごとに違う。"}
+  - {id: fee-pay, tags: [fee], text: "給食費・教材費・児童会費・保護者会費は、口座振替でまとめて納める。引き落としは、毎月 25 日。"}
+  - {id: fee-material-pay, tags: [fee], text: "教材費は、4 月と 10 月に、半額ずつ引き落とす。遠足・校外学習費は、4 月にまとめて引き落とす。"}
+  - {id: fee-failed, tags: [fee], text: "残高が足りず、引き落としができなかったときは、翌月の 10 日に、もう一度引き落とす。それでも納められないときは、事務室に相談する。"}
+  - {id: fee-reduction, tags: [fee], text: "世帯の収入が市の基準以下のときは、給食費が全額免除になる。申請は、4 月 30 日までに、事務室へ行う。"}
+  - {id: fee-sibling, tags: [fee], text: "きょうだいが同時に 2 人以上通っているときは、2 人目以降の児童の給食費が半額になる。申請は不要で、自動で適用される。"}
+  - {id: fee-bus-support, tags: [fee], text: "学校から 1 km 以上離れた停留所から通う児童には、市が、定期券の費用を月額 600 円補助する。申請は、事務室で行う。"}
+  - {id: fee-refund-lunch, tags: [fee], text: "給食を、前日の午後 3 時までに連絡して欠食したときは、その 1 食分の費用を、翌月の給食費から差し引く。"}
+  - {id: fee-refund-leave, tags: [fee, rules], text: "年の途中で転出するときは、給食費は、転出する月の末日までの分を納める。納め過ぎた分は、転出後 30 日以内に、口座へ返す。教材費は、返さない。"}
+
+  - {id: life-gate, tags: [life], text: "校門は、午前 7 時 50 分に開く。児童は、午前 8 時 15 分までに登校する。それより早く着いても、校門の外で待つ。"}
+  - {id: life-morning, tags: [life], text: "朝の会は、午前 8 時 25 分に始まる。連絡帳は、朝の会で担任が確かめる。"}
+  - {id: life-lunch, tags: [life], text: "給食は、午後 0 時 20 分から、教室で、みんなそろって食べる。献立は、月の始まりに、連絡システムで知らせる。"}
+  - {id: life-allergy, tags: [life, safety], text: "食物アレルギーのある児童には、代わりの食事を用意する。申し出は、入学前の健康診断のときまでに、事務室へ行う。"}
+  - {id: life-dismiss, tags: [life], text: "下校は、1 年生から 3 年生が午後 2 時 40 分、4 年生から 6 年生が午後 3 時 30 分。"}
+  - {id: life-commute, tags: [life, safety], text: "登校は、地区ごとの乗り合い便の停留所に、午前 7 時 35 分に集まり、班でそろって便に乗る。班長は 6 年生が務め、1 つの班は 8 名ほど。"}
+  - {id: life-bus-walk, tags: [life, safety], text: "乗り合い便は、停留所「アルカ発着場前」で降りる。そこから校門までは、班でそろって歩く。"}
+  - {id: life-bus-home, tags: [life, safety], text: "下校の便には、先生が停留所まで付き添う。便に乗ったあとは、班長が、班の全員がそろっていることを確かめる。"}
+  - {id: life-items, tags: [life], text: "毎日の持ち物は、通学かばん、水筒、ハンカチ、ティッシュ、連絡帳、筆記用具。水筒には、水か麦茶だけを入れる。"}
+  - {id: life-clothes, tags: [life], text: "服装は、制服か、動きやすい私服。持ち物のすべてに、名前を書く。靴は運動靴を履き、校舎の中では上履きに替える。"}
+  - {id: life-trip-spring, tags: [life], text: "春の遠足は、5 月 21 日。全学年が、遺跡エリアの見学広場へ、乗り合い便で行き、約 2 時間、ガイドの説明を聞いて見て回る。"}
+  - {id: life-trip-autumn, tags: [life], text: "秋の校外学習は、10 月 15 日。1 年生から 3 年生は居住区エリアの公園へ、4 年生から 6 年生は岩山エリアの観察路へ行く。"}
+  - {id: life-sports, tags: [life], text: "運動会は、10 月 8 日に、運動場で行う。天候が悪いときは、体育館で、種目を減らして行う。"}
+  - {id: life-visit, tags: [life], text: "授業参観は 6 月 10 日。個人面談は、7 月 8 日から 7 月 12 日に行う。卒業式は、3 月 19 日。"}
+  - {id: life-vacation, tags: [life], text: "夏休みは 7 月 19 日から 8 月 31 日、冬休みは 12 月 23 日から 1 月 7 日、春休みは 3 月 21 日から 4 月 6 日。"}
+
+  - {id: safety-drills, tags: [safety], text: "避難訓練は、年に 3 回行う。5 月 14 日は火災、9 月 10 日は地震、1 月 21 日は空気を整える設備が止まったときの訓練。"}
+  - {id: safety-route, tags: [safety], text: "避難の場所は、運動場。先生の合図で、押さない・走らない・しゃべらない・戻らないの 4 つを守って移動する。"}
+  - {id: safety-target, tags: [safety], text: "全員が運動場に集まるまでの目標は、5 分。"}
+  - {id: air-rooms, tags: [safety], text: "空気を整える設備は、教室、廊下、体育館、保健室、事務室など、校舎のすべての部屋にある。"}
+  - {id: air-check, tags: [safety], text: "設備の点検は、毎月第 1 水曜日の放課後に、業者が行う。点検の間も、設備は止めない。"}
+  - {id: air-lamp, tags: [safety], text: "各教室の入口の表示灯が緑のときは正常。黄色のときは点検が必要で、赤のときは設備が止まっている。"}
+  - {id: air-stop, tags: [safety], text: "設備が止まったときは、非常用の予備の設備に自動で切り替わる。予備で動かせるのは約 40 分で、その間に、先生の指示で、全員が体育館へ集まる。"}
+  - {id: air-outside, tags: [safety], text: "校舎の外へ出るとき（運動場や遠足）は、先生の指示でマスクをつける。マスクの予備は、学校が用意している。"}
+  - {id: safety-fever-home, tags: [safety, life], text: "毎朝、ご家庭で検温する。37.5℃ 以上の熱があるときは、登校しない。"}
+  - {id: safety-nurse, tags: [safety], text: "保健室には、養護教諭がいる。けがや具合が悪いときは、まず先生に伝えて、保健室へ行く。"}
+  - {id: safety-injury, tags: [safety], text: "けがをしたときは、保健室で手当てを受ける。ひどいときは、保護者に連絡し、必要なら救急の車を呼ぶ。"}
+  - {id: safety-fever-school, tags: [safety], text: "学校で熱が出たときは、保護者に連絡する。迎えは、連絡から 60 分以内に来てもらう。"}
+  - {id: safety-contact, tags: [safety], text: "災害や緊急のときは、連絡システムで、登録した保護者の端末に知らせる。年度の始めに、連絡先を 2 件まで登録する。"}
+  - {id: safety-handover, tags: [safety], text: "大きな災害のときは、児童を、保護者か、登録した引き取りの人にだけ引き渡す。引き渡しの訓練は、6 月 24 日に行う。"}
+  - {id: safety-visitor, tags: [safety], text: "来校者は、事務室で受付を済ませ、入校証をつける。受付のない人は、校舎に入れない。校門は、朝の会が始まると閉める。"}
+  - {id: safety-bus-delay, tags: [safety], text: "乗り合い便が 20 分以上遅れたときは、班長か保護者が、連絡システムで学校に知らせる。学校は、必要に応じて、授業の始まりを遅らせる。"}
+
+kinds:
+  - id: gakusoku
+    doc_type: regulation
+    title: "{label} 学則"
+    tags: [rules]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [目的, 定義, 修業と学年, 登校と出欠, 児童への指導, 附則]
+    style: 規定の文体。「第N条」で条を立て、である調。連絡先の電話番号は書かない。枝番の条（第N条の2）は使わない。
+  - id: admission
+    doc_type: manual
+    title: "{label} 入学のご案内"
+    tags: [admit]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [このご案内について, 対象と定員, 入学までの流れ, 必要な書類, 入学後の日程]
+    style: ご案内の文体（です・ます）。表を使ってよい。
+  - id: tuition
+    doc_type: manual
+    title: "{label} 学費・給食費等のご案内"
+    tags: [fee]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [このご案内について, 費用の種類, 納め方, 減免と支援, 返金]
+    style: ご案内の文体（です・ます）。費用は表で示してよい。
+  - id: school-life
+    doc_type: manual
+    title: "{label} 学校生活のしおり"
+    tags: [life]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [このしおりについて, 一日の流れ, 持ち物と服装, 行事と年間の予定, ご家庭へのお願い]
+    style: しおりの文体（です・ます）。
+  - id: safety
+    doc_type: manual
+    title: "{label} 安全・防災のしおり"
+    tags: [safety]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [このしおりについて, 避難訓練, 空気を整える設備, けがや病気のとき, 災害や緊急のときの連絡]
+    style: しおりの文体（です・ます）。手順は番号を付けて 1 文ずつ。

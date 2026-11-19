@@ -11,7 +11,8 @@ from evals.synth.validate import validate_body
 
 BIBLES = Path(__file__).resolve().parents[1] / "evals" / "synth" / "bibles"
 LUNE = {"lune-fc410", "lune-fs250", "lune-fw1500", "lune-fd300"}  # リューネ工房の新製品（1 製品 5 冊。取扱説明書・設置・お手入れ・故障・保証）
-TARGETS = {"zahard", "minato-coffee", "tsubasa-dorm", "aoba-aw820"} | LUNE
+SCHOOLS = {"hoshizora-kg", "arca-elem", "arca-junior", "oasis-high"}  # アルカ市の学校（1 校 5 冊。園則/学則・入学案内・学費・学校生活・安全）。大学（tsubasa-dorm）は入寮規程が guides にあり、合成は 4 冊
+TARGETS = {"zahard", "minato-coffee", "tsubasa-dorm", "aoba-aw820"} | LUNE | SCHOOLS
 DOC_TYPES = {"setting", "store-guide", "regulation", "manual"}  # workers/api/migrations の document_types の語彙
 
 
@@ -25,18 +26,18 @@ def test_all_targets_load(bibles):
 
 
 def test_plan_reaches_the_target_count_including_existing(bibles):
-    # 共通の件数は 20。bible に `documents` がある対象（リューネ工房の 5 製品）は、その件数（5 冊）
+    # 共通の件数は 20。bible に `documents` がある対象（リューネ工房の 5 製品と学校 5 校）は、その件数
     briefs = build_plan(bibles, per_target=20)
     by_target = {t: sum(1 for b in briefs if b.target == t) for t in TARGETS}
     assert by_target == {
         "zahard": 17,
         "minato-coffee": 19,
-        "tsubasa-dorm": 19,
+        "tsubasa-dorm": 4,  # 入寮規程（guides）が既存の 1 冊
         "aoba-aw820": 4,  # 取扱説明書（guides）が既存の 1 冊
-        **{t: 5 for t in LUNE},
+        **{t: 5 for t in LUNE | SCHOOLS},
     }
     existing = sum(b.existing_documents for b in bibles.values())
-    assert len(briefs) + existing == 85
+    assert len(briefs) + existing == 90
 
 
 def test_lune_products_have_the_same_five_kinds(bibles):
@@ -44,6 +45,13 @@ def test_lune_products_have_the_same_five_kinds(bibles):
         assert [k.id for k in bibles[t].kinds] == ["manual", "installation", "maintenance", "troubleshooting", "warranty"], t
     # ポッドは、取扱説明書が guides にあるので、合成は 4 冊
     assert [k.id for k in bibles["aoba-aw820"].kinds] == ["installation", "maintenance", "troubleshooting", "warranty"]
+
+
+def test_school_bibles_have_the_same_five_kinds(bibles):
+    for t in SCHOOLS:
+        assert [k.id for k in bibles[t].kinds] == ["gakusoku", "admission", "tuition", "school-life", "safety"], t
+    # 大学は、入寮規程が guides にあるので、合成は 4 冊（学生生活の代わりに寮の規程が既存の 1 冊）
+    assert [k.id for k in bibles["tsubasa-dorm"].kinds] == ["gakusoku", "admission", "tuition", "safety"]
 
 
 def test_plan_is_deterministic_and_ids_and_keys_are_unique(bibles):
