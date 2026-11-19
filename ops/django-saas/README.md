@@ -44,4 +44,4 @@ Claude Code 向けの規約と、層ごとの責務の表は [CLAUDE.md](CLAUDE.
 
 ## 戻し方
 
-`rm -rf ops/django-saas .venv-django`、`scripts/test-postgres-down.sh`。製品のファイル（`requirements*.txt` など）は変えていない。
+`rm -rf ops/django-saas .venv-django`。一時 Postgres を起動・停止するスクリプト（`scripts/` にあった test-postgres-up.sh と test-postgres-down.sh）は 2026-11-08 の d693e86 で削除済みで、上の手順のうちそれを使う行は、いまはそのままでは動かない（試作の手順は未更新）。製品のファイル（`requirements*.txt` など）は変えていない。

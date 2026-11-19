@@ -23,8 +23,25 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parent.parent
 IGNORE_MARK = "check-docs: ignore"
-# 意図して残す歴史的な参照（書かれたとおりの文字列。例: "docs/old-plan.md"）
-IGNORE_TARGETS: set[str] = set()
+# 意図して残す歴史的な参照（書かれたとおりの文字列。例: "docs/old-plan.md"）。
+# 文書の側が「削除済み」「別のリポジトリ」「当時の記録」と書いているものだけを入れる。ただの書き漏れ・消し忘れは、ここへ入れず文書を直す。
+IGNORE_TARGETS: set[str] = {
+    # 2026-11-08 に廃止して削除した運用者向けの管理画面（ADR 0003）
+    "ops/access_admin/",
+    # 2026-11-08 に撤去した D1 のマイグレーション（Postgres は db/migrations/）
+    "workers/api/migrations/",
+    "workers/api/migrations/0001_schema.sql",
+    # 星庭ジョブ（別のリポジトリ）の台帳と確認スクリプト
+    "docs/image-gen-resources.md",
+    "scripts/inspect-image-gen.sh",
+    # 2026-11-08 の d693e86 などで削除した。文書は「当時の記録」として残している
+    "frontend/scripts/generate-images/",
+    "tests/test_history_postgres.py",
+    "scripts/eval_answers.py",
+    "scripts/eval_search_compare.py",
+    # evals/fixtures/exact/ へ移した旧置き場
+    "evals/corpora/exact/",
+}
 TOP_DIRS = (
     "app",
     "db",
