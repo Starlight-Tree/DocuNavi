@@ -1,5 +1,7 @@
 # golden set（グラフ全体の回答の評価）
 
+> **実 API の前に:** ローカルの実 API は、2026-11-15 から無料キーだけ（[dev-environment.md](../../.claude/rules/dev-environment.md)）。この評価（`runner.py`）は Vertex AI が要るため、実行するときは、質問文・回数・費用を示して事前に承認を得る。
+
 検索の評価（`evals/README.md`）とは別に、**検索 → 回答のグラフ全体**を、ターンごとの期待で採点する。2026-11-09 に、手動で確かめた 15 ターンを `chat_golden.yaml` にした。
 
 | ファイル | 役割 |

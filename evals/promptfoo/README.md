@@ -1,5 +1,7 @@
 # evals/promptfoo/（Promptfoo の試験導入）
 
+> **実 API の前に:** ローカルの実 API は、2026-11-15 から無料キーだけ（[dev-environment.md](../../.claude/rules/dev-environment.md)）。この評価は `evals/golden/` の runner を使い、Vertex AI が要るため、実行するときは、質問文・回数・費用を示して事前に承認を得る。
+
 2026-11-16 に始めた**試験**。複数ターンの会話を Promptfoo の YAML で書き、採点は既存の golden set の runner と評価器（`evals/golden/`）に任せる。
 `evals/golden/` は変えていない。アプリ・`frontend/`・本番イメージ・CI には入っていない（npm の依存はこのフォルダーの中だけ）。
 
