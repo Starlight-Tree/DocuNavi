@@ -39,7 +39,8 @@ if want py; then
   # py の 3 段は互いに独立なので、1 つ落ちても最後まで実行して、全部の結果を出す
   run "ruff format" . "$PY" -m ruff format --check .
   run "ruff check" . "$PY" -m ruff check .
-  run "pytest" . "$PY" -m pytest -q
+  # CI と同じ `-n auto`（pytest-xdist。直列だと約 2.7 倍かかる）。PG_TEST_URL が無いと、Postgres のテストは飛ばす
+  run "pytest" . "$PY" -m pytest -q -n auto
 fi
 if [ "$FAILED" = 0 ] && want frontend; then
   run "frontend typecheck" frontend npm run typecheck
