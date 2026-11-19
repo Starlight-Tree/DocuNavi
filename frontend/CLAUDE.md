@@ -39,7 +39,7 @@ Cloudflare の Worker `docunavi-web`（OpenNext）が配信する画面。本番
 ```bash
 cd frontend
 npm run typecheck
-npm test                                        # Vitest 690 件（2026-11-19）
+npm test                                        # Vitest 719 件（2026-11-20）
 NEXT_DIST_DIR=.next-verify npm run build        # コンテナの next dev の .next を壊さないよう、出力先を分ける
 ```
 
