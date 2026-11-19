@@ -19,6 +19,6 @@
 
 **フェーズ 4（管理画面。条件付き）:** フェーズ 3 の完了後に検討し、運用者が SQL で `user_roles` を更新する運用が続く場合にだけ着手する。候補は Django Admin と Next.js の管理画面（Django は 2026-11-08 に廃止済み）。Django を採るなら運用者専用の管理コンソールに限り（利用者向け機能は作らない）、試作用の `ops/django-saas` のロールは使い回さない。実装の前に、別途設計と承認を取る。
 
-**暫定の運用:** フェーズ 4 までは、運用者が SQL で `user_roles` を更新する。
+**暫定の運用:** フェーズ 4 までは、`user_roles` の変更は `python -m app.access_admin` だけで行う（SQL で直接 `DELETE` しない。理由は `app/access_admin.py` の docstring）。ロールの作成とグループの編集は SQL（`docs/configuration.md`）。
 
 **未確認:** 公開環境のサインアップの方針（誰でも Google で入れるか）／運営者が UUID とメールをどう対応づけるか／`lib/collections.ts` の固定の表示名が、一覧の元になっていないか／Data API の公開スキーマに `chatbot` が入っていないこと（`authenticator` の設定を読み切れていない）。
