@@ -131,29 +131,9 @@ Infisical CLI がプロジェクトを選ぶ `.infisical.yaml` も Git 管理外
 - **Dependabot（`.github/dependabot.yml`）:** 頻度は週次。公開から 7 日たったリリースだけを提案します（`cooldown`）。minor と patch はエコシステムごと（github-actions・docker・gomod）に 1 つの PR にまとめ、major は 1 件ずつ PR にします。マージは手動で、CI が通ったことを確かめてから人が行います（自動マージは入れない）。
   マージ後のブランチの削除は、リポジトリの設定「Automatically delete head branches」で行います（GitHub の設定。有効かは設定画面で確かめる）。
 
-## ログイン済みの画面を Playwright MCP で確認する
+## 本番のログインが要る画面を確認する
 
-`AUTH_MODE=required` の環境（本番の Cloud Run・Worker `docunavi-web`）は、Better Auth のセッションが要ります。Playwright が起動したブラウザーでは、Google がログインを拒否することがあります（Better Auth に移ってからは**未確認**）。
-そこで、ホストの Chrome で入ったセッションを、storage state のファイルとして Playwright MCP に渡します。
-
-セッションは Cookie（`better-auth.session_token`。https では先頭に `__Secure-` が付く）で、`HttpOnly` なので Console の JavaScript では読めません（有効期間の既定は 7 日）。アクセストークン（JWT、15 分）は画面のメモリにだけあり、ファイルには書き出せません。
-**下の手順は、書いた時点で実機では動かしていません（未確認）。**
-
-1. ホストの Chrome の**シークレットウィンドウ**で、`https://docunavi-web.wataru-apps.workers.dev` にログインする（質問の入力欄が出るまで）。
-2. DevTools の Application → Cookies で `__Secure-better-auth.session_token` の Value と Expires を控え、すぐウィンドウを閉じる。**アプリの「ログアウト」は押さない**（このセッションも失効する）。
-3. 次の形のファイルを、Git 管理外の `.playwright-mcp/auth-state.json` に書く（`<値>` は Value、`<Unix 秒>` は Expires。Value をそのまま入れてよいか〔URL エンコードの扱い〕は未確認）。
-
-   ```json
-   {"cookies":[{"name":"__Secure-better-auth.session_token","value":"<値>","domain":"docunavi-web.wataru-apps.workers.dev","path":"/","expires":<Unix 秒>,"httpOnly":true,"secure":true,"sameSite":"Lax"}],"origins":[]}
-   ```
-
-4. Playwright MCP は user スコープに登録してあります。ログイン状態つきにするときは、同名の `playwright` を local スコープ（`~/.claude/.claude.json`。Git 管理外）に登録して上書きし、`/mcp` で再接続します（local が優先される）:
-   `claude mcp add --scope local playwright -- npx -y @playwright/mcp@0.0.83 --headless --browser chromium --isolated --storage-state .playwright-mcp/auth-state.json`
-5. **確認が終わっても、後始末をしません**（2026-10-25、利用者の決定）。local の登録・`auth-state.json`・ログイン状態は残します。元に戻す・削除する・サインアウトするのは、利用者が自分の言葉で頼んだときだけです。セッションの期限が切れたときだけ、1 からやり直します。
-   （`.claude/rules/secrets.md` は、実ユーザーのセッションの保存済みの値を使い回さないと定めており、この 5 との関係は未整理です。）
-
-開発コンテナを作り直しても、`.playwright-mcp/`（リポジトリ）と local の登録（`~/.claude` のボリューム）は残ります。ただし、登録に `--storage-state` が残ったままファイルが無いと、Playwright MCP が起動しない可能性があります（未確認）。その場合は、`claude mcp get playwright` で引数を見て、利用者に伝えてから、登録を外す（`claude mcp remove playwright --scope local`）かファイルを置き直します。
-ファイルはログインの認証情報なので、表示・貼り付け・コミットをしません。ホストの Chrome の拡張につなぐ `--extension` は、MCP がコンテナの中にあるので使えません。
+本番の画面の操作・撮影は、テスト専用ユーザーで動く `scripts/prod_check.sh --browse`（ホストでユーザーが実行）を使います。手順は [prod-browse スキル](../.claude/skills/prod-browse/SKILL.md)。通しの実行は未確認です（2026-11-17 時点。同スキルの記述のとおり）。接続済みの Chrome を使う場合は、[dev-environment.md](../.claude/rules/dev-environment.md) の「ブラウザー操作」に従います。本番の画面の確認では、ユーザー本人の Cookie・トークンを取り出して渡す方法は取りません（方針は [secrets.md](../.claude/rules/secrets.md)）。
 
 ## LangSmith Studio（ローカル開発専用）
 

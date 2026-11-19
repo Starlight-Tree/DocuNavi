@@ -286,8 +286,8 @@ PDF は、開いてから描画が終わるまで数秒かかります（すぐ�
   Chromium 内蔵の PDF ビューアーが読む `chrome://` と `chrome-extension://` まで止まるためです（console は `ERR_BLOCKED_BY_CLIENT`）。
   そもそも `--allowed-origins` はセキュリティの境界ではない（MCP の説明にあります。リダイレクトには効きません）ので、外しています。
   画面や PDF の内容は、エージェントにとって信頼できない入力です。厳しくしたいときは、PDF を内蔵ビューアーで開かず、画像にして確かめる方法を検討します。
-- **`claude mcp add --scope local` で同じ名前（`playwright`）を登録したときは、user スコープより local が優先されます。** ログイン状態つきの確認が済んだら、
-  古い登録が残らないよう、`claude mcp remove playwright --scope local` で消してください（`docs/development.md` の手順は、確認のあとも残す決定のため、消すかは利用者が決めます）。
+- **`claude mcp add --scope local` で同じ名前（`playwright`）を登録したときは、user スコープより local が優先されます。** 以前の手順（Cookie を `--storage-state` のファイルにして渡す方法。2026-11-20 に `docs/development.md` から外した）で登録した local が残っていないかは、`claude mcp get playwright` で確かめます。
+  残っていれば、`.playwright-mcp/auth-state.json` の存在だけを `ls` で確かめます（中身は読まない。Cookie の値を持つログインの認証情報なので、表示・貼り付け・コミットをしません）。`--storage-state` が付いたままファイルが無いと、Playwright MCP が起動しない可能性があります（未確認）。消すかどうかは利用者が決めます（頼まれるまで、エージェントは消しません）。消すときは `claude mcp remove playwright --scope local`。
 - 再ビルドで確かめたのは、Chromium のキャッシュ（ボリューム）が残ること、MCP の登録が有効なことです。ライブラリーの導入は、以前は `postCreateCommand` の apt で、再ビルド直後にロックの競合で失敗したことがありました。
   今はライブラリーをイメージに入れたので、`postCreateCommand` に apt は残りません（ロックの競合も、試し直しの処理もありません）。移したあとの再ビルドで、Chromium の起動（`--version` と、ヘッドレスでの DOM の出力）と Playwright MCP での画面の操作を確かめました。
 

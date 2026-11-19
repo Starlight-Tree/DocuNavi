@@ -19,7 +19,7 @@
 
 | 文書 | 状態 | 内容 |
 |---|---|---|
-| [development.md](development.md) | 現状 | ローカルの起動、依存の更新方針、Playwright MCP・LangSmith Studio・Promptfoo（試験導入）の使い方 |
+| [development.md](development.md) | 現状 | ローカルの起動、依存の更新方針、LangSmith Studio・Promptfoo（試験導入）の使い方 |
 | [testing.md](testing.md) | 現状 | テストの種類と実行方法（pytest・Vitest・E2E・実 API）、CI、本番の `/chat` の自動テスト、確認できていないこと |
 | [deploy.md](deploy.md) | 現状＋記録 | Cloud Run・Cloudflare へのデプロイ手順と、本番運用の記録 |
 | [pg-backup.md](pg-backup.md) | 現状 | 本番 Postgres のバックアップ（週 1 回、R2 へ）と復元の確認 |
