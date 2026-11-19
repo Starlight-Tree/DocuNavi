@@ -1,6 +1,6 @@
 # アーキテクチャ
 
-質問は、入力ガード → LLM（必要なら資料の検索）→ 出力ガードの順に処理されます。API の仕様は [api.md](api.md)、環境変数は [configuration.md](configuration.md) にあります。
+質問は、入力ガード → 資料の検索 → LLM → 出力ガードの順に処理されます（既定の `direct`。`agent` では、検索は LLM が必要なときだけ呼びます）。API の仕様は [api.md](api.md)、環境変数は [configuration.md](configuration.md) にあります。
 
 ## 質問はどう処理されるか
 
@@ -10,7 +10,9 @@
 flowchart LR
     start([START]) --> guard_input
     guard_input -->|拒否| finish([END])
-    guard_input -->|通過| agent
+    guard_input -->|通過・direct| retrieve
+    guard_input -->|通過・agent| agent
+    retrieve --> agent
     agent -->|ツール呼び出しあり| tools
     tools -->|検索結果| agent
     agent -->|ツール呼び出しなし| guard_output
@@ -18,7 +20,11 @@ flowchart LR
 ```
 
 - `guard_input` が入力を拒否したときは、LLM もツールも呼ばずに END へ進みます。
-- `agent` は Gemini（キーが無ければモック）を呼びます。ツール呼び出しがあれば `tools`（資料の検索）へ進み、結果を持って `agent` に戻ります。
+- 検索の進め方は `CHAT_RETRIEVAL_MODE` で決まります（[configuration.md](configuration.md) の「検索の進め方（1 回の LLM 呼び出し）」）。
+  既定の `direct`（本番の Cloud Run は未設定で、この既定が効く。2026-11-20、gcloud の読み取り、A）では、質問ごとに `retrieve` ノードが先に検索し、回答を作る LLM は 1 回だけ呼びます（上の図の `retrieve`。`CHAT_SMALLTALK_SKIP=on` のときの挨拶・お礼だけの発言は、`retrieve` を飛ばして `agent` へ進みます）。
+  ただし、追質問で前の話題に頼るとき（会話の 2 回目以降で、挨拶・お礼でなく、質問が短い〔12 文字未満〕か「それ」「その」などの指示語を含むとき）だけは、`retrieve` の中で検索語を補う短い LLM 呼び出しが、別にもう 1 回入ります（`LLM_QUERY_REWRITE_TIMEOUT_SECONDS`〔既定 3 秒〕まで待ち、失敗・遅延のときは直前の質問を足した検索語にする。`app/agents/graph.py` の `search_query_for`、`app/agents/followup.py`）。
+  `agent` は従来の経路で、LLM が検索の要否を決め、必要なら `tools` を呼んで、LLM を 2 回呼びます。`retrieve` ノードは `direct` のときだけグラフに入ります。モック LLM（キーが無いとき）は、資料を検索しないので `agent` です。
+- `agent` は Gemini（キーが無ければモック）を呼びます。ツール呼び出しがあれば `tools`（資料の検索）へ進み、結果を持って `agent` に戻ります（`direct` では、`retrieve` の結果を受けた最初の呼び出しで回答し、結果で足りないときだけ `search_documents` を呼び直します）。
 - `guard_output` が最終回答を検査して終了します。
 - `POST /chat/stream` だけは、`agent` が LLM の応答をチャンクごとに受け（`stream_tokens` が真のとき）、逐次ガードを通した本文をカスタム
   ストリームへ流します。`/chat`（`ainvoke`）の経路は変わりません。ヘッジは「最初のチャンクが届いた試行」を採ります（`hedged_stream`）。
@@ -30,20 +36,23 @@ flowchart LR
 | `app/main.py` | FastAPI アプリ（CORS、例外ハンドラ） |
 | `app/api/routes.py` | `/health`、`/chat`、`/chat/stream`、入力検証、LLM・履歴の保存先のエラーの分類、切断時の取り消し |
 | `app/api/ui_stream.py` | `/chat/stream` の応答（AI SDK の UI message stream）の組み立て |
-| `app/history.py` | 会話履歴の保存先（`DB_BACKEND=pg` なら Postgres〔`app/pg.py`・`app/pg_saver.py`〕、空ならメモリ。旧経路の `d1` はテスト用に残してある）。接続の開閉 |
+| `app/api/`（そのほか） | `documents.py`（資料の一覧・本文・PDF・ヒーロー画像）、`collections.py`・`classifications.py`（資料グループ・対象・資料種別の一覧）、`threads.py`（会話の一覧・発言・削除）、`graph.py`（入寮規程の関係図。`app/relations/` が規則ベースで計算する実験）。いずれも読み取りが中心で、仕様は [api.md](api.md) |
+| `app/history.py` | 会話履歴の保存先（`DB_BACKEND=pg` なら Postgres〔`app/pg.py`・`app/pg_saver.py`〕、空ならメモリ。旧経路の `d1` の HTTP 呼び出し〔`app/d1.py` の `D1Pool`。データ用 Worker は撤去済み〕は退役済みで、テストの偽の Worker のために残してある。ただし `app/d1.py` の `D1Error`・`MAX_BATCH`・`SyncD1` と、`app/d1_saver.py` の `D1Saver` は、pg の経路が使うので消さない〔`PgSaver` は `D1Saver` を継承し、`app/pg.py`・API の一覧・取り込みと管理の CLI が `D1Error` などを import する〕）。接続の開閉 |
 | `app/agents/graph.py` | LangGraph のグラフ、`SYSTEM_PROMPT`、モック LLM |
 | `app/agents/guardrails.py` | 入出力ガードレール（[guardrails.md](guardrails.md)） |
 | `app/agents/resilience.py` | LLM 呼び出しのヘッジ付き再試行（完了を待つ `hedged_call` と、最初のチャンクを待つ `hedged_stream`） |
 | `app/agents/tools.py` | 資料の検索ツール（`search_documents`）。実体は `app/search/vector.py`（Postgres + pgvector の検索。失敗しても別の経路に戻らない） |
+| `app/auth.py`・`app/metrics.py`・`app/serve.py`・`app/startup_checks.py` | ログイン（Better Auth の JWT の検証）、チャット 1 回ごとの構造化ログ、本番の起動（`python -m app.serve`。hypercorn・h2c）、起動時の DB の検査 |
+| `app/pdf_originals.py`・`app/r2_store.py` | 資料の PDF 原本を探して返す（`PDF_STORE=local` は `storage/pdf/`、`r2` は Cloudflare R2。名前とハッシュが DB と合うものだけ） |
 | `app/access.py`・`app/scope.py` | ロール別の資料グループ制御（`ACCESS_MODE`。[configuration.md](configuration.md) の「資料グループのアクセス制御」）。`Scope` は検索できるグループの範囲で、検索は渡し忘れを許さない |
 | `app/search/` | 資料の検索。`pipeline.py`（入口。フラグでハイブリッド・リランカー・GraphRAG を重ねる）、`vector.py`（質問の埋め込みと pgvector のコサイン類似度検索、起動時の DB の検査。設計: [search-design.md](search-design.md)）、`keyword.py`（BM25）、`rerank.py`、`graph.py`、`types.py`（`Hit` と `VectorSearchError`） |
-| `app/ingestion/` | PDF の取り込み（`python -m app.ingestion`）と埋め込み（`python -m app.ingestion.embed`）。資料ごとの「続けて聞く」の質問は `python -m app.ingestion.suggest`（既定は確認だけ。`--apply` で実 API を 1 資料 1 回呼び、`documents.suggested_questions` に保存。PDF が変わった資料だけ作り直す。2026-11-17 に本番の全 80 資料を作成済み）。取り込みの後（`sync`・`queue_worker`）に `--if-enabled` つきで呼ぶ組み込みを実装済み（2026-11-17。**本番に配備済みで有効**〔2026-11-18 に gcloud の読み取りで確認（A）: 取り込み Job 2 本 `docunavi-ingest-sync`・`docunavi-ingest-queue` は `SUGGEST_ENABLED=true` で、配信中のリビジョン `docunavi-00091-juj` と同じ画像。設定後に Job は一度も実行されておらず、Job 経由の生成は未確認〕。環境変数 `SUGGEST_ENABLED=true` のときだけ動く）。失敗は `documents.suggestions_failure` に残し、資料の側の失敗は 1 時間・6 時間待って 3 回で諦め、API 全体の障害は実行を止める。1 回の上限は 10 資料・10 回・300 秒、24 時間で 30 資料。PDF が入れ替わって再生成を待つ質問は、検索の SQL が隠す（`SUGGESTED_QUESTIONS_SQL`）。列は `db/migrations/0005_suggestion_failures.sql`（本番への適用は 2026-11-17 の記録。DB が Prisma の上限で読めず、2026-11-18 の再確認は未了）。資料の版（`documents.revision`）は、資料群のディレクトリ（R2 なら `<資料群>/`）に並べた `revisions.csv`（`source,revision` の 2 列）から取り込みが入れる（`revisions.py`。一覧があれば一覧が正で、載っていない資料は版なしに戻す。一覧が無ければ版に触れない。形が悪い一覧は何も保存せず終了コード 2。版だけの変更は UPDATE 1 本）。列は `db/migrations/0006_document_revision.sql`（**未適用**。本番は Prisma の上限が解けてから別の承認で。API の資料一覧・資料の詳細と、取り込み（`sync`・`queue_worker`）の SQL が `revision` 列を読み書きするので、**API と取り込み Job の配備より先に適用する**）。`corpus.py` は評価の BM25 基準線用。ページは通し番号（`page`）と PDF のページラベル（`page_label`）を分けて持つ（下の「ページの番号とラベル」） |
+| `app/ingestion/` | PDF の取り込み（`python -m app.ingestion`）と埋め込み（`python -m app.ingestion.embed`）。資料ごとの「続けて聞く」の質問は `python -m app.ingestion.suggest`（既定は確認だけ。`--apply` で実 API を 1 資料 1 回呼び、`documents.suggested_questions` に保存。PDF が変わった資料だけ作り直す。2026-11-17 に本番の全 80 資料を作成済み）。取り込みの後（`sync`・`queue_worker`）に `--if-enabled` つきで呼ぶ組み込みを実装済み（2026-11-17。**本番に配備済みで有効**〔2026-11-18 に gcloud の読み取りで確認（A）: 取り込み Job 2 本 `docunavi-ingest-sync`・`docunavi-ingest-queue` は `SUGGEST_ENABLED=true` で、配信中のリビジョン `docunavi-00091-juj` と同じ画像。設定後に Job は一度も実行されておらず、Job 経由の生成は未確認。2026-11-20 に gcloud の読み取りで再確認（A）: Job 2 本は `SUGGEST_ENABLED=true` のまま、配信中のリビジョンも `docunavi-00091-juj` のまま、Job の最終実行は `docunavi-ingest-sync` が 2026-11-15 00:01 JST、`docunavi-ingest-queue` が 2026-11-16 00:27 JST のまま〕。環境変数 `SUGGEST_ENABLED=true` のときだけ動く）。失敗は `documents.suggestions_failure` に残し、資料の側の失敗は 1 時間・6 時間待って 3 回で諦め、API 全体の障害は実行を止める。1 回の上限は 10 資料・10 回・300 秒、24 時間で 30 資料。PDF が入れ替わって再生成を待つ質問は、検索の SQL が隠す（`SUGGESTED_QUESTIONS_SQL`）。列は `db/migrations/0005_suggestion_failures.sql`（本番への適用は 2026-11-17 の記録。DB が Prisma の上限で読めず、2026-11-18 の再確認は未了）。資料の版（`documents.revision`）は、資料群のディレクトリ（R2 なら `<資料群>/`）に並べた `revisions.csv`（`source,revision` の 2 列）から取り込みが入れる（`revisions.py`。一覧があれば一覧が正で、載っていない資料は版なしに戻す。一覧が無ければ版に触れない。形が悪い一覧は何も保存せず終了コード 2。版だけの変更は UPDATE 1 本）。列は `db/migrations/0006_document_revision.sql`（検証環境〔下の「検証環境（AlloyDB Express）」〕には 2026-11-19 に適用済み。**本番への適用の記録は無く、本番の DB は読んでいないので、未適用とみられる（未確認）**。適用は Prisma の上限が解けてから別の承認で。API の資料一覧・資料の詳細と、取り込み（`sync`・`queue_worker`）の SQL が `revision` 列を読み書きするので、**API と取り込み Job の配備より先に適用する**）。`corpus.py` は評価の BM25 基準線用。ページは通し番号（`page`）と PDF のページラベル（`page_label`）を分けて持つ（下の「ページの番号とラベル」） |
 | `db/` | `migrations/`（SQL を番号順に。`migrate.py` が適用する。`0002` は `chunks.page_label` `page_end_label`）、`seeds/`、`local-init/` |
 | `frontend/` | チャット画面（Next.js + React + TypeScript）。Cloudflare の Worker `docunavi-web`（OpenNext）が配信する（FastAPI は配信しない）。E2E もここ |
-| `storage/pdf/<名前>/` | PDF の資料（取り込みの元。検索は Postgres を読む。ディレクトリ名は整理用。いまは zahard・cafe・guides） |
+| `storage/pdf/<名前>/` | PDF の資料（取り込みの元。検索は Postgres を読む。ディレクトリ名は整理用。Git に入れているのは zahard・cafe・guides。`synthetic-test/` は Git 管理外〔`.gitignore`〕のローカル用の合成資料） |
 | `scripts/` | 評価の道具。`bm25_baseline.py` は、以前アプリが使った BM25（評価の基準線。アプリは使わない） |
 | `tests/` | pytest（モックモード固定） |
-| `ops/` | 運用・補助のサービス。`sse-relay/`（Go の SSE 中継）と `sse-fake-upstream/`（その負荷試験用の疑似の上流）、`mcp_search/`（MCP の検索。読み取り専用）と `mcp_probe/`（MCP のつなぎ方の検証用）、`budget_guard/`（予算が上限に届いたら課金を止める）と `budget_guard_disarm/`（その承認トークンの発行）、`r2_key_issuer/`（R2 のキーの発行・取り消し Job）と `r2_wire/`（R2 参照への切り替え Job）、`django-saas/`（Django の学習用の試作。製品には入っていない） |
+| `ops/` | 運用・補助のサービス。`sse-relay/`（Go の SSE 中継）と `sse-fake-upstream/`（その負荷試験用の疑似の上流）、`mcp_search/`（MCP の検索。読み取り専用）と `mcp_probe/`（MCP のつなぎ方の検証用）、`budget_guard/`（予算が上限に届いたら課金を止める）と `budget_guard_disarm/`（その承認トークンの発行）、`r2_key_issuer/`（R2 のキーの発行・取り消し Job）と `r2_wire/`（R2 参照への切り替え Job）、`pg_backup/`（本番 Postgres の `pg_dump` を R2 へ保存する Job。[pg-backup.md](pg-backup.md)）と `monitoring/`（ログベース指標のアラートの定義）、`artifact-registry/`（イメージのクリーンアップポリシー）、`django-saas/`（Django の学習用の試作。製品には入っていない） |
 | `docs/` `.claude/` | 文書（`docs/CLAUDE.md` に正本の表。決定の記録は `docs/decisions/`）と、Claude Code 用の規約（`CLAUDE.md` は領域ごと、`.claude/rules/` は領域別の規則、`.claude/skills/` は手順） |
 
 会話履歴は `thread_id` ごとに保持します。DB を設定しない（`DATABASE_URL` が空）ときはプロセス内メモリ（`MemorySaver`）で、再起動で消え、複数ワーカー間では
@@ -61,7 +70,7 @@ flowchart LR
 
 - 取り込み（`pdf_parser._page_labels`）がラベルを読み、`chunker` がチャンクに付けます。ラベルが無い・壊れた PDF は `NULL`（表示は通し番号）で、取り込みは止まりません。
 - 内容のハッシュにラベルは含めません。再取り込みすると、同じハッシュのチャンクも `UPDATE` でラベルが入ります（再埋め込みはしません）。
-- 列は `NULL` 可の追加です。**配備は、マイグレーション（`db/migrate.py --apply`）を先に、Cloud Run と取り込みを後に。** 逆だと検索の SQL が列を名指しして 503 になります。本番の DB には、2026-11-15 に 0002 を適用済みです（Cloud Run の配備と再取り込みは、まだ）。
+- 列は `NULL` 可の追加です。**配備は、マイグレーション（`db/migrate.py --apply`）を先に、Cloud Run と取り込みを後に。** 逆だと検索の SQL が列を名指しして 503 になります。本番の DB には、2026-11-15 に 0002 を適用済みです（記録は `9e81776`）。その後、Cloud Run には 2026-11-17 02:42 JST に作成したリビジョン（配信中は `docunavi-00091-juj`。コミット `7e5919d` のビルド。[deploy.md](deploy.md) の記録）があり、そのコードはラベルの実装（取り込みの `158e64b`、API の `af7c43d`）を含みます（どちらも `7e5919d` の祖先。`git merge-base --is-ancestor`、2026-11-20）。ラベル入りで再取り込みしたかは未確認です。
 - 関係図（`app/relations/`）は、ラベルが数字でないページ（表紙・目次）を読みません。
 
 ## どこで動くか
@@ -69,7 +78,9 @@ flowchart LR
 本番環境（Cloud Run + Cloudflare Workers〔画面・認証〕+ Cloudflare R2 + Prisma Postgres + Gemini）およびローカル開発環境の構成と通信経路です。
 **2026-11-08 から、本番のデータ（資料・チャンク・埋め込み・会話履歴・認証）は、Prisma Postgres（Free・東京。pgvector で検索）に置く。** FastAPI・MCP・取り込み／履歴削除の Job は `DATABASE_URL` で直接つなぐ。認証は、Worker `docunavi-api`（Better Auth）が Hyperdrive 経由で同じ Postgres を使う。
 バックアップは、R2 への週 1 回の `pg_dump` です（[pg-backup.md](pg-backup.md)）。
-本番の Cloud Run には `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認）、Vertex AI は使っていません。LiteLLM などの LLM ゲートウェイは通っていません
+本番の Cloud Run には `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認。2026-11-20 にも、配信中のリビジョン `docunavi-00091-juj` の環境変数に無いことを gcloud の読み取りで確認、A）、回答を作る LLM は API キーの経路です。
+一方、埋め込みは、同じリビジョンと取り込み Job 2 本の環境変数に `EMBEDDING_USE_VERTEXAI=true` があり（2026-11-20、gcloud の読み取り、A）、Vertex AI（ADC）を呼ぶ設定です。実際に Vertex AI で動いているか（Cloud Run のサービスアカウントの権限）は未確認です（[configuration.md](configuration.md) の「埋め込みを Vertex AI で呼ぶ」）。
+ローカルの実 API の確認は、無料の Gemini Developer キーだけで行います（2026-11-15 の決定。[.claude/rules/dev-environment.md](../.claude/rules/dev-environment.md)）。LiteLLM などの LLM ゲートウェイは通っていません
 （LiteLLM gateway is removed and no longer used.）。Gemini CLI is not part of the docunavi runtime。
 
 ```mermaid
@@ -84,7 +95,7 @@ flowchart TB
         sserelay["docunavi-sse-relay<br/>Go SSE 中継（:8080）"]
         api_prod["docunavi<br/>FastAPI + LangGraph（h2c）"]
         mcp["docunavi-mcp<br/>MCP 検索ツール"]
-        jobs["Cloud Run Jobs<br/>history-cleanup / ingest-sync / ingest-queue"]
+        jobs["Cloud Run Jobs<br/>history-cleanup / ingest-sync / ingest-queue / pg-backup"]
     end
 
     subgraph host["ローカル開発環境"]
@@ -111,7 +122,8 @@ flowchart TB
     end
 
     subgraph llm["LLM（モデル生成・埋め込み）"]
-        gemini["Gemini API<br/>主: gemini-3.1-flash-lite（コード既定）<br/>副: gemini-3.5-flash-lite<br/>埋め込み: gemini-embedding-2"]
+        gemini["Gemini API（キー）<br/>主: gemini-3.1-flash-lite（コード既定）<br/>副: gemini-3.5-flash-lite<br/>埋め込み: gemini-embedding-2（ローカル開発と docunavi-mcp）"]
+        vertex["Vertex AI（ADC）<br/>docunavi の質問の埋め込み: gemini-embedding-2<br/>（EMBEDDING_USE_VERTEXAI=true の設定。実動作は未確認）"]
     end
 
     %% 本番の通信経路
@@ -124,10 +136,12 @@ flowchart TB
     api_prod -->|DATABASE_URL| pg
     api_prod -->|JWKS 取得| authworker
     api_prod -->|原本取得| r2
-    api_prod -->|推論・埋め込み| gemini
+    api_prod -->|推論| gemini
+    api_prod -->|質問の埋め込み| vertex
 
     authworker --> pg
     mcp -->|検索クエリ| pg
+    mcp -->|質問の埋め込み| gemini
     jobs -->|定期バッチ| pg
     jobs -->|取り込み| r2
 
@@ -137,12 +151,12 @@ flowchart TB
     devc -.-> gemini
 ```
 
-- 本番環境では、Cloud Run 上で複数のサービス（FastAPI 本体、Go SSE 中継、MCP 検索、各種バッチ Job）と Cloudflare の Worker `docunavi-web` 上の Next.js 画面が稼働し、Cloudflare の認証用 Worker（Better Auth）、Prisma Postgres（資料・チャンク・履歴・認証）、Cloudflare R2（PDF 原本・バックアップ）、Gemini API（主: gemini-3.1-flash-lite〔コード既定〕、副: gemini-3.5-flash-lite、埋め込み: gemini-embedding-2）と連携しています（デプロイ実績と運用手順は [deploy.md](deploy.md)）。
+- 本番環境では、Cloud Run 上で複数のサービス（FastAPI 本体、Go SSE 中継、MCP 検索、各種バッチ Job）と Cloudflare の Worker `docunavi-web` 上の Next.js 画面が稼働し、Cloudflare の認証用 Worker（Better Auth）、Prisma Postgres（資料・チャンク・履歴・認証）、Cloudflare R2（PDF 原本・バックアップ）、Gemini API（回答の生成。キーの経路。主: gemini-3.1-flash-lite〔コード既定〕、副: gemini-3.5-flash-lite）、Vertex AI（docunavi の質問の埋め込み: gemini-embedding-2。`EMBEDDING_USE_VERTEXAI=true`、ADC。上の説明のとおり実動作は未確認）と連携しています（デプロイ実績と運用手順は [deploy.md](deploy.md)）。
 - ローカル開発でのアプリ実行は 3 通りです。ホストでの `docker compose up`（`docunavi-api`。DB につながず、モックモードで動く。ポートは公開せず、`docunavi-frontend`（next dev）の 3000 番経由で使う。
   8000 番は `docker-compose.api-port.yml` を重ねたときだけ）、開発コンテナの `.venv` での `uvicorn`（8000 番）、そしてローカルの Postgres と認証までそろえる標準構成（`scripts/dev-local.sh`。本番の DB には接続しない。
   [development.md](development.md) の「ローカルの標準構成」）です。開発コンテナには Docker が無いので、compose はホスト側で実行します。
   開発コンテナ自体も Compose ベースで（`.devcontainer/docker-compose.yml`）、2026-11-11 から、開いても `api` `frontend` は起動しません
-  （[.devcontainer/README.md](../.devcontainer/README.md) の「開発コンテナの構成（Compose）」）。
+  （[.devcontainer/README.md](../.devcontainer/README.md) の「開発コンテナの構成（Compose。2026-10-22）」）。
 - 検索（`chunks`）と会話履歴は、同じ Postgres（`DB_BACKEND=pg` と `DATABASE_URL`）です。本物の LLM では `DATABASE_URL` と `GEMINI_API_KEY` が必須で、
   無いとモックモード（キー未設定）か、起動の失敗になります（[search-design.md](search-design.md)）。
 - 秘密情報の置き場所は、実行時の環境変数だけです。値は文書にも画像にも書きません。
@@ -182,7 +196,7 @@ flowchart LR
 
 `AUTH_MODE=required` のときの流れです（仕様は [configuration.md](configuration.md) の「ログイン（認証）」）。ブラウザーが Better Auth でログインして
 アクセストークン（JWT）を受け取り、API にはそのトークンだけを送ります。バックエンドは、Better Auth が公開する鍵（`{AUTH_BASE_URL}/api/auth/jwks`）で署名を検証します。
-`/api/auth/*` は、画面の Worker `docunavi-web` が認証用 Worker へ中継するので、Cookie は画面と同じオリジンに置かれます。PDF も、画面の Worker の `/api/documents/{id}/file` が、その Cookie から取った JWT で Cloud Run の API を呼んで中継します（PDF を取る側（以前は iframe、2026-11-19 から PDF.js）は Authorization を送れないため。保存名を資料名にできる。[ADR 0013](decisions/0013-pdf-via-same-origin-relay.md)。実装済み・配備は未実施）。画面は PDF を PDF.js（`pdfjs-dist`）で描き、日本語の CMap などは同じオリジンの `/pdfjs/` から読む（[ADR 0014](decisions/0014-pdfjs-viewer.md)。未配備）。
+`/api/auth/*` は、画面の Worker `docunavi-web` が認証用 Worker へ中継するので、Cookie は画面と同じオリジンに置かれます。PDF も、画面の Worker の `/api/documents/{id}/file` が、その Cookie から取った JWT で Cloud Run の API を呼んで中継します（PDF を取る側（以前は iframe、2026-11-19 から PDF.js）は Authorization を送れないため。保存名を資料名にできる。[ADR 0013](decisions/0013-pdf-via-same-origin-relay.md)。実装済み。手動の `deploy.yml` の実行（2026-11-18 21:46 JST〔12:46 UTC〕、対象コミット `a3474e8`）は成功し、画面の Worker の配備のステップも成功した（`gh run view`、2026-11-20、A）。ただし、いま本番の Worker がその版かは未確認〔その後の巻き戻しと、ほかの経路での配備は、閲覧権限では確かめられない〕。本番での動作確認〔Cookie・保存名・`#page=N`〕は未了）。画面は PDF を PDF.js（`pdfjs-dist`）で描き、日本語の CMap などは同じオリジンの `/pdfjs/` から読む（[ADR 0014](decisions/0014-pdfjs-viewer.md)。実装は 2026-11-19 のコミットで、最後の `deploy.yml` の実行〔2026-11-18。`gh run list`、2026-11-20〕より後なので、本番にはまだ出ていないとみられる。別の経路での配備は未確認）。
 
 ```mermaid
 sequenceDiagram
@@ -211,7 +225,8 @@ sequenceDiagram
 画面（`frontend/`、Next.js）は Cloudflare の Worker `docunavi-web`（OpenNext）が配信します。FastAPI は画面を配信せず、API だけを持ちます（2026-10-24 に、Vite の画面の配信を外した）。
 ブラウザーは、Worker の画面から API を呼ぶ別オリジンの構成なので、API は `CORS_ORIGINS` に画面のオリジンを持ちます。
 Cloud Run の `/` は 404 です。ローカルの開発では、Next.js の開発サーバーが `next.config.ts` の rewrites で API を同じオリジンに見せます。構成の決定は [target-architecture.md](target-architecture.md) です。
-本番への画面（と、認証用の Worker `docunavi-api`）のデプロイは、`main` へのプッシュでは行われません。ユーザーが GitHub の Actions で手動の `.github/workflows/deploy.yml` を実行し、Environment の承認を経て出ます。
+本番への画面（と、認証用の Worker `docunavi-api`）のデプロイは、`main` へのプッシュでは行われません。ユーザーが GitHub の Actions で手動の `.github/workflows/deploy.yml`（`workflow_dispatch` だけ）を実行して出ます。
+Environment「production」の必須レビュアーは 2026-11-15 に外してあり（`cb0480b`。許可するブランチは `main` だけ。`deploy.yml` 冒頭のコメントで確認、2026-11-20）、**GitHub 側に技術的な承認の関門は無い**ので、起動の前に、対象のコミットと `frontend/` `workers/` の変更の有無を示して、利用者の明示の承認を得る運用です（[deploy.md](deploy.md)、ルートの CLAUDE.md の「Git」の「CI」）。
 
 ## ガードレールはどう働くか
 

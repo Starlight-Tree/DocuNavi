@@ -7,9 +7,9 @@
 | 環境変数 | 既定値 | 説明 |
 |---|---|---|
 | `GEMINI_API_KEY` | （空） | 空または `your_api_key_here` のときはモックモード（資料を検索せず、固定の返答）。本物の LLM では、質問の埋め込み（資料の検索）にも使う。Vertex AI で LLM を使う場合も、埋め込みのために要る |
-| `GOOGLE_GENAI_USE_VERTEXAI` | （空） | `true` で Vertex AI を使う。キー不要で ADC（Cloud Run ならサービスアカウント）で認証し、キーの有無にかかわらずモックにならない |
+| `GOOGLE_GENAI_USE_VERTEXAI` | （空） | `true` で、回答を作る LLM を Vertex AI で呼ぶ。キー不要で ADC（Cloud Run ならサービスアカウント）で認証し、キーの有無にかかわらずモックにならない。**ローカルの実 API の確認・測定では使わない**（無料の Gemini Developer キーだけ。2026-11-15 の決定。[dev-environment.md](../.claude/rules/dev-environment.md)・[development.md](development.md) の「LLM のモードと Gemini キー」）。**本番の Cloud Run には設定が無い**（配信中のリビジョンの環境変数、2026-11-20、gcloud の読み取り、A） |
 | `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` | （空） | Vertex AI 利用時のプロジェクトとロケーション。未設定なら SDK が ADC やメタデータサーバーから解決する |
-| `EMBEDDING_USE_VERTEXAI` | （空） | `true` で、埋め込み（取り込みと質問の両方。`gemini-embedding-2`・768 次元のまま）を Vertex AI で呼ぶ。ADC 認証でキーは使わず、有料キーへの切り替えも無い。`GOOGLE_GENAI_USE_VERTEXAI` とは独立。**既定は空 = API キー**（下の「埋め込みを Vertex AI で呼ぶ」） |
+| `EMBEDDING_USE_VERTEXAI` | （空） | `true` で、埋め込み（取り込みと質問の両方。`gemini-embedding-2`・768 次元のまま）を Vertex AI で呼ぶ。ADC 認証でキーは使わず、有料キーへの切り替えも無い。`GOOGLE_GENAI_USE_VERTEXAI` とは独立。**コードの既定は空 = API キー**。**本番の Cloud Run（配信中のリビジョン）と取り込み Job 2 本は `true`**（2026-11-20、gcloud の読み取り、A）。ローカルでは使わない（無料の Gemini Developer キーだけ。2026-11-15 の決定。[dev-environment.md](../.claude/rules/dev-environment.md)。例外は、2026-11-20 に利用者が明示して承認した埋め込みの 1 回だけの実行で、リポジトリに記録は無い。下の「埋め込みを Vertex AI で呼ぶ」） |
 | `EMBEDDING_VERTEX_LOCATION` | `global` | 上の Vertex AI のロケーション。`gemini-embedding-2` は global・us・eu で提供 |
 | `GEMINI_MODEL` | `gemini-3.1-flash-lite` | モデル名の上書き（Vertex AI はリージョンごとに提供モデルが違う） |
 | `GEMINI_FALLBACK_MODEL` | （空） | 主モデルの試行が一時的な失敗で尽きたときだけ、このモデルで 1 回試す（下の「主モデルが落ちたとき」）。空なら使わない。**本番では 2026-10-21 から `gemini-3.5-flash-lite` で有効** |
@@ -34,9 +34,13 @@
 | `WORKERS_AI_THINKING` | `default` | `off` で `chat_template_kwargs.enable_thinking=false` を送る（このモデルが受け付けるかは未確認）。それ以外は何も送らない |
 | `GEMINI_THINKING_LEVEL` | （空） | 主モデルの `thinking_level`（`minimal`・`low`・`medium`・`high`）。空ならモデルの既定（送らない）。追質問の検索語の補完（待つ上限が短い）には渡さない。対応するモデルと値は未確認。不正値は無視する |
 | `GEMINI_FALLBACK_THINKING_LEVEL` | （空） | フォールバックのモデルの `thinking_level`。主モデルとは別の変数 |
-| `DB_BACKEND` | `d1` | DB の置き場。`pg`（Postgres。`app/pg.py`、検索は pgvector。**本番は 2026-11-08 から `pg`**）か、`d1`（廃止した旧経路。コードの既定とテストの偽 Worker のために残してあり、本番の D1 は無い）。`pg` のときは `DATABASE_URL` を使う。スキーマは `db/migrations/` |
+| `DB_BACKEND` | `d1` | DB の置き場。`pg`（Postgres。`app/pg.py`、検索は pgvector。**本番は 2026-11-08 から `pg`**）か、`d1`（廃止した旧経路。コードの既定とテストの偽 Worker のために残してあり、本番の D1 は無い。`d1` のときだけ `D1_API_URL` `D1_API_TOKEN` を使う）。`pg` のときは `DATABASE_URL` を使う。**本番の配信中のリビジョンは `DB_BACKEND=pg` を環境変数で明示している**（2026-11-20、gcloud の読み取り、A）。スキーマは `db/migrations/` |
 | `DATABASE_URL` | （空） | `DB_BACKEND=pg` のときの Postgres の接続文字列（アプリはプール側、取り込みの CLI は直接のホスト）。**秘密情報**なので、コミットせず、ログにも出さない |
 | `DATABASE_POOL_MAX_SIZE` | `3` | `DB_BACKEND=pg` のとき、1 プロセスの接続プールの上限（1 以上の整数。空は既定。不正な値は起動を失敗させる）。Cloud Run は、最大インスタンス数 × この値 + 同じ DB を使う Job・サービスの接続が、DB の上限（Prisma Free のプール側は 10）に収まるようにする。取り込みなどの CLI は、この値に関係なく 1 接続 |
+| `PDF_STORE` | `local` | PDF 原本の置き場（`app/pdf_originals.py`）。`local` は `storage/pdf/`、`r2` は Cloudflare R2。`r2` で R2 を読めないときは、ローカルへは切り替えず 503 の固定文。**本番は `r2`**（配信中のリビジョンの環境変数、2026-11-20、gcloud の読み取り、A） |
+| `R2_ACCOUNT_ID` / `R2_BUCKET` / `R2_CREDENTIALS_FILE` | （空） | R2 を読むときに要る（`PDF_STORE=r2` の API、取り込み Job、`python -m app.r2_store`）。`R2_CREDENTIALS_FILE` は、Secret をボリュームで渡したキーの JSON のファイルで、呼ぶたびに読み直す（キーの入れ替えに追従）。`R2_CREDENTIALS_JSON`（または `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`）でも渡せる。**秘密情報**なので、値はログ・応答に出さず、コミットしない（`app/r2_store.py`） |
+| `SUGGEST_ENABLED` | （空 = 動かない） | `true` のときだけ、取り込みの後（`sync`・`queue_worker`）に `python -m app.ingestion.suggest --if-enabled` が、資料ごとの「続けて聞く」の質問を作る。**取り込み Job 2 本は `true`**（2026-11-20、gcloud の読み取り、A。Job 経由での生成の実行は未確認）。API のサービスには設定しない |
+| `SUGGEST_MODEL` | `gemini-3.1-flash-lite` | 質問の生成に使うモデル。経路は埋め込みと同じ（`EMBEDDING_USE_VERTEXAI=true` なら Vertex AI の ADC、そうでなければ `GEMINI_API_KEY`） |
 | `AUTH_MODE` | `off` | `required` で、`/chat`・`/chat/stream`・`/documents` にログイン（Better Auth が発行した JWT）を要求する。`off` は匿名のまま動く（**自分だけが使うローカル開発用**）。**他の人が届く環境では `required` にする**。知らない値は起動を失敗させる。下の「ログイン（認証）」 |
 | `AUTH_BASE_URL` | （空） | `AUTH_MODE=required` のとき必須。Better Auth の公開オリジン（画面の Worker `docunavi-web` の URL。`https://<ホスト>` の形で、パスは付けない。`http` はローカルだけ）。JWT の公開鍵（`{AUTH_BASE_URL}/api/auth/jwks`）の取得先と、発行元（`iss`）の確認に使う |
 | `AUTH_AUDIENCE` | `docunavi` | JWT の対象（`aud`）として受け付ける値 |
@@ -49,19 +53,21 @@
 | `SEARCH_GRAPH` | `on` | 上位のチャンクが「第N条」と参照する先のチャンクを、追加の文脈に加える（GraphRAG。`app/search/graph.py`）。2026-11-01 に既定を on にした（[decisions/0007](decisions/0007-graph-rag-default-on.md)）。値の書き方は `SEARCH_HYBRID` と同じ |
 | `SEARCH_CANDIDATES` | `20` | 1 次検索の候補の数（ベクトル・キーワードそれぞれ）。1〜100 の数。`top_k` より小さくはならない。範囲外・数でない値は 503 |
 | `SEARCH_GRAPH_MAX_EXTRA` | `1` | `SEARCH_GRAPH` で加えるチャンクの上限。0〜3 の数（0 で加えない）。範囲外・数でない値は 503 |
-| `SEARCH_CORPUS_TTL_SECONDS` | `60` | キーワード側・GraphRAG が読む資料の写し（範囲ごと）を持つ秒数。0〜3600 の数。範囲外・数でない値は 503。ロードマップの記録（2026-11-01）では、本番は 600。**本番の現在の設定は未確認（2026-11-18）** |
+| `SEARCH_CORPUS_TTL_SECONDS` | `60` | キーワード側・GraphRAG が読む資料の写し（範囲ごと）を持つ秒数。0〜3600 の数。範囲外・数でない値は 503。**本番は 600**（ロードマップの記録は 2026-11-01。配信中のリビジョンの環境変数でも 600、2026-11-20、gcloud の読み取り、A） |
 | `SEARCH_SCOPE` | （空） | `scripts/bm25_baseline.py`（評価の基準線）だけが読む。アプリは読まない |
 
 `SEARCH_HYBRID` `SEARCH_RERANK` `SEARCH_GRAPH` の 3 つが全部 `off` なら、`search_vector.search`（ベクトル検索だけ）をそのまま呼ぶ。上の 5 つ（`SEARCH_SCOPE` を除く）は `app/search/pipeline.py` が、検索のたびに読む。既定は、2026-11-18 に、そのファイルの `Flags.from_env` で確かめた。
 
 ## 資料の検索
 
-チャットの検索（`search_documents`）の入口は `app/search/pipeline.py` です。**DB の `chunks` へのベクトル検索（`app/search/vector.py`）に、ハイブリッド（BM25 + RRF）・リランカー（語の一致）・GraphRAG（「第N条」の参照先）を、環境変数 `SEARCH_*`（上の表）で重ねます。3 つとも既定は on です**（コードの既定。2026-11-18 に確認。本番の実際の設定は未確認）。3 つとも off にすると、ベクトル検索だけになります。決めた理由と、見直す条件は [search-design.md](search-design.md)、測定は [evals/README.md](../evals/README.md) にあります。MCP（`ops/mcp_search/`）は、ベクトル検索（`search_vector.search`）だけを呼びます。
+チャットの検索（`search_documents`）の入口は `app/search/pipeline.py` です。**DB の `chunks` へのベクトル検索（`app/search/vector.py`）に、ハイブリッド（BM25 + RRF）・リランカー（語の一致）・GraphRAG（「第N条」の参照先）を、環境変数 `SEARCH_*`（上の表）で重ねます。3 つとも既定は on です**（コードの既定。2026-11-18 に確認）。本番の配信中のリビジョンには `SEARCH_HYBRID` `SEARCH_RERANK` `SEARCH_GRAPH` の環境変数が無く（2026-11-20、gcloud の読み取り、A）、コードの既定が効くとみられます（そのイメージのコードの既定が現行と同じかは未確認）。3 つとも off にすると、ベクトル検索だけになります。決めた理由と、見直す条件は [search-design.md](search-design.md)、測定は [evals/README.md](../evals/README.md) にあります。MCP（`ops/mcp_search/`）は、ベクトル検索（`search_vector.search`）だけを呼びます。
 
 - **経路。** LLM が渡した検索クエリの埋め込みを 1 回作り（`gemini-embedding-2`、768 次元）、pgvector でコサイン類似度が高い順に取ります（ベクトル検索は常に走ります）。`SEARCH_HYBRID` が on なら、キーワード（BM25）の順位を RRF で合わせ、`SEARCH_RERANK` が on なら語の一致で並べ直し、`SEARCH_GRAPH` が on なら参照先のチャンクを `SEARCH_GRAPH_MAX_EXTRA`（1）件まで加えます。最終的に、上位 `TOP_K`（2）チャンクを返します。本文とメタデータも同じ Postgres から取ります。対象は `status = 'ready'` の文書の全チャンク（`collection` を指定したときは、そのグループだけ）で、PDF は読みません。
   返す形は `[番号] ファイル名\n見出し\n本文` です（番号は 1 から。回答の文末の引用 `[n]` が指す。[api.md](api.md) の「回答の文末の引用」）。
-- **必要なもの。** 本物の LLM では `DB_BACKEND=pg` と `DATABASE_URL`、`GEMINI_API_KEY`（質問の埋め込み用。`EMBEDDING_USE_VERTEXAI=true` のときだけ Vertex AI でキーは要らない）。Postgres に、取り込み・埋め込み済みであること。
-  本番は、R2 の PDF を取り込みジョブ（`docunavi-ingest-sync` が毎時、`docunavi-ingest-queue` が R2 の通知で）が `python -m app.ingestion --apply` と `python -m app.ingestion.embed --apply` で入れます。R2 の最上位のプレフィックスが `documents.collection`（資料のグループ）になります（`hero/` は画像の置き場）。
+- **必要なもの。** 本物の LLM では `DB_BACKEND=pg` と `DATABASE_URL`、`GEMINI_API_KEY`（回答の生成と質問の埋め込み用。`GOOGLE_GENAI_USE_VERTEXAI=true` なら回答、`EMBEDDING_USE_VERTEXAI=true` なら埋め込みが Vertex AI で、それぞれキーは要らない）。Postgres に、取り込み・埋め込み済みであること。
+  本番は、R2 の PDF を取り込み Job が入れます。`docunavi-ingest-sync`（`python -m app.ingestion.sync --apply`。取り込み〔`python -m app.ingestion`〕と埋め込み〔`python -m app.ingestion.embed`〕を続けて呼び、`SUGGEST_ENABLED=true` なら続けて聞く質問も作る）は、**週 1 回（日曜 00:00 JST）にする決定**です（2026-11-10〜11 に毎時から変更。[ADR 0012](decisions/0012-accept-prisma-free-limit-and-cut-operations.md)）。**実際の Scheduler の設定は、閲覧権限では読めず、未確認**です。
+  Job の最終実行が 2026-11-14 15:00 UTC＝日曜 00:00 JST のままで、毎時ではないとみられます（`gcloud run jobs list`、2026-11-20、A）。
+  `docunavi-ingest-queue`（`python -m app.ingestion.queue_worker --apply`。R2 の通知を Queue から拾う）を 5 分ごとに起こす Scheduler `docunavi-ingest-queue-every-5min` は、一時停止の記録です（ADR 0012。停止の現状は未確認）。ただし Job の最終実行は 2026-11-15 15:27 UTC（`gcloud run jobs list`、2026-11-20、A）で、記録された一時停止（2026-11-10〜11）より後です。手で起動した実行か、一時停止が効いていない（または記録の日付が違う）とみられます（いずれも未確認）。停止中なら、PDF を足しても、次の週 1 回の同期まで検索には出ません。R2 の最上位のプレフィックスが `documents.collection`（資料のグループ）になります（`hero/` は画像の置き場）。
 - **検索の範囲。** `/chat` と `/chat/stream` は、任意の `collection` を受け付けます。会話ごとに検索の範囲は固定され（最初の発言で決まる）、同じ会話に違う範囲を送ると 409 になります。省略した場合は DB の全資料が対象です。仕様は [api.md](api.md) の「検索対象（`collection`）」。
 - **モックモード。** `GEMINI_API_KEY` が未設定なら、資料の検索も回答もしない固定の返答を返します（画面と API の動作確認用）。
 - **起動の検査。** 本物の LLM のとき、`DATABASE_URL` が無い、`GEMINI_API_KEY` が無い、検索できる資料（`ready`）が無い、埋め込みが無い・古い（モデル・次元・入力のハッシュが違う）チャンクがある、のどれかなら、起動を失敗させます。
@@ -87,7 +93,7 @@
   クライアントに返す `thread_id` は接頭辞なしです。**`off` のときの履歴（接頭辞なしのキー）には、`required` から届きません。**
 - **会話の一覧と本人による削除**（`GET /threads`、`DELETE /threads/{thread_id}`。[api.md](api.md)）は、ログイン中のチャット画面の左サイドバーから使えます。運用者が `python -m app.history_admin --thread-id` で消すときは、保存されているキー（`<利用者 ID>:<thread_id>`）を渡します。
 - **セッションの確認は、5 分間 Cookie の写しで済ませる:** Worker の Better Auth は `session.cookieCache`（`maxAge` 5 分）を有効にして、`get-session` と `/token` のたびに DB を引かない（2026-11-11。DB 操作は 22 → 12）。
-  **サーバー側でセッションを失効させても、最大 5 分は有効に見える**（利用者自身のログアウトは Cookie も消すので、すぐ効く）。`refreshCache` は使わない。**配備は Worker のデプロイ（`deploy.yml`）が要る（2026-11-11 時点では未配備。いまの状態は未確認）。**
+  **サーバー側でセッションを失効させても、最大 5 分は有効に見える**（利用者自身のログアウトは Cookie も消すので、すぐ効く）。`refreshCache` は使わない。**配備は Worker のデプロイ（`deploy.yml`）が要る。** 2026-11-14 の実行（対象 `66e5ded`。この変更の `e74819f` を含む）で、認証用 Worker の配備のステップが成功している（`gh run view`、2026-11-20、A）ので、コードは配備済みとみられる。**未確認:** 5 分の写しが実際に効いていること（DB 操作の減り方）。
 - ログにトークンは出しません。出すのは失敗の種類（例外のクラス名）だけです。
 
 ブラウザー側は、`frontend` のビルド時に `NEXT_PUBLIC_AUTH_ENABLED` と `NEXT_PUBLIC_AUTH_BASE_URL` を渡すと有効になります（Worker `docunavi-web` のビルド時の環境変数。[frontend/README.md](../frontend/README.md)）。
@@ -97,7 +103,7 @@
 ## 資料グループのアクセス制御
 
 利用者ごとに、検索・回答・出典・本文・PDF・関係図・会話の表示が届く資料グループ（`documents.collection`）を決めます（ロードマップ ⑧。実装は `app/access.py` と `app/scope.py`）。
-**コードの既定は `ACCESS_MODE=off`（制限なし）です。本番は、2026-10-26 から `enforce` で動いています**（`shadow` で観察してから切り替えた）。本番の `user_roles` は 0 件（全員が `default` ロール）。
+**コードの既定は `ACCESS_MODE=off`（制限なし）です。本番は、2026-10-26 から `enforce` で動いています**（`shadow` で観察してから切り替えた。配信中のリビジョンの環境変数でも `enforce`、2026-11-20、gcloud の読み取り、A）。本番の `user_roles` は 0 件（全員が `default` ロール）。
 **本番で未確認:** 限定ロールの利用者での動作、`enforce` での `/chat` の検索経路（実 API の質問が要る）。
 
 **見えるグループの決め方**
@@ -124,7 +130,7 @@
 |---|---|
 | 検索（`search_vector.search`） | SQL で範囲に絞る。`scope` は必須の引数で、渡し忘れ・`None` は `TypeError`、`Scope.NONE` は何も返さない。全グループは `Scope.ALL` を明示したときだけ |
 | `GET /documents` | 見えるグループの資料だけ |
-| `GET /documents/{id}/chunks`・`/file`・`/graph`・`/impact` | 見えない資料は、存在しない資料と同じ 404（文も同じ） |
+| `GET /documents/{id}/chunks`・`/file`・`/graph`・`/impact`・`/hero` | 見えない資料は、存在しない資料と同じ 404（文も同じ） |
 | `GET /collections` | 見えるグループだけ |
 | `POST /chat`・`/chat/stream` | `collection` が見えない（存在しないグループも同じ）なら 403。続きの会話に保存された検索対象が見えなくなっていても 403。省略した検索対象（「すべて」）は、見えるグループすべて |
 | `GET /threads/{id}/messages` | 会話は表示する。見えないグループの検索結果に基づく回答は固定文に置き換える。保存された検索対象が見えなければ `collection` は null |
@@ -175,13 +181,13 @@ python -m app.access_admin member remove --user-id <ID> --apply
 python -m app.access_admin member list      # 人数だけ（メール・ID は出さない）
 ```
 
-**本番へ入れる順序（それぞれ別に承認を得る）:** ① マイグレーション `0003` の適用 → ② 自分のアカウントに `member add` → ③ Cloud Run に `MEMBERSHIP_MODE=shadow`（ログで、拒否される要求と人数を確認）→ ④ `MEMBERSHIP_MODE=enforce`。自分が締め出されないよう、②が先です。**未確認（本番）:** 上のすべて。ローカルの検証は、使い捨ての Postgres と偽の DB だけです。
+**本番へ入れる順序（それぞれ別に承認を得る）:** ① マイグレーション `0003` の適用 → ② 自分のアカウントに `member add` → ③ Cloud Run に `MEMBERSHIP_MODE=shadow`（ログで、拒否される要求と人数を確認）→ ④ `MEMBERSHIP_MODE=enforce`。自分が締め出されないよう、②が先です。**本番は `MEMBERSHIP_MODE=enforce`**（配信中のリビジョンの環境変数、2026-11-20、gcloud の読み取り、A）。**未確認（本番）:** 上の各段階（0003 の適用、`member add`、`shadow` の観察）をいつ行ったかの記録、`app_members` の中身。ローカルの検証は、使い捨ての Postgres と偽の DB だけです。
 
 **確かめた範囲:** `tests/test_membership.py`（全経路の拒否と LLM に届かないこと、ストリームの 403、識別コード、`MEMBERSHIP_MODE` と `ACCESS_MODE` の独立、`shadow` / `off`、控えの TTL・期限切れ後の再照会・失敗を控えないこと、有効な JWT でも取り消しが効くこと、起動時の検査、運用コマンドと表〔`PG_TEST_URL` があるとき〕）。フロントは `AuthApp.test.tsx`・`authFetch.test.ts`・`chat.test.ts`。
 
 ### 利用量の制限（未実装）
 
-利用資格は「だれが使えるか」で、「どれだけ使えるか」ではありません。利用者別・日次・全体の枠は、まだありません（既存の上限: Cloud Run の `--max-instances 2` と `--concurrency 20`〔文書の値。現在の実設定は未確認〕、中継の IP 別レート制限〔本番の経路に入っているかは未確認〕、予算の自動停止〔`docs/deploy.md` の G。ただし 2026-11-09 の読み取りでは `DRY_RUN=true` で、止める判断をログに出すだけ。現状は未確認〕、1 回の LLM 呼び出しの `LLM_MAX_ATTEMPTS`）。**コードで確かめた 1 リクエストの上限（2026-11-16）:** 質問は 2000 文字（`MAX_MESSAGE_LENGTH`）、リクエスト全体のタイムアウト 60 秒（`LLM_TIMEOUT_SECONDS`）、LLM の 1 試行は 30 秒（ヘッジなしは 15 秒）で最大 3 本（`LLM_MAX_ATTEMPTS`。ヘッジは 8 秒後）、検索は 1 質問に 2 回まで（`LLM_MAX_SEARCHES`）。**設定が見当たらないもの:** LangGraph の `recursion_limit`（コードでは未指定。インストール済みの 1.2.15 の既定は 10007〔環境変数 `LANGGRAPH_DEFAULT_RECURSION_LIMIT`〕で、実質、歯止めにならない。検索の回数は `LLM_MAX_SEARCHES` が別に抑える。なお、これはグラフのステップ数で、LLM の呼び出し回数や料金の上限ではない）、Gemini の最大出力トークン、会話履歴の切り詰め（長い会話では、毎回の入力が増える）。**公開デモにするとき、または限定運用の実測で必要になったときに追加する。** 共有の枠は、複数インスタンスで共有でき、競合しても上限を守れる仕組みが要る（Postgres の原子的な加算は候補。1 チャットに 1 本の書き込みが増える）。切り替えの前に、1 リクエスト全体の LLM・ツール呼び出しの上限、タイムアウト、既存の停止手段の稼働を確かめる。
+利用資格は「だれが使えるか」で、「どれだけ使えるか」ではありません。利用者別・日次・全体の枠は、まだありません（既存の上限: Cloud Run の最大インスタンス数 2 と同時実行数 20〔配信中のリビジョン `docunavi-00091-juj` で確認、2026-11-20、gcloud の読み取り、A〕、中継の IP 別レート制限〔本番の経路に入っているかは未確認〕、予算の自動停止〔`docs/deploy.md` の G。ただし 2026-11-09 の読み取りでは `DRY_RUN=true` で、止める判断をログに出すだけ。現状は未確認〕、1 回の LLM 呼び出しの `LLM_MAX_ATTEMPTS`）。**コードで確かめた 1 リクエストの上限（2026-11-16）:** 質問は 2000 文字（`MAX_MESSAGE_LENGTH`）、リクエスト全体のタイムアウト 60 秒（`LLM_TIMEOUT_SECONDS`）、LLM の 1 試行は 30 秒（ヘッジなしは 15 秒）で最大 3 本（`LLM_MAX_ATTEMPTS`。ヘッジは 8 秒後）、検索は 1 質問に 2 回まで（`LLM_MAX_SEARCHES`）。**設定が見当たらないもの:** LangGraph の `recursion_limit`（コードでは未指定。インストール済みの 1.2.15 の既定は 10007〔環境変数 `LANGGRAPH_DEFAULT_RECURSION_LIMIT`〕で、実質、歯止めにならない。検索の回数は `LLM_MAX_SEARCHES` が別に抑える。なお、これはグラフのステップ数で、LLM の呼び出し回数や料金の上限ではない）、Gemini の最大出力トークン、会話履歴の切り詰め（長い会話では、毎回の入力が増える）。**公開デモにするとき、または限定運用の実測で必要になったときに追加する。** 共有の枠は、複数インスタンスで共有でき、競合しても上限を守れる仕組みが要る（Postgres の原子的な加算は候補。1 チャットに 1 本の書き込みが増える）。切り替えの前に、1 リクエスト全体の LLM・ツール呼び出しの上限、タイムアウト、既存の停止手段の稼働を確かめる。
 
 ## 対象と資料種別（`target` / `doc_type`）
 
@@ -247,18 +253,18 @@ update chatbot.documents set target = 'minato-coffee' where id = 6;
   0 でないときは「`target` 対応の 1 つ前のリビジョン」へ戻すか、新しいリビジョンを直して出します。
 - 配備の順序: ① DB のマイグレーション → ② バックエンド（Cloud Run。`GET /documents` が `target` 列を読むので①が先）→ ③ バックフィル（承認ごとに 1 回）→ ④ 画面（`/targets` が 404 の間は、画面は対象の機能を出さない）。
 
-**確かめた範囲（2026-11-03、ローカルのみ）:** `tests/test_target_scope.py`（API の 409・422・403・復元・メタデータ・履歴の取得）、`tests/test_classification_postgres.py`（一時 Postgres 17 + pgvector。検索の本物の SQL・キャッシュ・enforce・チャットの端から端まで）。
+**確かめた範囲（2026-11-03、ローカルのみ）:** `tests/test_target_scope.py`（API の 409・422・403・復元・メタデータ・履歴の取得）、`tests/test_classification_postgres.py`（一時 Postgres 17 + pgvector。検索の本物の SQL・キャッシュ・enforce・チャットの端から端まで）。 <!-- check-docs: ignore -->
 **未確認:** 本番の DB・Cloud Run・画面での動作、本物の埋め込みでの対象つきの検索の質、旧版の画面が新しいバックエンドに送る `collection` だけの会話の実機の確認。
 
 ## 会話履歴の保存先
 
 DB の設定（`DB_BACKEND=pg` と `DATABASE_URL`）が無ければ、履歴はプロセス内メモリ（`MemorySaver`）に置きます。再起動で消え、インスタンス間で共有されません。設定すると、同じ `thread_id` の履歴を Postgres に保存し、再起動しても別のインスタンスでも続きから話せます
-（checkpointer は `app/d1_saver.py`、接続は `app/history.py`。表 `checkpoints` `checkpoint_writes` は `db/migrations/` が作る）。`/health` の `history` が `pg` なら保存しています（`memory` なら、設定が届いていません）。
+（checkpointer は `app/pg_saver.py` の `PgSaver`。これは `app/d1_saver.py` の `D1Saver`〔旧 D1 経路の実装〕を継承し、列の型だけ置き換えているので、`d1_saver.py` は消さない。接続は `app/history.py`。表 `checkpoints` `checkpoint_writes` は `db/migrations/` が作る）。`/health` の `history` が `pg` なら保存しています（`memory` なら、設定が届いていません）。
 
 - **起動時:** DB へ接続を開き、開けなければ**起動を失敗させます**（メモリに切り替えると、履歴が黙って失われるため）。
 - **実行中:** DB が使えないときの `/chat` は 503（固定メッセージ）で、LLM の失敗（502 など）とは区別します。`/health` は DB に触れません（DB の障害で、すべてのインスタンスが再起動されないようにするため）。
 - **データの扱い:** 発言と回答の本文が Postgres に残ります。**保存期間の方針は、最後の動きから 7 日**です（2026-11-09 に利用者が決定。以前は 90 日）。運用者は次のコマンドで消せます（既定は件数の表示だけで、`--apply` を付けたときだけ削除。アプリ自体は実行しない）。
-  定期実行は、Cloud Run Job `docunavi-history-cleanup`（Cloud Scheduler、週 1 回）です（[deploy.md](deploy.md) の D）。**2026-11-15 に `--apply` を戻しました。最初の削除は 2026-11-22 の定期実行で、初回の結果と DELETE 権限は未確認です。**
+  定期実行は、Cloud Run Job `docunavi-history-cleanup`（Cloud Scheduler、週 1 回）です（[deploy.md](deploy.md) の D）。**2026-11-15 に `--apply` を戻しました。同日 03:00 JST の定期実行は `--apply` つきで動き、対象 0 件（「削除した会話: 0 件」）で終了しています（[deploy.md](deploy.md) の D の 2026-11-20 の訂正、gcloud のログの読み取り、A）。削除が起きうる最初は 2026-11-22 の定期実行で、DELETE 権限と、対象があったときの結果は未確認です。**
 
   ```bash
   python -m app.history_admin --older-than-days 7             # 7 日以上動きのない会話の数を表示（削除しない）
@@ -275,7 +281,8 @@ DB の設定（`DB_BACKEND=pg` と `DATABASE_URL`）が無ければ、履歴は�
 - 質問ごとに、グラフの `retrieve` ノードが**先に検索**し（検索語は質問そのまま）、LLM は 1 回だけ呼びます。
 - 履歴には、従来と同じ形（`search_documents` の呼び出し＋結果＋回答）で残ります（アクセス制御の伏せが、結果の出典を見るため）。呼び出しの `id` はアプリが付けた作り物で、Gemini の thought signature は付きません。ライブラリが、署名の無い呼び出しに公式の回避値（`skip_thought_signature_validator`）を入れます（変換までをオフラインで確認。**実 API では未確認**）。
 - **追質問だけ**、前の話題に頼るとき（短い質問〔12 文字未満〕や指示語「それ・その・もっと…」）に、LLM の短い 1 回で検索語を補います（`LLM_QUERY_REWRITE_TIMEOUT_SECONDS` まで。失敗・遅延のときは、直前の質問を足した検索語）。材料は、いま見えないグループの部分を伏せた履歴だけです。
-  挨拶・お礼だけの発言は、会話の途中でも補完しません。この間、画面の状態は `analyzing` になります。
+  補完の LLM を呼んでいる間、画面の状態は `analyzing` になります（その後に `searching` → `generating`）。挨拶・お礼だけの発言は、会話の途中でも補完しません。
+  既定では、補完せずに質問そのままを検索し、通常どおり `searching` → `generating` と進みます（`analyzing` は出ません）。`CHAT_SMALLTALK_SKIP=on` のときは検索も飛ばし、`analyzing` のまま答えます。
 - 結果で答えられないときは、LLM が `search_documents` を呼び直せます（ツールは付けたまま。プロンプトは `DIRECT_SYSTEM_PROMPT`）。
 - 主モデルが 503 を返すとき、重なって遅くなる再試行を避けるため、503 のあと主モデルを投げ直さずフォールバックをすぐ投げ（`LLM_EARLY_FALLBACK`）、最初のチャンクまでの総時間に上限があり（`LLM_FIRST_CHUNK_DEADLINE_SECONDS`）、LLM の呼び出しは通常 1 回です（2026-11-05 に、ローカルで確認）。
 - **未確認（実 API の計測が要る）:** 最初の文字まで・完了までの短縮の大きさ、回答の品質（検索語が質問そのままになった影響）、`thinking_level` の効果と対応モデル、早期フォールバックでフォールバックに回る頻度（料金に響く）、補完の品質。
@@ -312,7 +319,7 @@ DB の設定（`DB_BACKEND=pg` と `DATABASE_URL`）が無ければ、履歴は�
 | `status` / `error_type` | `ok`、失敗した HTTP ステータス、`gone`（切断）、`cancelled` / 失敗の例外のクラス名だけ（無ければ `null`） |
 | `guardrail_blocked` / `timeout` | 入力ガードの拒否または出力ガードの置き換え / `status` が `504` または `TimeoutError` |
 | `smalltalk` / `multi_turn` / `lang` | 挨拶・お礼だけの質問か / 2 ターン目以降か / 主な言語の目安（`ja` `en` `other`） |
-| `ttft_ms` / `total_ms` | 最初の本文を送るまで（`/chat` は `null`。出力ガードが末尾 31 文字を保持するので、短い回答では総時間に近い）/ 受け付けてから終わるまで |
+| `ttft_ms` / `total_ms` | 最初の本文を送るまで（`/chat` は `null`。出力ガードが末尾 32 文字を保持するので、短い回答では総時間に近い）/ 受け付けてから終わるまで |
 | `llm_ms` / `tool_ms` / `retrieval_ms` | LLM 呼び出し・ツール全体・`search_documents` の所要時間の合計（並行した試行は重ねて数えるので、`total_ms` を超えることがある） |
 | `llm_calls` / `tool_calls` / `search_calls` / `retries` | 回数（補完・ヘッジ・フォールバックの試行も 1 回ずつ）/ 失敗に終わった LLM の試行の数（取り消したヘッジは除く） |
 | `input_tokens` / `output_tokens` / `total_tokens` | LLM が返した使用量の合計（取り消した試行の分は取れない。返さなければ 0） |
@@ -408,11 +415,14 @@ Gemini のレート制限はプロジェクト単位なので、同じプロジ�
 
 `EMBEDDING_USE_VERTEXAI=true` で、取り込み（`python -m app.ingestion.embed`）と質問の埋め込みの両方が Vertex AI になります（`app/ingestion/embedding.py` の `make_client`）。モデル（`gemini-embedding-2`）・次元（768）・入力の形は変えません。既定（空）では従来と同じです。
 
-Vertex の `gemini-embedding-2` は 1 回に 1 本しか送れないので、取り込みのコマンドは、Vertex のとき既定で 8 本ずつ同時に送ります（`--concurrency N` で変更。1 なら順番に送る。2026-11-18 から。`app/ingestion/embedding.py` の `VERTEX_CONCURRENCY`）。呼び出し回数の上限（`--max-calls`）は、同時に送っても超えません。同時に送った組のうち 1 本でも失敗したら、成功した分を保存して止め、次の実行は続きから始まります。ローカル DB の 2,233 チャンク（Vertex、8 本ずつ）は 2 分 15 秒でした（実測。レート制限は出ませんでした）。
+**使う場所（2026-11-20 の整理）:** ローカルの実 API の確認・測定は、無料の Gemini Developer キーだけで行います（2026-11-15 の決定。[dev-environment.md](../.claude/rules/dev-environment.md)、[development.md](development.md) の「LLM のモードと Gemini キー」）。Vertex AI（ADC）を使うのは、ローカル以外の構成（本番の Cloud Run と取り込み Job、検証環境。[architecture.md](architecture.md) の「検証環境（AlloyDB Express）」）です。ローカルの例外は、2026-11-20 に利用者が明示して承認した埋め込みの 1 回だけの実行で、この例外はリポジトリに記録が無く、一般化しません（権威ある規則は `dev-environment.md`）。以下の実測は日付つきの記録で、この決定の前後のものを含みます（2026-11-16 と 2026-11-18 のローカルでの Vertex の実行は、この決定より後です。承認の有無は、この文書では確かめていません）。
+
+Vertex の `gemini-embedding-2` は 1 回に 1 本しか送れないので、取り込みのコマンドは、Vertex のとき既定で 8 本ずつ同時に送ります（`--concurrency N` で変更。1 なら順番に送る。2026-11-18 から。`app/ingestion/embedding.py` の `VERTEX_CONCURRENCY`）。呼び出し回数の上限（`--max-calls`）は、同時に送っても超えません。同時に送った組のうち 1 本でも失敗したら、成功した分を保存して止め、次の実行は続きから始まります。ローカル DB の 2,233 チャンク（Vertex、8 本ずつ）は 2 分 15 秒でした（2026-11-18 の実行。コミット `9330de1` の記録、証拠等級 A。レート制限は出ませんでした）。
 
 - **実装・テスト済み（偽の SDK）:** 経路の切り替え、キー不要、ロケーション、有料キーへ切り替えないこと。
 - **実測（2026-11-09、証拠等級 A、開発コンテナから各 1 回。`docunavi-app`・`global`・利用者本人の ADC）:** 取り込みの形（1 本ずつ 3 本）は返却 3 本・768 次元で合計 1.85 秒。質問 1 本は 0.35〜0.39 秒（上限 `EMBED_TIMEOUT_SECONDS` = 10 秒に収まる）。API キー経路とのコサイン類似度は 3 文とも 1.0000 で、保存済みのベクトルは作り直さずに使えます。
-- **未確認:** Cloud Run からの遅延、Cloud Run のサービスアカウントへの `roles/aiplatform.user`、複数の `Content` を 1 回で渡したときの返り方（返らないと、取り込みは `EmbeddingError` で止まる。壊れた値は保存しない）。
+- **本番の設定（2026-11-20、gcloud の読み取り、A）:** Cloud Run `docunavi` の配信中のリビジョン `docunavi-00091-juj`（2026-11-17 02:42 JST 作成）と、取り込み Job `docunavi-ingest-sync`・`docunavi-ingest-queue` の環境変数に `EMBEDDING_USE_VERTEXAI=true` がある（Job は `GOOGLE_CLOUD_PROJECT` も持つ）。設定した時期と、実際の呼び出しが Vertex AI で通っていることは確かめていない（Cloud Run の質問の埋め込みが成功しているかは、ログを見ていない）。
+- **未確認:** Cloud Run からの遅延、Cloud Run のサービスアカウント `docunavi-run` への `roles/aiplatform.user`（IAM の方針は、閲覧用の権限では読めなかった）、複数の `Content` を 1 回で渡したときの返り方（返らないと、取り込みは `EmbeddingError` で止まる。壊れた値は保存しない）。
 - **確かめ方:** `python -m scripts.check_vertex_embedding --project <プロジェクト>`（Vertex AI だけ。実 API を 3 回呼ぶ。運用者が実行）。`--compare-api` を付けると、API キー経路とのベクトルの互換性も測ります（`GEMINI_API_KEY` が要る）。
 - **互換性の実測（2026-11-16、証拠等級 A、開発コンテナから 1 回。`docunavi-app`・`global`・利用者本人の ADC。無料キー）:** 同じ入力 3 本のコサイン類似度は、API キー経路と Vertex で 1.0000・1.0000・1.0000 でした（小数第 4 位まで。3 本だけで、長い文や多数の入力は未確認）。資料のベクトルと質問のベクトルで経路が違っても、混ぜてよい範囲と見ています。
 - **戻し方:** `EMBEDDING_USE_VERTEXAI` を外します（Cloud Run なら環境変数の更新）。ベクトルを作り直していなければ、データの戻しは要りません。

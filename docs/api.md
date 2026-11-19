@@ -82,8 +82,8 @@
 - 応答の `target` / `collection` は、会話に固定されたもののまま（選択は反映されない）。
 
 `collection` はこの会話の検索対象（`null` は「すべて」）、`hit_count` は今回のターンの検索で（類似度のしきい値を超えて）拾ったチャンクの数です。
-検索しなかったターン（モックモード・入力ガードの拒否・検索が要らない質問）は `null` で、検索して 0 件だった `0` とは別です。画面は「該当する資料がありません」を、
-`collection` の指定があって `hit_count` が `0` のときだけ出します（検索の失敗は `hit_count` ではなく、下のエラーで伝わります）。
+検索しなかったターン（モックモード・入力ガードの拒否・検索が要らない質問）は `null` で、検索して 0 件だった `0` とは別です。画面は「「<対象の表示名>」の中には、該当する資料がありませんでした。」を、
+対象（`target`）か旧 `collection` の指定があって `hit_count` が `0` のときだけ、最新の回答に出します（`frontend/src/components/MessageList.tsx`。検索の失敗は `hit_count` ではなく、下のエラーで伝わります）。
 
 `context` は今回のターンで検索された設定資料（検索しなかった・該当なしの場合は空）です。`mode` が `mock` のとき（`GEMINI_API_KEY` 未設定）は、
 資料を検索せず、`reply` は固定の返答で、`context` は空です。
@@ -115,7 +115,7 @@
 {"message": "ザーハードの大気について教えて", "thread_id": "optional-conversation-id"}
 ```
 
-入力の条件（`message`・`thread_id`・`collection`）と、422・409・403 を含む入力検証は `/chat` と同じです。409 と 403 は、レスポンスを始める前に HTTP で返します。
+入力の条件（`message`・`thread_id`・`collection`・`target`・`document_ids`）と、422・409・403 を含む入力検証は `/chat` と同じです（同じ `ChatRequest`）。409 と 403 は、レスポンスを始める前に HTTP で返します。
 
 レスポンスは `text/event-stream` で、[AI SDK の UI message stream](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol)
 （ヘッダー `x-vercel-ai-ui-message-stream: v1`）です。1 チャンクは `data: <JSON>` の行と空行で、最後に `data: [DONE]` が来ます。
@@ -123,7 +123,6 @@
 
 ```text
 data: {"type":"start","messageId":"…","messageMetadata":{"thread_id":"…","mode":"gemini"}}
-data: {"type":"data-status","data":{"phase":"analyzing"},"transient":true}
 data: {"type":"data-status","data":{"phase":"searching"},"transient":true}
 data: {"type":"data-status","data":{"phase":"generating"},"transient":true}
 data: {"type":"text-start","id":"text-0"}
@@ -135,8 +134,10 @@ data: [DONE]
 ```
 
 - **`start` の `messageMetadata`**: `thread_id`（新規なら採番された値）と `mode`。
-- **`data-status`（`transient: true`）**: 本文より前に届く、いま何をしているかの合図。`phase` は `analyzing`（質問を読み、検索が要るかを LLM が決めている）、
-  `searching`（資料の検索）、`generating`（検索の結果を受けて、回答を作っている）。検索しない質問は `analyzing` だけ。入力ガードが拒否した質問には出ない。
+- **`data-status`（`transient: true`）**: 本文より前に届く、いま何をしているかの合図。`phase` は `analyzing`、`searching`（資料の検索）、`generating`（検索の結果を受けて、回答を作っている）。
+  既定の `CHAT_RETRIEVAL_MODE=direct` では、通常の質問は `searching` → `generating`。`analyzing` が出るのは、追質問の検索語を LLM で補う間（その後に `searching` → `generating`）と、
+  検索を飛ばす挨拶・お礼だけの発言（`CHAT_SMALLTALK_SKIP=on` のとき。`analyzing` だけ）。`agent` に戻したときは、`analyzing`（検索が要るかを LLM が決めている）が最初に出る
+  （`app/agents/graph.py` の `emit_status`。上の例は `direct` の通常の質問）。入力ガードが拒否した質問には出ない。
   transient なので、履歴にも会話の発言にも入らない。画面は、待機中の吹き出しの文言に使う。知らない `phase` は無視してよい。
 - **本文は「最後のテキスト部分」です。** ツール呼び出しの前置きがあれば、テキスト部分が複数になります。入力ガードが拒否したとき・出力ガードが
   回答を定型文に置き換えたときは、最後に正しい本文が新しいテキスト部分として届きます（先に届いた部分は無視してよい）。
@@ -147,15 +148,16 @@ data: [DONE]
 - **`message-metadata` の `sources`**: `context` の出典の見出しと同じ順の `{name, page, page_end, page_label, page_end_label, weak, collection, target, document_id, title, suggested_questions}`。`document_id` は資料の ID（`documents.id`。不明なら `null`）で、画面が出典から資料を直接開くのに使う。`title` は資料の題名（`documents.title`。無い・空白だけなら `null`。2026-11-15 に追加）で、画面の出典の表示名に使う（`null` ならファイル名）。`name`（ファイル名）が資料のキーで、`title` は表示用。`suggested_questions` は、その資料に答えがある「続けて聞く」の質問（最大 3 件、各 60 字以内の文字列の配列。`documents.suggested_questions`。取り込み後に `python -m app.ingestion.suggest` が作る）で、無い資料ではキー自体が無い。`collection` はその資料のグループ（未設定なら `null`）。`page` は Postgres の `chunks.page`（PDF の 1 始まりのページ）、
   `page_end` はページをまたぐ表の最終ページ（またがなければ `null`）。値が不正なとき（1 未満・整数でない・`page_end` が `page` 以下）は `null`。
   `page` と `page_end` は PDF の通し番号（1 始まり。PDF を開くリンクと照合に使う）。`page_label` と `page_end_label` は、PDF のページラベル（表紙・`i`・`1`・`A-1` など。PDF が決める表示用の番号）で、画面の表示に使う。ラベルが無い PDF・まだ再取り込みしていない資料・空白だけ・33 文字以上は `null`（その場合の表示は `page`）。`page_end_label` は `page_end` があるときだけ（2026-11-15 に追加）。
-  各要素の `weak` は、同じ検索の 1 位との類似度の差が 0.05（`app/agents/tools.py` の `WEAK_GAP`）を超える 2 件目以降で `true`。画面は出典カードに出さない
-  （LLM が受け取った抜粋は変えず、折りたたみの一覧には残る）。類似度が無いときと 1 件目は `false`。
+  各要素の `weak` は、同じ検索の 1 位との類似度の差が 0.05（`app/agents/tools.py` の `WEAK_GAP`）を超える 2 件目以降と、GraphRAG で加えた参照先（`origin` が `graph`）で `true`。画面は「N 件のソース」の一覧に出さない
+  （LLM が受け取った抜粋は変えない。`frontend/src/lib/sources.ts` の `referenceCards` が除く。`weak` を出す折りたたみの一覧は、`frontend/src` に見つからない。2026-11-20 に確認）。それ以外で、類似度が無いとき（キーワードだけで拾った箇所など）と 1 件目は `false`。
   LLM に渡す文面（`context`）にはページを載せない（ツールの `artifact` で画面にだけ渡す）。検索しなかったターン・入力ガードが拒否したターンは空の配列。
   `/chat` の応答にはない。
-- **回答の文末の引用（2026-11-09 実装。本番は未配備）**: `context` の見出しは `[番号] ファイル名`（番号は 1 から。旧形式 `[ファイル名]` の保存済みの会話も読める）。LLM は、根拠にした文の末尾に `[1]` か
+- **回答の文末の引用（2026-11-09 実装。本番への配備は [roadmap.md](roadmap.md) の 4c が 2026-11-09 の配備を記録している。この文書では独立に確かめていない）**: `context` の見出しは `[番号] ファイル名`（番号は 1 から。旧形式 `[ファイル名]` の保存済みの会話も読める）。LLM は、根拠にした文の末尾に `[1]` か
   `[1「根拠の語句」]` を付ける（番号は `sources` の n 番目。語句は、その資料の本文からそのまま写したもの）。サーバーは本文を書き換えず、別の対応表も返さない（本文の記法がそのまま対応）。
-  画面は、存在する番号（参照資料に出る出典）だけを押せる番号にし、語句の付いた引用は、語句が出典の本文にそのまま（空白を除いて）含まれるときだけ残し、含まれなければ番号ごと消す（チャンク全体の強調に戻さない。本文の記述そのものは直せない）。
+  画面は、2026-11-16 から、本文中の `[n]` `[n「語句」]` を表示せず消す（コピーする文からも除く。`frontend/src/lib/citations.ts` の `stripCitations`）。出典は、回答の下の「N 件のソース」から開く（番号の有無にかかわらず出すが、`weak` は除き、資料名・ページ・抜粋のすべてが同じものは 1 つにまとめる。N はその件数。`frontend/src/lib/sources.ts` の `referenceItems`、2026-11-20 にコードで確認）。
+  以前の、語句が出典の本文に含まれない引用を番号ごと消す処理（`splitCitations`）は、本文の表示には使われていない（コードを検索して確認、2026-11-20）。本文の記述そのものは直せない。
   **検証できるのは、番号が実在することと、語句が本文にあることまで。その文を出典が支持するかは、自動では確かめない。** 検索を複数回したターンは、最後の検索結果の番号だけが有効（`context` と `sources` は最後の検索のもの）。
-- **出力ガードの保持:** 本文は、末尾の正規化後 31 文字ぶんを手元に残して送ります（システムプロンプトの連続一致が
+- **出力ガードの保持:** 本文は、末尾の正規化後 32 文字ぶん（連続一致の閾値 24 文字 + 余白 8 文字。`app/agents/guardrails.py` の `_STREAM_HOLD_MARGIN`）を手元に残して送ります（システムプロンプトの連続一致が
   24 文字に達する前に止めるため）。短い回答は、終わりにまとめて届きます。ガードが漏洩を検知したら、受信をやめて定型文を送ります。
   検知の前に届く本文は、漏洩とみなされる長さに達しません。
 - **無通信の間:** 10 秒ごとに SSE のコメント行（`: ping`）が届きます。クライアントは無視してください。
@@ -223,7 +225,7 @@ data: [DONE]
 | 経路 | `enforce` での挙動 |
 |---|---|
 | `GET /documents` | 見えるグループの資料だけ |
-| `GET /documents/{id}/chunks`・`/file`・`/graph`・`/impact` | 見えない資料は、存在しない資料と同じ 404（文も同じ） |
+| `GET /documents/{id}/chunks`・`/file`・`/graph`・`/impact`・`/hero` | 見えない資料は、存在しない資料と同じ 404（文も同じ） |
 | `GET /collections` | 見えるグループだけ |
 | `POST /chat`・`/chat/stream` | 見えない `collection` は 403。検索・回答・出典は見えるグループの範囲だけ |
 | `GET /threads/{id}/messages` | 会話は表示する。見えないグループの検索結果に基づく回答は、固定文（`この回答は、現在利用できない資料に基づいているため表示できません。`）に置き換える。保存された検索対象が見えなければ `collection` は null |
@@ -241,19 +243,21 @@ data: [DONE]
 ```json
 {"configured": true, "documents": [{"id": 1, "source": "tsubasa_dorm_rules.pdf",
   "title": "つばさ大学学生寮 入寮規程", "collection": "guides", "target": "school", "doc_type": "regulation", "revision": "改訂 2", "status": "ready", "failure_reason": null,
-  "pages": 3, "updated_at": "2026-10-18T09:00:00Z", "chunk_count": 3, "embedded_count": 3}]}
+  "pages": 3, "updated_at": "2026-10-18T09:00:00Z", "chunk_count": 3, "embedded_count": 3, "hero_image": false}]}
 ```
 
 - **`title`:** PDF のメタデータ `/Title`（取り込み時に保存）。無い・空白だけなら `null` で、画面はファイル名（`source`）で代えます。
   `source` はファイル名のままで、題名とは別に返します。
 - **`collection`:** 資料群の名前（`storage/pdf/<名前>/` のディレクトリ名。`cafe` / `guides` / `zahard` など）。未設定、または形（英数字・`_`・`-`、40 文字まで）が
   合わない値は `null`。取り込み（`python -m app.ingestion`）が、入力のディレクトリ名（`--collection` で上書き）を保存します。
-  日本語の表示名（設定資料・店舗案内・規程・取扱説明書）は画面が持ち、API は名前だけを返します。一覧の絞り込みも画面側で行います。
+  この一覧は名前だけを返します。グループの表示名・説明は `GET /collections`（下の節）が返し、一覧の絞り込みは画面側で行います。
 - **`target` / `doc_type`:** 資料の対象（`documents.target`）と資料種別（`documents.doc_type`）の識別名。未分類は `null`。表示名は `GET /targets` と `GET /doc-types`。
   閲覧権限は変えない（権限は `collection` が決める）。一覧の絞り込みは画面側で行う。
 - **`revision`:** 資料の版（「初版」「改訂 2」「2026年4月1日時点」など。`documents.revision`）。取り込みが、資料群のディレクトリに並べた `revisions.csv` から保存します
   （人が明示した値だけ。PDF の本文・メタデータや LLM からは推測しない）。無い資料は `null`。空白だけ・40 文字を超える値も `null` として返します。画面はパネルの題名の上に小さく出し、`null` なら何も出しません。
   運用は「改訂が出たら、旧版の PDF を置き換えて消す」ので、版は現行の版を示すラベルです（同じ題名の版違いは併存しません）。
+- **`hero_image` と `GET /documents/{id}/hero`:** 承認済みのヒーロー画像（資料ごとに 1 枚。`document_images`）があるかと、その画像（`image/png`・`image/jpeg`・`image/webp`、5 MiB まで）。
+  承認済みが無い・見えないグループの資料は、同じ 404（`この資料の画像はありません。`）。DB が未設定は 503。画面は、この画像を取得も表示もしない（2026-11-03 の再設計。基盤を続けるか止めるかは未決定で、[backlog.md](backlog.md) と [image-generation-design.md](image-generation-design.md)）。
 - **`GET /documents`:** 文書ごとの情報とチャンク数、埋め込み済みの数。`configured` が `false` のときは、`DATABASE_URL` が空で資料の DB を
   使っていません（モックモードなど）（エラーではなく 200。`documents` は空）。`configured: true` で `documents` が空なら、DB はあるが文書が 0 件です。
 - **`GET /documents/{id}/chunks`:** その文書のチャンクを `chunk_index` 順に、`page`・`page_end`・`page_label`・`page_end_label`（PDF のページラベル。無ければ `null`）・`kind`・`heading`・`content`（全文）・
@@ -289,8 +293,9 @@ data: [DONE]
   `label` は名前そのもの、`description` は空、`sort_order` は `null`（登録済みの後ろ）。
 - **`document_count` / `ready_count`:** 全ての文書の数と、検索の対象になる文書（`status = 'ready'`）の数。登録済みで資料が無いグループは 0 / 0。
 - **`configured`:** `false` のときは `DATABASE_URL` が空（エラーではなく 200、`collections` は空）。
-- **エラー:** 表が無い（マイグレーション 0006 の前）ときは、固定メッセージ「資料グループの情報がまだ用意されていません。」の 503。
-  そのほかの DB の失敗は、固定メッセージの 503（例外の内容・接続先は含まない）。表が空なのはエラーではない。
+- **エラー:** DB の失敗は、固定メッセージ「資料グループを取得できませんでした。…」の 503（例外の内容・接続先は含まない）。表が空なのはエラーではない。
+  表が無い（`document_collections` は `db/migrations/0001_schema.sql` が作る）ときも、Postgres では同じ 503 になる。「資料グループの情報がまだ用意されていません。」の 503 は、退役した D1 経路（`no such` の文言を見分ける）のときだけ
+  （`app/api/collections.py`。確認: コードの読み取り、2026-11-20）。
 - **認証:** `/documents` と同じ（`AUTH_MODE=required` では Bearer が要る）。`Cache-Control: no-store`。書き込みの API はない（POST などは 405）。
 
 ## `GET /targets`、`GET /doc-types`
@@ -304,7 +309,7 @@ data: [DONE]
 
 - **見える資料のある分類だけ**を返す（資料が 1 件も見えない対象・種別は、存在しないのと同じに出さない）。件数も、利用者が見える資料（`ACCESS_MODE=enforce` なら、見えるグループの資料）だけを数える。
 - `document_count` は見える資料の数（取り込み中も含む）、`ready_count` は検索の対象になる資料（`status = 'ready'`）の数。0 の対象は「準備中」と出せる。未分類の資料は、どの分類にも数えない。
-- `sort_order` の小さい順、同じなら名前順。`configured: false` は `DATABASE_URL` が空（エラーではなく 200）。表・列が無い（M1 の前）ときは固定メッセージの 503。見えるグループが 0 件なら 403。
+- `sort_order` の小さい順、同じなら名前順。`configured: false` は `DATABASE_URL` が空（エラーではなく 200）。DB の失敗は固定メッセージ「資料の分類を取得できませんでした。…」の 503（表・列が無いときも、Postgres では同じ 503。「資料の分類の情報がまだ用意されていません。」の 503 は退役した D1 経路だけ。`app/api/classifications.py`）。見えるグループが 0 件なら 403。
 - 認証・`Cache-Control: no-store`・書き込み不可は `/collections` と同じ。分類の設定は運用者の SQL（[configuration.md](configuration.md) の「対象と資料種別」）。
 
 ## `GET /documents/{id}/graph`、`GET /documents/{id}/impact`
