@@ -31,7 +31,7 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
           → Worker `docunavi-api`（認証。Better Auth）
 ```
 
-2026-10 に決めた「独自ドメインの `api.` を Cloudflare のプロキシにし、Worker を前段に置く」形は、2026-11-09 に廃止した（[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)）。上の図は、廃止後の、いま動いている入口の形。roadmap の段階 7 の「Vite のまま静的配信か」は、この決定に合わせて直した（2026-10-24）。
+2026-10 に決めた「独自ドメインの `api.` を Cloudflare のプロキシにし、Worker を前段に置く」形は、2026-11-09 に廃止した（[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)）。上の図は、廃止後の、いま動いている入口の形。
 
 ## 要素ごとの状態
 
@@ -39,15 +39,15 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 |---|---|---|---|
 | Cloud Run の FastAPI | 実装済み | 本番で稼働 | - |
 | Cloudflare R2（原本） | 実装済み | 本番で稼働 | - |
-| Next.js（Worker `docunavi-web`） | 実装済み（2026-11-08 から） | 本番で稼働。Cloud Run は 2026-10-25 に API のみのリビジョンを promote 済み | 確認の結果と未確認の点は roadmap の① |
+| Next.js（Worker `docunavi-web`） | 実装済み（2026-11-08 から） | 本番で稼働。Cloud Run は 2026-10-25 に API のみのリビジョンを promote した（FastAPI は画面を配信しない） | 状態は roadmap の①（完了、2026-10-25）。配信は [architecture.md](architecture.md) の「画面はどう配信されるか」 |
 | Cloudflare Worker + プロキシ（`api.` の前段） | **廃止**（2026-11-09、利用者の決定。[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)） | 廃止前の測定: SSE の通過は測定済み（A、プローブ。下記） | 独自ドメインを使わないので置かない。画面の Worker `docunavi-web` と、認証の Worker `docunavi-api` は別物で、残る |
-| Cloud Run の `--use-http2` + h2c 対応サーバー（hypercorn） | **本番に適用済み**（2026-10-25） | 切断の伝わりをプローブで測定（A）。本番（`docunavi-00016-ces`）で、ブラウザーの停止ボタンによる取り消しを確認済み（A。roadmap ②の追記） | 適用済み。旧リビジョン（HTTP/1.1）へ戻すと取り消しは効かなくなる |
-| Hono | 候補 | 不明 | Worker のルートが増えたとき。今のプローブは素の Worker |
-| Go の SSE 中継 | **本番に配備済み**（2026-10-25） | 開発コンテナ内の疑似 SSE 測定（A）を経て、Cloud Run（`docunavi-sse-relay`、h2c）へ配備。`/chat/stream` を中継 | 画面の `NEXT_PUBLIC_STREAM_BASE_URL` 経由で稼働中 |
+| Cloud Run の `--use-http2` + h2c 対応サーバー（hypercorn） | **本番に適用済み**（2026-10-25） | 切断の伝わりをプローブで測定（A）。本番（`docunavi-00016-ces`）で、ブラウザーの停止ボタンによる取り消しを確認済み（A。roadmap の②） | 適用済み。旧リビジョン（HTTP/1.1）へ戻すと取り消しは効かなくなる |
+| Hono | コードにある（本番は未確認） | 認証の Worker `docunavi-api` の `workers/api/src/index.ts` が使う（Hono 4.13.17。`workers/api/package.json`。2026-11-20 にコードで確認） | 本番に出ている版が Hono かは未確認（確認できたら「実装済み」） |
+| Go の SSE 中継 | **本番に配備済み**（2026-10-25） | 開発コンテナ内の疑似 SSE 測定（A）を経て、Cloud Run（`docunavi-sse-relay`、h2c）へ配備。`/chat/stream` を中継（[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)） | 画面の `NEXT_PUBLIC_STREAM_BASE_URL` 経由で稼働中 |
 | gRPC のサーバーストリーミング | 条件付き | 未測定 | 下記 |
-| Django（組織・課金・管理画面） | **管理画面は 2026-10-26 に配備し、2026-11-08 に廃止した** | 学習用の試作（`ops/django-saas/`）を経て、運用者向けロール割り当て画面（`ops/access_admin/`）を非公開 Cloud Run（`docunavi-admin`）に配備 | 本番の SaaS 組織・課金管理機能としては未着手・条件待ち。運用者用管理画面は廃止済み（ロールの割り当ては CLI `python -m app.access_admin`） |
+| Django（組織・課金・管理画面） | **管理画面は 2026-10-26 に配備し、2026-11-08 に廃止した** | 学習用の試作（`ops/django-saas/`。測定は下の「Django の測定」）。運用者向けのロール割り当て画面は、非公開 Cloud Run（`docunavi-admin`）に配備したが廃止し、コード（`ops/access_admin/`）も削除した（[decisions/0003](decisions/0003-django-only-for-operator-admin.md)） | 本番の SaaS 組織・課金管理機能としては未着手・条件待ち。ロールの割り当ては CLI `python -m app.access_admin`（roadmap の⑧） <!-- check-docs: ignore（削除済みの `ops/access_admin/` を、歴史として書いている） --> |
 | Celery + Redis | 条件付き | 不明 | 下記。今の取り込みは Cloud Run の Job + Scheduler で足りている（A、本番で稼働） |
-| LLM ゲートウェイ（LiteLLM Proxy、Bifrost、claude-code-router / CCR） | 非推奨・廃止（削除済み）。LiteLLM gateway is removed and no longer used. | アプリ内実装（ヘッジ・フォールバック・有料キー）で充足。開発時の AI 支援は Claude Code（VS Code 拡張）。Gemini CLI is not part of the docunavi runtime | 採用しない。外部プロキシやルーティング層は置かず、必要な耐障害性はアプリ（`app/agents/resilience.py`）で担保する |
+| LLM ゲートウェイ（LiteLLM Proxy、Bifrost、claude-code-router / CCR） | 非推奨・廃止（削除済み）。LiteLLM gateway is removed and no longer used. | [decisions/0004](decisions/0004-no-llm-gateway.md)。アプリ内の実装（`app/agents/resilience.py`）で足りている | 採用しない。外部プロキシやルーティング層は置かない |
 
 ## 測定済みのこと（プローブ。LLM・DB・秘密なし。2026-10-22〜24。証拠等級 A）
 
@@ -60,11 +60,11 @@ Go の SSE 中継、Django、gRPC、組織・権限・課金は、いまの製�
 
 ## Go の SSE 中継の測定（学習用。2026-10-25。証拠等級 A）
 
-利用者の決定（学習目的。「目的」の節）で、`ops/sse-relay/` に Go（1.26.10、標準ライブラリだけ）の SSE 中継を作って測った。製品のコード・本番・Cloud Run・Compose・CI は変えていない。
-Go は `.devcontainer/Dockerfile` のイメージに入れてある（公式の SHA-256 を照合。以前は `.devcontainer/install-go.sh` を `postCreateCommand` から呼んでいて、作り直すたびに入れ直していた。`install-go.sh` は残してあり、版とハッシュが Dockerfile と重複する）。単体テスト 4 件（逐次の中継、`Authorization` の受け渡し、切断の伝播。上流が HTTP/1.1 と h2c の両方）が通る。
+利用者の決定（学習目的。「目的」の節）で、`ops/sse-relay/` に Go（1.26.10、標準ライブラリだけ）の SSE 中継を作って測った。測定の時点では、製品のコード・本番・Cloud Run・Compose・CI は変えていない（その後、本番へ配備した。上の表と [decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)）。
+Go は `.devcontainer/Dockerfile` のイメージに入れてある（公式の SHA-256 を照合）。`.devcontainer/install-go.sh` も残してあり、版とハッシュが Dockerfile と重複する。単体テストは `ops/sse-relay/main_test.go` の 35 件（逐次の中継、`Authorization` の受け渡し、切断の伝播、h2c を含む。CI の `go` ジョブで `go vet` と `go test -race`）。
 
 - **条件:** 開発コンテナの 127.0.0.1 だけ（外部通信なし・課金なし）。上流は `ops/sse-relay/bench/sse_upstream.py`（FastAPI の `StreamingResponse` で、1 秒ごとに 20 秒間送る疑似 SSE。LLM・DB なし）。
-  クライアントは 1 つの Python プロセス（HTTP/1.1、`Connection: close`）。4 構成: 直接の uvicorn、中継 → uvicorn（HTTP/1.1）、直接の hypercorn、中継 → hypercorn（h2c）。再現: `ops/sse-relay/bench/bench.py`。
+  クライアントは 1 つの Python プロセス（HTTP/1.1、`Connection: close`）。4 構成: 直接の uvicorn、中継 → uvicorn（HTTP/1.1）、直接の hypercorn、中継 → hypercorn（h2c）。測定の道具は `ops/sse-relay/bench/bench.py` だが、`/chat/stream` に絞る前の中継（`GET /stream`）で測ったもので、いまの中継にはそのままでは使えない（[ops/sse-relay/README.md](../ops/sse-relay/README.md)）。
 - **同時接続（1000 本、全構成でエラー 0・全本完了）:**
 
 | 構成 | 最初のバイトまで p50 / p99 | イベントの遅延 p99 | 上流のメモリ（最大）/ CPU | 中継のメモリ（最大）/ CPU |
@@ -107,7 +107,7 @@ Go は `.devcontainer/Dockerfile` のイメージに入れてある（公式の 
 
 ### Go の SSE 中継
 
-次のどれかを満たしたとき。
+学習のために 2026-10-25 に採用し、配備済み（[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)）。製品の必要から採用する場合は、次のどれかを満たしたとき。
 - 同時の SSE 接続数が、FastAPI の測定した容量を超える。
 - SSE の p99 の遅延が、製品の要件になる。
 - SSE の接続のせいで、Cloud Run のメモリやインスタンス数が増える。
@@ -127,10 +127,8 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 - 認証の窓口は Better Auth（Worker `docunavi-api`）のまま。Django は JWT の `sub` を外部 ID として扱い、自前のユーザー表・セッション認証は使わない（二重管理になる）。
 - 同じ Postgres を共有するときは、スキーマごとにマイグレーションの持ち主を分ける（`chatbot` は今のリポジトリ、新しい `saas` などは Django 側）。
 
-例外（2026-10-26 に決定）: **運用者 1 人専用の管理画面に限り、Django 自身の運用者ログイン（`django.contrib.auth`）を使う。**
-- 認証基盤との連携はしない（管理画面を利用者のログインに繋がない）。運用者のログインは利用者の認証と別になることを承知の上での例外。
-- 利用者向けの画面・チャット・検索は、Django に依存させない。利用者は今までどおり Better Auth だけで入る。
-- Django が止まっても、利用者向けの機能は動き続ける。
+例外（2026-10-26 に決定。[decisions/0003](decisions/0003-django-only-for-operator-admin.md)）: **運用者 1 人専用の管理画面に限り、Django 自身の運用者ログイン（`django.contrib.auth`）を使う。** この管理画面（`docunavi-admin`）は 2026-11-08 に廃止済みで、製品にこの例外を使うものは無い（試作 `ops/django-saas/` は製品に入っていない）。
+- 認証基盤とは連携せず（運用者のログインが利用者の認証と別になることを承知の上）、利用者向けの画面・チャット・検索は Django に依存させない（利用者は Better Auth だけで入る）。Django が止まっても、利用者向けの機能は動き続ける。
 - 運用者が 2 人以上になる、または利用者が管理画面に入る場合は、この例外の対象外。そのときは、上の前提（認証の窓口は Better Auth）に戻って決め直す。
 
 ### Celery + Redis（または Pub/Sub）
@@ -139,16 +137,13 @@ Go の SSE 中継を採用し、かつ Go と Python の間でサーバースト
 
 ### LLM ゲートウェイ（LiteLLM Proxy、Bifrost、claude-code-router / CCR）
 
-**非推奨・廃止（削除済み）。LiteLLM gateway is removed and no longer used.**
-以前検討された LiteLLM Proxy、Bifrost、claude-code-router（CCR）等の外部 LLM ゲートウェイやプロキシレイヤーは採用せず、非推奨・廃止（削除済み）とした。
-- アプリ本体側で、ヘッジ付き再試行・フォールバック（`gemini-3.5-flash-lite`）・有料キー切り替え（`app/agents/resilience.py`）を内製・完結しており、外部ゲートウェイを挟むオーバーヘッドや障害点を排除する。
-- 開発環境でも、中間ルーティングプロキシは使わない。開発時の AI 支援は Claude Code（VS Code 拡張）で、Gemini CLI is not part of the docunavi runtime（開発コンテナにも入れない）。
-- Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は導入しない。GCP の操作は原則 gcloud CLI で行う（[README.md](../README.md) の「開発環境の方針」）。
-- 画像生成の Cloud Run Job は、星庭ジョブ（`HoshiniwaJob`）のリポジトリで管理する。このリポジトリに `job/` は置かない。
+**非推奨・廃止（削除済み）。LiteLLM gateway is removed and no longer used.** LiteLLM Proxy、Bifrost、claude-code-router（CCR）などの外部 LLM ゲートウェイやルーティングのプロキシは採用しない（決定: [decisions/0004](decisions/0004-no-llm-gateway.md)）。
+- LLM の遅延・失敗への対処は、アプリの内側（`app/agents/resilience.py`）に置く。ヘッジ付き再試行に加え、別モデルへのフォールバックと有料キーへの切り替えは、設定したときだけ働く（[configuration.md](configuration.md) の「LLM の遅延・失敗への対処」「主モデルが落ちたとき（フォールバック）」「無料キーが 429 のとき（有料キーへの切り替え）」）。
+- 開発環境でも中間のプロキシは使わない。Gemini CLI is not part of the docunavi runtime（開発コンテナにも入れない）。Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張も入れず、GCP の操作は原則 gcloud CLI で行う。画像生成の Cloud Run Job は星庭ジョブのリポジトリで管理し、このリポジトリに `job/` は置かない。詳細は [development.md](development.md) の「開発環境の方針」と [.claude/rules/dev-environment.md](../.claude/rules/dev-environment.md)。
 
 ## やらないこと
 
-- 新しいというだけで、gRPC・Celery・Redis・LiteLLM / Bifrost / CCR を入れない（LiteLLM Proxy・Bifrost・claude-code-router などの外部 LLM ゲートウェイは廃止・非推奨）。入れるのは、製品の必要か、利用者が決めた学習の目的があるときだけ。
+- 新しいというだけで、gRPC・Celery・Redis・LiteLLM / Bifrost / CCR を入れない（外部 LLM ゲートウェイは廃止済み。上の「LLM ゲートウェイ」）。入れるのは、製品の必要か、利用者が決めた学習の目的があるときだけ。
 - 測定・要件・学習の目的のどれも無いまま、サービスを分けない。
-- Better Auth と並べて、Django の認証を入れない（運用者 1 人専用の管理画面だけが例外。上の「Django」の「例外」）。
+- Better Auth と並べて、Django の認証を入れない（例外は運用者 1 人専用の管理画面だけで、その管理画面は廃止済み。上の「Django」の「例外」）。
 - `chatbot` スキーマのマイグレーションの持ち主を二重にしない。
