@@ -1,8 +1,9 @@
 # MCP ツール化: 設計の叩き台
 
-状態（2026-10-21）: **`search_documents`（`ops/mcp_search/`）を `docunavi-mcp` として Cloud Run に配備し、本物の検索が通った。日常の接続は、Claude Code の `headersHelper`（`scripts/mcp-auth-header.sh`）でプロキシなしの直接接続にした（下の「headersHelper での直接接続」）。確認したのは接続と 1 回の検索まで。期限切れ後の自動復旧と、再ビルド後の自動接続は未検証。**
-ロードマップの表の 8（将来の拡張）。目的は、資料の検索を、エージェント（まず Claude Code）から使えるツールにすること。
-実用上の必要は小さい（資料は 6 件）。主な価値は、リモート MCP サーバーと、Cloud Run の IAM 認証を学ぶこと。
+状態（2026-10-21）: **`search_documents`（`ops/mcp_search/`）を `docunavi-mcp` として Cloud Run に配備し、本物の検索が通った。日常の接続は、Claude Code の `headersHelper`（`scripts/mcp-auth-header.sh`）でプロキシなしの直接接続にした（下の「headersHelper での直接接続」）。確認したのは接続と 1 回の検索まで。期限切れ後の自動復旧は未検証。再ビルド後の自動接続は、2026-10-21 の 4 回目の再ビルドで 1 回だけ成功した（安定性は未確認。下の「未検証」）。2026-11-08 にデータが Prisma Postgres へ移ったあとの状態は、「配備と確認」の「現在の状態（2026-11-09 時点）」。**
+2026-11-20 に、コード・ほかの文書と食い違う記述を直した（本番の Cloud Run の現在の設定は、この日は確認していない）。
+ロードマップでは「ほかに本番にあるもの」に載る（[roadmap.md](roadmap.md)。以前の「表の 8（将来の拡張）」は、⑧ がロール別 PDF グループ制御になり当たらない）。目的は、資料の検索を、エージェント（まず Claude Code）から使えるツールにすること。
+実用上の必要は小さい（起草時の 2026-10-21 は資料 6 件。2026-11-09 の本番 DB は `documents` 80・`chunks` 2,313 で、[roadmap.md](roadmap.md)。いまの件数は未確認）。主な価値は、リモート MCP サーバーと、Cloud Run の IAM 認証を学ぶこと。
 
 ```text
 Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サービス（新規）──▶ search_vector.search ──▶ Postgres（pgvector）
@@ -17,7 +18,7 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 | 最初のツール | **資料の検索**（`search_documents` 相当、読み取り専用）。「資料への質問」は作らない | 「質問」は中で Gemini が回答を作り、呼び出し側の LLM と二重になる。ガードレールと出典の扱いも重くなる。検索なら質問の埋め込み 1 回で済む |
 | 利用者 | **Claude Code だけ** | まず自分で使う。ほかのエージェントは後 |
 | 資料グループの制限 | **かけない（運用者専用・全グループ）** | 利用者のロールを持たないので、`search_vector.search(..., scope=Scope.ALL)` と明示して全グループを検索する。利用者ごとの資料グループの制限（`ACCESS_MODE`。`docs/configuration.md` の「資料グループのアクセス制御」）は API 側だけにかかる。この MCP を利用者に公開しない（`roles/run.invoker` を持つ運用者だけが呼べる）。利用者に公開するなら、先にこの方針を見直す |
-| 依存の置き場 | **専用のイメージ**（`ops/mcp_search/`）。アプリの `requirements*.in` に `mcp` は足さない | 本番のアプリの依存を動かさず、いつでも消せる。アプリのコード（`app/`）は同じものをイメージに入れ、`app.search.vector.search` をそのまま呼ぶ |
+| 依存の置き場 | **専用のイメージ**（`ops/mcp_search/`）。アプリの `requirements.in` に `mcp` は足さない（2026-11-19 から、テストのためだけに `requirements-dev.in` へ同じ版を足している） | 本番のアプリの依存を動かさず、いつでも消せる。アプリのコード（`app/`）は同じものをイメージに入れ、`app.search.vector.search` をそのまま呼ぶ |
 | 検索結果の `similarity` | **返す**（見出しに `類似度 0.82`） | 呼び出し側の LLM が関連の強さを判断できる。『資料にない』の判断には使えない粗い目安と、ツールの説明に書く。要らなければ消すだけ |
 
 ## 公式で確かめたこと（Google Cloud、2026-10-21）
@@ -35,6 +36,8 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 
 ## 確認できていないこと（着手の前に、小さく試す）
 
+（2026-10-21 の着手前の一覧。①〜③のうち、① プロキシと ② ID トークン（`headersHelper`）は、下の「検証の結果」で通った。MCP の実装は Python の公式 SDK の `mcp==1.30.0` で、アプリの `requirements.in` には足さない（本番のイメージは `ops/mcp_search/requirements.txt`、テスト用は `requirements-dev.in` に同じ版）。③ IAP と `--functional-type` は、未確認のまま。）
+
 - **Claude Code から非公開サービスへつなぐ方法。** 公式には、Claude Code への言及がない。①〜③のどれが通るかは、実際に試すまで分からない。
   - ① プロキシ: コンテナーの gcloud は閲覧専用の ID（`docunavi-viewer`）に固定されていて、`run.invoker` は持たない。`gcloud run services proxy` がガードのフックに止められる可能性もある。ホスト側で立てた中継に、コンテナーから届くかも未確認。
   - ② ID トークン: 有効期限は約 1 時間（公式のこの 2 ページには書かれていない。一般的な挙動）。Claude Code の MCP 設定にヘッダーを入れる方法で渡すなら、更新の仕組みが要る。トークンの値をファイルや設定に保存するのは、CLAUDE.md の方針（トークンの中身は表示・保存しない）と衝突しうる。
@@ -51,14 +54,14 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 - **制約: プロキシは起動時の ID トークンを固定で使う。期限が切れると `401` になる。** 起動から約 45 分で `401` になったことを確認した（期限の長さの確定ではない。公式の 2 ページに期限の記述は無い）。プロキシを起動し直せば直る。
 - **Claude Code は、`401` を受けると OAuth の探索（`/.well-known/…`、`POST /register`）に進み、`/mcp` の画面に「SDK auth failed: Dynamic Client Registration rejected」と出る。** サーバーに OAuth が無いこと自体は原因ではない。画面のエラーが、本当の原因（トークン切れ）を隠す。切れたら Cloud Run のログ（`gcloud logging read`）で `401` を確かめる。
 - **② ID トークンを直接送る方法は、`headersHelper` で通った**（下の「headersHelper での直接接続」。値を設定に保存せず、接続のたびにヘルパーが取る）。**未確認:** ③ IAP。固定のトークンを `--header` で渡す方法は、プロキシの Google ID トークンと衝突するので試していない。
-- プロキシ（`scripts/mcp-proxy.sh`）は、今は予備。再ビルドで消える apt の部品と、約 45 分ごとの再起動が要る。
-- **未確認:** 日常で使えるかの判断。1 時間ごとの再起動が許容できるか。
+- プロキシ（`scripts/mcp-proxy.sh`）は、今は予備。再ビルドで消える apt の部品と、約 45 分ごとの再起動が要る。ユーザーが明示的に指示したときだけ実行する（CLAUDE.md の「MCP の接続」）。
+- **未確認:** プロキシが日常で使えるかの判断。1 時間ごとの再起動が許容できるか。（日常の接続は、その後 `headersHelper` の直接接続に切り替えた。上の項目と、下の「headersHelper での直接接続」）
 
 ## ツールの形（案）
 
-名前は `search_documents`。引数は `query`（文字列、1〜500 文字）と `top_k`（整数、1〜5、既定は 2 = アプリの `TOP_K`）。範囲外は検索まで届かず、入力の検証エラーになる。読み取り専用（`readOnlyHint`）であることを、ツールの注釈に付ける。
+名前は `search_documents`。引数は `query`（文字列、1〜500 文字）と `top_k`（整数、1〜5、既定は 2 = アプリの `TOP_K`。`ops/mcp_search/main.py` の `DEFAULT_TOP_K` で、同じ値であることを `tests/test_mcp_search.py` が確かめる）。範囲外は検索まで届かず、入力の検証エラーになる。読み取り専用（`readOnlyHint`）であることを、ツールの注釈に付ける。
 
-- 実体は `app.search.vector.search(query, top_k)`。しきい値（`MIN_SIMILARITY` 0.65）もそのまま使う。
+- 実体は `app.search.vector.search(query, top_k)`。しきい値（`MIN_SIMILARITY` 0.65）もそのまま使う。アプリの入口 `app/search/pipeline.py`（ハイブリッド・リランカー・GraphRAG）は通らず、ベクトル検索だけを呼ぶ（2026-11-20 に `ops/mcp_search/main.py` で確認）。チャットの検索と同じ結果になるとは限らない。
 - 返すもの: 各ヒットの、ファイル名・ページ・類似度を見出しにして、見出し付きの本文（`[a.pdf p.3-4 類似度 0.82]` の次の行から本文）。アプリが LLM に渡す文面とは違い、出典を示せるようにしている。
 - **出力ガードは通らない。** アプリのガードレール（`StreamingOutputGuard` など）は LLM の回答を検査するもので、生のチャンクを返す MCP には掛からない。返すのは運営者が置いた共通の資料だけなので、漏れて困る内容は含まれない（システムプロンプトの漏洩は別の話）。
 - **返した本文は、呼び出し側から見て「信頼できないデータ」。** 資料に書かれた指示にエージェントが従わないよう、ツールの説明に書く。
@@ -67,10 +70,12 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 ## 費用と上限
 
 - 質問の埋め込みは 1 回あたり Gemini の API を 1 回呼ぶ（無料キー。尽きたときの有料キー切り替えは、アプリと同じ仕組みを使うなら、MCP 側にも有料キーを渡すかの判断が要る。**未決**）。
-- 認証を IAM にしても、呼べる人が増えれば呼び出しが増える。`--max-instances` を小さく置き、予算ガード（月 1000 円）の対象に入るかを確かめる（対象は `docunavi-app` のプロジェクト全体の見込み。未確認）。
-- DB の接続数: 新しいサービスの `--max-instances` × `DATABASE_POOL_MAX_SIZE` を、既存の `docunavi`（2 × 3。2026-11-09 の実際の値。環境変数は当時読まれておらず、固定の 3 だった）と取り込みの Job に足して、DB の上限に収める（[deploy.md](deploy.md) の接続数の節）。MCP 側は検索だけなので、`DATABASE_POOL_MAX_SIZE` は 1〜2 で足りる見込み（未測定）。
+- 認証を IAM にしても、呼べる人が増えれば呼び出しが増える。`--max-instances` を小さく置き、予算ガード（[deploy.md](deploy.md) の「G. 予算の自動停止」。額は 2026-11-01 に 1000 円から 3000 円へ変えたと書かれている。現在の設定は未確認）の対象に入るかを確かめる（対象は `docunavi-app` のプロジェクト全体の見込み。未確認）。
+- DB の接続数: 新しいサービスの `--max-instances` × `DATABASE_POOL_MAX_SIZE` を、既存の `docunavi` と取り込みの Job に足して、DB の上限に収める（[deploy.md](deploy.md) の「C. データベースの接続」、[decisions/0011](decisions/0011-db-connection-pool-limits.md)）。MCP 側は検索だけなので、起草時は `DATABASE_POOL_MAX_SIZE` は 1〜2 で足りる見込み（未測定）としていた。**決定は 1**（2026-11-09。`docunavi` は 2、コードの既定は 3。この環境変数を読む実装は `77f5492`、2026-11-09）。本番の現在の値は未確認（0011 の追記と同じ）。
 
 ## 作るもの（着手するとき）
+
+（2026-10-21 に着手し、1〜4 は済んだ。下の「実装」「配備と確認」。以下は着手前の計画のまま。）
 
 1. `app/` とは別の入口（例: `mcp_server/` または `ops/mcp_search/`）。`app.search.vector` を import するか、薄く複製するかを決める。履歴・認証・LLM は読み込まない。
 2. 専用のコンテナーイメージ（`docunavi-ingest` と同様に別イメージ）と、Cloud Run サービス `docunavi-mcp`（`--no-allow-unauthenticated`、`--max-instances 1〜2`）。専用のサービスアカウントには、`DATABASE_URL` と `GEMINI_API_KEY` の Secret の `secretAccessor` だけ。
@@ -79,40 +84,43 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 
 ## 先にやる小さな検証（コードを書く前）
 
+（実施済み。結果は上の「検証の結果」。1 は `docunavi-mcp-probe` で、2 は `search_documents` の本物の検索で通った。3 は要らなくなった。以下は着手前の計画のまま。）
+
 1. 空の最小 MCP サーバー（ツール 1 つ、固定の返答）を Cloud Run に置き、①〜③のうち、Claude Code から実際に呼べる方法を 1 つ見つける。**GCP への書き込みなので、コマンドを提示してユーザーが実行する**（課金は最小）。
 2. 通ったら、`search_documents` を本物の検索につなぐ。
 3. 通らなければ、Cloud Run をやめて、手元（開発コンテナー内）の stdio の MCP サーバーにする案を検討する（学習の目的の半分は外れる）。
 
 ## 決めていないこと
 
-- 着手するか。着手の時期。
-- 有料キーを MCP 側にも渡すか。
-- 呼び出し側の ID（利用者本人か、専用の SA か）と、ID トークンの渡し方。
+- 着手するか。着手の時期。（2026-10-21 に着手・配備した）
+- 有料キーを MCP 側にも渡すか。（渡していない。保留。「配備と確認」）
+- 呼び出し側の ID（利用者本人か、専用の SA か）と、ID トークンの渡し方。（利用者本人の `roles/run.invoker`。ID トークンは `headersHelper`。「配備と確認」「headersHelper での直接接続」）
 
 ## 実装（2026-10-21）
 
 - `ops/mcp_search/main.py`: FastMCP（`mcp==1.30.0`、Streamable HTTP、ステートレス）。ツールは `search_documents` の 1 つで、`readOnlyHint` 付き。
   - DB の接続プールは最初の呼び出しで開いて使い回す（FastMCP の `lifespan` はステートレスだと呼び出しごとに走るため）。プールは `app.history` の置き場所に入れる（`search_vector.search` がそこから借りる）。履歴のテーブルは作らない。
-  - 失敗は固定文（`資料の検索に失敗しました。`）だけを返す。例外の文字列と質問の本文は、応答にもログにも載せない（型の名前と件数だけ）。
+  - 失敗は固定文（`資料の検索に失敗しました。`）だけを返す。例外の文字列と質問の本文は、応答にも載せない。ログには、`VectorSearchError` なら固定文のメッセージだけ、それ以外の例外は型の名前だけ、検索できたときは件数だけを残す（2026-11-20 に `ops/mcp_search/main.py` で確認）。
 - `ops/mcp_search/Dockerfile`: ビルドの文脈はリポジトリの根。アプリの `requirements.txt` と `ops/mcp_search/requirements.txt`（`mcp` だけ）を 1 回の `pip install` に渡す。`ops/mcp_search/cloudbuild.yaml` が `--file` でこれを指す。
-- テスト: `tests/test_mcp_search.py`（検索と DB は偽物。`mcp` が無い環境では、ツール定義とクライアント呼び出しの 4 件をスキップする。`mcp` はアプリの開発依存に足していないため、CI ではこの 4 件が走らない）。
+- テスト: `tests/test_mcp_search.py`（検索と DB は偽物。`mcp` が無い環境では、ツール定義とクライアント呼び出しの 4 件をスキップする。**2026-11-19 から、`requirements-dev.in` に `mcp==1.30.0` を足したので、CI でもこの 4 件が走る**（`c27d292`。アプリの依存には足していない）。起草時（2026-10-21）は、足していなかったので走らなかった）。
 - **確かめたこと:** `mcp` を入れた環境で全体のテストが通る（13 件を含む）。ローカルで HTTP サーバーとして起動し、`initialize`・`tools/list`・`tools/call` が通ること、DB とキーが無いときに固定文のエラーになることを確かめた。
 - **確かめていないこと:** 本物の DB・Gemini での検索、Docker のビルド（開発コンテナーに Docker が無い。Cloud Build で初めて走る）、Cloud Run での動作、Claude Code からのツール呼び出し。
-- **配備の前に決めること:** ① `DATABASE_URL` に、アプリと同じ書き込み権限の Secret（`database-url`）を渡すか、読み取り専用ロール（`readonly`）の URL を別の Secret にするか（このサービスは読むだけなので、後者が最小権限）。② 有料キーを渡すか。③ `run.invoker` を誰に与えるか。④ `DATABASE_POOL_MAX_SIZE` は 2 程度に絞る（接続数の節）。
+- **配備の前に決めること:** ① `DATABASE_URL` に、アプリと同じ書き込み権限の Secret（`database-url`）を渡すか、読み取り専用ロール（`readonly`）の URL を別の Secret にするか（このサービスは読むだけなので、後者が最小権限）。② 有料キーを渡すか。③ `run.invoker` を誰に与えるか。④ `DATABASE_POOL_MAX_SIZE` は 2 程度に絞る（接続数の節）。（結果は次の「配備と確認」。① は読み取り専用ロールの Secret にしたが、2026-11-09 時点では `DATABASE_URL` の直接接続。② は渡していない。③ は利用者本人だけ。④ は 2026-10-21 の配備では未設定、2026-11-09 に 1）
 
 ## 配備と確認（2026-10-21）
 
-- **配備:** サービス `docunavi-mcp`（`asia-northeast1`、非公開、最大 1 インスタンス、並行 10。プールの上限は固定の 3 で、`DATABASE_POOL_MAX_SIZE` は未設定。2026-11-09 に Cloud Run の設定で確認）、専用のサービスアカウント `docunavi-mcp`。Secret は `database-url-readonly`（読み取り専用ロールの URL。新規）と `gemini-api-key`（無料キー。アプリと共用）の `secretAccessor` だけ。有料キー（`gemini-api-key-paid`）は渡していない。`run.invoker` は利用者本人だけ。
-- **現在の状態（2026-11-09 時点）:** データは 2026-11-08 に Prisma Postgres へ移った。`docunavi-mcp` は `DATABASE_URL` で直接つなぎ（architecture.md、roadmap.md の接続数の項による。Secret の名前は未確認）、プールの上限は 1（`DATABASE_POOL_MAX_SIZE=1`。リビジョン `docunavi-mcp-00004-qif`）。読み取り専用ロールと `database-url-readonly` は使っていない。Claude Code 側の接続名は `docunavi-search` から `app-docunavi` に変えた。上の「配備」「読み取り専用ロールでの検索」と、以下の記録は、Supabase 時代のもの。
+- **配備:** サービス `docunavi-mcp`（`asia-northeast1`、非公開、最大 1 インスタンス、並行 10。プールの上限は固定の 3 で、`DATABASE_POOL_MAX_SIZE` は未設定。2026-11-09 に Cloud Run の設定で確認。これは 2026-11-09 の変更前の値で、変更後は次の「現在の状態」）、専用のサービスアカウント `docunavi-mcp`。Secret は `database-url-readonly`（読み取り専用ロールの URL。新規）と `gemini-api-key`（無料キー。アプリと共用）の `secretAccessor` だけ。有料キー（`gemini-api-key-paid`）は渡していない。`run.invoker` は利用者本人だけ。
+- **現在の状態（2026-11-09 時点）:** データは 2026-11-08 に Prisma Postgres へ移った。`docunavi-mcp` は `DATABASE_URL` で直接つなぎ（architecture.md、roadmap.md の接続数の項による。Secret の名前は未確認）、プールの上限は 1（`DATABASE_POOL_MAX_SIZE=1`。リビジョン `docunavi-mcp-00004-qif`）。読み取り専用ロールと `database-url-readonly` は使っていない。決定と根拠は [decisions/0011](decisions/0011-db-connection-pool-limits.md)（`docunavi-mcp` は 1、配備後に MCP の検索 1 回で 200 を確認と書かれている）。Claude Code 側の接続名は `docunavi-search` から `app-docunavi` に変えた。上の「配備」「読み取り専用ロールでの検索」と、以下の記録は、Supabase 時代のもの。
 - **Docker のビルド:** Cloud Build で `SUCCESS`（1 分 16 秒）。アプリの固定済みの依存と `mcp==1.30.0` は、競合なく入った。
 - **実際の検索（1 回、無料キー）:** プロキシ（`gcloud run services proxy docunavi-mcp --port 3001`）経由で `search_documents` を呼び、質問「糸くずフィルターの掃除」に対して、洗濯機の説明書の該当箇所が 1 位（類似度 0.80）で返った。Cloud Run のログでは、Gemini の埋め込みの呼び出しは 1 回（200）、質問の本文はログに出ていない。
 - **読み取り専用ロールでの検索:** 同じ検索の SQL が `readonly` ロールで動くこと、書き込みは `read-only transaction` で拒否されること、会話履歴の表は読めないことを、配備の前に確かめた。
 - **確認済み（2026-10-21、Claude Code の会話の中から）:** `search_documents` を 1 回呼び、期待どおりの結果が返った。質問「糸くずフィルターの掃除」、1 位は `aoba_aw820_manual.pdf` p.2（類似度 0.80）、2 位は同 p.2（0.68、乾燥フィルターの記述で関連は薄い）。無料キーで Gemini の埋め込み 1 回、書き込みなし。
-- **未確認:** 本物の 429 での有料キーへの切り替え（有料キーを渡していないので起きない）、予算ガードの対象に入るか、`headersHelper` での期限切れ後の復旧、再ビルド後に `docunavi-search` が手作業なしでつながるか（次の節）。
+- **未確認:** 本物の 429 での有料キーへの切り替え（有料キーを渡していないので起きない）、予算ガードの対象に入るか、`headersHelper` での期限切れ後の復旧、再ビルド後に `docunavi-search` が手作業なしでつながるか（次の節。2026-10-21 の 4 回目の再ビルドで 1 回だけ成功。「未検証」を参照）。
 - **保留:** 有料キーを渡すか、apt の部品を再ビルド時に自動で入れるか、`pgpass` の 2 行目（ID もパスワードも空）の扱い。
 
 ## headersHelper での直接接続（2026-10-21）
 
+（以下の登録名 `docunavi-search` は 2026-10-21 当時の名前。2026-11-09 までに `app-docunavi` へ変えた。上の「現在の状態」と、[access-separation.md](access-separation.md) の MCP の表。）
 登録は local スコープの `{"type":"http","url":"<Cloud Run の URL>/mcp","headersHelper":"/workspaces/docunavi/scripts/mcp-auth-header.sh"}`（`claude mcp add-json`。URL は秘密ではないが、文書には書かない）。
 ヘルパーは `gcloud auth print-identity-token` の結果を `{"Authorization":"Bearer …"}` で標準出力に返すだけ。公式の文書（code.claude.com/docs/en/mcp）では、接続・再接続のたびに実行され（10 秒で打ち切り）、キャッシュされない。401/403 では再実行して 1 回やり直す。
 
@@ -137,9 +145,9 @@ Claude Code ──(Streamable HTTP + IAM 認証)──▶ Cloud Run の MCP サ�
 ### 未検証（恒久化が済んだとは言えない）
 
 - **期限切れ後の自動復旧。** ID トークンは約 1 時間（プロキシでは約 45 分で 401 を観測）。公式の文書どおり 401/403 でヘルパーが再実行されるかは、待って確かめていない。
-- **再ビルド後の自動接続。** 信頼のフラグと「認証が必要」の記録は `~/.claude` のボリュームにあるので残る見込みだが、再ビルドして確かめていない。
+- **再ビルド後の自動接続。** 信頼のフラグと「認証が必要」の記録は `~/.claude` のボリュームにあるので残る見込みで、2026-10-21 の 4 回目の再ビルドで 1 回だけ成功した（下の子項目。安定性は未確認）。
   - 2026-10-21 の 2 回目の再ビルドで、gcloud のログインが消えていた（保存先 `~/.config/gcloud` はボリュームではなく、設定ファイルのあるのは既定の場所）。1 回目の再ビルドで残っていた理由は不明。ヘルパーが失敗して 403 になり、OAuth の探索と「認証が必要」の記録に進んだ、という流れは、ログの 403 などと矛盾しないが、ヘルパーの失敗そのものはログで確認できていない（推測）。
-  - 同日、gcloud のログイン情報（リフレッシュトークンを含む）をボリュームに残す変更をした（`devcontainer.json`。リスクは `.devcontainer/README.md` の「限界」）。**効果は未検証。** 完了の条件は、ボリュームを足した最初の再ビルドで 1 回ログインしたあと、**2 回目の再ビルドで、手動のログイン・記録の削除・追加の再読み込みなしに**、`docunavi-search` の `search_documents` が 1 回成功すること（Connected の表示だけでは足りない）。記録の削除が再び要るなら、完了としない。
+  - 同日、gcloud のログイン情報（リフレッシュトークンを含む）をボリュームに残す変更をした（当時は `devcontainer.json`。ボリュームの定義はその後 `.devcontainer/docker-compose.yml` へ移った。リスクは `.devcontainer/README.md` の「限界」）。**効果は未検証。** 完了の条件は、ボリュームを足した最初の再ビルドで 1 回ログインしたあと、**2 回目の再ビルドで、手動のログイン・記録の削除・追加の再読み込みなしに**、`docunavi-search` の `search_documents` が 1 回成功すること（Connected の表示だけでは足りない）。記録の削除が再び要るなら、完了としない。
   - **2026-10-21 19:24 の 3 回目の再ビルド（ボリューム込みの最初の試験）: 完了ではない。** ログインは残った（`gcloud auth list` で有効）。しかし `docunavi-search` は「認証が必要」で止まり、`search_documents` は呼べなかった。拡張のログでは、コンテナの起動（19:24:03）の約 11 秒後（19:24:14.2）にヘルパーが走り、19 ミリ秒で `did not return a valid value` と失敗、続いて Cloud Run が 403、記録が書かれた。gcloud の導入（`postCreateCommand`）は 19:24:26〜34（dpkg のログ）で、ヘルパーより後だった。原因は、ヘルパーが使う gcloud の導入が接続に間に合わない起動順序の競合と判断している（ヘルパーの標準エラーはログに出ないので、「gcloud が無かった」ことは時刻からの推測）。
   - 対処: gcloud を `.devcontainer/Dockerfile`（イメージのビルド時）に移し、`install-gcloud.sh` を削除、ヘルパーに gcloud の有無の確認を足した。**効果は未検証。** 次の再ビルドで、手動のログイン・記録の削除・追加の再読み込みなしに、本登録の `search_documents` が 1 回成功すれば、この試験は完了とする。移行のために、今回の失敗で残った `docunavi-search` の記録 1 件だけは、再ビルド前に 1 度削除する（復旧の処置。ほかのサーバーの記録は触れない）。修正後の再ビルドでも記録の削除が要るなら、自動復旧は未完成。
   - **2026-10-21 19:31 の 4 回目の再ビルド（gcloud をイメージに入れたあと）: 成功。** 手動のログイン・記録の削除・追加の再読み込みなしで、`docunavi-search` が接続し（拡張のログ: 19:31:47 にヘルパーが走り、`Successfully retrieved 1 headers`、約 1.2 秒で `Successfully connected`）、`search_documents` が 1 回成功した（同じ質問で、前と同じ結果）。「認証が必要」の記録は `{}` のまま。gcloud の導入はイメージのビルド時（dpkg: 19:30:03）で、起動（19:31:33）より前。確認したのは、この 1 回の再ビルドだけ。何度でも安定するか、ボリュームの削除やパスの変更、トークンの失効のあとは確かめていない。

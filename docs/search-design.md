@@ -15,8 +15,10 @@ BM25 の経路と、`SEARCH_BACKEND` の切り替えは、なくしました。�
 | リランカー | `SEARCH_RERANK`（on） | 候補を、質問との語の一致と型番・版番号の一致で並べ直す（`app/search/rerank.py`。外部のモデルも API も使わない。クロスエンコーダーではない） |
 | GraphRAG | `SEARCH_GRAPH`（on） | 上位のチャンクが「第N条」と参照する先のチャンクを、追加の文脈に加える（`app/search/graph.py`。追加は `SEARCH_GRAPH_MAX_EXTRA`（1）件まで） |
 
-- ほかの変数: `SEARCH_CANDIDATES`（20）、`SEARCH_GRAPH_MAX_EXTRA`（1）、`SEARCH_CORPUS_TTL_SECONDS`（60）。表は [configuration.md](configuration.md)。
-- 3 つとも off なら、ベクトル検索だけの経路（`search_vector.search`）をそのまま呼ぶ。MCP（`ops/mcp_search/`）は、いまもこのベクトル検索だけを呼ぶ。
+- ほかの変数: `SEARCH_CANDIDATES`（20。1〜100）、`SEARCH_GRAPH_MAX_EXTRA`（1。0〜3）、`SEARCH_CORPUS_TTL_SECONDS`（60。0〜3600）。範囲外・数でない値は黙って既定に戻さず、503 の固定文にする。表は [configuration.md](configuration.md)。
+  これらの既定は `app/search/pipeline.py` の `Flags.from_env` が持つ。`.env.example` には `SEARCH_*` を載せていない（コードの既定のまま。2026-11-20 に、コードと `.env.example` で確認）。本番の配信中のリビジョンには、`SEARCH_HYBRID` `SEARCH_RERANK` `SEARCH_GRAPH` の環境変数が無い（2026-11-20、gcloud の読み取り、A。[configuration.md](configuration.md)）。`SEARCH_CANDIDATES` などほかの `SEARCH_*` の本番の設定と、そのイメージのコードの既定が現行と同じかは未確認。
+- 3 つとも off なら、ベクトル検索だけの経路（`search_vector.search`）をそのまま呼ぶ。MCP（`ops/mcp_search/`）は、いまもこのベクトル検索だけを呼ぶ（ハイブリッド・リランカー・GraphRAG は通らない）。
+- チャットの検索の進め方は、2026-11-05 から `CHAT_RETRIEVAL_MODE=direct`（コードの既定。`a9747bc`）で、質問ごとにアプリが先に検索する（検索語は質問そのまま。追質問だけ補完した語。結果で答えられないときだけ、LLM が検索し直せる。1 回の質問の検索は `LLM_MAX_SEARCHES`（2）回まで。[configuration.md](configuration.md) の「検索の進め方」）。下の 2026-10-19 の、LLM を通した測定（切れた 4 問・言い換え再検索）は、LLM が検索語を作る従来の経路（`agent`）のもの。2026-11-01 の構成の比較は、質問文そのままを検索語にしている（`evals/results/pipeline_compare.json`）。
 - キーワードで拾うのは、ベクトル側の候補の並べ替えと、型番・版番号・コードが質問と本文に同じ形で出るチャンクだけ。ベクトルの下限（0.65）を越えていない語だけの一致は返さない（「資料にない質問」を LLM が断る前提を崩さないため）。
 - 失敗しても、ベクトルだけの結果には戻らない（キーワード側の DB 読み取りが失敗したら 503 の固定文）。原因を絞るときはフラグを off にする。
 - 重ねた根拠: 実 API（埋め込みだけ）での比較（2026-11-01、答えのある 64 問、証拠等級 A。`evals/results/pipeline_compare.json`）で、根拠が上位 3 件に入る数は、ベクトルのみ 61、ハイブリッド 61、ハイブリッド + リランカー 63、3 つとも on 63（差は 1〜2 問。型番を問う質問だけに出た。数字は [roadmap.md](roadmap.md) の記録）。GraphRAG を既定 on にした根拠と限界は [decisions/0007](decisions/0007-graph-rag-default-on.md)（0006 を置き換え）。**本番の資料では辺が 0 本だったことがあり（2026-11-01 時点）、本番での効果は測っていない。**
@@ -30,8 +32,8 @@ BM25 の経路と、`SEARCH_BACKEND` の切り替えは、なくしました。�
 | 検索 | 質問を `gemini-embedding-2`（768 次元）で埋め込み、`chunks.embedding` とのコサイン類似度が高い上位 2 件（`TOP_K`）。DB の `status = 'ready'` の文書が対象。**当時はこれだけ。いまは、これに上の 3 段を重ねる** |
 | しきい値 | 類似度 0.65 未満のチャンクは返さない（`app/search/vector.py` の `MIN_SIMILARITY`）。**粗い下限**で、「資料にない」の判断は LLM に任せる |
 | 失敗したとき | 別の経路に戻らない（どちらで答えたかが曖昧になるため）。API は 503 の固定文を返す |
-| DB と API | 本物の LLM では `DATABASE_URL` と `GEMINI_API_KEY` が必須。揃わなければ起動を失敗させる |
-| モックモード | `GEMINI_API_KEY` が未設定。資料の検索も回答もしない固定の返答（画面と API の動作確認用）。DB も API も要らない |
+| DB と API | 本物の LLM では `DB_BACKEND=pg` と `DATABASE_URL`、`GEMINI_API_KEY`（回答の生成と質問の埋め込み用。`GOOGLE_GENAI_USE_VERTEXAI=true` なら回答、`EMBEDDING_USE_VERTEXAI=true` なら埋め込みが Vertex AI で、それぞれキーは要らない）が必須。揃わなければ起動を失敗させる（2026-11-20 に、`app/search/vector.py`・`app/history.py` と [configuration.md](configuration.md) の「資料の検索」で現状へ直した。決定の時点は `DATABASE_URL` と `GEMINI_API_KEY`） |
+| モックモード | `GEMINI_API_KEY` が未設定（`GOOGLE_GENAI_USE_VERTEXAI=true` なら、キーが無くても本物の LLM。`app/agents/graph.py` の `is_mock_mode`）。資料の検索も回答もしない固定の返答（画面と API の動作確認用）。DB も API も要らない |
 | BM25 | ローカルの PDF を読む BM25 は、アプリからは外した。評価用の基準線として `scripts/bm25_baseline.py` に残した（アプリは import しない）。**2026-11-01 に、DB の写しを読む別の実装（`app/search/keyword.py`）をハイブリッドとして足した** |
 | pgroonga | 当時は、拡張と索引を DB に残し、アプリは使わない扱いだった。**2026-11-18 時点で、`db/migrations/` に pgroonga の拡張・索引は無い**（`0004` は別の変更）。本番 DB の実状は未確認 |
 
@@ -73,6 +75,9 @@ BM25 の経路と、`SEARCH_BACKEND` の切り替えは、なくしました。�
 `python -m scripts.eval_topk`（d693e86 で削除済み。当時は保存済みの質問の埋め込みと DB の読み取りだけ。結果は `evals/results/topk_probe.json`）で、選定用の質問と最終確認の 52 問を合わせた
 120 問（答えのある 84 問）を数えた。**数えただけで、値を選ぶ測定ではない**（最終確認の質問は方式の選定に使い終えている）。
 
+- **いまの値（2026-11-20 にコードで確認）:** `TOP_K` は 2（`app/agents/tools.py`）、しきい値 `MIN_SIMILARITY` は 0.65（`app/search/vector.py`）、出典カードを絞る `WEAK_GAP` は 0.05（`app/agents/tools.py`）。環境変数では変えられず、`.env.example` にも載っていない。`SEARCH_GRAPH` が on のときは、`TOP_K` の外に参照先のチャンクが最大 `SEARCH_GRAPH_MAX_EXTRA`（1）件加わることがある（`origin="graph"`。出典カードには出さない）。
+- **下の数字の読み方:** 2026-10-19 の数え上げ（`topk_probe.json`）で、ベクトル検索だけの時点（ハイブリッド・リランカー・GraphRAG を重ねる 2026-11-01 より前）、6 冊・80 チャンクの資料のもの。表の件数と割合、しきい値で切れた数、K=2 で根拠が返らない 9 問の内訳（しきい値で 4 問・K の外が 5 問）は、`topk_probe.json` と一致することを 2026-11-20 に確かめた（問ごとの理由の細部は未照合）。いまの構成・資料（上の「現状」）で数え直してはいない。
+
 | 上位 K 件 | 根拠が返った（84 問中） | 返ったチャンクのうち根拠を含む割合 |
 |---|---|---|
 | 1 | 66 | 86% |
@@ -91,7 +96,7 @@ BM25 の経路と、`SEARCH_BACKEND` の切り替えは、なくしました。�
   「象形文字」「昼と夜の気温差」「メタンガス」）で、4 問とも検索が空になり、「別のキーワードで再検索してください」という返りがあっても、再検索せずに断った。
   資料には答えがあるので、これは取りこぼし。1 問 1 回（`temperature` は 1.0）なので傾向として読む。**直し方は未決定**（しきい値を下げる / 空のときの扱いを変える、など。
   変えるなら、新しい質問を先に固定して測る）。
-- **空のときの扱いを変えて（2026-10-19、66fe9d7）、測り、戻した（次の項）。** 検索ツールの空の返答（`_NOT_FOUND_TEXT`）と `SYSTEM_PROMPT` に、「すぐ断らず、言い換え・別の語・より一般的な語・短い文で、
+- **空のときの扱いを変えて（2026-10-19、`5c584bd`）、測り（`7276fc7`）、戻した（`75c7687`。次の項）。** 検索ツールの空の返答（`_NOT_FOUND_TEXT`）と `SYSTEM_PROMPT` に、「すぐ断らず、言い換え・別の語・より一般的な語・短い文で、
   最大 2 回まで検索し直し、それでも見つからないときに限り断る」を足していた。しきい値・`TOP_K`・ツールの説明は変えていない。**効果が確認できず、呼び出しが増えたので、この文面は元に戻した**（アプリの文面は「別のキーワードで再検索してください」に戻っている）。
 - **言い換えの再検索の測定（2026-10-19、実 API、1 問 1 回、`ainvoke`、`temperature` 1.0、ヘッジ・再試行・フォールバックなし、しきい値 0.65）。
   事前に固定した基準 (a)〜(d) を全部は満たさず、「効果が確認できない」。** 質問は `evals/answers/questions_research.yaml`（14 問）と
@@ -109,23 +114,24 @@ BM25 の経路と、`SEARCH_BACKEND` の切り替えは、なくしました。�
 
 ### 小さい資料での結果であること
 
-資料は 6 冊・80 チャンクで、検索が当てやすい規模です。ベクトル単独が最良だったのは、**この規模での結果**で、ハイブリッドやリランカーが不要という証拠ではありません（2026-11-01 の再測定でも差は 1〜2 問で、上の「現状」）。
+2026-10-18〜19 の測定の資料は 6 冊・80 チャンク（元の記述。2026-10-19 の `evals/results/topk_probe.json` の `chunk_sizes` の合計と一致）で、検索が当てやすい規模です。ベクトル単独が最良だったのは、**この規模での結果**で、ハイブリッドやリランカーが不要という証拠ではありません。
+2026-11-01 の再測定は 421 チャンク（`evals/results/pipeline_compare.json` の `chunk_count`）で、差は 1〜2 問でした（上の「現状」）。本番の DB は、2026-11-09 の読み取りで `documents` 80・`chunks` 2,313（[roadmap.md](roadmap.md)。等級 A）で、どちらの測定より大きい。本番の資料での再測定の記録は見当たらない（未確認）。
 
 ## 見直す条件
 
 （2026-11-01 に、このうち 1・2 の一部は実施した。上の「現状」。リランカーは、外部のモデルを使うものではなく、語の一致の簡易版。クロスエンコーダーや Gemini による並べ替えは入れていない。）
 次のどれかになったら、方式を測り直す。
 
-- 資料が増えて、チャンクが数百を超えた（目安）。
+- 資料が増えて、チャンクが数百を超えた（目安）。（2026-11-01 の再測定は 421 チャンク、2026-11-09 の本番は 2,313 チャンクで、この目安はすでに超えている。上の「小さい資料での結果であること」）
 - 言い換えではなく、型番・固有名詞・数値の完全一致が多い資料を足した（語の一致に強い検索が効きやすい）。
 - 回答の評価で、検索が原因の取りこぼし（答えのチャンクが上位 2 件に入らない）が目立つようになった。
 
 測り直すもの:
 
-1. **ハイブリッド**: ベクトル + キーワード（BM25 基準線 `scripts/bm25_baseline.py`、または pgroonga。拡張と索引は `0004` で DB に残してある）を RRF で合わせる。
-   pgroonga は日本語の順位の同点が多かったので、同点の処理や分かち書きの設定から見直す。
+1. **ハイブリッド**: ベクトル + キーワード（BM25 基準線 `scripts/bm25_baseline.py`、または pgroonga）を RRF で合わせる。アプリ内の BM25（`app/search/keyword.py`）での実施は、2026-11-01 に済み（上の「現状」）。
+   pgroonga の拡張・索引は、`db/migrations/` に無い（2026-11-20 に grep で確認。`0004` は別の変更。本番 DB の実状は未確認）。使うなら、拡張と索引の追加から。pgroonga は日本語の順位の同点が多かったので、同点の処理や分かち書きの設定から見直す。
 2. **リランカー**: 1 次検索の上位 20〜100 件を、質問との関係を読み直す別のモデル（クロスエンコーダー）で並べ替え、上位だけを LLM に渡す。
-   BM25 や pgroonga（1 次検索）とは別の段。精度は上がりうるが、候補の数だけ呼び出しと遅延が増える。いまの規模では足す理由がない。
+   BM25 や pgroonga（1 次検索）とは別の段。精度は上がりうるが、候補の数だけ呼び出しと遅延が増える。（2026-10-18 時点の判断: 6 冊・80 チャンクの規模では足す理由がない。いまの規模は、上の「小さい資料での結果であること」。クロスエンコーダーは、いまも入れていない）
 
 手順は、`scripts/eval_pipeline.py`（保存済みの埋め込みでの構成の比較）と `scripts/eval_vector.py` を使い（5 経路の比較の `eval_search_compare.py` は d693e86 で削除済み）、**質問を先に固定してから**測る（選定用と最終確認を分ける。
 最終確認は 1 回だけ）。実 API（質問の埋め込み）を使うので、送る件数と上限を決めてから実行する。
@@ -134,7 +140,9 @@ BM25 の経路と、`SEARCH_BACKEND` の切り替えは、なくしました。�
 
 - 画面が使う `/chat/stream` を、本物の LLM と DB で通した確認（`/chat` と同じグラフの経路で、測定は `/chat` と同じ `ainvoke`）。
 - 質問ごとの遅延と費用: 質問のたびに埋め込みの API を 1 回呼ぶ。評価では 8 件を 1 回で送って 1.1〜1.4 秒（1 件ずつの遅延は測っていない）。
-- Vertex AI で LLM を使う場合の本番構成: 質問の埋め込みは API キー（`GEMINI_API_KEY`）で呼ぶ（`vertexai=False` を明示）。Vertex AI の ADC で
-  `gemini-embedding-2` を呼ぶ経路は作っていない。デプロイの手順（[deploy.md](deploy.md)）には、`DATABASE_URL` と `GEMINI_API_KEY` の両方が要る。
+- Vertex AI で LLM を使う場合の本番構成: 質問の埋め込みは、既定では API キー（`GEMINI_API_KEY`）で呼ぶ（`vertexai=False` を明示）。
+  **2026-11-04 に、`EMBEDDING_USE_VERTEXAI=true` で、埋め込みを Vertex AI（ADC）で呼ぶ経路を足した**（`fae6ac5`。`app/ingestion/embedding.py`。実測と未確認の点は [configuration.md](configuration.md) の「埋め込みを Vertex AI で呼ぶ」）。
+  本番の Cloud Run サービスと取り込み Job 2 本は、いま `EMBEDDING_USE_VERTEXAI=true`（[deploy.md](deploy.md)・configuration.md。2026-11-20 に gcloud の読み取りで確認、証拠等級 A。切り替えた日付と、実際の呼び出しが Vertex AI で通っているかは未確認）。LLM は `GOOGLE_GENAI_USE_VERTEXAI` が本番に無いので、キーの経路（deploy.md の B）。
+  デプロイの手順（deploy.md）には、`DB_BACKEND=pg` と `DATABASE_URL`、`GEMINI_API_KEY`（`GOOGLE_GENAI_USE_VERTEXAI=true` でなければ回答の生成に要る。埋め込みは `EMBEDDING_USE_VERTEXAI=true` ならキー不要）が要る。
 - 最終確認の質問のうち、subagent の組の独立性は自己申告（14/19 が選定用の正解チャンクと重なる）。Claude の組は、先の結果を知った上で書いた。
 - 答えのある質問は 38 問で、1 問が約 2.6 ポイント。
