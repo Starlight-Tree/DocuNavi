@@ -101,6 +101,14 @@
             "type": "command",
             "command": "python3",
             "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-foreground-wait.py"
+            ],
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-git-write.py"
             ],
             "timeout": 30,
