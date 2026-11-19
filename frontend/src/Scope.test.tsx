@@ -681,7 +681,7 @@ describe('資料一覧: ページ分けと選択', () => {
 
     await chooseFacet(user, '対象', 'zahard');
     expect(chip('対象').dataset.active).toBe('true');
-    expect(chip('資料種別').dataset.active).toBe('false');
+    expect(chip('種類').dataset.active).toBe('false');
   });
 
   it('絞り込みを変えたあとの最初のページ移動でも、表のスクロールを先頭へ戻す', async () => {

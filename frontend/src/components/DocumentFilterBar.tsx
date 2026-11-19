@@ -54,7 +54,7 @@ export function DocumentFilterBar({ filter, options, onChange, onClear }: Docume
   const chips: { key: string; text: string; clear: () => void }[] = [
     ...(splitKeywords(filter.query).length > 0 ? [{ key: 'query', text: `検索：${filter.query.trim()}`, clear: () => onChange({ query: '' }) }] : []),
     ...(filter.target !== null ? [{ key: 'target', text: `対象：${labelOf(options.target, filter.target)}`, clear: () => onChange({ target: null }) }] : []),
-    ...(filter.docType !== null ? [{ key: 'docType', text: `資料種別：${labelOf(options.docType, filter.docType)}`, clear: () => onChange({ docType: null }) }] : []),
+    ...(filter.docType !== null ? [{ key: 'docType', text: `種類：${labelOf(options.docType, filter.docType)}`, clear: () => onChange({ docType: null }) }] : []),
     ...(filter.status !== null ? [{ key: 'status', text: `状態：${labelOf(options.status, filter.status)}`, clear: () => onChange({ status: null }) }] : []),
     ...(filter.pages !== null ? [{ key: 'pages', text: `ページ数：${labelOf(options.pages, filter.pages)}`, clear: () => onChange({ pages: null }) }] : []),
     ...(filter.updated !== null ? [{ key: 'updated', text: `更新：${labelOf(options.updated, filter.updated)}`, clear: () => onChange({ updated: null }) }] : []),
@@ -69,7 +69,7 @@ export function DocumentFilterBar({ filter, options, onChange, onClear }: Docume
             type="search"
             value={text}
             maxLength={QUERY_MAX_LENGTH}
-            placeholder="資料名・ファイル名・対象で検索"
+            placeholder="資料を検索…"
             title="空白で区切ると、すべてを含む資料だけに絞ります（AND）"
             onChange={(event) => {
               setText(event.target.value);
@@ -78,7 +78,7 @@ export function DocumentFilterBar({ filter, options, onChange, onClear }: Docume
           />
         </label>
         <FacetSelect label="対象" value={filter.target} options={options.target} onSelect={(target) => onChange({ target })} />
-        <FacetSelect label="資料種別" value={filter.docType} options={options.docType} onSelect={(docType) => onChange({ docType })} />
+        <FacetSelect label="種類" value={filter.docType} options={options.docType} onSelect={(docType) => onChange({ docType })} />
       </section>
       {/* 有効な条件があるときだけ出る行（件数は見出しの横） */}
       {(chips.length > 0 || isFiltered(filter)) && (

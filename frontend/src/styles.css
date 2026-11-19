@@ -1732,13 +1732,20 @@ a.pdf-save {
   box-sizing: border-box;
   min-height: 2.4rem;
   max-width: 100%;
-  padding: 0 0.45rem;
+  /* 左の余白は、チップ（0.7rem）にそろえる。3 つの箱の文字の頭が揃う */
+  padding: 0 0.7rem;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   background: var(--surface);
   color: var(--text);
   font: inherit;
   font-size: 0.9rem;
+}
+
+/* プレースホルダーは、入力する文字と同じ大きさのまま、色だけミュート色より 1 段薄くする（4.5:1 に近い濃さは残す） */
+.document-filter-field input::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 80%, var(--surface));
+  opacity: 1;
 }
 
 .document-filter-result {

@@ -162,7 +162,7 @@ function DocumentTable({
             <p>
               <strong>旧フィルターが有効です:</strong> 旧グループ「{collectionLabel(collection, labelGroups)}」の資料だけを表示しています
               （URL の <code>collection={collection}</code>）。
-              {(filter.target !== null || filter.docType !== null) && ' 対象・資料種別の選択とあわせて、すべてに当てはまる資料だけが出ます。'}
+              {(filter.target !== null || filter.docType !== null) && ' 対象・種類の選択とあわせて、すべてに当てはまる資料だけが出ます。'}
             </p>
             <button type="button" className="btn btn-secondary btn-small" onClick={onClearCollection}>
               旧フィルターを解除
@@ -274,7 +274,7 @@ function DocumentRows({ documents, sort, onSort, showTarget, openId, onOpen, sel
             資料名
           </SortableHeader>
           {showTarget && <th scope="col">対象</th>}
-          <th scope="col">資料種別</th>
+          <th scope="col">種類</th>
           <SortableHeader column="pages" sort={sort} onSort={onSort} className="col-num">
             ページ数
           </SortableHeader>

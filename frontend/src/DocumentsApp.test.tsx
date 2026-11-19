@@ -835,7 +835,7 @@ describe('資料一覧: 対象と資料種別', () => {
     expect(names()[0]).toMatch(/tsubasa_dorm_rules\.pdf/);
     expect(window.location.search).toBe('?tab=documents&target=tsubasa-dorm');
     // 資料種別の件数は、対象の条件を残して数える
-    expect(await facetOptions(user, '資料種別')).toEqual([
+    expect(await facetOptions(user, '種類')).toEqual([
       'すべて (1)',
       '設定資料 (0)',
       '店舗案内 (0)',
@@ -845,7 +845,7 @@ describe('資料一覧: 対象と資料種別', () => {
     ]);
 
     await chooseFacet(user, '対象', '');
-    await chooseFacet(user, '資料種別', '_none');
+    await chooseFacet(user, '種類', '_none');
     expect(names()).toHaveLength(1);
     expect(names()[0]).toMatch(/loose\.pdf/);
     expect(window.location.search).toBe('?tab=documents&type=_none');
@@ -876,7 +876,7 @@ describe('資料一覧: 対象と資料種別', () => {
     await screen.findByRole('row', { name: /cafe_store_guide\.pdf/ });
     expect(names()).toHaveLength(1);
     expect(facetButton('対象')).toHaveAttribute('data-value', 'minato-coffee');
-    expect(facetButton('資料種別')).toHaveAttribute('data-value', 'store-guide');
+    expect(facetButton('種類')).toHaveAttribute('data-value', 'store-guide');
 
     cleanup();
     window.history.replaceState(null, '', '/?tab=documents&target=gone');
@@ -913,7 +913,7 @@ describe('資料一覧: 対象と資料種別', () => {
     expect(names()).toHaveLength(1);
     expect(facetButton('対象')).toHaveAttribute('data-value', 'aoba-aw820');
     const banner = screen.getByText(/旧フィルターが有効です/).closest('.legacy-filter') as HTMLElement;
-    expect(banner).toHaveTextContent('対象・資料種別の選択とあわせて');
+    expect(banner).toHaveTextContent('対象・種類の選択とあわせて');
     // 選択肢も件数も、旧フィルターで絞った資料の中で数える（cafe の資料の対象は、選択肢に出ない）
     expect(await facetOptions(user, '対象')).toEqual([
       'すべて (2)',
@@ -1014,7 +1014,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
 
     expect(keyword()).toHaveValue('');
     expect(select('対象')).toHaveAttribute('data-value', '');
-    expect(select('資料種別')).toHaveAttribute('data-value', '');
+    expect(select('種類')).toHaveAttribute('data-value', '');
     expect(queryFacetButton('並び替え')).toBeNull();
     for (const name of ['資料名', 'ページ数', '更新日時']) expect(screen.getByRole('columnheader', { name })).not.toHaveAttribute('aria-sort');
     expect(screen.queryByRole('button', { name: /^フィルター/ })).not.toBeInTheDocument();
@@ -1144,13 +1144,13 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     await screen.findByRole('row', { name: /ザーハード1/ });
 
     const chips = within(screen.getByRole('list', { name: '有効な条件' })).getAllByRole('listitem');
-    expect(chips.map((c) => c.textContent)).toEqual(['対象：ザーハード×', '資料種別：設定資料×']);
-    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '資料種別', 'ページ数', '更新日時']); // 先頭は回答に使う資料のチェック列
+    expect(chips.map((c) => c.textContent)).toEqual(['対象：ザーハード×', '種類：設定資料×']);
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '種類', 'ページ数', '更新日時']); // 先頭は回答に使う資料のチェック列
 
     await user.click(screen.getByRole('button', { name: '対象：ザーハード を外す' }));
 
     expect(window.location.search).toBe('?tab=documents&type=setting');
-    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '対象', '資料種別', 'ページ数', '更新日時']);
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '対象', '種類', 'ページ数', '更新日時']);
     expect(within(screen.getByRole('list', { name: '有効な条件' })).getAllByRole('listitem')).toHaveLength(1);
   });
 
@@ -1241,7 +1241,7 @@ describe('資料一覧: テーブル', () => {
     await screen.findByRole('row', { name: /A の資料/ });
 
     const head = screen.getAllByRole('columnheader').map((th) => th.textContent);
-    expect(head).toEqual(['', '資料名', '対象', '資料種別', 'ページ数', '更新日時']);
+    expect(head).toEqual(['', '資料名', '対象', '種類', 'ページ数', '更新日時']);
 
     const row = screen.getByRole('row', { name: /A の資料/ });
     const cells = within(row).getAllByRole('cell');
