@@ -262,7 +262,7 @@ print_gemini_summary() { # key_fp モデル名。実 API の概算費用・上�
     echo "キーの所属プロジェクトと課金状態: **未確認**（gemini-key-info を実行するか、AI Studio https://aistudio.google.com/apikey でキーごとの Plan を確認。この URL は実機で確認していません）"
   fi
   echo "無料枠: あり（公式の料金表、2026-11-11）。無料枠では入力が製品の改善に使われます。「無料だから安全」とは扱いません。"
-  echo "有料枠の料金（100 万トークンあたり）: gemini-3.1-flash-lite は入力 \$0.25・出力 \$1.50、gemini-embedding-2 は入力 \$0.20。"
+  echo "有料枠の料金（100 万トークンあたり）: ${model:-（モデル名を取得できず）} は入力 \$0.25・出力 \$1.50、gemini-embedding-2 は入力 \$0.20。"
   echo "概算費用（有料枠だった場合。トークン数は未測定の見積もり）: 1 問あたり約 \$0.003〜\$0.005（LLM 2 回、入力 4〜10k・出力約 1k トークンと仮定）。"
   echo "通常の画面（localhost:3000）で質問する回数に、上限はありません。テストの実行 1 回の予算は別（外部 API 呼び出し 20 回・質問 10 件・300 秒。tests/real_api_budget.py）。"
 }
