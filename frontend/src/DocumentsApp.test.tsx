@@ -1019,7 +1019,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     for (const name of ['資料名', 'ページ数', '更新日時']) expect(screen.getByRole('columnheader', { name })).not.toHaveAttribute('aria-sort');
     expect(screen.queryByRole('button', { name: /^フィルター/ })).not.toBeInTheDocument();
     for (const name of ['状態', 'ページ数', '更新']) expect(queryFacetButton(name)).not.toBeInTheDocument();
-    expect(result()).toHaveTextContent('5件の資料');
+    expect(result()).toHaveTextContent('4件選択中');
     expect(names()).toHaveLength(5);
     expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
     // 既定の並びはサーバーの順のまま
@@ -1034,7 +1034,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     await user.type(keyword(), '入寮');
     expect(names()).toHaveLength(1);
     expect(names()[0]).toMatch(/入寮規程/);
-    expect(result()).toHaveTextContent('検索結果 1件 · 回答対象 4件');
+    expect(result()).toHaveTextContent('検索結果 1件 · 4件選択中');
     expect(window.location.search).toBe('?tab=documents&q=%E5%85%A5%E5%AF%AE');
     expect(window.history.length).toBe(length);
     expect(screen.getByRole('button', { name: '条件をクリア' })).toBeInTheDocument();
@@ -1056,7 +1056,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     const user = await openList();
 
     await user.type(keyword(), 'zzzz');
-    expect(result()).toHaveTextContent('検索結果 0件 · 回答対象 4件');
+    expect(result()).toHaveTextContent('検索結果 0件 · 4件選択中');
     expect(screen.getByText(MSG_NO_MATCH)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
 
@@ -1092,7 +1092,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(files()).toEqual(['ザーハード2.pdf', 'ザーハード1.pdf', 'cafe_store_guide.pdf', 'つばさ大学学生寮 入寮規程', 'aoba_aw820_manual.pdf']);
     expect(window.location.search).toBe('?tab=documents&sort=updated');
     // 並び替えでは件数も絞り込みの有無も変わらない
-    expect(result()).toHaveTextContent('5件の資料');
+    expect(result()).toHaveTextContent('4件選択中');
     expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
 
     await user.click(within(header('更新日時')).getByRole('button'));

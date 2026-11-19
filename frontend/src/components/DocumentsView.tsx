@@ -133,9 +133,9 @@ function DocumentTable({
   const summary = (
     <>
       <p role="status" className="docs-summary">
-        {searching ? `検索結果 ${shown.length}件` : `${allDocuments.length}件の資料`}
-        {/* 初期状態（絞り込みなし・全選択）は、入力欄にも同じ内容が出るので、何も足さない。知らせるのは、一部だけ選んだとき・絞り込み中（選択は変わらない）だけ */}
-        {selection && (searching || partial) && ` · ${searching ? `回答対象 ${answerCount}件` : `${answerCount}件を回答対象`}`}
+        {/* 回答に使う資料の数を、「79件選択中」の 1 つの文で、いつも出す（全選択のときも「80件選択中」。資料の総数は並べない）。絞り込み中は、検索結果の件数の後ろに足す（選択は変わらない）。選択の仕組みが無い画面は、資料の件数だけ */}
+        {searching ? `検索結果 ${shown.length}件` : selection ? `${answerCount}件選択中` : `${allDocuments.length}件の資料`}
+        {selection && searching && ` · ${answerCount}件選択中`}
       </p>
       {selection && partial && (
         <button type="button" className="docs-reset" onClick={(event) => selection.onReset(event.currentTarget)}>
