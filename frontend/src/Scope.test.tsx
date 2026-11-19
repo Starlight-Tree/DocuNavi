@@ -119,10 +119,10 @@ function setup(auth: FakeAuth | null = null) {
 
 type User = ReturnType<typeof userEvent.setup>;
 
-/** 資料一覧の「全資料に戻す」（一部だけ選んでいるときに、件数の横に出る文字のボタン）。 */
-const resetButton = () => screen.queryByRole('button', { name: '全資料に戻す' });
+/** 資料一覧の「すべて選択」（一部だけ選んでいるときに、件数の横に出る文字のボタン）。 */
+const resetButton = () => screen.queryByRole('button', { name: 'すべて選択' });
 async function resetAll(user: User) {
-  await user.click(await screen.findByRole('button', { name: '全資料に戻す' }));
+  await user.click(await screen.findByRole('button', { name: 'すべて選択' }));
 }
 /** 資料一覧の件数の行が出るまで待つ（一覧が読めた印）。 */
 const summaryReady = () => waitFor(() => expect(document.querySelector('.docs-summary')).not.toBeNull());
@@ -382,12 +382,12 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(screen.getAllByRole('row').slice(1)).toHaveLength(1);
   });
 
-  it('既定は全資料が対象。全部にチェックが付き、「全資料に戻す」は押せない。「全○資料を回答に使う」のボタンは無い', async () => {
+  it('既定は全資料が対象。全部にチェックが付き、「すべて選択」は押せない。「全○資料を回答に使う」のボタンは無い', async () => {
     install();
     const { user } = setup();
     await openDocuments(user);
 
-    expect(await summaryText()).toBe('4件選択中');
+    expect(await summaryText()).toBe('全4件');
     for (const name of ['ザーハード1.pdf', 'ザーハード2.pdf', 'cafe_store_guide.pdf', 'field_note.pdf']) {
       expect(await rowCheck(name)).toBeChecked();
     }
@@ -407,7 +407,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(await rowCheck('field_note.pdf')).not.toBeChecked();
     expect(await headerCheck('このページの 4 件を全選択・解除')).not.toBeChecked();
     expect((await headerCheck('このページの 4 件を全選択・解除')) as HTMLInputElement).toHaveProperty('indeterminate', true);
-    expect(await screen.findByRole('button', { name: '全資料に戻す' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'すべて選択' })).toBeInTheDocument();
     expect(chatBodies).toHaveLength(0);
     // 資料を開かない（チェックは行のクリックに伝わらない）
     expect(window.location.search).toBe('?tab=documents');
@@ -443,7 +443,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
 
     // 全体で全選択すると、全部に戻る（保存の形は「絞らない」）
     await user.click(await headerCheck('このページの 4 件を全選択・解除'));
-    expect(await summaryText()).toBe('4件選択中');
+    expect(await summaryText()).toBe('全4件');
     expect(resetButton()).not.toBeInTheDocument();
   });
 
@@ -459,7 +459,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(await summaryText()).toBe('検索結果 2件 · 2件選択中');
   });
 
-  it('0 件にすると、警告が出て、質問は送れない（送信ボタンは押せず、Enter でも送られない）。全資料に戻すと送れる', async () => {
+  it('0 件にすると、警告が出て、質問は送れない（送信ボタンは押せず、Enter でも送られない）。すべて選択と送れる', async () => {
     const { chatBodies } = install();
     const { user } = setup();
     await openDocuments(user);
@@ -487,7 +487,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(chatBodies[0]).toEqual({ message: 'こんにちは' });
   });
 
-  it('「全資料に戻す」は、選択を外して全資料に戻す（会話が無ければ確認なし）。チップも「すべての資料」に戻る', async () => {
+  it('「すべて選択」は、選択を外してすべて選択（会話が無ければ確認なし）。チップも「すべての資料」に戻る', async () => {
     install();
     const { user } = setup();
     await openDocuments(user);
@@ -496,7 +496,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     await resetAll(user);
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    expect(await summaryText()).toBe('4件選択中');
+    expect(await summaryText()).toBe('全4件');
     expect(resetButton()).not.toBeInTheDocument();
     await goChat(user);
     expect(await menuButton()).toHaveTextContent('すべての資料');
@@ -519,7 +519,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(chatBodies[1]).toEqual({ message: '続きは？', thread_id: 't-1', document_ids: [1, 2] });
   });
 
-  it('対象を選んでいる会話では、チェックの初期値がその対象の資料になる。「全資料に戻す」は確認を出して新しい会話にする', async () => {
+  it('対象を選んでいる会話では、チェックの初期値がその対象の資料になる。「すべて選択」は確認を出して新しい会話にする', async () => {
     const { chatBodies } = install({ chat: () => replyResponse({ thread_id: 't-1', target: 'zahard', hit_count: 1 }) });
     const { user } = setup();
     await pick(user, /^ザーハード/);
@@ -535,7 +535,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
 
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: '新しい会話にする' }));
-    expect(await summaryText()).toBe('4件選択中');
+    expect(await summaryText()).toBe('全4件');
     await goChat(user);
     expect(await menuButton()).toHaveTextContent('すべての資料');
     expect(chatBodies).toHaveLength(1);
@@ -566,7 +566,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     await user.click(screen.getByRole('button', { name: '新しい会話' }));
 
     await openDocuments(user);
-    expect(await summaryText()).toBe('4件選択中');
+    expect(await summaryText()).toBe('全4件');
   });
 
   it('取り込み中・失敗の資料は、チェックできず、数にも入らない（全選択でも入らない）', async () => {
@@ -583,7 +583,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     const { user } = setup();
     await openDocuments(user);
 
-    expect(await summaryText()).toBe('1件選択中');
+    expect(await summaryText()).toBe('全3件');
     expect(await rowCheck('ザーハード2.pdf')).toBeDisabled();
     expect(await rowCheck('cafe_store_guide.pdf')).toBeDisabled();
     expect(resetButton()).not.toBeInTheDocument();
@@ -632,7 +632,7 @@ describe('資料一覧: ページ分けと選択', () => {
     install({ documents: many });
     const { user } = setup();
     await openKnowledge(user);
-    expect(await summaryText()).toBe('60件選択中');
+    expect(await summaryText()).toBe('全60件');
 
     await user.click(await rowCheck('資料 01.pdf'));
     expect(await summaryText()).toBe('59件選択中');
@@ -733,7 +733,7 @@ describe('資料一覧: ページ分けと選択', () => {
     expect(await summaryText()).toBe('59件選択中');
   });
 
-  it('見出しのチェックは、表示中のページだけに効く。別のページの選択は変わらず、「全資料に戻す」で全部に戻る', async () => {
+  it('見出しのチェックは、表示中のページだけに効く。別のページの選択は変わらず、「すべて選択」で全部に戻る', async () => {
     install({ documents: many });
     const { user } = setup();
     await openKnowledge(user);
@@ -746,22 +746,22 @@ describe('資料一覧: ページ分けと選択', () => {
     expect(await summaryText()).toBe('10件選択中');
 
     await resetAll(user);
-    expect(await summaryText()).toBe('60件選択中');
+    expect(await summaryText()).toBe('全60件');
     expect(resetButton()).not.toBeInTheDocument();
   });
 
-  it('「選択 ▾」のメニューは無い。「全資料に戻す」は、一部だけ選んでいるときだけ、件数の横に出る', async () => {
+  it('「選択 ▾」のメニューは無い。「すべて選択」は、一部だけ選んでいるときだけ、件数の横に出る', async () => {
     install({ documents: many });
     const { user } = setup();
     await openKnowledge(user);
 
-    expect(await summaryText()).toBe('60件選択中');
+    expect(await summaryText()).toBe('全60件');
     expect(screen.queryByRole('button', { name: '選択' })).not.toBeInTheDocument();
     expect(resetButton()).not.toBeInTheDocument();
 
     await user.click(await rowCheck('資料 01.pdf'));
     expect(await summaryText()).toBe('59件選択中');
-    expect(await screen.findByRole('button', { name: '全資料に戻す' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'すべて選択' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
   });
 

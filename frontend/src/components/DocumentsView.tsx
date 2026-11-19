@@ -30,9 +30,9 @@ export interface DocumentSelection {
   selected: ReadonlySet<number>;
   /** チェックを付け外しして、選択が変わった（新しい集合全体）。質問は送らない。 */
   onChange: (next: ReadonlySet<number>) => void;
-  /** 「全資料に戻す」（`trigger` は、確認を閉じたあとにフォーカスを戻す先）。 */
+  /** 「すべて選択」（`trigger` は、確認を閉じたあとにフォーカスを戻す先）。 */
   onReset: (trigger: HTMLElement) => void;
-  /** すでに全資料が対象（「全資料に戻す」を押せない）。 */
+  /** すでに全資料が対象（「すべて選択」を押せない）。 */
   isAll: boolean;
 }
 
@@ -65,7 +65,7 @@ interface DocumentTableProps {
   /** URL で指定された、一覧の対象・資料種別・検索・絞り込み・並び替え。 */
   filter: DocumentFilter;
   onFilterChange: (next: Partial<DocumentFilter>, mode?: NavigateMode) => void;
-  /** 回答に使う資料の選択（チェックボックスと「全資料に戻す」）。渡さなければ、選択の操作は出さない。 */
+  /** 回答に使う資料の選択（チェックボックスと「すべて選択」）。渡さなければ、選択の操作は出さない。 */
   selection?: DocumentSelection | undefined;
   onRetry: () => void;
   /** 開いている資料（右のパネル）の ID。その行を示す。 */
@@ -126,20 +126,20 @@ function DocumentTable({
   // 一覧の検索・絞り込みは表示を絞るだけで、選択は変えない。全選択・解除は、表示している資料だけに効く
   const allDocuments = state.data.documents;
   const pageData = paginate(shown, visiblePage, PAGE_SIZE);
-  // 件数と回答対象は 1 行にまとめる。選択の操作は、行のチェックと見出しのチェック（このページ）だけ。「全資料に戻す」は、一部だけ選んでいるときに限って出す
+  // 件数と回答対象は 1 行にまとめる。選択の操作は、行のチェックと見出しのチェック（このページ）だけ。「すべて選択」は、一部だけ選んでいるときに限って出す
   const searching = isFiltered(filter) || collection !== null;
   const answerCount = selection?.selected.size ?? 0;
   const partial = selection !== undefined && !selection.isAll;
   const summary = (
     <>
       <p role="status" className="docs-summary">
-        {/* 回答に使う資料の数を、「79件選択中」の 1 つの文で、いつも出す（全選択のときも「80件選択中」。資料の総数は並べない）。絞り込み中は、検索結果の件数の後ろに足す（選択は変わらない）。選択の仕組みが無い画面は、資料の件数だけ */}
-        {searching ? `検索結果 ${shown.length}件` : selection ? `${answerCount}件選択中` : `${allDocuments.length}件の資料`}
+        {/* 全選択（初期。絞り込みなし）は「全80件」。一部だけ選んでいるときは「79件選択中」（全体の数は並べない。「すべて選択」が出る）。絞り込み中は、検索結果の件数の後ろに足す（選択は変わらない） */}
+        {searching ? `検索結果 ${shown.length}件` : selection && partial ? `${answerCount}件選択中` : `全${allDocuments.length}件`}
         {selection && searching && ` · ${answerCount}件選択中`}
       </p>
       {selection && partial && (
         <button type="button" className="docs-reset" onClick={(event) => selection.onReset(event.currentTarget)}>
-          全資料に戻す
+          すべて選択
         </button>
       )}
     </>

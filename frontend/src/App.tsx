@@ -127,7 +127,7 @@ function ChatScreen() {
   };
 
   // 回答対象（会話の範囲）を変える。会話が無ければそのまま切り替え、会話があれば（会話ごとに固定なので）確認して新しい会話にする。
-  // 入力欄のチップのメニューと、資料一覧の「全資料に戻す」は、どちらもここを通る。資料一覧の絞り込みとは別のもの。
+  // 入力欄のチップのメニューと、資料一覧の「すべて選択」は、どちらもここを通る。資料一覧の絞り込みとは別のもの。
   // 資料一覧から変えても、資料一覧に留まる（質問は自動で送らない）。範囲を選び直すと、資料の選択は外れる（setScope / startNew）
   const requestScope = (scope: ChatScope, trigger: HTMLElement | null) => {
     if (!chat.scopeUnknown && sameScope(scope, chat.scope)) return;
