@@ -7,7 +7,7 @@ description: 本番の画面（docunavi-web）にログインして、操作・�
 
 ## 前提（毎回、説明し直さない）
 
-- ホストにブラウザー操作の手段は無い。コンテナの Playwright MCP は Google ログインができない。ユーザーのログイン済みセッション（Chrome）は使えない。**Cookie・トークンを取り出して使わない。**
+- コンテナの Playwright MCP は Google ログインができない。接続済みの Chrome（`mcp__claude-in-chrome__*`。`dev-environment.md` の「ブラウザー操作」）はユーザー本人のセッションなので、本番の操作・撮影には使わない（本番のログインが要る確認は、下のテスト専用ユーザーで行う）。**Cookie・トークンを取り出して使わない。**
 - 代わりに、テスト専用ユーザー（`e2e-test@docunavi.invalid`）で、`scripts/prod_check.sh --browse` が、開発コンテナの Playwright でログインして操作する。画面はユーザー本人のものではなく `e2e-test` のもの。
 - `prod_check.sh` は**ホストのターミナルで、ユーザーが実行する**（本番 Worker の Secret を書く wrangler のログインがホストにしか無い）。私は実行しない。私がやるのは、シナリオを書くこと、コマンドを組み立てて渡すこと、出力と画像を読んで報告すること。
 - 流れ（trap で必ず後始末）: テスト用ログインを一時的に有効 → `e2e-test` に利用資格を一時付与 → 操作 → 資格を外す → テスト用ログインを削除。本番 DB の `access_audit` に 2 行残る。
