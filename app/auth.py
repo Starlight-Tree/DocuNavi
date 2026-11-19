@@ -1,4 +1,4 @@
-"""ログイン（Better Auth（データ用 Worker）が発行した JWT の検証）。
+"""ログイン（Better Auth（Worker `docunavi-api`）が発行した JWT の検証）。
 
 `AUTH_MODE=off`（既定）なら何も確かめず、従来どおり匿名で動く。`AUTH_MODE=required` のときは、`/chat` と
 `/chat/stream` が `Authorization: Bearer <access_token>` を要求し、署名・有効期限・発行元・対象・`sub` を確かめる。

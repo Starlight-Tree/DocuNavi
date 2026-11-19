@@ -196,7 +196,7 @@ def _vector_literal(vector: Sequence[float]) -> str:
 
 
 def _filter_sql(flt: Mapping[str, Any] | None) -> tuple[str, list[Any]]:
-    """Vectorize のメタデータフィルター（collection / target / document_id。値は文字列か {"$in": [...]}）を SQL の条件に直す。"""
+    """検索の絞り込み条件（collection / target / document_id。値は文字列か {"$in": [...]}。もとは Vectorize のフィルターの形）を SQL の条件に直す。"""
     clauses, params = [], []
     for key, column, cast in (
         ("collection", "d.collection", "text[]"),
