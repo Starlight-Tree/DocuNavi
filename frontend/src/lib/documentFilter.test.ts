@@ -9,7 +9,9 @@ import {
   filterDocuments,
   isFiltered,
   pageBand,
+  nextSort,
   sortDocuments,
+  sortState,
   splitKeywords,
   statusValues,
   updatedBand,
@@ -179,9 +181,34 @@ describe('sortDocuments', () => {
     expect(ids(sortDocuments(DOCS, 'updated'))).toEqual([5, 4, 2, 3, 1, 6]);
   });
 
-  it('pages / chunks は多い順。ページ数が無い資料は最後', () => {
+  it('pages は多い順。ページ数が無い資料は最後', () => {
     expect(ids(sortDocuments(DOCS, 'pages'))).toEqual([1, 2, 3, 4, 5, 6]); // 4,4,3,1,1,null（同じ値は入力の順）
-    expect(ids(sortDocuments(DOCS, 'chunks'))).toEqual([1, 2, 6, 3, 4, 5]); // 6(1) 5(2) 5(6) 3(3) 2(4) 0(5)。5 件の 2 と 6 は入力の順
+  });
+
+  it('逆向き（name_desc・updated_asc・pages_asc）。値が無い資料は、逆向きでも最後', () => {
+    expect(ids(sortDocuments(DOCS, 'name_desc'))).toEqual([3, 5, 4, 6, 2, 1]);
+    expect(ids(sortDocuments(DOCS, 'pages_asc'))).toEqual([4, 5, 3, 1, 2, 6]); // 1,1,3,4,4,null
+    expect(ids(sortDocuments(DOCS, 'updated_asc')).at(-1)).toBe(6); // 日付が無い資料は最後
+    expect(ids(sortDocuments(DOCS, 'updated_asc'))).toEqual([1, 2, 3, 4, 5, 6]); // 古い順。同じ日付の 2 と 3 は入力の順
+  });
+});
+
+describe('nextSort / sortState', () => {
+  it('列名を押すと「最初の向き → 逆向き → 既定」。別の列を押したら、その列の最初の向き', () => {
+    expect(nextSort('default', 'name')).toBe('name');
+    expect(nextSort('name', 'name')).toBe('name_desc');
+    expect(nextSort('name_desc', 'name')).toBe('default');
+    expect(nextSort('default', 'updated')).toBe('updated'); // 更新は新しい順から
+    expect(nextSort('updated', 'updated')).toBe('updated_asc');
+    expect(nextSort('pages_asc', 'pages')).toBe('default');
+    expect(nextSort('name_desc', 'pages')).toBe('pages');
+  });
+
+  it('並べている列と向きを返す。既定は null', () => {
+    expect(sortState('default')).toBeNull();
+    expect(sortState('name')).toEqual({ column: 'name', direction: 'ascending' });
+    expect(sortState('updated')).toEqual({ column: 'updated', direction: 'descending' });
+    expect(sortState('pages_asc')).toEqual({ column: 'pages', direction: 'ascending' });
   });
 });
 

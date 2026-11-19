@@ -15,8 +15,45 @@ export type PageBand = (typeof PAGE_BANDS)[number];
 export const UPDATED_BANDS = ['week', 'month', 'older'] as const;
 export type UpdatedBand = (typeof UPDATED_BANDS)[number];
 
-export const SORT_KEYS = ['default', 'name', 'updated', 'pages', 'chunks'] as const;
+/** 並び順。表の列名（資料名・ページ数・更新日時）を押して切り替える。`default` はサーバーの順（ファイル名順）。`name` `updated` `pages` は、その列で最初に押したときの向き（名前は五十音、更新は新しい順、ページ数は多い順）。 */
+export const SORT_KEYS = ['default', 'name', 'name_desc', 'updated', 'updated_asc', 'pages', 'pages_asc'] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
+
+export type SortColumn = 'name' | 'updated' | 'pages';
+
+const SORT_CYCLE: Record<SortColumn, readonly [SortKey, SortKey]> = {
+  name: ['name', 'name_desc'],
+  updated: ['updated', 'updated_asc'],
+  pages: ['pages', 'pages_asc'],
+};
+
+/** 列名を押したときの次の並び順。最初の向き → 逆向き → サーバーの順（既定）。別の列を押したら、その列の最初の向き。 */
+export function nextSort(current: SortKey, column: SortColumn): SortKey {
+  const [first, second] = SORT_CYCLE[column];
+  if (current === first) return second;
+  if (current === second) return 'default';
+  return first;
+}
+
+/** 並べている列と、向き（`aria-sort` の値）。既定のときは null。 */
+export function sortState(sort: SortKey): { column: SortColumn; direction: 'ascending' | 'descending' } | null {
+  switch (sort) {
+    case 'name':
+      return { column: 'name', direction: 'ascending' };
+    case 'name_desc':
+      return { column: 'name', direction: 'descending' };
+    case 'updated':
+      return { column: 'updated', direction: 'descending' };
+    case 'updated_asc':
+      return { column: 'updated', direction: 'ascending' };
+    case 'pages':
+      return { column: 'pages', direction: 'descending' };
+    case 'pages_asc':
+      return { column: 'pages', direction: 'ascending' };
+    default:
+      return null;
+  }
+}
 
 /** 対象・資料種別の「未分類」（資料の target / doc_type が NULL）を表す値。URL にも載る。識別名の形（先頭は英数字）とは重ならない。 */
 export const UNCLASSIFIED = '_none';
@@ -133,18 +170,38 @@ function displayKey(document: DocumentSummary): string {
   return document.title ?? document.source;
 }
 
-/** 並び替えた写しを返す。`default` は入力の順のまま。同じ値は入力の順を保つ。更新日が無い資料は、新しい順の最後に置く。 */
+/**
+ * 並び替えた写しを返す。`default` は入力の順のまま。同じ値は入力の順を保つ。
+ * 更新日・ページ数が無い資料は、どちらの向きでも最後に置く。
+ */
 export function sortDocuments(documents: readonly DocumentSummary[], sort: SortKey): DocumentSummary[] {
   const copy = [...documents];
+  const byName = (a: DocumentSummary, b: DocumentSummary) => displayKey(a).localeCompare(displayKey(b), 'ja');
+  // 値が無い資料は、向きに関係なく最後
+  const byNumber = (value: (d: DocumentSummary) => number | null, descending: boolean) => (a: DocumentSummary, b: DocumentSummary) => {
+    const x = value(a);
+    const y = value(b);
+    if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
+    return descending ? y - x : x - y;
+  };
+  const updated = (d: DocumentSummary) => {
+    const time = timeOf(d.updatedAt);
+    return Number.isFinite(time) ? time : null;
+  };
+  const pages = (d: DocumentSummary) => d.pages ?? null;
   switch (sort) {
     case 'name':
-      return copy.sort((a, b) => displayKey(a).localeCompare(displayKey(b), 'ja'));
+      return copy.sort(byName);
+    case 'name_desc':
+      return copy.sort((a, b) => byName(b, a));
     case 'pages':
-      return copy.sort((a, b) => (b.pages ?? -1) - (a.pages ?? -1));
-    case 'chunks':
-      return copy.sort((a, b) => b.chunkCount - a.chunkCount);
+      return copy.sort(byNumber(pages, true));
+    case 'pages_asc':
+      return copy.sort(byNumber(pages, false));
     case 'updated':
-      return copy.sort((a, b) => timeOf(b.updatedAt) - timeOf(a.updatedAt));
+      return copy.sort(byNumber(updated, true));
+    case 'updated_asc':
+      return copy.sort(byNumber(updated, false));
     default:
       return copy;
   }
@@ -205,13 +262,6 @@ export function facetCounts(
 export const UNCLASSIFIED_LABEL = '未分類';
 export const PAGE_BAND_LABELS: Record<PageBand, string> = { one: '1ページ', few: '2〜4ページ', many: '5ページ以上' };
 export const UPDATED_BAND_LABELS: Record<UpdatedBand, string> = { week: '7日以内', month: '30日以内', older: 'それ以前' };
-export const SORT_LABELS: Record<SortKey, string> = {
-  default: 'ファイル名順',
-  name: '文書名順',
-  updated: '更新が新しい順',
-  pages: 'ページ数が多い順',
-  chunks: 'チャンク数が多い順',
-};
 
 /** 絞り込みの選択肢。`value` が null のものは「すべて」。 */
 export interface FacetOption<T extends string = string> {

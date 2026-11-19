@@ -14,6 +14,7 @@ import { fakeAuth } from './test/auth';
 import { fakePdf } from './test/fakePdf';
 import type { FakeAuth } from './test/auth';
 import { errorResponse, jsonResponse } from './test/helpers';
+import { chooseFacet, facetButton, facetOptions, queryFacetButton } from './test/facet';
 
 const UPDATED = '2026-10-18T00:00:00+00:00';
 
@@ -790,8 +791,6 @@ describe('資料一覧: 対象と資料種別', () => {
       { name: 'guides', label: '規程・取扱説明書（旧）', description: '', sort_order: 30, registered: true, document_count: 2, ready_count: 2 },
     ],
   };
-  const targetSelect = () => screen.getByRole('combobox', { name: '対象' });
-  const typeSelect = () => screen.getByRole('combobox', { name: '資料種別' });
   const names = () => screen.queryAllByRole('row').slice(1).map((row) => row.textContent ?? '');
   const install = (collections = false) =>
     installDocsFetch(
@@ -821,7 +820,7 @@ describe('資料一覧: 対象と資料種別', () => {
     await openDocuments(user);
     await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
 
-    expect(within(targetSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
+    expect(await facetOptions(user, '対象')).toEqual([
       'すべて (5)',
       'ザーハード (1)',
       'みなとコーヒー (1)',
@@ -829,14 +828,14 @@ describe('資料一覧: 対象と資料種別', () => {
       'あおば電機 AW-820 (1)',
       '未分類 (1)',
     ]);
-    expect(targetSelect()).toHaveValue('');
+    expect(facetButton('対象')).toHaveAttribute('data-value', '');
 
-    await user.selectOptions(targetSelect(), 'tsubasa-dorm');
+    await chooseFacet(user, '対象', 'tsubasa-dorm');
     expect(names()).toHaveLength(1);
     expect(names()[0]).toMatch(/tsubasa_dorm_rules\.pdf/);
     expect(window.location.search).toBe('?tab=documents&target=tsubasa-dorm');
     // 資料種別の件数は、対象の条件を残して数える
-    expect(within(typeSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
+    expect(await facetOptions(user, '資料種別')).toEqual([
       'すべて (1)',
       '設定資料 (0)',
       '店舗案内 (0)',
@@ -845,8 +844,8 @@ describe('資料一覧: 対象と資料種別', () => {
       '未分類 (0)',
     ]);
 
-    await user.selectOptions(targetSelect(), '');
-    await user.selectOptions(typeSelect(), '_none');
+    await chooseFacet(user, '対象', '');
+    await chooseFacet(user, '資料種別', '_none');
     expect(names()).toHaveLength(1);
     expect(names()[0]).toMatch(/loose\.pdf/);
     expect(window.location.search).toBe('?tab=documents&type=_none');
@@ -858,7 +857,7 @@ describe('資料一覧: 対象と資料種別', () => {
     await openDocuments(user);
     await screen.findByRole('row', { name: /tsubasa_dorm_rules\.pdf/ });
 
-    expect(within(targetSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
+    expect(await facetOptions(user, '対象')).toEqual([
       'すべて (5)',
       'aoba-aw820 (1)',
       'minato-coffee (1)',
@@ -866,7 +865,7 @@ describe('資料一覧: 対象と資料種別', () => {
       'zahard (1)',
       '未分類 (1)',
     ]);
-    await user.selectOptions(targetSelect(), 'zahard');
+    await chooseFacet(user, '対象', 'zahard');
     expect(names()).toHaveLength(1);
   });
 
@@ -876,15 +875,15 @@ describe('資料一覧: 対象と資料種別', () => {
     setup();
     await screen.findByRole('row', { name: /cafe_store_guide\.pdf/ });
     expect(names()).toHaveLength(1);
-    expect(targetSelect()).toHaveValue('minato-coffee');
-    expect(typeSelect()).toHaveValue('store-guide');
+    expect(facetButton('対象')).toHaveAttribute('data-value', 'minato-coffee');
+    expect(facetButton('資料種別')).toHaveAttribute('data-value', 'store-guide');
 
     cleanup();
     window.history.replaceState(null, '', '/?tab=documents&target=gone');
     setup();
     expect(await screen.findByText(MSG_NO_MATCH)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(targetSelect()).toHaveValue('gone');
+    expect(facetButton('対象')).toHaveAttribute('data-value', 'gone');
   });
 
   it('旧 URL（?collection=）は黙って捨てず、「旧フィルターが有効です」と出して、その旧グループの資料だけを見せる。解除すると全件に戻る', async () => {
@@ -908,15 +907,15 @@ describe('資料一覧: 対象と資料種別', () => {
   it('旧フィルターと対象が同時にあるときは、AND で重ね、どちらも表示する。当てはまる資料が無ければ、その旨を出す', async () => {
     install(true);
     window.history.replaceState(null, '', '/?tab=documents&collection=guides&target=aoba-aw820');
-    setup();
+    const { user } = setup();
     await screen.findByRole('row', { name: /aoba_aw820_manual\.pdf/ });
 
     expect(names()).toHaveLength(1);
-    expect(targetSelect()).toHaveValue('aoba-aw820');
+    expect(facetButton('対象')).toHaveAttribute('data-value', 'aoba-aw820');
     const banner = screen.getByText(/旧フィルターが有効です/).closest('.legacy-filter') as HTMLElement;
     expect(banner).toHaveTextContent('対象・資料種別の選択とあわせて');
     // 選択肢も件数も、旧フィルターで絞った資料の中で数える（cafe の資料の対象は、選択肢に出ない）
-    expect(within(targetSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
+    expect(await facetOptions(user, '対象')).toEqual([
       'すべて (2)',
       'つばさ大学学生寮 (1)',
       'あおば電機 AW-820 (1)',
@@ -928,7 +927,7 @@ describe('資料一覧: 対象と資料種別', () => {
     setup();
     expect(await screen.findByText(MSG_NO_MATCH_LEGACY)).toBeInTheDocument();
     expect(screen.getByText(/旧フィルターが有効です/)).toBeInTheDocument();
-    expect(targetSelect()).toHaveValue('minato-coffee');
+    expect(facetButton('対象')).toHaveAttribute('data-value', 'minato-coffee');
   });
 
   it('旧フィルターに当てはまる資料が 1 件も無い名前でも、黙って全件に戻さず、旧フィルターを出す', async () => {
@@ -948,7 +947,7 @@ describe('資料一覧: 対象と資料種別', () => {
     );
     const { user } = setup();
     await openDocuments(user);
-    await user.selectOptions(await screen.findByRole('combobox', { name: '対象' }), 'minato-coffee');
+    await chooseFacet(user, '対象', 'minato-coffee');
 
     await user.click(within(screen.getByRole('table')).getByRole('button', { name: /cafe_store_guide\.pdf を開く/ }));
     (await panel()).getByRole('heading', { level: 2 });
@@ -1000,7 +999,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
       .slice(1)
       .map((row) => row.querySelector('.document-name')?.textContent ?? '');
   const keyword = () => screen.getByRole('searchbox', { name: /資料名で検索/ });
-  const select = (name: string) => screen.getByRole('combobox', { name });
+  const select = facetButton;
   const result = () => document.querySelector('.docs-summary');
   async function openList() {
     const { user } = setup();
@@ -1009,16 +1008,17 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     return user;
   }
 
-  it('操作は検索・対象・資料種別・並び替えだけ（「フィルター」の開閉も、状態・ページ数・更新の欄も無い）。件数を出し、絞り込みが無ければ「条件をクリア」は出さない', async () => {
+  it('操作は検索・対象・資料種別だけ。並び替えは表の列名（「フィルター」の開閉も、状態・ページ数・更新の欄も無い）。件数を出し、絞り込みが無ければ「条件をクリア」は出さない', async () => {
     install();
     await openList();
 
     expect(keyword()).toHaveValue('');
-    expect(select('対象')).toHaveValue('');
-    expect(select('資料種別')).toHaveValue('');
-    expect(select('並び替え')).toHaveValue('default');
+    expect(select('対象')).toHaveAttribute('data-value', '');
+    expect(select('資料種別')).toHaveAttribute('data-value', '');
+    expect(queryFacetButton('並び替え')).toBeNull();
+    for (const name of ['資料名', 'ページ数', '更新日時']) expect(screen.getByRole('columnheader', { name })).toHaveAttribute('aria-sort', 'none');
     expect(screen.queryByRole('button', { name: /^フィルター/ })).not.toBeInTheDocument();
-    for (const name of ['状態', 'ページ数', '更新']) expect(screen.queryByRole('combobox', { name })).not.toBeInTheDocument();
+    for (const name of ['状態', 'ページ数', '更新']) expect(queryFacetButton(name)).not.toBeInTheDocument();
     expect(result()).toHaveTextContent('5件の資料');
     expect(names()).toHaveLength(5);
     expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
@@ -1080,21 +1080,34 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(window.location.search).toBe('?tab=documents');
   });
 
-  it('並び替えは、既定ではサーバーの順で、選ぶと並び替わり URL に載る。既定に戻すと URL から外れる', async () => {
+  it('並び替えは、既定ではサーバーの順。列名を押すと並び替わり URL に載る。押し続けると逆向き、さらに押すと既定に戻って URL から外れる', async () => {
     install();
     const user = await openList();
+    const header = (name: string) => screen.getByRole('columnheader', { name });
+    expect(header('資料名')).toHaveAttribute('aria-sort', 'none');
+    expect(screen.queryByRole('combobox', { name: '並び替え' })).not.toBeInTheDocument();
 
-    await user.selectOptions(select('並び替え'), 'updated');
+    await user.click(within(header('更新日時')).getByRole('button'));
+    expect(header('更新日時')).toHaveAttribute('aria-sort', 'descending');
     expect(files()).toEqual(['ザーハード2.pdf', 'ザーハード1.pdf', 'cafe_store_guide.pdf', 'つばさ大学学生寮 入寮規程', 'aoba_aw820_manual.pdf']);
     expect(window.location.search).toBe('?tab=documents&sort=updated');
     // 並び替えでは件数も絞り込みの有無も変わらない
     expect(result()).toHaveTextContent('5件の資料');
     expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
 
-    await user.selectOptions(select('並び替え'), 'pages');
+    await user.click(within(header('更新日時')).getByRole('button'));
+    expect(header('更新日時')).toHaveAttribute('aria-sort', 'ascending');
+    expect(window.location.search).toBe('?tab=documents&sort=updated_asc');
+
+    // 別の列を押すと、その列の最初の向き（ページ数は多い順）。前の列の印は消える
+    await user.click(within(header('ページ数')).getByRole('button'));
+    expect(header('ページ数')).toHaveAttribute('aria-sort', 'descending');
+    expect(header('更新日時')).toHaveAttribute('aria-sort', 'none');
     expect(files().slice(0, 3)).toEqual(['aoba_aw820_manual.pdf', 'cafe_store_guide.pdf', 'つばさ大学学生寮 入寮規程']);
 
-    await user.selectOptions(select('並び替え'), 'default');
+    await user.click(within(header('ページ数')).getByRole('button'));
+    await user.click(within(header('ページ数')).getByRole('button'));
+    expect(header('ページ数')).toHaveAttribute('aria-sort', 'none');
     expect(files()[0]).toBe('aoba_aw820_manual.pdf');
     expect(window.location.search).toBe('?tab=documents');
   });
@@ -1108,7 +1121,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(keyword()).toHaveValue('寮');
     // 状態の条件は欄が無いので、チップで見せる（見えない条件で絞られた一覧にしない）
     expect(within(screen.getByRole('list', { name: '有効な条件' })).getByText(/^状態：/)).toBeInTheDocument();
-    expect(select('並び替え')).toHaveValue('name');
+    expect(screen.getByRole('columnheader', { name: '資料名' })).toHaveAttribute('aria-sort', 'ascending');
     expect(files()).toEqual(['つばさ大学学生寮 入寮規程']);
   });
 
@@ -1194,13 +1207,13 @@ describe('資料一覧: ヒーローは出さず、最近更新した資料は�
     expect(calls.map((c) => c.url).filter((url) => url.includes('/hero'))).toEqual([]);
   });
 
-  it('更新の新しい順は、並び替え「更新が新しい順」で探せる。更新日が無い資料は最後', async () => {
+  it('更新の新しい順は、列名「更新日時」を押して探せる。更新日が無い資料は最後', async () => {
     installDocsFetch(() => jsonResponse(LIST_3));
     const { user } = setup();
     await openDocuments(user);
     await screen.findByRole('row', { name: /a\.pdf/ });
 
-    await user.selectOptions(screen.getByRole('combobox', { name: '並び替え' }), 'updated');
+    await user.click(within(screen.getByRole('columnheader', { name: '更新日時' })).getByRole('button'));
 
     const files = screen.getAllByRole('row').slice(1).map((row) => row.querySelector('.document-name')?.textContent);
     expect(files).toEqual(['B 店の案内', 'a.pdf', 'c.pdf']);

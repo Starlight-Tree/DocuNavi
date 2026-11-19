@@ -5,8 +5,8 @@ import { classificationItems, useClassificationCatalog } from '../hooks/useClass
 import type { DocumentList, DocumentSummary } from '../api/documents';
 import { collectionLabel } from '../lib/collections';
 import { classificationLabel } from '../lib/classifications';
-import { EMPTY_FILTER, UNCLASSIFIED_LABEL, facetOptions, filterDocuments, isFiltered, sortDocuments } from '../lib/documentFilter';
-import type { DocumentFilter, FilterContext } from '../lib/documentFilter';
+import { EMPTY_FILTER, UNCLASSIFIED_LABEL, facetOptions, filterDocuments, isFiltered, nextSort, sortDocuments, sortState } from '../lib/documentFilter';
+import type { DocumentFilter, FilterContext, SortColumn, SortKey } from '../lib/documentFilter';
 import type { Loaded } from '../hooks/useLoaded';
 import type { NavigateMode, UrlState } from '../lib/urlState';
 import { useUrlState } from '../lib/urlState';
@@ -179,7 +179,7 @@ function DocumentTable({
         {shown.length === 0 ? (
           <p className="document-filter-empty">{collection !== null ? MSG_NO_MATCH_LEGACY : MSG_NO_MATCH}</p>
         ) : (
-          <DocumentRows documents={pageData.rows} showTarget={filter.target === null} openId={openId} onOpen={onOpen} selection={selection} />
+          <DocumentRows documents={pageData.rows} sort={filter.sort} onSort={(column) => onFilterChange({ sort: nextSort(filter.sort, column) })} showTarget={filter.target === null} openId={openId} onOpen={onOpen} selection={selection} />
         )}
       </div>
       {shown.length > 0 && (
@@ -211,6 +211,9 @@ function DocumentTable({
 }
 
 interface DocumentRowsProps {
+  /** いまの並び順と、列名を押したときの変更。 */
+  sort: SortKey;
+  onSort: (column: SortColumn) => void;
   documents: DocumentSummary[];
   /** 対象の列を出すか。対象を 1 つ選んでいる間は、全行が同じ対象なので出さない（対象名は、上の見出しにある）。 */
   showTarget: boolean;
@@ -223,7 +226,23 @@ interface DocumentRowsProps {
  * 資料のテーブル。列は、API が返す情報だけ（資料名・対象・資料種別・ページ数・更新日時）。資料名を押すと、右のパネルに詳細を開く。
  * 取り込み済みの印は出さず、取り込み中・失敗だけを資料名の横に出す。ファイル名は、同じ題名の資料を見分けるときだけ出す（ふだんは詳細のパネルで見る）。
  */
-function DocumentRows({ documents, showTarget, openId, onOpen, selection }: DocumentRowsProps) {
+/** 並び替えができる列名。押すと「最初の向き → 逆向き → 既定」。並べている列だけ矢印を出す（`aria-sort` も付ける）。 */
+function SortableHeader({ column, sort, onSort, className, children }: { column: SortColumn; sort: SortKey; onSort: (column: SortColumn) => void; className?: string; children: ReactNode }) {
+  const state = sortState(sort);
+  const current = state?.column === column ? state.direction : undefined;
+  return (
+    <th scope="col" className={className} aria-sort={current ?? 'none'}>
+      <button type="button" className="th-sort" onClick={() => onSort(column)}>
+        {children}
+        <span className="th-sort-arrow" aria-hidden="true">
+          {current === 'ascending' ? '↑' : current === 'descending' ? '↓' : ''}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+function DocumentRows({ documents, sort, onSort, showTarget, openId, onOpen, selection }: DocumentRowsProps) {
   const { targets, docTypes } = useClassificationCatalog();
   const targetItems = classificationItems(targets);
   const docTypeItems = classificationItems(docTypes);
@@ -250,13 +269,17 @@ function DocumentRows({ documents, showTarget, openId, onOpen, selection }: Docu
               />
             </th>
           )}
-          <th scope="col">資料名</th>
+          <SortableHeader column="name" sort={sort} onSort={onSort}>
+            資料名
+          </SortableHeader>
           {showTarget && <th scope="col">対象</th>}
           <th scope="col">資料種別</th>
-          <th scope="col" className="col-num">
+          <SortableHeader column="pages" sort={sort} onSort={onSort} className="col-num">
             ページ数
-          </th>
-          <th scope="col">更新日時</th>
+          </SortableHeader>
+          <SortableHeader column="updated" sort={sort} onSort={onSort}>
+            更新日時
+          </SortableHeader>
         </tr>
       </thead>
       <tbody>

@@ -23,6 +23,12 @@ test('質問を送ると、偽の検索の出典つきの回答が画面に出�
 
 // シナリオ 2〜: 回答対象（対象）。偽の DB（tests/e2e_server.py の _FakePool）が、対象 5 つ（ザーハード・みなとコーヒー・つばさ大学学生寮・
 // あおば電機 AW-820・準備中の対象。資料が 1 件も見えない対象は出ない）と資料種別 4 つを返し、偽の検索はザーハード（zahard）だけを持つ。対象が違えば 0 件になる。
+// 資料一覧の絞り込みのチップ（対象・資料種別）。ボタンを押すと選択肢のメニューが開く。値は data-value
+const facet = (page: Page, name: string) => page.locator('.chip-select-button', { has: page.locator('.document-filter-label', { hasText: new RegExp(`^${name}$`) }) });
+const chooseFacet = async (page: Page, name: string, value: string) => {
+  await facet(page, name).click();
+  await page.locator(`.chip-select-menu [data-value="${value}"]`).click();
+};
 const targetButton = (page: Page) => page.getByRole('button', { name: /^回答対象/ });
 // 上部に「チャット」「資料」の入口は無い。資料一覧へは左下のメニューの「ナレッジ」、チャットへはロゴで戻る
 const docsLink = {
@@ -97,14 +103,13 @@ test('対象に資料が無いと案内が出て、「すべての資料で聞�
 
 test('資料一覧の対象の選択は一覧を絞るだけ。資料ごとのチェックが入力欄の「回答対象」に反映され、質問は選んだ資料だけで探す', async ({ page }) => {
   await page.goto('/?tab=documents');
-  const targetSelect = page.getByRole('combobox', { name: '対象' });
-  await expect(targetSelect).toBeVisible();
-  // ヒーローと大きなグループカードは出さない。一覧はテーブル。操作は 検索・対象・資料種別・並び替え だけ（先頭の列は回答に使う資料のチェック）
+  await expect(facet(page, '対象')).toBeVisible();
+  // ヒーローと大きなグループカードは出さない。一覧はテーブル。操作は 検索・対象・資料種別 だけ（並び替えは列名を押す）（先頭の列は回答に使う資料のチェック）
   await expect(page.getByRole('region', { name: '最近更新された資料' })).toHaveCount(0);
   await expect(page.getByRole('group', { name: /資料グループ/ })).toHaveCount(0);
   await expect(page.getByRole('columnheader')).toHaveText(['', '資料名', '対象', '資料種別', 'ページ数', '更新日時']);
-  await expect(page.getByRole('combobox', { name: '資料種別' })).toBeVisible();
-  await expect(page.getByRole('combobox', { name: '並び替え' })).toBeVisible();
+  await expect(facet(page, '資料種別')).toBeVisible();
+  await expect(facet(page, '並び替え')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^フィルター/ })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: '状態' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /回答に使う$/ })).toHaveCount(0); // 「全○資料を回答に使う」は無い
@@ -117,14 +122,14 @@ test('資料一覧の対象の選択は一覧を絞るだけ。資料ごとの�
   await expect(page.getByRole('button', { name: '全資料に戻す' })).toHaveCount(0); // 一部選択のときだけ出る
 
   // 対象を選んでも、一覧が絞られるだけで、選択は変わらない。見出しのチェックはこのページだけに効く
-  await targetSelect.selectOption('minato-coffee');
+  await chooseFacet(page, '対象', 'minato-coffee');
   await expect(page).toHaveURL(/target=minato-coffee/);
   await expect(page.getByRole('row')).toHaveCount(2); // 見出し + みなとコーヒーの 1 件
   await expect(page.getByRole('columnheader')).toHaveText(['', '資料名', '資料種別', 'ページ数', '更新日時']);
   await expect(summary).toHaveText('検索結果 1件 · 回答対象 7件');
   await page.getByRole('checkbox', { name: 'このページの 1 件を全選択・解除' }).uncheck();
   await expect(summary).toHaveText('検索結果 1件 · 回答対象 6件');
-  await targetSelect.selectOption('');
+  await chooseFacet(page, '対象', '');
   await expect(page.getByRole('checkbox', { name: '店舗案内 を回答に使う' })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'ザーハード 1 を回答に使う' })).toBeChecked();
 
@@ -177,7 +182,7 @@ test('旧 URL（?collection=）は旧フィルターとして知らせ、解除�
   await expect(banner).toBeVisible();
   await expect(page.getByRole('row')).toHaveCount(3); // 見出し + 規程・取扱説明書の 2 件
 
-  await page.getByRole('combobox', { name: '対象' }).selectOption('aoba-aw820');
+  await chooseFacet(page, '対象', 'aoba-aw820');
   await expect(page).toHaveURL(/collection=guides/);
   await expect(page).toHaveURL(/target=aoba-aw820/);
   await expect(page.getByRole('row')).toHaveCount(2);
@@ -235,7 +240,7 @@ test('対象の一覧を読めなくても、「すべて」での質問は妨�
   await expect(page.getByText('資料から該当箇所が見つかりました。')).toBeVisible();
 
   await docsLink.click(page);
-  await expect(page.getByRole('combobox', { name: '対象' })).toBeVisible();
+  await expect(facet(page, '対象')).toBeVisible();
   await expect(page.getByRole('button', { name: /回答に使う$/ })).toHaveCount(0);
 });
 
@@ -250,7 +255,7 @@ test('最初の画面はチャットで、上部にタブは無い。左下の�
 
   await docsLink.click(page);
   await expect(page).toHaveURL(/tab=documents/);
-  await expect(page.getByRole('combobox', { name: '対象' })).toBeVisible();
+  await expect(facet(page, '対象')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ナレッジ' })).toBeVisible();
 
   await page.getByRole('link', { name: 'DocuNavi' }).click();
@@ -304,7 +309,7 @@ test('PC: 左サイドバーを閉じると、アイコンだけの細いレー�
   // レールのアイコンで資料一覧へ移り、ロゴでチャットへ戻る。入力途中の文は残る
   await knowledgeIcon.click();
   await expect(page).toHaveURL(/tab=documents/);
-  await expect(page.getByRole('combobox', { name: '対象' })).toBeVisible();
+  await expect(facet(page, '対象')).toBeVisible();
   await expect(knowledgeIcon).toHaveAttribute('aria-current', 'page');
   await expect(chatIcon).not.toHaveAttribute('aria-current', 'page');
   await chatIcon.click();

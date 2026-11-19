@@ -17,6 +17,7 @@ import {
   replyResponse,
 } from './test/helpers';
 import { openSources } from './test/sources';
+import { chooseFacet, facetButton, facetChip, facetOptions, findFacetButton, queryFacetButton } from './test/facet';
 
 const UPDATED = '2026-10-19T05:30:00+00:00';
 
@@ -354,7 +355,6 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
   async function openDocuments(user: User) {
     await openKnowledge(user);
   }
-  const targetSelect = () => screen.findByRole('combobox', { name: '対象' });
   const rowCheck = (name: string) => screen.findByRole('checkbox', { name: `${name} を回答に使う` });
   const headerCheck = (name: string | RegExp) => screen.findByRole('checkbox', { name });
   const summaryText = async () => {
@@ -368,8 +368,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     const { user } = setup();
     await openDocuments(user);
 
-    const select = await targetSelect();
-    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
+    expect(await facetOptions(user, '対象')).toEqual([
       'すべて (4)',
       'ザーハード (2)',
       'みなとコーヒー (1)',
@@ -377,7 +376,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     ]);
     expect(screen.queryByRole('combobox', { name: 'グループ' })).not.toBeInTheDocument();
 
-    await user.selectOptions(select, 'minato-coffee');
+    await chooseFacet(user, '対象', 'minato-coffee');
 
     expect(window.location.search).toBe('?tab=documents&target=minato-coffee');
     expect(screen.getAllByRole('row').slice(1)).toHaveLength(1);
@@ -426,7 +425,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     const { user } = setup();
     await openDocuments(user);
 
-    await user.selectOptions(await targetSelect(), 'zahard');
+    await chooseFacet(user, '対象', 'zahard');
     // 絞り込んだだけでは何も変わらない
     expect(await summaryText()).toBe('検索結果 2件 · 回答対象 4件');
     expect(resetButton()).not.toBeInTheDocument();
@@ -436,7 +435,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     expect(await summaryText()).toBe('検索結果 2件 · 回答対象 2件');
 
     // 絞り込みを解除しても、表示していなかった 2 件の選択は変わっていない
-    await user.selectOptions(await targetSelect(), '');
+    await chooseFacet(user, '対象', '');
     expect(await rowCheck('ザーハード1.pdf')).not.toBeChecked();
     expect(await rowCheck('cafe_store_guide.pdf')).toBeChecked();
     expect(await rowCheck('field_note.pdf')).toBeChecked();
@@ -669,9 +668,8 @@ describe('資料一覧: ページ分けと選択', () => {
     await openKnowledge(user);
     await waitFor(() => expect(rows()).toHaveLength(25));
     const wrap = document.querySelector('.documents-table-wrap') as HTMLElement;
-    const chip = (name: string) => screen.getByRole('combobox', { name }).closest('.document-filter-chip') as HTMLElement;
+    const chip = facetChip;
     expect(chip('対象').dataset.active).toBe('false');
-    expect(chip('並び替え').dataset.active).toBe('false');
 
     // 見出しのチェックは、そのページだけに効く。3 ページ分を外して、0 件にする
     for (let page = 1; page <= 3; page++) {
@@ -681,11 +679,9 @@ describe('資料一覧: ページ分けと選択', () => {
     // 同じ文は、ほかの場所（入力欄の近く）にも出る。ここでは、表の包みの中にあることだけを見る
     expect(await within(wrap).findByText('回答に使う資料が 1 件も選ばれていないため、質問は送れません。')).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByRole('combobox', { name: '対象' }), 'zahard');
+    await chooseFacet(user, '対象', 'zahard');
     expect(chip('対象').dataset.active).toBe('true');
     expect(chip('資料種別').dataset.active).toBe('false');
-    await user.selectOptions(screen.getByRole('combobox', { name: '並び替え' }), 'name');
-    expect(chip('並び替え').dataset.active).toBe('true');
   });
 
   it('絞り込みを変えたあとの最初のページ移動でも、表のスクロールを先頭へ戻す', async () => {
@@ -696,7 +692,7 @@ describe('資料一覧: ページ分けと選択', () => {
     const wrap = document.querySelector('.documents-table-wrap') as HTMLElement;
 
     await next(user); // 2 ページ目
-    await user.selectOptions(screen.getByRole('combobox', { name: '対象' }), 'minato-coffee'); // 条件が変わり、見えるページは 1 に戻る
+    await chooseFacet(user, '対象', 'minato-coffee'); // 条件が変わり、見えるページは 1 に戻る
     wrap.scrollTop = 400;
     await next(user); // 保存しているページ番号は変わらず 2 のまま。それでも、見えるページは 1 → 2 になる
     expect(wrap.scrollTop).toBe(0);
@@ -727,12 +723,12 @@ describe('資料一覧: ページ分けと選択', () => {
     expect(wrap.scrollTop).toBe(0);
 
     scrollDown();
-    await user.selectOptions(screen.getByRole('combobox', { name: '対象' }), 'zahard');
+    await chooseFacet(user, '対象', 'zahard');
     expect(wrap.scrollTop).toBe(0);
 
     // 選択は、スクロールを戻しても変わらない
     await user.clear(screen.getByRole('searchbox', { name: /資料名で検索/ }));
-    await user.selectOptions(screen.getByRole('combobox', { name: '対象' }), '');
+    await chooseFacet(user, '対象', '');
     expect(await rowCheck('資料 01.pdf')).not.toBeChecked();
     expect(await summaryText()).toBe('60件の資料 · 59件を回答対象');
   });
@@ -779,7 +775,7 @@ describe('資料一覧: ページ分けと選択', () => {
     expect(await pager()).toHaveTextContent('51–60 / 60 件');
 
     // 絞り込み（対象）で 1 ページ目に戻る。30 件 → 25 件 + 5 件
-    await user.selectOptions(await screen.findByRole('combobox', { name: '対象' }), 'zahard');
+    await chooseFacet(user, '対象', 'zahard');
     expect(await pager()).toHaveTextContent('1–25 / 30 件');
     expect(await summaryText()).toBe('検索結果 30件 · 回答対象 60件');
 
@@ -793,7 +789,7 @@ describe('資料一覧: ページ分けと選択', () => {
     expect(await summaryText()).toBe('検索結果 30件 · 回答対象 30件');
 
     // 並び替えでも 1 ページ目に戻る
-    await user.selectOptions(await screen.findByRole('combobox', { name: '並び替え' }), 'name');
+    await user.click(within(screen.getByRole('columnheader', { name: '資料名' })).getByRole('button'));
     expect(await pager()).toHaveTextContent('1–25 / 30 件');
     expect(await summaryText()).toBe('検索結果 30件 · 回答対象 30件');
   });
@@ -995,8 +991,7 @@ describe('回答対象: 対象の一覧を読めないとき', () => {
     await screen.findByText('対象の一覧を読み込めませんでした。');
     await openKnowledge(user);
 
-    const select = await screen.findByRole('combobox', { name: '対象' });
-    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
+    expect(await facetOptions(user, '対象')).toEqual([
       'すべて (4)',
       'minato-coffee (1)',
       'zahard (2)',
@@ -1159,7 +1154,7 @@ describe('チャットが最初の画面。回答対象は入力欄の中のチ�
 
     expect(await screen.findByRole('textbox', { name: 'メッセージ' })).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'ナレッジ' })).not.toBeInTheDocument(); // 最初の画面はチャット
-    expect(screen.queryByRole('combobox', { name: '対象' })).not.toBeInTheDocument();
+    expect(queryFacetButton('対象')).not.toBeInTheDocument();
     expect(window.location.search).toBe('');
   });
 
@@ -1193,7 +1188,7 @@ describe('チャットが最初の画面。回答対象は入力欄の中のチ�
     await openKnowledge(user);
 
     expect(window.location.search).toBe('?tab=documents');
-    expect(await screen.findByRole('combobox', { name: '対象' })).toBeVisible();
+    expect(await findFacetButton('対象')).toBeVisible();
     await goChat(user);
     expect(input()).toHaveValue('書きかけ');
   });
@@ -1273,9 +1268,9 @@ describe('左サイドバーの開閉', () => {
     window.history.pushState(null, '', '/?tab=documents&target=zahard');
     window.dispatchEvent(new PopStateEvent('popstate'));
 
-    expect(await screen.findByRole('combobox', { name: '対象' })).toHaveValue('zahard');
+    expect(await findFacetButton('対象')).toHaveAttribute('data-value', 'zahard');
     expect(sidebarToggle('開く')).toBeVisible();
     await user.click(sidebarToggle('開く'));
-    expect(screen.getByRole('combobox', { name: '対象' })).toHaveValue('zahard');
+    expect(facetButton('対象')).toHaveAttribute('data-value', 'zahard');
   });
 });

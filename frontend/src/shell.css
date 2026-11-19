@@ -1692,6 +1692,42 @@ a.ws-icon-btn {
   white-space: nowrap;
 }
 
+/* 並び替えの列名。見た目は列名のまま（ボタンの枠・背景は出さない）。並べている列だけ矢印が出る。矢印の幅は常に確保して、押しても列の幅が動かない */
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.3rem;
+  margin: -0.15rem -0.3rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.th-sort:hover {
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  color: var(--text-body);
+}
+
+.th-sort:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.documents-table th[aria-sort='ascending'] .th-sort,
+.documents-table th[aria-sort='descending'] .th-sort {
+  color: var(--text-body);
+}
+
+.th-sort-arrow {
+  display: inline-block;
+  width: 0.8em;
+  text-align: center;
+}
+
 /* 資料名は 1 行にして、はみ出す分は「…」にする（表をすっきり保つ）。全文は、行のボタンの title と、開いた資料のパネルで読める。
    表の幅の自動配分のまま省略するには、列に width: 100% と max-width: 0 を指定する（ほかの列は中身の幅になる） */
 .documents-table th[scope='row'] {
