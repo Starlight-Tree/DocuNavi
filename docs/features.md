@@ -106,7 +106,7 @@
 <th width="37%">条件・制限</th>
 <th width="15%">詳細</th>
 </tr>
-<tr><td>取り込み</td><td>R2 の PDF をチャンク化・埋め込みして DB へ</td><td>同期は週 1 回（2026-11-10〜11 に毎時から変更、<a href="decisions/0012-accept-prisma-free-limit-and-cut-operations.md">ADR 0012</a>。Job の最終実行が 2026-11-14 のままで、毎時ではないとみられる）。R2 通知の Job を起こす Scheduler は一時停止の記録（現状は未確認）</td><td><a href="roadmap.md">計画</a></td></tr>
+<tr><td>取り込み</td><td>R2 の PDF をチャンク化・埋め込みして DB へ</td><td>同期は週 1 回（2026-11-10〜11 に毎時から変更、<a href="decisions/0012-accept-prisma-free-limit-and-cut-operations.md">ADR 0012</a>。Job の最終実行が 2026-11-14 のままで、毎時ではない）。R2 通知の Job を起こす Scheduler は PAUSED（2026-11-20 にホストの Claude が読んだ。ホストの報告で、コンテナは未再確認）</td><td><a href="roadmap.md">計画</a></td></tr>
 <tr><td>履歴の掃除</td><td>古い会話履歴の削除 Job</td><td>2026-11-15 03:00 JST の定期実行は、対象 0 件で終了（<a href="deploy.md">deploy.md</a> の D、2026-11-20、gcloud の読み取り、A）。削除が起きうる最初は 2026-11-22。対象があったときの結果は未確認</td><td><a href="roadmap.md">計画</a></td></tr>
 <tr><td>バックアップ</td><td><code>pg_dump</code> を R2 へ週 1 回</td><td>実データでの復元は未確認</td><td><a href="pg-backup.md">バックアップ</a></td></tr>
 <tr><td>MCP 検索</td><td>Claude Code から資料を検索</td><td>運用者専用（全グループ）</td><td><a href="mcp-tool-design.md">MCP 設計</a></td></tr>

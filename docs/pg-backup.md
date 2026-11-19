@@ -7,14 +7,15 @@ Prisma Postgres の Free プランには、ドキュメント化されたバッ�
 | 保存先 | R2 バケット `docunavi-backups`（非公開、APAC）。キーは `pg/docunavi-YYYYMMDD-HHMMSS.dump`（UTC） |
 | 形式 | `pg_dump --format=custom --no-owner --no-privileges`。全表（`account` のトークンと `jwks` の秘密鍵を含む。バケットは非公開のまま） |
 | 保持 | 通常のダンプ（`pg/docunavi-*`）は **14 日**。バケットのライフサイクル規則 `delete-after-14d`（プレフィックス `pg/docunavi-`。削除は期限後おおむね 24 時間以内。週 1 回なので 2〜3 世代が残る）。**月次の長期保持**: その月の最初のバックアップを、Job が R2 の中で `pg/monthly/docunavi-YYYYMM.dump`（UTC の月）に写す（サーバー側のコピー。DB には触れない）。規則 `delete-monthly-after-400d`（プレフィックス `pg/monthly/`）が **400 日**で消す。Job は消さない |
-| 実行 | Cloud Scheduler `docunavi-pg-backup-daily`（名前は毎日だった頃のまま。IAM を作り直さないため残す）、毎週日曜 00:00 JST（＝土曜 15:00 UTC。cron `0 0 * * 0`、タイムゾーン `Asia/Tokyo`。2026-11-10 に月曜 18:30 UTC から変更） |
+| 実行 | Cloud Scheduler `docunavi-pg-backup-daily`（名前は毎日だった頃のまま。IAM を作り直さないため残す）、毎週日曜 00:00 JST（＝土曜 15:00 UTC。cron `0 0 * * 0`、タイムゾーン `Asia/Tokyo`。2026-11-10 に毎日 18:30 UTC〔03:30 JST〕から変更） |
 | 接続 | Secret Manager `database-url`（版 **1** に固定）。プール経由のホストだが、`pg_dump` は通っている（2026-11-15 の定期実行が成功。下の「実績」）ので、直接ホスト用の Secret は足していない |
 | R2 のキー | Secret Manager `r2-backup-rw`（`ops/r2_key_issuer` の `issue-backup-rw` が発行。バケットは `docunavi-backups` だけ）。**ローテーション未実装**（取り消しは Cloudflare のダッシュボードで行う） |
 | 流れ | `pg_dump` → `pg_restore --list` で必要な表（`documents` `chunks` `user` `account`）が入っているか検査 → R2 に保存 → 保存したサイズを確認。どこかで失敗したら保存しない |
 | ログ | バイト数・表の数・キーだけ。接続文字列・パスワード・R2 のキーは出さない（失敗時の `pg_dump` の出力は先頭 5 行、パスワードとユーザー名を伏せて出す） |
 | 終了コード | 0 成功 / 2 設定不足 / 3 `pg_dump` 失敗 / 4 検査失敗 / 5 保存失敗 / 6 月次の写しの失敗（通常のダンプは保存済み）/ 1 想定外 |
 
-**実績（2026-11-20、gcloud の読み取り〔Job の実行履歴とログ〕、証拠等級 A）:** Job の実行は、2026-11-08 19:40・19:42 JST の初回の 2 回、毎日 03:30 JST の定期実行（2026-11-09・11-10）、週 1 回に変えたあとの 2026-11-15 00:00 JST の定期実行が、いずれも成功した（終了コード 0）。2026-11-15 のログは `backup ok: bucket=docunavi-backups key=pg/docunavi-20261114-150022.dump bytes=9539215 tables_with_data=18` と `monthly copy: key=pg/monthly/docunavi-202611.dump` で、Scheduler の起動の記録（HTTP 200）もある。次の定期実行は、起動のログと文書の cron からの予定で 2026-11-22 00:00 JST（Scheduler の設定は閲覧用の権限では読めない）。バケットのライフサイクル規則（14 日・400 日）が実際にどうなっているかは、閲覧用の権限では読めず、未確認。
+**実績（2026-11-20、gcloud の読み取り〔Job の実行履歴とログ〕、証拠等級 A）:** Job の実行は、2026-11-08 19:40・19:42 JST の初回の 2 回、毎日 03:30 JST の定期実行（2026-11-09・11-10）、週 1 回に変えたあとの 2026-11-15 00:00 JST の定期実行が、いずれも成功した（終了コード 0）。2026-11-15 のログは `backup ok: bucket=docunavi-backups key=pg/docunavi-20261114-150022.dump bytes=9539215 tables_with_data=18` と `monthly copy: key=pg/monthly/docunavi-202611.dump` で、Scheduler の起動の記録（HTTP 200）もある。
+**ホストでの読み取り（2026-11-20、ホストの Claude の報告。私〔コンテナ〕は再確認していない）:** Scheduler `docunavi-pg-backup-daily` は日曜 00:00 JST（cron `0 0 * * 0`）で、直近の実行は上の「実績」の 2026-11-15、次は 2026-11-22 とみられる（次回の時刻は報告にはなく、計算）。バケット `docunavi-backups` のライフサイクル規則は 3 本ある: `delete-after-14d`（プレフィックス `pg/docunavi-`、14 日）、`delete-monthly-after-400d`（`pg/monthly/`、400 日）、`Default Multipart Abort`（7 日）。`pg/` 全体に 14 日の旧規則は無いので、`pg/monthly/docunavi-202611.dump` は 2026-11-29 ごろには消えない。コンテナの閲覧用の権限では、Scheduler とライフサイクル規則は読めない。
 
 本番 DB には読み取りしかしない。既存の Cloud Run サービスとリビジョンには触れない。
 
@@ -92,10 +93,10 @@ Cloud Scheduler の API が無効なら、先に `as_me gcloud services enable c
 
 ## 月次の長期保持の有効化（ユーザーがホストで。順番を守る）
 
-**状態（2026-11-20）:** 月次の写しを作る新しいイメージは配備済みで、2026-11-15 の実行で `pg/monthly/docunavi-202611.dump` を作った（上の「実績」）。この節の規則の入れ替え（`wrangler r2 bucket lifecycle`）を実施したかは、記録が無く、未確認（[roadmap.md](roadmap.md) の「現状」の「バックアップ」の項にある、期限削除〔最初は 2026-11-22 ごろ〕も未確認のまま）。
+**状態（2026-11-20）:** 月次の写しを作る新しいイメージは配備済みで、2026-11-15 の実行で `pg/monthly/docunavi-202611.dump` を作った（上の「実績」）。この節の規則の入れ替え（`wrangler r2 bucket lifecycle`）は、**実施済みとホストが報告した**（2026-11-20、ホストの Claude が `lifecycle list` で読んだ。コンテナでは未再確認。上の「実績」の 3 本。ホストの報告）。[roadmap.md](roadmap.md) の「現状」の「バックアップ」の項にある、期限削除（最初は 2026-11-22 ごろ）が実際に起きるかは、まだ未確認。
 
 `pg/monthly/` のキーは `pg/docunavi-` で始まらないので、規則をプレフィックスで分けられる。**先に規則を直し、その後で新しいイメージを配備する**（古い規則が `pg/` 全体に掛かっていると、月次の写しが 14 日で消える）。
-`wrangler r2 bucket lifecycle` のサブコマンドと引数は、**この環境では未確認**（先に `list` で今の規則を見る。Cloudflare のダッシュボードの R2 → `docunavi-backups` → Settings → Object lifecycle rules でも同じ）。
+**この節の手順は実施済み。再実行しない（規則を作り直すときの手順として残す）。** `wrangler r2 bucket lifecycle` のうち、`list` は 2026-11-20 にホストで動いた（ホストの報告）。`add` `remove` のサブコマンドと引数は、**この環境では未確認**（先に `list` で今の規則を見る。Cloudflare のダッシュボードの R2 → `docunavi-backups` → Settings → Object lifecycle rules でも同じ）。
 
 ```bash
 npx wrangler r2 bucket lifecycle list docunavi-backups
@@ -167,4 +168,5 @@ done
 **作成済み（2026-11-11、ユーザーがホストで作成し、2 件とも `enabled=True`・通知先 1 件を確認〔証拠等級: ユーザーの報告〕）:**
 `projects/docunavi-app/alertPolicies/8035046611342240567` と `projects/docunavi-app/alertPolicies/6567028124981041704`
 （どちらが Job 用でどちらが Scheduler 用かは、報告に書かれていない。確かめるには `gcloud alpha monitoring policies describe <名前> --format='value(displayName)'`。閲覧専用の ID には Monitoring の権限が無いので、ユーザー自身の権限で）。
+**ホストでの読み取り（2026-11-20、ホストの Claude の報告）:** アラートポリシーは 4 件（表示名は Cloud Run 5xx・chat failures・pg-backup scheduler failed・pg-backup failed）で、すべて有効、通知チャネルは各 1 つ。pg-backup の 2 件が、上の 2 つの ID に当たるとみられる。ID と表示名の対応と、通知先の名前は、確かめていない。
 通知が実際に届くことは、まだ確認していない（失敗が起きるまで受動確認）。

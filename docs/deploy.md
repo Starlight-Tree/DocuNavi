@@ -149,7 +149,7 @@ as_me gcloud secrets add-iam-policy-binding database-url \
 削除のために HTTP ルートは作りません（認証が無いため）。Job はアプリのイメージを使い、コマンドだけを上書きします。Job は `DB_BACKEND` と `DATABASE_URL`（C の Secret）だけを渡し、LLM のキーは要りません。
 
 **現状（2026-11-15）:** Job `docunavi-history-cleanup`（`--older-than-days 7 --apply`）、Scheduler `docunavi-history-cleanup-weekly`（毎週日曜 03:00 JST）。**`--apply` は 2026-11-15 に戻しました（利用者の承認）。最初に消えうるのは 2026-11-22 03:00 JST の実行で、初回のログと DELETE 権限は未確認です**（「保留中の運用の準備」の 4）。
-**2026-11-20 の訂正（gcloud のログの読み取り、証拠等級 A）:** 戻した日の 03:00 JST の定期実行（実行 `docunavi-history-cleanup-vx5ln`）は、すでに `--apply` つきで動いていました。ログは「削除した会話: 0 件」、終了コード 0 です。対象が 0 件で DELETE は発行されていない（`app/history_admin.py`）ので、DELETE 権限は未確認のままで、会話が削除された実績はまだありません。次の定期実行は、起動のログと文書の cron からの予定で 2026-11-22 03:00 JST です（Scheduler の設定は閲覧用の権限では読めない）。
+**2026-11-20 の訂正（gcloud のログの読み取り、証拠等級 A）:** 戻した日の 03:00 JST の定期実行（実行 `docunavi-history-cleanup-vx5ln`）は、すでに `--apply` つきで動いていました。ログは「削除した会話: 0 件」、終了コード 0 です。対象が 0 件で DELETE は発行されていない（`app/history_admin.py`）ので、DELETE 権限は未確認のままで、会話が削除された実績はまだありません。次の定期実行は 2026-11-22 03:00 JST です（Scheduler `docunavi-history-cleanup-weekly` の設定は、日曜 03:00 JST、直近は 2026-11-15。2026-11-20 にホストの Claude が読んだ結果で、私〔コンテナ〕は再確認していない。コンテナの閲覧用の権限では読めない）。
 
 ```bash
 # 1. Cloud Scheduler の API を有効にする（初回だけ）
@@ -363,7 +363,7 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERVICE}
 - **イメージ（Artifact Registry）:** 保管料がかかるので、クリーンアップポリシーで自動で消します。定義は [ops/artifact-registry/cleanup-policy.json](../ops/artifact-registry/cleanup-policy.json)。
   - `docunavi` のイメージは最新 5 個を残し、それより古いものを消します。`docunavi-admin` `docunavi-ingest` `docunavi-mcp` など、`docunavi-` で始まる別のパッケージには触りません（パッケージ名の指定は前方一致のため）。
   - **使用中のイメージは `pin-` タグで守ります（`keep-pinned`）。** 「最新 5 個」は本番と Job が同じ枠を取り合うため、Job のイメージは配備が数回進むと枠外になり、消えます（`docunavi-history-cleanup` が一度 `ContainerMissing` になった原因）。タグ `pin-*` が付いた `docunavi` のイメージは、枠外でも残ります。
-    付けるタグは `pin-prod`・`pin-rollback`（切り替え前の本番のイメージ）・`pin-history-cleanup`・`pin-ingest-sync`・`pin-ingest-queue` です。`./scripts/release.sh` は、このうち `pin-prod` と `pin-rollback` を付け替えます（上の「タグ push で 0% 配備する」。2026-11-17 の実機の通しで実行）。レジストリのタグの一覧は閲覧用の権限では読めず（2026-11-20 に PERMISSION_DENIED）、いまの付き方は未確認です。**本番または Job のイメージを更新したら、そのたびにタグを付け替えます**（古いイメージは枠外になれば自動で消える）。
+    付けるタグは `pin-prod`・`pin-rollback`（切り替え前の本番のイメージ）・`pin-history-cleanup`・`pin-ingest-sync`・`pin-ingest-queue` です。`./scripts/release.sh` は、このうち `pin-prod` と `pin-rollback` を付け替えます（上の「タグ push で 0% 配備する」。2026-11-17 の実機の通しで実行）。レジストリのタグの一覧は、コンテナの閲覧用の権限では読めません（2026-11-20 に PERMISSION_DENIED）。同日にホストの Claude が読んだ結果（ホストの報告）では、5 つのタグがすべて存在し、`pin-prod`・`pin-ingest-sync`・`pin-ingest-queue` は `7e5919d`（`sha256:ac66b077…`）、`pin-history-cleanup` は `1508883`（`sha256:e34b160c…`。`1508883` はイメージのタグで、2026-11-14 の履歴の書き換え前のハッシュ。現在の履歴では `cc0d8e8`。[history-rewrite.md](history-rewrite.md)）、`pin-rollback` は `72aa124`（`sha256:24fe9930…`）に付いています。本番の Cloud Run の使用中のイメージ（`7e5919d`）とは一致しますが、Job との照合は、ダイジェストの先頭 8 桁が [r2-ingest-design.md](r2-ingest-design.md)（取り込み 2 本の `ac66b077`）と、この文書の履歴削除の Job（`e34b160c`）の記録と一致しました。全桁の一致と `pin-rollback`（`24fe9930…`）は未確認です。**本番または Job のイメージを更新したら、そのたびにタグを付け替えます**（古いイメージは枠外になれば自動で消える）。
     `R=asia-northeast1-docker.pkg.dev/docunavi-app/cloud-run-source-deploy/docunavi; gcloud artifacts docker tags add $R@sha256:<新しいダイジェスト> $R:pin-<名前>`（`tags add` は `--project` `--location` を受け付けない）。更新のあと、`gcloud run jobs list` と `gcloud run revisions list` のイメージが残っているかを、`gcloud artifacts docker images describe` で 1 つずつ確かめます。
     `r2-verify` は `pin-` を付けません（利用者の決定。イメージは再ビルド・再プッシュできる）。消えたら、再ビルドするか差し替えます。
   - 設定するとき: `gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy --project docunavi-app --location asia-northeast1 --policy=ops/artifact-registry/cleanup-policy.json --no-dry-run`。`--dry-run` は設定の書き込みで、削除はしません（結果の Data Access ログは、このプロジェクトでは有効にしていないので見られない）。
@@ -458,7 +458,7 @@ as_me gcloud builds triggers create github --project "$PROJECT_ID" --region "$RE
 
 **初回の実行の前後の確認:**
 1. 直近 24 時間以内のバックアップが R2 にあること（[pg-backup.md](pg-backup.md)。週 1 回、日曜 00:00 JST。別の pgvector への復元は確認済みで、Prisma への復元は未確認）。
-2. Scheduler `docunavi-history-cleanup-weekly` が有効で、日曜 03:00 JST のままであること（`gcloud scheduler jobs describe …`。閲覧用の権限では読めない）。
+2. Scheduler `docunavi-history-cleanup-weekly` が有効で、日曜 03:00 JST のままであること（`gcloud scheduler jobs describe …`。コンテナの閲覧用の権限では読めない。2026-11-20 には、ホストの Claude が日曜 03:00 JST・次回 2026-11-22 と読んだ）。
 3. 実行の後、ログの「削除した会話: N 件」と、DELETE 権限のエラーが無いこと、削除後の `/chat` と会話一覧が動くことを確かめ、[configuration.md](configuration.md) の「会話履歴の保存先」を直します。
 
 ### 5. `budget-guard` の `DRY_RUN` を `false` に戻す条件と、戻す前の確認
@@ -478,14 +478,14 @@ as_me gcloud builds triggers create github --project "$PROJECT_ID" --region "$RE
 
 ### 6. 監視のアラート
 
-ログベース指標 4 つとアラート 2 つを、2026-11-09 に作成しました（利用者が実行。通知先は利用者宛てのメール `docunavi ops` 1 件）。閲覧用の権限では通知先とアラートの一覧を読めないので、作成の確認は利用者が貼った一覧による（証拠等級は利用者の報告）。**未確認:** 通知先の確認メールを押したか、実際に通知が届くか。
+ログベース指標 4 つとアラート 2 つを、2026-11-09 に作成しました（利用者が実行。通知先は利用者宛てのメール `docunavi ops` 1 件）。閲覧用の権限では通知先とアラートの一覧を読めないので、作成の確認は利用者が貼った一覧による（証拠等級は利用者の報告）。2026-11-20 にホストの Claude が一覧を読んだ結果（ホストの報告）では、アラートポリシーは 4 件（Cloud Run 5xx・chat failures・pg-backup scheduler failed・pg-backup failed）で、すべて有効、通知チャネルは各 1 つです。**未確認:** 通知先の確認メールを押したか、実際に通知が届くか。
 
 | アラート | 条件 | 理由 |
 |---|---|---|
 | チャットの失敗 | `chat_failures_total` が 10 分に 3 件以上（[ops/monitoring/alert-chat-failures.yaml](../ops/monitoring/alert-chat-failures.yaml)） | 利用が少ない（`chat_metrics` は 30 日で 2 件）ので、率でなく件数で見る |
 | Cloud Run の 5xx | `docunavi` の 5xx が 5 分に 5 件以上（[ops/monitoring/alert-cloudrun-5xx.yaml](../ops/monitoring/alert-cloudrun-5xx.yaml)） | チャットの指標に載らない失敗（起動・DB の 503 など）を拾う |
 
-別に、バックアップ失敗のアラート 2 本を 2026-11-11 に作成したと、利用者から報告を受けています（閲覧用の権限ではアラートの一覧を読めず、確認できていない。証拠等級は利用者の報告。[pg-backup.md](pg-backup.md) の「失敗の通知の作成」）。
+別に、バックアップ失敗のアラート 2 本を 2026-11-11 に作成したと、利用者から報告を受けています（コンテナの閲覧用の権限ではアラートの一覧を読めない。証拠等級は利用者の報告。2026-11-20 にホストの Claude が、pg-backup の 2 件が存在し有効なことを読んだ〔ホストの報告〕。[pg-backup.md](pg-backup.md) の「失敗の通知の作成」）。
 
 作り直すときは、同じ名前で 2 回作ると重複するので、先に一覧で確かめます:
 
@@ -511,7 +511,7 @@ done
   - Subject: `repo:Starlight-Tree@154563471/DocuNavi@892933857:environment:production`（数値 ID つき。リポジトリの改名・移管で変わる）
   - Audience: `https://github.com/Starlight-Tree`、Access Token TTL: 600 秒
 - Cloudflare の API トークン: アカウントに限定。権限は Workers Scripts: Edit と D1: Edit から始め、足りなければ足す。有効期限は 90 日。
-  （2026-11-20 の注記: `docunavi-api` の D1 の束縛は、2026-11-08 に `workers/api/wrangler.jsonc` から外した〔`e556133`。配備済みの Worker の束縛は未確認〕。いまの `wrangler.jsonc` の束縛は Hyperdrive だけ。いまのトークンに D1: Edit が付いているか、まだ要るかは未確認。）
+  （2026-11-20 の注記: `docunavi-api` の D1 の束縛は、2026-11-08 に `workers/api/wrangler.jsonc` から外した〔`e556133`〕。いまの `wrangler.jsonc` の束縛は Hyperdrive だけ。配備済みの Worker の最新版〔`d7a56ac9…`〕の束縛も、Hyperdrive・環境変数・シークレット 3 つで D1 は無く、アカウントの D1 データベースも 0 件〔`wrangler d1 list`。2026-11-20、ホストの Claude の報告〕。いまのトークンの権限は、読めておらず未確認〔wrangler の OAuth では読めない。ダッシュボードで確認が要る〕。D1 の実体が無いので D1: Edit は不要になっているとみられるが、ほかの用途があるかは分からない。）
   期限前に作り直し、Infisical の値を更新する。IP 制限は、GitHub のランナーの IP が不定なので使えない。
   現在のトークン `docunavi-github-actions-deploy` は 2026-11-08 に作成し、**期限は 2027-02-06**（作り直しは 2027-01 中）。
 - GitHub: Environment `production`（必須レビュアーは 2026-11-15 に外した〔非公開の無料プランでは効かず、2026-11-09 に承認なしで始まった。公開後は効くことを確認したが、毎回の承認が煩雑なため〕。許可するブランチは `main` だけ。承認は起動前の会話で取る）、Variable `INFISICAL_IDENTITY_ID`（公開してよい ID）。

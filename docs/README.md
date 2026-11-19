@@ -34,7 +34,7 @@
 |---|---|---|
 | [target-architecture.md](target-architecture.md) | 設計メモ | 目標構成と、Go・Django などを採用する条件 |
 | [go-architecture-plan.md](go-architecture-plan.md) | 設計メモ＋記録 | Go と Python の役割分担の計画（Go の SSE 中継は、学習と検証が目的）。中継は 2026-10-25 から本番に配備済みで、本文上限・レート制限などを足した版を 2026-11-09 に配備（[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)）。それ以外の Go 化は未着手。冒頭の「現状」は 2026-11-20 に更新 |
-| [r2-ingest-design.md](r2-ingest-design.md) | 設計メモ＋記録 | PDF の取り込みの自動化（R2 の通知と Queue）。第 1 版（突き合わせ）と第 2 版（Queue）の両方が実装・配備済みで、冒頭の「状態」は 2026-11-20 の読み取り。Scheduler は週 1 回で、5 分おきは一時停止（[roadmap.md](roadmap.md) の記録による。Scheduler そのものは未確認）。本文の叩き台と 2026-10-26 の切り替えは、当時の記録 |
+| [r2-ingest-design.md](r2-ingest-design.md) | 設計メモ＋記録 | PDF の取り込みの自動化（R2 の通知と Queue）。第 1 版（突き合わせ）と第 2 版（Queue）の両方が実装・配備済みで、冒頭の「状態」は 2026-11-20 の読み取り。Scheduler は週 1 回で、5 分おきは一時停止（2026-11-20 にホストの Claude が Scheduler を読んだ。ホストの報告で、コンテナは未再確認。[roadmap.md](roadmap.md)）。本文の叩き台と 2026-10-26 の切り替えは、当時の記録 |
 | [mcp-tool-design.md](mcp-tool-design.md) | 設計メモ＋記録 | 検索を MCP のツールにする設計。`docunavi-mcp` として 2026-10-21 に配備し、確認したのは接続と 1 回の検索まで。現在の状態は同文書の「配備と確認」の「現在の状態（2026-11-09 時点）」、順序は [roadmap.md](roadmap.md) |
 | [access-control-plan.md](access-control-plan.md) | 設計メモ＋記録 | ロール別の資料グループ制御の計画。フェーズ 1〜3 は実装済みで、本番は 2026-10-26 から `enforce`（配信中のリビジョンの環境変数でも `enforce`、2026-11-20、gcloud の読み取り、等級 A。仕様は [configuration.md](configuration.md)、状態は [roadmap.md](roadmap.md) の ⑧）。フェーズ 4（管理画面）は条件付き |
 | [image-generation-design.md](image-generation-design.md) | 設計メモ | 資料のヒーロー画像の自動生成。基盤を続けるか止めるかは未決定（[backlog.md](backlog.md)） |
