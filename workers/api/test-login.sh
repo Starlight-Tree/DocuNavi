@@ -30,8 +30,19 @@ case "${1:-}" in
     echo "有効にしました。テストが終わったら: bash workers/api/test-login.sh off"
     ;;
   off)
-    # 確認のプロンプトがあってもなくても進むよう y を渡す。Secret が既に無ければ失敗するが、無効という結果は同じ
-    printf 'y\n' | npx wrangler secret delete TEST_LOGIN_TOKEN || echo "（TEST_LOGIN_TOKEN は既にありませんでした）"
+    # 確認のプロンプトがあってもなくても進むよう y を渡す。delete の終了コードでは成否を決めない（Secret が既に無くても失敗する。
+    # ログイン・ネットワークの失敗でも失敗する）。削除できたかは、下の secret list（名前だけ。値は出ない）で確かめる
+    deleted=1
+    printf 'y\n' | npx wrangler secret delete TEST_LOGIN_TOKEN || deleted=0
+    if ! names="$(npx wrangler secret list)"; then
+      echo "Secret の一覧を取得できず、TEST_LOGIN_TOKEN が削除されたか確認できません（無効になったとは言えません）。wrangler のログインを確かめて、もう一度実行してください。" >&2
+      exit 1
+    fi
+    if printf '%s\n' "$names" | grep -Eq '(^|[^A-Za-z0-9_])TEST_LOGIN_TOKEN([^A-Za-z0-9_]|$)'; then
+      echo "TEST_LOGIN_TOKEN を削除できていません（Secret の一覧に残っています）。パスワードの入口はまだ有効です。wrangler のログインを確かめて、もう一度実行してください。" >&2
+      exit 1
+    fi
+    [ "$deleted" = 1 ] || echo "（TEST_LOGIN_TOKEN は既にありませんでした）"
     echo "無効にしました。パスワードの入口は 400 に戻ります。"
     ;;
   *)
