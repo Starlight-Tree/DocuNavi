@@ -1064,37 +1064,84 @@ textarea {
   gap: 0.35rem;
 }
 
-/* PDF ビューア（PDF.js）。ツールバーと、ページの絵（canvas）に透明な文字の層を重ねた 1 ページ */
+/* PDF ビューア（PDF.js）。全ページを縦に並べて連続でスクロールする。枠は付けず、パネルの下端まで使い、操作は下に浮かぶ小さなバー */
 .pdf-viewer {
+  position: relative;
   display: flex;
+  flex: 1 1 0;
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
 }
 
-.pdf-toolbar {
+/* 灰色の地に白いページ（ダークでも、PDF の紙は白のまま）。下の余白は、浮かぶバーの下に最終ページの末尾が隠れないための分。
+   `gap` と上の余白は、`lib/pdfView.ts` の `PAGE_GAP` と同じ値 */
+.pdf-stage {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex: 1 1 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 16px;
+  overflow: auto;
+  padding: 16px 16px 5.5rem;
+  scrollbar-gutter: stable;
+}
+
+.pdf-stage > [role='status'],
+.pdf-stage > .documents-error {
+  margin: 0;
+}
+
+.pdf-page {
+  position: relative;
+  flex: none;
+  margin: 0 auto;
+  isolation: isolate;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.35);
+}
+
+.pdf-page canvas {
+  display: block;
+}
+
+/* 下に浮かぶ操作バー。ページ送り・ページ番号・拡大縮小・保存。常に見える（自動では隠さない） */
+.pdf-toolbar {
+  position: absolute;
+  z-index: 2;
+  bottom: 1rem;
+  left: 50%;
+  display: flex;
+  max-width: calc(100% - 1.5rem);
   align-items: center;
-  gap: 0.15rem;
-  padding: 0.35rem 0.6rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-muted);
+  gap: 0.1rem;
+  padding: 0.25rem 0.5rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
   font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .pdf-tool {
+  display: inline-flex;
   min-width: 2rem;
-  padding: 0.25rem 0.5rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.4rem;
   border: 0;
-  border-radius: 0.4rem;
+  border-radius: 999px;
   background: transparent;
   color: var(--text);
   font: inherit;
   font-size: 1rem;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -1109,61 +1156,32 @@ textarea {
   opacity: 0.45;
 }
 
-.pdf-fit {
-  font-size: 0.85rem;
-}
-
-a.pdf-save {
-  color: var(--text);
-  text-decoration: none;
-}
-
 .pdf-pageno {
-  min-width: 4.5ch;
+  width: 2.6rem;
+  height: 1.7rem;
+  box-sizing: border-box;
+  padding: 0 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
   color: var(--text);
+  font: inherit;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
 
+.pdf-total {
+  min-width: 2.2ch;
+  margin: 0 0.15rem 0 0.3rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .pdf-sep {
   width: 1px;
-  height: 1rem;
-  margin: 0 0.4rem;
+  height: 1.1rem;
+  margin: 0 0.35rem;
   background: var(--border);
-}
-
-.pdf-spacer {
-  flex: 1;
-}
-
-/* 灰色の地に白いページ（ダークでも、PDF の紙は白のまま） */
-.pdf-stage {
-  height: max(22rem, calc(100dvh - 18rem));
-  overflow: auto;
-  padding: 16px;
-  background: color-mix(in srgb, var(--text) 10%, var(--bg));
-  scrollbar-gutter: stable;
-}
-
-.pdf-stage > [role='status'],
-.pdf-stage > .documents-error {
-  margin: 0 0 0.75rem;
-}
-
-.pdf-page {
-  position: relative;
-  margin: 0 auto;
-  isolation: isolate;
-  background: #fff;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 0.35);
-}
-
-.pdf-page:empty {
-  display: none;
-}
-
-.pdf-page canvas {
-  display: block;
 }
 
 /* 選択・検索のための、ページと同じ位置の透明な文字（PDF.js の text layer の CSS を、この画面に要る分だけ移した。Apache-2.0） */

@@ -12,6 +12,7 @@ import {
 } from './components/DocumentsView';
 import { fakeAuth } from './test/auth';
 import { fakePdf } from './test/fakePdf';
+import { atPdfPage } from './test/pdfPage';
 import type { FakeAuth } from './test/auth';
 import { errorResponse, jsonResponse } from './test/helpers';
 import { chooseFacet, facetButton, facetOptions, queryFacetButton } from './test/facet';
@@ -554,7 +555,7 @@ describe('資料一覧: PDF', () => {
 
     const viewer = await screen.findByRole('group', { name: 'つばさ大学学生寮 入寮規程 の PDF' });
     expect(fakePdf.opened).toEqual(['/documents/1/file']); // 認証なしの構成は、API をそのまま指す
-    expect(await screen.findByText('1 / 3')).toBeInTheDocument();
+    expect(await atPdfPage(1)).toBeInTheDocument();
     expect(viewer).toBeVisible();
     expect(window.location.search).toBe('?tab=documents&doc=1&view=pdf');
     expect(screen.queryByRole('button', { name: 'PDFを開く' })).not.toBeInTheDocument();

@@ -1363,6 +1363,27 @@
   gap: 0.5rem;
 }
 
+/* PDF を見ているときは、パネルの余白をなくし、ビューアを下端まで広げる（スクロールするのは、ビューアの中だけ。パネル全体は動かさない） */
+.ws-panel-pdf {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.ws-panel-pdf > .ws-panel-head {
+  padding: 1rem 1.25rem 0.75rem;
+}
+
+.ws-panel-pdf > .documents-summary,
+.ws-panel-pdf > .chunk-miss {
+  margin: 0 1.25rem 0.5rem;
+}
+
+.ws-panel-pdf > .ws-view-body:not([hidden]) {
+  flex: 1 1 0;
+  gap: 0;
+}
+
 a.ws-icon-btn {
   text-decoration: none;
 }

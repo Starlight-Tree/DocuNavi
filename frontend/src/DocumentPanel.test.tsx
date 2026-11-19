@@ -6,6 +6,7 @@ import type { DocumentSummary } from './api/documents';
 import { pdfDownloadName } from './components/documentDisplay';
 import { fakePdf } from './test/fakePdf';
 import { openKnowledge } from './test/navigation';
+import { atPdfPage } from './test/pdfPage';
 import { jsonResponse, replyResponse } from './test/helpers';
 import { openSources } from './test/sources';
 
@@ -107,8 +108,9 @@ async function ask(user: User) {
 const chips = async () => within(await openSources()).getAllByRole('button', { name: /tsubasa_dorm_rules\.pdf/ });
 const findPanel = () => screen.findByRole('complementary', { name: /^資料:/ });
 const pdfViewer = () => screen.getByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
-/** ビューアが、そのページを描き終えて、ツールバーに「N / 総数」を出している。 */
-const atPage = (n: number, total = 3) => screen.findByText(`${n} / ${total}`);
+/** ビューアが、そのページを見ていて、ツールバーのページ番号の欄が n、総数が「/ total」になっている。欄を返す。 */
+const atPage = (n: number, total = 3) => atPdfPage(n, total);
+const renderedPage = (n: number) => fakePdf.renders.some((r) => r.page === n);
 const CITE_MISS = '出典の箇所を特定できなかったため、強調は付けていません。資料全体を読めます。';
 const CHUNK_5 = '第5条 入寮の申込みは、2 月 28 日までに行う。';
 
@@ -167,7 +169,7 @@ describe('出典を押して右のパネルを開く', () => {
     await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
     expect(await atPage(3)).toBeInTheDocument();
     expect(fakePdf.opened).toEqual(['/documents/7/file']);
-    await waitFor(() => expect(fakePdf.renders.at(-1)?.page).toBe(3)); // ページ表示のほうが、描画の記録より先に出る
+    await waitFor(() => expect(renderedPage(3)).toBe(true)); // ページ表示のほうが、描画の記録より先に出る
     expect(files).toEqual([]);
   });
 
@@ -189,7 +191,7 @@ describe('出典を押して右のパネルを開く', () => {
     await screen.findByRole('group', { name: 'tsubasa_dorm_rules.pdf の PDF' });
     expect(await atPage(3)).toBeInTheDocument();
     expect(fakePdf.opened).toEqual(['/documents/7/file']);
-    expect(fakePdf.renders.at(-1)?.page).toBe(3);
+    await waitFor(() => expect(renderedPage(3)).toBe(true));
     expect(files).toEqual([]);
   });
 
@@ -229,7 +231,8 @@ describe('出典を押して右のパネルを開く', () => {
     expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&chunk=1');
 
     expect(await atPage(1)).toBeInTheDocument();
-    await waitFor(() => expect(fakePdf.renders.map((r) => r.page)).toEqual([1])); // ページ表示のほうが、描画の記録より先に出る
+    await waitFor(() => expect(renderedPage(1)).toBe(true)); // ページ表示のほうが、描画の記録より先に出る
+    expect(renderedPage(3)).toBe(false); // 先頭から開くので、3 ページ目は描かない（前後 1 ページまで）
   });
 
   it('同じ資料の中で表示を切り替えても、PDF は開き直さない（見ているページを保つ）', async () => {
@@ -252,7 +255,7 @@ describe('出典を押して右のパネルを開く', () => {
     expect(window.location.search).toBe('?tab=chat&doc=7&view=pdf&page=3&chunk=1');
     expect(pdfViewer()).toBe(viewer);
     expect(viewer).toBeVisible();
-    expect(screen.getByText('2 / 3')).toBeVisible(); // 見ていたページのまま
+    expect(await atPage(2)).toBeVisible(); // 見ていたページのまま
     expect(fakePdf.opened).toEqual(['/documents/7/file']);
     expect(files).toEqual([]);
   });

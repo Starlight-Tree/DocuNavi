@@ -90,7 +90,7 @@ export function DocumentPanel({ document, view, page, chunk, expanded, onToggleE
     <aside
       ref={ref}
       id={PANEL_ID}
-      className={expanded ? 'ws-panel ws-panel-expanded' : 'ws-panel'}
+      className={['ws-panel', expanded && 'ws-panel-expanded', mode === 'pdf' && originalPdf && 'ws-panel-pdf'].filter(Boolean).join(' ')}
       aria-label={`資料: ${name}`}
       tabIndex={-1}
       onKeyDown={handleKeyDown}
