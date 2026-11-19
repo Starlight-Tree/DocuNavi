@@ -1,22 +1,26 @@
 # docs/（文書）
 
-全体の方針は、ルートの [CLAUDE.md](../CLAUDE.md)。文書の入口は [README.md](../README.md) の「ドキュメント」の表と、全文書の索引（状態つき）の [README.md](README.md)。文書を足す・状態が変わるときは、索引も直す。
+全体の方針は、ルートの [CLAUDE.md](../CLAUDE.md)。文書の入口は [README.md](../README.md) の「Documentation」の表と、全文書の索引（状態つき）の [README.md](README.md)。文書を足す・状態が変わるときは、索引も直す。
 
 ## どの文書が何の正本か
 
 | 知りたいこと | 文書 |
 |---|---|
 | いま動いている構成・処理の流れ・環境 | [architecture.md](architecture.md) |
+| 利用者の操作ごとの機能・条件・制限 | [features.md](features.md)（本番での確認状況の正本は、[roadmap.md](roadmap.md) と各文書の「未確認」） |
 | 将来の構成の方向と、採用する条件 | [target-architecture.md](target-architecture.md)（実装の契約ではない） |
 | 順序と状態（何が済み、何が待ちか） | [roadmap.md](roadmap.md)（**設計の詳細は置かない**） |
 | 重要な決定と、その理由 | [decisions/](decisions/README.md)（1 件 1 ファイル） |
 | API の仕様 | [api.md](api.md)。環境変数と LLM の挙動は [configuration.md](configuration.md) |
 | 検索の設計 | [search-design.md](search-design.md)。ガードレールは [guardrails.md](guardrails.md) |
 | 開発・環境 | [development.md](development.md)。テスト・CI は [testing.md](testing.md)。配備と本番運用は [deploy.md](deploy.md) |
+| 本番 Postgres のバックアップと復元の確認。検証環境（AlloyDB Express）の再作成 | [pg-backup.md](pg-backup.md)、[alloydb-test-env.md](alloydb-test-env.md)（検証環境の概要・構成図の正本は、architecture.md の「検証環境（AlloyDB Express）」） |
+| プロジェクトごとの権限・資格情報の分離（GCP・Infisical・MCP） | [access-separation.md](access-separation.md)（秘密の保管・期限の方針は [.claude/rules/secrets.md](../.claude/rules/secrets.md)） |
 | 領域ごとの設計・手順 | `access-control-plan.md` `ingestion-stage4-design.md` `r2-*.md` `go-architecture-plan.md` `mcp-tool-design.md` |
+| ヒーロー画像の生成の設計。Git の履歴の書き換えと、旧ハッシュの対応 | [image-generation-design.md](image-generation-design.md)（画像生成の Job は星庭ジョブのリポジトリで管理する。[.claude/rules/dev-environment.md](../.claude/rules/dev-environment.md)）、[history-rewrite.md](history-rewrite.md) |
 | 画面のバックログ・UX の調査 | [backlog.md](backlog.md)、[ux-research.md](ux-research.md) |
 
-領域ごとの規約は、各領域の `CLAUDE.md`（`app/` `frontend/` `evals/` `tests/` `ops/django-saas/` `ops/sse-relay/`）。コードの置き場所の表は architecture.md。
+領域ごとの規約は、各領域の `CLAUDE.md`（`app/` `frontend/` `evals/` `tests/` `workers/api/` `ops/django-saas/` `ops/sse-relay/`）。パス別の規則は `.claude/rules/`（`docs/**` を触るときは [docs.md](../.claude/rules/docs.md) が読み込まれる）。コードの置き場所の表は architecture.md。
 
 ## 書くときの決まり
 
