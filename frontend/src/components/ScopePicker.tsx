@@ -69,9 +69,12 @@ export function ScopePicker({
 
   useEffect(() => {
     if (!open) return;
-    menuRef.current
-      ?.querySelector<HTMLElement>('[aria-checked="true"]:not([disabled]), [role="menuitemradio"]:not([disabled])')
-      ?.focus();
+    // 選ばれている項目へ。無ければ（選べない項目だけが選ばれている場合を含む）、最初の選べる項目へ。
+    // セレクターを「,」でつなぐと、文書順で先に一致した項目になり、選ばれている項目が 2 番目以降でも先頭に行く。
+    (
+      menuRef.current?.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"]:not([disabled])') ??
+      menuRef.current?.querySelector<HTMLElement>('[role="menuitemradio"]:not([disabled])')
+    )?.focus();
     const onPointer = (event: MouseEvent) => {
       const node = event.target as Node;
       if (!menuRef.current?.contains(node) && !buttonRef.current?.contains(node)) setOpen(false);
