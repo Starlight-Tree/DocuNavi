@@ -322,7 +322,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         prog="python -m app.r2_store",
         description=(
             "upload: storage/pdf/ の PDF を R2 に置く（既定は計画の表示だけ。--apply で置く。読み書きのキーが要る）。"
-            "verify: DB の資料ごとに、R2 に PDF が一致して見つかるかを確かめる（読み取りのキーと D1_API_URL が要る）"
+            "verify: DB の資料ごとに、R2 に PDF が一致して見つかるかを確かめる（読み取りのキーと DB の接続先が要る）"
         ),
     )
     parser.add_argument("action", choices=["upload", "verify"])

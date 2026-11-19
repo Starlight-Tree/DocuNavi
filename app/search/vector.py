@@ -318,7 +318,9 @@ async def verify() -> None:
     check_config()
     pool = get_pool()
     if pool is None:
-        raise VectorSearchError("資料の検索には D1_API_URL が要ります（DB の接続が開いていません）")
+        raise VectorSearchError(
+            "資料の検索には DB の接続先（pg は DATABASE_URL、d1 は D1_API_URL）が要ります（DB の接続が開いていません）"
+        )
     async with pool.connection() as conn:
         cursor = await conn.execute(_VERIFY_SQL)
         rows = await cursor.fetchall()

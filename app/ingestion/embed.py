@@ -83,7 +83,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     load_dotenv()
     url = database_url()
     if not url:
-        print("D1_API_URL と D1_API_TOKEN が要ります（未設定です）。", file=sys.stderr)
+        print(
+            "DB の接続先が要ります（pg は DATABASE_URL、d1 は D1_API_URL と D1_API_TOKEN。未設定です）。",
+            file=sys.stderr,
+        )
         return 2
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if args.apply and api_key in _PLACEHOLDER_KEYS and not use_vertex():

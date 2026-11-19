@@ -167,7 +167,10 @@ def _run(args: argparse.Namespace, input_path: Path) -> int:
     load_dotenv()
     url = database_url()
     if args.apply and not url:
-        print("--apply には D1_API_URL と D1_API_TOKEN が要ります（未設定です）。", file=sys.stderr)
+        print(
+            "--apply には DB の接続先が要ります（pg は DATABASE_URL、d1 は D1_API_URL と D1_API_TOKEN。未設定です）。",
+            file=sys.stderr,
+        )
         return 2
 
     statements = None

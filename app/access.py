@@ -386,7 +386,9 @@ async def verify_access_config() -> None:
         return
     pool = get_pool()
     if pool is None:
-        raise AccessConfigError(f"ACCESS_MODE={mode} には D1_API_URL が必要です。")
+        raise AccessConfigError(
+            f"ACCESS_MODE={mode} には DB の接続（pg は DATABASE_URL、d1 は D1_API_URL）が必要です。"
+        )
     try:
         async with pool.connection() as conn:
             cursor = await conn.execute(_PROBE_SQL, {"default": DEFAULT_ROLE})

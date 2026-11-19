@@ -40,7 +40,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     load_dotenv()
     url = database_url()
     if not url:
-        print("D1_API_URL と D1_API_TOKEN が未設定です。", file=sys.stderr)
+        print("DB の接続先が未設定です（pg は DATABASE_URL、d1 は D1_API_URL と D1_API_TOKEN）。", file=sys.stderr)
         return 2
     try:
         plan = load_plan(args.plan) if args.command == "import" else None

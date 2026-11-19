@@ -58,7 +58,7 @@ async def history_store() -> AsyncIterator[BaseCheckpointSaver | None]:
 
     url = database_url()
     if not url:
-        logger.info("会話履歴の保存先: プロセス内メモリ（D1_API_URL 未設定。再起動で消える）")
+        logger.info("会話履歴の保存先: プロセス内メモリ（DB の接続先が未設定。再起動で消える）")
         yield None
         return
 

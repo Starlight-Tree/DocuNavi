@@ -15,7 +15,8 @@ from typing import Any, Protocol
 from app.d1 import MAX_BATCH
 from app.ingestion.chunker import Chunk
 
-# 複数行 INSERT の 1 本あたりの行数（1 行 8 個のパラメーター。SQLite の上限 999 個に収める）
+# 複数行 INSERT の 1 本あたりの行数。1 行 10 個のパラメーターなので、100 行で 1000 個。pg の上限（65535 個）には収まるが、
+# d1（SQLite）の上限 999 個は超える（d1 は退役済みで、取り込みは pg を使う）。行数やパラメーター数を変えるときは、この積を確かめる
 INSERT_ROWS = 100
 
 

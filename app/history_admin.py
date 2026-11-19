@@ -76,7 +76,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     load_dotenv()
     url = database_url()
     if not url:
-        print("D1_API_URL が未設定です（履歴がメモリのときは、消す対象がありません）。", file=sys.stderr)
+        print(
+            "DB の接続先（pg は DATABASE_URL、d1 は D1_API_URL）が未設定です（履歴がメモリのときは、消す対象がありません）。",
+            file=sys.stderr,
+        )
         return 2
 
     try:
