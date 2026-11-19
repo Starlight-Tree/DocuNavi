@@ -23,7 +23,7 @@ SCHOOLS = {
     "oasis-high",
 }  # アルカ市の学校（1 校 5 冊。園則/学則・入学案内・学費・学校生活・安全）。大学（tsubasa-dorm）は入寮規程が guides にあり、合成は 4 冊
 TARGETS = {"zahard", "minato-coffee", "tsubasa-dorm", "aoba-aw820"} | LUNE | SCHOOLS
-DOC_TYPES = {"setting", "store-guide", "regulation", "manual"}  # workers/api/migrations の document_types の語彙
+DOC_TYPES = {"setting", "store-guide", "regulation", "manual"}  # db/migrations/0001_schema.sql の document_types の語彙
 
 
 @pytest.fixture(scope="module")

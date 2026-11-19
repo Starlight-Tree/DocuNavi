@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents")
 
 # bigint の上限。これを超える id は、DB に渡す前に 422 にする（桁あふれの例外を 503 にしないため）
-# 資料群の名前の形。取り込み（app/ingestion/service.py）と DB の制約（workers/api/migrations/0001_schema.sql）と同じ
+# 資料群の名前の形。取り込み（app/ingestion/service.py）と DB の制約（db/migrations/0001_schema.sql）と同じ
 _COLLECTION_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,40}")
-# 対象・資料種別の名前の形。DB の制約（workers/api/migrations/0001_schema.sql）と同じ
+# 対象・資料種別の名前の形。DB の制約（db/migrations/0001_schema.sql）と同じ
 _CLASSIFICATION_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 _MAX_ID = 9_223_372_036_854_775_807
 # 暴走した件数を返さないための上限（いまの資料は 3 文書・68 チャンク）
@@ -102,7 +102,8 @@ class DocumentSummary(BaseModel):
 
 
 class DocumentList(BaseModel):
-    # False = D1_API_URL が空で、資料の DB を使っていない（エラーではない）。文書が 0 件のときの documents == [] とは別
+    # False = DB の接続が無く（DB_BACKEND=pg なら DATABASE_URL、d1 なら D1_API_URL が未設定）、資料の DB を使っていない（エラーではない）。
+    # 文書が 0 件のときの documents == [] とは別
     configured: bool
     documents: list[DocumentSummary]
 
@@ -162,7 +163,7 @@ def _classification(value: object) -> str | None:
 
 
 def _timestamp(value: object) -> datetime | None:
-    """D1 の時刻（UNIX ミリ秒の整数）を datetime（UTC）にする。"""
+    """DB が返す時刻（UNIX ミリ秒の整数。pg の timestamptz は app/pg.py がこの形にして返す）を datetime（UTC）にする。"""
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return datetime.fromtimestamp(value / 1000, tz=timezone.utc)
     return None

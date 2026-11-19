@@ -1,10 +1,10 @@
 """資料グループの一覧（読み取り専用）。画面が、グループの表示名・説明・資料の数を出すために読む。
 
-- 登録済みの情報は `document_collections`（表示名・説明・並び順。workers/api/migrations/0001_schema.sql）にある。検索の絞り込みに使う値は
+- 登録済みの情報は `document_collections`（表示名・説明・並び順。db/migrations/0001_schema.sql）にある。検索の絞り込みに使う値は
   `documents.collection` の名前で、この表は検索に関係しない
 - 表に無い名前が `documents.collection` にあれば、未登録のグループとして返す（`registered: false`、表示名は名前そのもの、説明は空）。
   フォルダを置いて取り込むだけで、画面から選べるようにするため
-- 表が無い（マイグレーション 0006 の前）ときは 503 の固定メッセージ。表が空なのは異常ではなく、`documents` にある名前だけを返す
+- 表が無い（マイグレーションの前）ときは 503 の固定メッセージ（pg では、表が無い場合も汎用の 503 の文言になる）。表が空なのは異常ではなく、`documents` にある名前だけを返す
 - `AUTH_MODE=required` のときは `/chat` と同じ検証を通った人だけが読める。DB のエラーの文字列は返さない
 - `ACCESS_MODE=enforce` のときは、利用者が見えるグループ（`app/access.py`）だけを返す。見えるグループが 0 件なら 403
 """
@@ -61,7 +61,8 @@ class CollectionSummary(BaseModel):
 
 
 class CollectionList(BaseModel):
-    # False = D1_API_URL が空で、資料の DB を使っていない（エラーではない）。グループが 0 件のときの collections == [] とは別
+    # False = DB の接続が無く（DB_BACKEND=pg なら DATABASE_URL、d1 なら D1_API_URL が未設定）、資料の DB を使っていない（エラーではない）。
+    # グループが 0 件のときの collections == [] とは別
     configured: bool
     collections: list[CollectionSummary]
 
@@ -94,7 +95,9 @@ async def list_collections(
             cursor = await conn.execute(_LIST_SQL, {"limit": _MAX_COLLECTIONS, "allowed": access.scope.sql_names()})
             rows = await cursor.fetchall()
     except D1Error as exc:
-        if "no such" in str(exc):  # 表が無い（migration の前）。ほかの失敗（接続など）とは、メッセージを分ける
+        # 表が無い（migration の前）。ほかの失敗（接続など）とは、メッセージを分ける。「no such」は d1（SQLite）の文言。
+        # pg の D1Error は型の名前だけなので一致せず、下の汎用の 503 になる
+        if "no such" in str(exc):
             logger.warning("資料グループの表がありません")
             raise HTTPException(status_code=503, detail=_DETAIL_NOT_READY, headers=_NO_STORE) from None
         logger.warning("資料グループを取得できませんでした (D1Error)")

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-MAX_IMAGE_BYTES = 5 * 1024 * 1024  # workers/api/migrations/0001_schema.sql の document_images.byte_size と同じ
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # db/migrations/0001_schema.sql の document_images.byte_size と同じ
 _EXTENSIONS = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
 KIND = "hero"
 _DIGITS = re.compile(r"[0-9]+")

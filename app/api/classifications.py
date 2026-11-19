@@ -1,6 +1,6 @@
 """資料の分類の一覧（読み取り専用）。画面が、対象（`/targets`）と資料種別（`/doc-types`）の表示名・説明・資料の数を出すために読む。
 
-- 登録済みの語彙は `document_targets` / `document_types`（表示名・説明・並び順。workers/api/migrations/0001_schema.sql）。
+- 登録済みの語彙は `document_targets` / `document_types`（表示名・説明・並び順。db/migrations/0001_schema.sql）。
   資料の分類は `documents.target` / `documents.doc_type`（外部キー。未分類は NULL）。
 - **見える資料のある分類だけを返す**（資料が 1 件も見えない対象・種別は、存在しないのと同じに、一覧に出さない）。
   件数も、利用者が見える資料（`ACCESS_MODE=enforce` なら、見えるグループの資料）だけを数える。
@@ -65,7 +65,8 @@ class ClassificationSummary(BaseModel):
 
 
 class TargetList(BaseModel):
-    # False = D1_API_URL が空で、資料の DB を使っていない（エラーではない）。対象が 0 件のときの targets == [] とは別
+    # False = DB の接続が無く（DB_BACKEND=pg なら DATABASE_URL、d1 なら D1_API_URL が未設定）、資料の DB を使っていない（エラーではない）。
+    # 対象が 0 件のときの targets == [] とは別
     configured: bool
     targets: list[ClassificationSummary]
 
@@ -88,7 +89,7 @@ def _summary(row: dict[str, Any]) -> ClassificationSummary:
 
 
 async def _read(sql: str, access: Access) -> list[ClassificationSummary] | None:
-    """見える資料のある分類。D1_API_URL が空なら None。"""
+    """見える資料のある分類。DB の接続が無ければ（`get_pool()` が None。DATABASE_URL 未設定など）None。"""
     access.require_any()
     pool = get_pool()
     if pool is None:
@@ -98,7 +99,9 @@ async def _read(sql: str, access: Access) -> list[ClassificationSummary] | None:
             cursor = await conn.execute(sql, {"limit": _MAX_ITEMS, "allowed": access.scope.sql_names()})
             rows = await cursor.fetchall()
     except D1Error as exc:
-        if "no such" in str(exc):  # 表か列が無い（migration の前）。ほかの失敗（接続など）とは、メッセージを分ける
+        # 表か列が無い（migration の前）。ほかの失敗（接続など）とは、メッセージを分ける。「no such」は d1（SQLite）の文言。
+        # pg の D1Error は型の名前だけなので一致せず、下の汎用の 503 になる
+        if "no such" in str(exc):
             logger.warning("資料の分類の表か列がありません")
             raise HTTPException(status_code=503, detail=_DETAIL_NOT_READY, headers=_NO_STORE) from None
         logger.warning("資料の分類を取得できませんでした (D1Error)")

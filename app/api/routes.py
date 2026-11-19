@@ -69,9 +69,9 @@ _DETAIL_SCOPE_CHANGED = (
     "この会話の検索対象と違う検索対象が送られました。会話の途中では変えられません。"
     "検索対象を変えるときは、新しい会話を始めてください。"
 )
-# 検索対象（資料のグループ）の識別名。documents.collection と同じ形（workers/api/migrations/0001_schema.sql）
+# 検索対象（資料のグループ）の識別名。documents.collection と同じ形（db/migrations/0001_schema.sql）
 COLLECTION_PATTERN = r"^[A-Za-z0-9_-]{1,40}$"
-# 質問の対象（documents.target）の識別名。document_targets.name と同じ形（workers/api/migrations/0001_schema.sql）
+# 質問の対象（documents.target）の識別名。document_targets.name と同じ形（db/migrations/0001_schema.sql）
 TARGET_PATTERN = r"^[a-z0-9][a-z0-9-]{0,39}$"
 _DETAIL_BOTH_SCOPES = "target と collection は同時に指定できません。"
 _DETAIL_DOCUMENTS_AND_SCOPE = "document_ids は target・collection と同時に指定できません。"
@@ -111,7 +111,8 @@ _CONFIG_ERRORS = _optional_classes(
 )
 # google.genai.errors.APIError は HTTP ステータスを code、本文を details に持つ
 _API_ERRORS = _optional_classes(("google.genai.errors", "APIError"))
-# 会話履歴の保存先（D1。データ用 Worker 経由）の失敗
+# 会話履歴の保存先（DB）の失敗。本番は pg（Postgres）で、app/pg.py も DB の失敗を D1Error で送出する。
+# d1（データ用 Worker 経由）は退役済みで、テストの偽 DB（tests/d1_fakes.py）のために残る
 _HISTORY_STORE_ERRORS = _optional_classes(("app.d1", "D1Error"))
 
 
