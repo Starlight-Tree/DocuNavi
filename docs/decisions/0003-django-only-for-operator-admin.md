@@ -20,3 +20,13 @@ Django（SaaS 管理）は、学習のために測る対象だった。試作 `o
 
 ## 出典
 [target-architecture.md](../target-architecture.md) の「Django」「Django の測定」、[roadmap.md](../roadmap.md) の ⑤⑧、[ops/django-saas/CLAUDE.md](../../ops/django-saas/CLAUDE.md)
+
+## 追記（2026-11-20）: 廃止のあとの状態
+
+本文と状態の欄は、廃止した 2026-11-08 までの記録のまま。そのあとで変わった点と、確かめた範囲は次のとおり。
+
+- **保存先と認証:** 本文の「Supabase Auth」「`supabase/migrations/`」は当時のもの。本番の保存先は 2026-11-08 に Supabase から Cloudflare の D1 へ移り（状態の欄の「D1 に移った」はこの時点）、同じ日のうちに Prisma Postgres へ移った（ロードマップの段階 1。切り替えの時刻は未確認）。本番の保存先としての D1（データ用 Worker を含む）は撤去済み。コードは旧経路として残る（`DB_BACKEND` の既定は `d1` のまま。テストの偽 Worker、`PgSaver` の土台、pg の経路と CLI が import する `D1Error` `SyncD1` などに使う。`app/pg.py`、`app/d1.py`、`app/d1_saver.py`、`app/CLAUDE.md`）。利用者の認証は Better Auth（Worker `docunavi-api`）。
+- **削除したもの:** 運用者向けの Django（`ops/access_admin/`。パスワード + TOTP のログインと割り当て画面）はコードごと削除した（2026-11-08 の退役のコミット。Git の履歴にある）。本文の「認証の例外」は、対象が無くなり、現在は適用される場面が無い。Cloud 側の `docunavi-admin` のサービスとジョブは、利用者が削除し、Secret・サービスアカウント・イメージは残る、とそのコミットに書かれている（この追記では確認していない）。 <!-- check-docs: ignore -->
+- **割り当ての手段:** 画面の代わりに、CLI `python -m app.access_admin`（2026-11-09 に追加。既定は確認だけで、`--apply` で書く。監査は `access_audit` の `actor=access_admin_cli`。詳細は [0002](0002-role-based-collection-access.md) の追記）。
+- **未確認の扱い:** 本文の「未確認: Django 画面の『見えるグループ』の表示、`actor=access_admin` の監査記録」は、画面と文書が削除されたので、確かめる対象が無くなった（確認はしていない）。
+- **試作と条件待ち:** 試作 `ops/django-saas/` は、リポジトリに残っている（学習用。製品には入っていない。`ops/django-saas/CLAUDE.md`）。本番の SaaS 管理としての Django は、引き続き条件待ち（ロードマップ ⑤。利用者向けの要件が固まるまで）。

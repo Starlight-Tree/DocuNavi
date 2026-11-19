@@ -1,6 +1,6 @@
 # 0013 PDF は、画面の Worker の同一オリジンの中継で iframe に渡す（保存名を資料名にするため）
 
-- 状態: 承認済み・実装済み（1ac0573、2026-11-18。方針と、`frontend/CLAUDE.md` の例外の追加、`GET /api/documents/{id}/file` の中継）。**2026-11-19: 表示の方式（iframe）は [0014](0014-pdfjs-viewer.md) が置き換えた。中継の決定は有効（PDF.js がこの URL を取る）。**
+- 状態: 一部置き換え済み（0014 が表示の方式〔iframe〕を置き換えた。中継は有効）。実装済み（承認済み。1ac0573、2026-11-18。方針と、`frontend/CLAUDE.md` の例外の追加、`GET /api/documents/{id}/file` の中継）。**2026-11-19: 表示の方式（iframe）は [0014](0014-pdfjs-viewer.md) が置き換えた。中継の決定は有効（PDF.js がこの URL を取る）。**
 - 日付と決めた人: 2026-11-18 起案（実験と調査）。利用者が同日に承認（「例外の追加と ADR を進めて、保存名は `?name=` で」）
 
 ## 背景
@@ -48,3 +48,17 @@
 - コード: `frontend/app/api/auth/[...all]/route.ts`、`frontend/src/api/documents.ts`、`frontend/src/hooks/useDocuments.ts`、`frontend/src/components/DocumentPanel.tsx`、`frontend/src/components/documentDisplay.tsx`、`app/api/documents.py`、`app/auth.py`、`workers/api/src/auth.ts`
 - 文書: [roadmap.md](../roadmap.md)、[architecture.md](../architecture.md)、[api.md](../api.md)、[0012](0012-accept-prisma-free-limit-and-cut-operations.md)
 - Cloudflare 公式（Workers の Limits・Streams・Pricing。2026-11-13・2026-06-15 の更新。要約経由で読んだ、証拠等級 B）
+
+## 追記（2026-11-20）: 実装・配備・表示方式の変化
+
+本文の「決定（提案）」と「結果と限界（予想）」は、起案時のまま。実装（1ac0573、`frontend/app/api/documents/[id]/file/route.ts`）を読んで確かめた範囲は次のとおり。
+
+- **提案どおりの点:** Cookie だけで `/api/auth/token` の JWT を取り、API には Bearer だけを付けて呼ぶ。JWT は保存しない。本文は読まずに流す。応答に `Cache-Control: no-store` と `Content-Disposition: inline; … filename*=UTF-8''…` を付ける。`?name=` は、画面の保存アイコンと同じ規則（`frontend/src/lib/pdfFileName.ts`）で整える。失敗時は API の本文を通さず、固定の日本語の HTML を返す。
+- **提案と違う点:**
+  - 中継先の API の URL は、ビルド時に埋め込む環境変数 `FILE_PROXY_TARGET`（`frontend/next.config.ts` の `env`、`frontend/deploy-web.sh`。既定は `NEXT_PUBLIC_API_BASE_URL` と同じ値）。空なら 404。
+  - フレームの制限（`frame-ancestors 'self'`・`X-Frame-Options: SAMEORIGIN`）は付けていない。応答ヘッダーは `Content-Type`・`Content-Disposition`・`Cache-Control`・`X-Content-Type-Options: nosniff` だけで、リポジトリのほかの場所にも設定は無い（grep、2026-11-20）。代わりに、`Sec-Fetch-Site: cross-site` の要求は 403 で断る。
+  - 失敗時のステータスは、そのままではなく固定の対応にした: API の 404・409 は 404、401 は 401、403 は 403、それ以外（200 でない、PDF でない）は 502。Cookie が無い・トークンを取れないときは 401 または 502。
+  - `Range` を API に渡さない（`route.ts` は `Accept` と `Authorization` だけを送る）。
+- **表示方式:** 2026-11-19 に、iframe から PDF.js へ置き換わった（[0014](0014-pdfjs-viewer.md)。状態の欄のとおり、中継の決定は有効）。0014 に書かれているとおり、中継は `Range`・`Content-Length` を返さず、PDF.js は毎回 PDF の全体を取る。本文の「エラー表示が iframe 内の固定 HTML に変わる」は、いまの画面では PDF.js 側の固定の文（読み込み中・再試行）に戻っている（0014）。
+- **配備:** 手動の `deploy.yml` の実行（2026-11-18 12:46 UTC = 21:46 JST に開始、成功）が、`a3474e8`（1ac0573 を含む）を checkout し、`Deploy the web Worker (OpenNext)` のステップが成功した（`gh run list` と `gh run view`、2026-11-20、証拠等級 A）。その後の `deploy.yml` の実行は無く、PDF.js の画面（2026-11-19 以降のコミット）は、この経路では未配備。その後の巻き戻しと、ほかの経路での配備は未確認。
+- **未確認のまま:** 本番の Worker・Cloud Run 経由での実際の挙動（Cookie が付くか、保存名、`#page=N`、Workers の CPU 時間と 1102、4xx/5xx、Chrome 以外のブラウザー）。本文の「実験が確かめていないこと」と「Workers の制限」も、この追記で確かめたものは無い。

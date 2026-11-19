@@ -1,6 +1,6 @@
 # 0007 検索の GraphRAG を既定 ON にする
 
-- 状態: 実装済み（`SEARCH_GRAPH` の既定は on。2026-11-01 時点で未プッシュ・未配備）
+- 状態: 実装済み（`main` に入っている。`SEARCH_GRAPH` の既定は on〔`app/search/pipeline.py`〕。2026-11-20 に `git branch -r --contains` で、`origin/main` に含まれることを確認）。本番については、[roadmap.md](../roadmap.md) が「本番で既定 on」と書く（その記述の日付は 2026-11-01。配備した日は未確認）。本番の配信中のリビジョン `docunavi-00091-juj` には `SEARCH_GRAPH` の環境変数が無く（2026-11-20、gcloud の読み取り、A）、コードの既定の on が効くとみられる（そのイメージのコードが現行と同じかは未確認）
 - 日付と決めた人: 2026-11-01（利用者。第 2 の評価セットの結果を見て、既定を on にすると決めた）
 - 置き換えるもの: [0006](0006-graph-rag-default-off.md)
 
