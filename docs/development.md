@@ -130,6 +130,7 @@ Infisical CLI がプロジェクトを選ぶ `.infisical.yaml` も Git 管理外
   手元で検査するには、`pip install --require-hashes -r requirements-lint.txt` の後に `actionlint` と `zizmor --offline .` を実行します。
 - **Dependabot（`.github/dependabot.yml`）:** 頻度は週次。公開から 7 日たったリリースだけを提案します（`cooldown`）。minor と patch はエコシステムごと（github-actions・docker・gomod）に 1 つの PR にまとめ、major は 1 件ずつ PR にします。マージは手動で、CI が通ったことを確かめてから人が行います（自動マージは入れない）。
   マージ後のブランチの削除は、リポジトリの設定「Automatically delete head branches」で行います（GitHub の設定。有効かは設定画面で確かめる）。
+- **`frontend/package.json` の `overrides`（2026-11-20、`edc80aa`）:** `glob` を ^14.0.2、`minimatch` を ^11.0.1 に固定しています。ビルド時にだけ使う `@opennextjs/cloudflare`（1.20.17）が `glob` ^13 を求め、その連鎖（`glob` 13.0.7 → `minimatch` 10.2.6）に、中程度の脆弱性（GHSA-3g3m-2fjr-6pw4・GHSA-g3hv-75wg-m249）があったためです。**`@opennextjs/cloudflare` が、修正済みの `glob` を求める版を出したら、`overrides` を外します**（外したあと `npm audit` が 0 件のままか確かめる）。確認したのは、コピーでの `npm ci`、`npm audit` 0 件、型検査、Vitest 719 件、`build:cf`、CI 成功です。検証環境の Worker は、この `overrides` 入りのビルドで配備済みで、主要な URL が 200 でした（ホストの報告。ログイン後の画面は未確認）。本番は未配備です。Dependabot のアラート 10（minimatch）は、`edc80aa` のプッシュのあとに fixed になりました（2026-11-20 06:51 JST、ホストの報告）。
 
 ## 本番のログインが要る画面を確認する
 
