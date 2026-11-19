@@ -10,7 +10,8 @@ from evals.synth.prompt import build_messages
 from evals.synth.validate import validate_body
 
 BIBLES = Path(__file__).resolve().parents[1] / "evals" / "synth" / "bibles"
-TARGETS = {"zahard", "minato-coffee", "tsubasa-dorm", "aoba-aw820"}
+LUNE = {"lune-fc410", "lune-fs250", "lune-fw1500", "lune-fd300"}  # リューネ工房の新製品（1 製品 5 冊。取扱説明書・設置・お手入れ・故障・保証）
+TARGETS = {"zahard", "minato-coffee", "tsubasa-dorm", "aoba-aw820"} | LUNE
 DOC_TYPES = {"setting", "store-guide", "regulation", "manual"}  # workers/api/migrations の document_types の語彙
 
 
@@ -19,16 +20,30 @@ def bibles():
     return load_all(BIBLES)
 
 
-def test_four_targets_load(bibles):
+def test_all_targets_load(bibles):
     assert set(bibles) == TARGETS
 
 
-def test_plan_reaches_twenty_per_target_including_existing(bibles):
+def test_plan_reaches_the_target_count_including_existing(bibles):
+    # 共通の件数は 20。bible に `documents` がある対象（リューネ工房の 5 製品）は、その件数（5 冊）
     briefs = build_plan(bibles, per_target=20)
     by_target = {t: sum(1 for b in briefs if b.target == t) for t in TARGETS}
-    assert by_target == {"zahard": 17, "minato-coffee": 19, "tsubasa-dorm": 19, "aoba-aw820": 19}
+    assert by_target == {
+        "zahard": 17,
+        "minato-coffee": 19,
+        "tsubasa-dorm": 19,
+        "aoba-aw820": 4,  # 取扱説明書（guides）が既存の 1 冊
+        **{t: 5 for t in LUNE},
+    }
     existing = sum(b.existing_documents for b in bibles.values())
-    assert len(briefs) + existing == 80
+    assert len(briefs) + existing == 85
+
+
+def test_lune_products_have_the_same_five_kinds(bibles):
+    for t in LUNE:
+        assert [k.id for k in bibles[t].kinds] == ["manual", "installation", "maintenance", "troubleshooting", "warranty"], t
+    # ポッドは、取扱説明書が guides にあるので、合成は 4 冊
+    assert [k.id for k in bibles["aoba-aw820"].kinds] == ["installation", "maintenance", "troubleshooting", "warranty"]
 
 
 def test_plan_is_deterministic_and_ids_and_keys_are_unique(bibles):
@@ -42,7 +57,7 @@ def test_plan_is_deterministic_and_ids_and_keys_are_unique(bibles):
 def test_plan_scales_to_the_bible_capacity_and_refuses_beyond(bibles):
     # 種類 × 変化の数まで。それを超える件数は、黙って重複を作らずに止まる
     capacity = {t: sum(len(k.variants) for k in b.kinds) + b.existing_documents for t, b in bibles.items()}
-    assert all(c >= 20 for c in capacity.values())
+    assert all(c >= (b.documents or 20) for t, b in bibles.items() for c in [capacity[t]])
     with pytest.raises(PlanError):
         plan_target(bibles["zahard"], per_target=capacity["zahard"] + 1)
 
@@ -77,7 +92,7 @@ def test_facts_pass_their_own_validator_numbers_and_have_no_forbidden_terms(bibl
 
 def test_prompt_contains_only_the_selected_facts_and_the_format_lines(bibles):
     bible = bibles["aoba-aw820"]
-    brief = next(b for b in build_plan(bibles, 20, ["aoba-aw820"]) if b.kind == "warranty-terms")
+    brief = next(b for b in build_plan(bibles, 20, ["aoba-aw820"]) if b.kind == "warranty")
     system, user = build_messages(bible, brief)
     assert f"題名: {brief.title}" in user
     assert f"文字数: {brief.min_chars}〜{brief.max_chars}" in user

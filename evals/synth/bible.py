@@ -50,6 +50,7 @@ class Bible:
     label: str
     premise: str
     existing_documents: int
+    documents: int | None  # この対象の目標件数（既存の資料を含む）。無ければ、呼び出し側の件数（`--per-target`）
     revision: str
     facts: tuple[Fact, ...]
     kinds: tuple[Kind, ...]
@@ -128,6 +129,7 @@ def parse_bible(data: dict[str, Any], where: str = "bible") -> Bible:
         label=str(_require(data, "label", where)),
         premise=str(_require(data, "premise", where)).strip(),
         existing_documents=int(data.get("existing_documents", 0)),
+        documents=int(data["documents"]) if "documents" in data else None,
         revision=str(data.get("revision", "")),
         facts=tuple(facts),
         kinds=tuple(kinds),

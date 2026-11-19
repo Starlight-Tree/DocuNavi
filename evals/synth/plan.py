@@ -79,7 +79,8 @@ def build_plan(bibles: dict[str, Bible], per_target: int, targets: list[str] | N
         raise PlanError(f"bible がない対象: {missing}")
     briefs: list[Brief] = []
     for target in chosen:
-        briefs.extend(plan_target(bibles[target], per_target))
+        # bible に `documents` があれば、その対象の目標件数はそれ（5 冊構成の製品など）。無ければ共通の件数
+        briefs.extend(plan_target(bibles[target], bibles[target].documents or per_target))
     ids = [b.id for b in briefs]
     if len(ids) != len(set(ids)):
         raise PlanError("依頼票の id が重複しています")

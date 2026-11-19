@@ -14,12 +14,16 @@ from evals.synth.render import MARKER, NOTICE, RenderUnavailable, render_pdf
 from evals.synth.verify import verify_output
 
 
+# 試料の固定（4 対象 × 2 件 = 8 件）。リューネ工房の新製品（lune-*）は、別の bible のテストで見る
+ORIGINAL_TARGETS = ["--target", "zahard", "--target", "minato-coffee", "--target", "tsubasa-dorm", "--target", "aoba-aw820"]
+
+
 def test_cli_batch_flow_with_the_fake_engine(tmp_path, capsys):
     out = str(tmp_path / "out")
-    assert main(["plan", "--out-dir", out]) == 0
-    assert "計 74 件" in capsys.readouterr().out
+    assert main(["plan", *ORIGINAL_TARGETS, "--out-dir", out]) == 0
+    assert "計 59 件" in capsys.readouterr().out
 
-    sample = ["--sample-per-target", "2", "--out-dir", out]
+    sample = [*ORIGINAL_TARGETS, "--sample-per-target", "2", "--out-dir", out]
     assert main(["prepare", *sample, "--max-requests", "8", "--usd-per-hour", "3", "--max-total-cost-usd", "50"]) == 0
     capsys.readouterr()
     requests, results, meta = (f(Path(out), 1) for f in (batch.requests_path, batch.results_path, batch.meta_path))
@@ -49,7 +53,7 @@ def test_cli_batch_flow_with_the_fake_engine(tmp_path, capsys):
 
 def test_cli_bench_flow(tmp_path, capsys):
     out = str(tmp_path / "out")
-    sample = ["--sample-per-target", "4", "--out-dir", out]
+    sample = [*ORIGINAL_TARGETS, "--sample-per-target", "4", "--out-dir", out]
     assert main(["bench-prepare", *sample]) == 0
     for label, c in (("c04", "4"), ("c08", "8")):
         args = ["--engine", "fake", "--requests", str(Path(out) / "bench" / "requests.jsonl"), "--out", str(Path(out) / "bench" / f"results.{label}.jsonl"),
@@ -85,7 +89,7 @@ def test_cli_refuses_unsafe_out_dir_and_unbounded_paid_runs(tmp_path, capsys):
 
 
 def test_cli_run_returns_3_when_a_limit_stops_it(tmp_path):
-    assert main(["run", "--sample-per-target", "2", "--out-dir", str(tmp_path / "o"), "--max-docs", "3"]) == 3
+    assert main(["run", *ORIGINAL_TARGETS, "--sample-per-target", "2", "--out-dir", str(tmp_path / "o"), "--max-docs", "3"]) == 3
 
 
 def test_render_without_reportlab_fails_clearly(tmp_path):
