@@ -159,6 +159,11 @@ Git の履歴を整理し直し、`main` を強制プッシュで置き換えた
 | `8154585` | `32c733f` | 配備中のイメージのタグ（docs/r2-ingest-design.md） |
 | `bf480b1` | `aa0211c` | Vercel が READY にしたコミット（docs/roadmap.md） |
 
+**2026-11-20 の注記（上の 2 つの表の「場所」の現状）:** 「場所」の列は、1 回目の書き換え当時のものです。2026-11-20 の docs/ の整理を終えたあとのファイルを `grep` した結果（旧ハッシュの対応は、上の 2 回目・3 回目の表で引く）:
+
+- 付け替えたもの: 新しいハッシュが今も文書・データに残っているのは、`66fe9d7`（evals/README.md。2 回目で `2315d06`、3 回目で `5c584bd`。docs/search-design.md にもあったが、同日、現在の `5c584bd` に付け替えた）、`ab95451` `2b8aeee` `efe3c97`（docs/r2-rollout.md。同日、現在のハッシュ `ad8f05a` `2fc562d` `4a049e0` を併記した）、`daad41c`（evals/results/topk_probe.json。測定時点の `git_head`。3 回目で `4a021b2`）。`579d80e`（CLAUDE.md）、`1807839`（docs/target-architecture.md）、`2976401` `dd58ef1` `4e4c91e`（docs/roadmap.md）、scripts/eval_answers.py の `66fe9d7` は、文書・コードの書き換えや圧縮でもう無い。CLAUDE.md の `git diff` のハッシュは、3 回目の `399f592` が現在の値。
+- 付け替えなかったもの: `cc5709c` は docs/r2-rollout.md に残っている。docs/go-architecture-plan.md の §8 の注にも、この文書の表を引くために書いてある（同文書の表の 7 行目にあった記述は、2026-11-20 の整理で外した）。`dc969b9` は docs/r2-rollout.md と tests/test_preview_script.py（例の文字列）に、`8154585` は docs/r2-ingest-design.md に残っている。`cc5709c` と `dc969b9` は docs/deploy.md から消えた。`3d3ab79` と `bf480b1` は docs/deploy.md と docs/roadmap.md から消え、ほかに残っていない。
+
 ### 退避
 
 書き換え前の履歴の退避は、2026-10-25 に削除した。旧ハッシュのコミットは、`git show` で見られない。

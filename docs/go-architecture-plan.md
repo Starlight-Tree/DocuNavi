@@ -1,6 +1,6 @@
 # Go 化計画（アプリ全体の役割分担）
 
-この文書は、`app/` と `ops/` を役割ごとに分け、**どこを Go にし、どこを Python のまま残すか**を決めるための計画です。**実装の契約ではなく、コードも本番も変えていません。**
+この文書は、`app/` と `ops/` を役割ごとに分け、**どこを Go にし、どこを Python のまま残すか**を決めるための計画です。**実装の契約ではありません。** 作成時（2026-10-25）はコードも本番も変えていませんでしたが、その後、中継（§4）だけが動きました。**現状（2026-11-20 に、コード・[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)・`ops/sse-relay/README.md`・Git の履歴を照らした。本番の状態は、それらの記録による）:** Go のコードは中継 `ops/sse-relay/` と疑似の上流 `ops/sse-fake-upstream/` だけ。中継は、同時数の上限・本文の上限・レート制限・書き込みの期限を足し、2026-11-09 に本番へ配備済み（同時数の上限は、本番では値を設定していない）。Queue の制御（B5）は Python のまま 2026-10-26 に配備済み。中継以外の Go 化（§3 の「候補」、§6 の段階 3 以降）は未着手。
 利用者の方針変更（2026-10-25）に基づきます: Go を学習用の部品に留めず、SSE・入口・Queue の制御・運用ツールを担う、中核のサービス言語の一つとして位置づける。
 一括の置き換えはしない。小さく、境界のはっきりした所から、旧実装と比べられる形で移す。
 
@@ -8,7 +8,7 @@
 
 ## 0. 先に断っておくこと
 
-- **性能・安定性の根拠はまだ薄い。** Go の中継について測ったのは、疑似 SSE の 1 台・ループバック（証拠等級 A、各 1 回）と、本番での 1 回ずつの疎通・切断の確認だけ。
+- **性能・安定性の根拠はまだ薄い。** Go の中継について測ったのは、疑似 SSE の 1 台・ループバック（証拠等級 A、各 1 回）、Cloud Run の試験用サービスでの疑似の上流の 100 本（A、各 1 回。§8）、本番での 1 回ずつの疎通・切断の確認と、2026-11-09 の配備後のログの確認（記録は README・ADR 0005）だけ。
   「Go の方が速い」「Go にすれば安定する」とは**言えない**。この計画が Go を置く理由は、(a) 長い接続・並行処理・小さな運用ツールという用途に Go が向くという一般的な設計判断（証拠等級 C）と、
   (b) 利用者が決めた、学習と将来の接続数増加への備え、の 2 つ。製品として今すぐ必要になった、という根拠ではない。
 - [target-architecture.md](target-architecture.md) の「採用条件」（同時 SSE 数が測った容量を超える、など）は、**製品の必要から採用する場合**の基準で、今はどれも満たしていない。
@@ -23,14 +23,15 @@
 flowchart LR
     browser["ブラウザー"]
     web["Cloudflare Worker<br/>docunavi-web（Next.js）"]
-    relay["Cloud Run: docunavi-sse-relay<br/>Go（main.go 234 行）<br/>POST /chat/stream だけ"]
+    relay["Cloud Run: docunavi-sse-relay<br/>Go（main.go 662 行）<br/>POST /chat/stream だけ"]
     api["Cloud Run: docunavi<br/>FastAPI + LangGraph（h2c, hypercorn）"]
     pg[("Prisma Postgres<br/>+ pgvector")]
     authsb["Worker docunavi-api<br/>Better Auth（JWKS）"]
     r2[("Cloudflare R2<br/>PDF の原本")]
     gemini["Gemini API<br/>回答・埋め込み"]
-    q["Cloudflare Queue<br/>docunavi-ingest（テスト用ルールのみ）"]
-    job["Cloud Run Job<br/>docunavi-ingest-sync（毎時, Python）"]
+    q["Cloudflare Queue<br/>docunavi-ingest"]
+    jobq["Cloud Run Job<br/>docunavi-ingest-queue（Python）"]
+    job["Cloud Run Job<br/>docunavi-ingest-sync（定期, Python）"]
     clean["Cloud Run Job<br/>docunavi-history-cleanup（週 1, Python）"]
 
     browser --> web
@@ -43,12 +44,16 @@ flowchart LR
     job --> r2
     job --> pg
     job --> gemini
+    jobq --> r2
+    jobq --> pg
+    jobq --> gemini
     clean --> pg
-    r2 -.->|"イベント通知（本番ルールは未作成）"| q
+    r2 -.->|"イベント通知（本番の規則は 2026-10-26 に作成）"| q
+    q -->|"pull"| jobq
 ```
 
 - 画面から API への経路は 2 つ。`/chat/stream` だけが中継を通り、それ以外（`/chat`、`/threads`、`/documents` など）は API へ直接届く（`NEXT_PUBLIC_STREAM_BASE_URL` は本番の画面のビルドだけ。[../ops/sse-relay/README.md](../ops/sse-relay/README.md)）。
-- Cloud Run の設定（2026-10-25 に読み取り専用の gcloud で確認。証拠等級 A）:
+- Cloud Run の設定（2026-10-25 に読み取り専用の gcloud で確認。証拠等級 A。以後の変更は未確認。ただし README の記録では、中継のイメージは 2026-11-09 から差し替わり、環境変数が 2 つ付いた）:
 
 | 項目 | `docunavi`（API） | `docunavi-sse-relay` |
 |---|---|---|
@@ -56,34 +61,35 @@ flowchart LR
 | タイムアウト | 90 秒 | 120 秒 |
 | 同時実行 / 最大台数 | 20 / 2 | 20 / 2 |
 | CPU / メモリ | 1 / 512 MiB | 1 / 256 MiB |
-| サービスアカウント | `docunavi-run` | `docunavi-run`（同じ。**中継は環境変数も Secret も持たないのに、API と同じ権限**） |
+| サービスアカウント | `docunavi-run` | `docunavi-run`（同じ。**中継は Secret を持たない〔環境変数は 2026-11-09 から 2 つだけ〕のに、API と同じ権限**） |
 | Secret の参照 | `gemini-api-key` `gemini-api-key-paid` `database-url` と、ボリューム `/secrets/r2` | なし |
 | 最小台数 | 0 | 未設定（0 と思われる。未確認） |
 
-- コードの量（行数。`wc -l`）: `app/` 約 7,000 行（Python）、`ops/sse-relay/main.go` 234 行 + テスト 426 行。テストは `tests/` に pytest 多数（Go のテストは `go test` で、CI は `ops/sse-relay` を**含まない**）。
+- コードの量（行数。2026-11-20 に `wc -l`）: `app/` 約 13,400 行（Python。`app/**/*.py` の合計）、`ops/sse-relay/main.go` 662 行 + テスト 1,315 行（35 件）。テストは `tests/` に pytest 多数。Go のテストは `go test` で、CI の `go` ジョブが `ops/sse-relay` と `ops/sse-fake-upstream` の `go vet` と `go test -race -count=1` を実行する（`8312874`、2026-11-01）。
+- 取り込みの Job の頻度（図には書かない）: 2026-10-26 の記録（[r2-ingest-design.md](r2-ingest-design.md)）は、`docunavi-ingest-sync` が毎時、`docunavi-ingest-queue` は Scheduler が 5 分おき。[roadmap.md](roadmap.md) の現状（2026-11-18）は、同期が週 1 回（日曜 00:00 JST）で、`docunavi-ingest-queue-every-5min` は一時停止。この文書では、どちらも確認していない。
 
 ## 2. 役割ごとの分解
 
-「外部」は外へ出る通信、「DB」は触る表、「Secret」は実行時に要る秘密。テスト件数は `def test_` の数（同じ語を含むファイルの合計。おおよその目安）。
+「外部」は外へ出る通信、「DB」は触る表、「Secret」は実行時に要る秘密。テスト件数は `def test_` の数（同じ語を含むファイルの合計。おおよその目安）。行数は 2026-11-20 に `wc -l` で数え直した（`app/` は並行する修正で数行ずれうる）。テスト件数は、数え直した行（認証・履歴の保守・突き合わせ・Queue・MCP と中継）だけ同日の数で、「約」の行は 2026-10-25 の数のまま。
 
 | # | 役割 | 実装 | 外部 | DB | Secret | テスト | 配備 |
 |---|---|---|---|---|---|---|---|
-| 1 | SSE の入口（中継） | `ops/sse-relay/main.go`（Go） | 上流の API（h2c） | なし | なし | Go 単体（`main_test.go`） | Cloud Run `docunavi-sse-relay` |
-| 2 | `/chat` `/chat/stream` の処理 | `app/api/routes.py` 462 行（入力検証、切断の監視、エラーの分類）、`app/api/ui_stream.py` 145 行（AI SDK の UI message stream への変換） | Gemini | チェックポイント | 2 の API と同じ | 約 60（`test_chat*`）+ `test_hedged_stream` ほか | Cloud Run `docunavi` |
-| 3 | 回答の生成（グラフ） | `app/agents/graph.py` 624、`resilience.py` 835（ヘッジ・フォールバック・有料キー切り替え）、`tools.py` | Gemini（langchain-google-genai） | チェックポイント | Gemini キー（無料・有料） | `test_llm*` 約 130、`test_key_switch` 27 ほか | 同上 |
+| 1 | SSE の入口（中継） | `ops/sse-relay/main.go` 662 行（Go。同時数の上限・本文の上限・レート制限・書き込みの期限を含む） | 上流の API（h2c） | なし | なし（環境変数だけ） | Go 単体（`main_test.go` 35 件） | Cloud Run `docunavi-sse-relay` |
+| 2 | `/chat` `/chat/stream` の処理 | `app/api/routes.py` 721 行（入力検証、切断の監視、エラーの分類）、`app/api/ui_stream.py` 150 行（AI SDK の UI message stream への変換） | Gemini | チェックポイント | 2 の API と同じ | 約 60（`test_chat*`）+ `test_hedged_stream` ほか | Cloud Run `docunavi` |
+| 3 | 回答の生成（グラフ） | `app/agents/graph.py` 983、`resilience.py` 874（ヘッジ・フォールバック・有料キー切り替え）、`tools.py` | Gemini（langchain-google-genai） | チェックポイント | Gemini キー（無料・有料） | `test_llm*` 約 130、`test_key_switch` 27 ほか | 同上 |
 | 4 | ガードレール | `app/agents/guardrails.py` 270（ルールベース。ストリーミング用の `StreamingOutputGuard` を含む） | なし | なし | なし | 約 30 | 同上 |
-| 5 | 認証 | `app/auth.py` 288（JWKS の取得・キャッシュ、ES256/RS256 の検証、`sub` から履歴のキー） | Better Auth の JWKS | なし | なし（公開鍵） | 40 | 同上 |
-| 6 | 会話履歴・会話の一覧 | `app/history.py` 136、`app/api/threads.py` 213（LangGraph の Postgres チェックポインタ） | なし | `checkpoints` 系（LangGraph が作る表） | `database-url` | 約 60 | 同上 |
-| 7 | 履歴の保守 CLI | `app/history_admin.py` 100（SQL のみ。LangGraph を読み込まない） | なし | `checkpoints` 系 | `database-url` | 5 | Cloud Run Job `docunavi-history-cleanup`（同じ API イメージ `cc5709c`） |
-| 8 | 資料の検索 | `app/search_vector.py` 232（質問の埋め込み → pgvector） | Gemini（埋め込み） | `chunks` | Gemini キー、`database-url` | 約 30 | 同上 |
-| 9 | 資料の一覧・原本 | `app/api/documents.py` 235、`app/pdf_originals.py` 155、`app/r2_store.py` 345 | R2（S3 互換。boto3） | `documents` `chunks` | `database-url`、`r2-app-read` | 約 17 + R2 約 100 | 同上 |
-| 10 | 条文の関係図（実験） | `app/api/graph.py` 189、`app/relations/` 約 400 | R2 / 原本 PDF | `documents` | 同上 | 約 40 | 同上 |
-| 11 | PDF の取り込み | `app/ingestion/pdf_parser.py` 281（pypdf）、`chunker.py` 433、`service.py`、`repository.py` | なし | `documents` `chunks` | `database-url` | 約 130 | Job（下の 13） |
-| 12 | 埋め込みの生成と保存 | `app/ingestion/embedding.py` 248、`embed.py` 101 | Gemini（埋め込み、課金あり） | `chunks` | Gemini キー、`database-url` | 約 30 | Job |
-| 13 | 取り込みの制御（毎時の突き合わせ） | `app/ingestion/sync.py` 129（資料群を巡り、取り込み → 埋め込みの順に呼ぶ。終了コードの判断） | R2 | 11・12 経由 | `database-url` `gemini-api-key` `r2-app-read` | 15 | Cloud Run Job `docunavi-ingest-sync`（イメージ `docunavi-ingest:a983807`） |
-| 14 | 取り込みの制御（Queue） | `app/ingestion/queue_worker.py` 418（Queue から pull、メッセージの検査、ack/retry の判断） | Cloudflare Queues の REST、R2 | 11・12 経由 | 上の 3 つ + `ingest-queue-token` | 36 関数（展開後 65 件） | **配備済み（2026-10-26）**。Cloud Run Job `docunavi-ingest-queue`（イメージ `docunavi-ingest:8a9ba33`）を Cloud Scheduler `docunavi-ingest-queue-every-5min` が 5 分おきに起動する（[r2-ingest-design.md](r2-ingest-design.md) の「本番への切り替え」） |
-| 15 | 運用の Job | `ops/r2_key_issuer`（664 行）、`ops/r2_wire`（429 行）、`ops/budget_guard`（72 行） | Cloudflare / Cloud Run / Billing の API | なし | 各々 | `test_r2_key_issuer` `test_r2_wire` `test_budget_guard` | Cloud Run Job、Cloud Run functions |
-| 16 | 検索の MCP サーバー | `ops/mcp_search/main.py` 150（`app.search_vector` を使う） | Gemini | `chunks`（読み取り専用ロール） | `database-url-readonly` `gemini-api-key` | 13 | Cloud Run `docunavi-mcp`（非公開） |
+| 5 | 認証 | `app/auth.py` 299（JWKS の取得・キャッシュ、ES256/RS256 の検証、`sub` から履歴のキー） | Better Auth の JWKS | なし | なし（公開鍵） | 40 | 同上 |
+| 6 | 会話履歴・会話の一覧 | `app/history.py` 86、`app/api/threads.py` 362（LangGraph の Postgres チェックポインタ） | なし | `checkpoints` 系（LangGraph が作る表） | `database-url` | 約 60 | 同上 |
+| 7 | 履歴の保守 CLI | `app/history_admin.py` 106（SQL のみ。LangGraph を読み込まない） | なし | `checkpoints` 系 | `database-url` | 9 | Cloud Run Job `docunavi-history-cleanup`（2026-11-15 の記録では、本番の API と同じダイジェスト `docunavi@sha256:e34b160c…`。2026-11-20 の読み取りでは、Job はそのダイジェストのままで、本番のサービスは `docunavi-00091-juj`〔`docunavi@sha256:ac66b077…`〕に進んでいて、同じではない。値は [deploy.md](deploy.md) と [r2-ingest-design.md](r2-ingest-design.md) 冒頭） |
+| 8 | 資料の検索 | `app/search/` 1,086 行（うち `vector.py` 344 が、質問の埋め込み → pgvector。構成は [search-design.md](search-design.md)） | Gemini（埋め込み） | `chunks` | Gemini キー、`database-url` | 約 30 | 同上 |
+| 9 | 資料の一覧・原本 | `app/api/documents.py` 336、`app/pdf_originals.py` 187、`app/r2_store.py` 357 | R2（S3 互換。boto3） | `documents` `chunks` | `database-url`、`r2-app-read` | 約 17 + R2 約 100 | 同上 |
+| 10 | 条文の関係図（実験） | `app/api/graph.py` 192、`app/relations/` 約 430 | R2 / 原本 PDF | `documents` | 同上 | 約 40 | 同上 |
+| 11 | PDF の取り込み | `app/ingestion/pdf_parser.py` 301（pypdf）、`chunker.py` 439、`service.py`、`repository.py` | なし | `documents` `chunks` | `database-url` | 約 130 | Job（下の 13） |
+| 12 | 埋め込みの生成と保存 | `app/ingestion/embedding.py` 369、`embed.py` 126 | Gemini（埋め込み、課金あり） | `chunks` | Gemini キー、`database-url` | 約 30 | Job |
+| 13 | 取り込みの制御（定期の突き合わせ） | `app/ingestion/sync.py` 145（資料群を巡り、取り込み → 埋め込みの順に呼ぶ。終了コードの判断） | R2 | 11・12 経由 | `database-url` `gemini-api-key` `r2-app-read` | 19 | Cloud Run Job `docunavi-ingest-sync`（この文書の作成時の記録のイメージ `docunavi-ingest:a983807`〔出どころは未確認。下の §8 の注〕。2026-11-20 の読み取りでは、本番のサービスのリビジョン `docunavi-00091-juj` と同じダイジェスト `docunavi@sha256:ac66b077…`。[r2-ingest-design.md](r2-ingest-design.md) 冒頭） |
+| 14 | 取り込みの制御（Queue） | `app/ingestion/queue_worker.py` 432（Queue から pull、メッセージの検査、ack/retry の判断） | Cloudflare Queues の REST、R2 | 11・12 経由 | 上の 3 つ + `ingest-queue-token` | 39 関数（展開後 70 件） | **配備済み（2026-10-26）**。2026-10-26 の記録では、Cloud Run Job `docunavi-ingest-queue`（イメージ `docunavi-ingest:8a9ba33`）を Cloud Scheduler `docunavi-ingest-queue-every-5min` が 5 分おきに起動していた（[r2-ingest-design.md](r2-ingest-design.md) の「本番への切り替え」）。現在（2026-11-20 の読み取り。同文書の冒頭）は、Job のイメージは本番のサービスのリビジョン `docunavi-00091-juj` と同じダイジェスト `docunavi@sha256:ac66b077…`。この Scheduler は一時停止（同文書と roadmap.md の記録。この文書では未確認） |
+| 15 | 運用の Job | `ops/r2_key_issuer`（671 行）、`ops/r2_wire`（429 行）、`ops/budget_guard`（72 行） | Cloudflare / Cloud Run / Billing の API | なし | 各々 | `test_r2_key_issuer` `test_r2_wire` `test_budget_guard` | Cloud Run Job、Cloud Run functions |
+| 16 | 検索の MCP サーバー | `ops/mcp_search/main.py` 133（`app.search.vector` を使う） | Gemini | `chunks`（読み取り専用ロール） | `database-url-readonly` `gemini-api-key` | 13 | Cloud Run `docunavi-mcp`（非公開） |
 | 17 | 画面 | `frontend/`（Next.js） | API | なし | 公開用の値のみ | 単体 + E2E | Cloudflare Worker |
 
 境界の性質で見ると、次の 3 つが重要。
@@ -106,7 +112,7 @@ flowchart LR
 
 ## 4. 中継（`ops/sse-relay/main.go`）の監査
 
-利用者の指示の「役割」に対して、`main.go`（2026-10-25 時点）を読んだ結果。区分: ✔ 実装あり（確認の程度つき）/ △ 一部 / ✗ 無い。
+利用者の指示の「役割」に対して、`main.go`（2026-10-25 時点で 234 行）を読んだ結果。2026-11-20 に、現在の `main.go`（662 行）・`main_test.go`・README・[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)・Git の履歴と照らして、「状態」を現在に更新した（変わった行は「根拠」に当時の判定を残す。変わらない行は、`main.go` を読み直して確かめた）。区分: ✔ 実装あり（確認の程度つき）/ △ 一部 / ✗ 無い。
 
 | 役割 | 状態 | 根拠 |
 |---|---|---|
@@ -114,31 +120,33 @@ flowchart LR
 | クライアント切断を上流の取り消しまで伝える | ✔ 本番で 1 回確認（等級 A） | 切断の 21 ms 後に API が取り消しを記録。生成の終盤だった可能性があり、**提供元で生成・課金が止まったことは未確認**。ローカルの疑似 SSE では 1〜3 ms で伝播（20/20） |
 | バッファせず即時に flush | ✔ | `FlushInterval = -1`、`X-Accel-Buffering: no`。単体テストあり。**本番での逐次表示は、長い回答では未確認**（roadmap の「未確認」） |
 | 上流のタイムアウト | ✗ | `ReadHeaderTimeout 10s`（受信側）だけ。上流への接続・応答ヘッダー待ちの期限が無い（`http.DefaultTransport` の 30 s の接続期限のみ）。上流が応答しないとき、Cloud Run の 120 秒まで待つ |
-| 下流の書き込みタイムアウト | △ 意図して無し | `WriteTimeout` は付けない（長い SSE を切らないため）。遅い・止まった受け手を切る仕組みは無い |
+| 下流の書き込みタイムアウト | ✔ 単体テストで確認。2026-11-09 に本番へ配備（実環境では未測定） | `Server.WriteTimeout` は付けない（長い SSE を切らないため）。代わりに、書き込みと flush のたびに期限（定数 `defaultWriteStall` = 30 秒。フラグ・環境変数は無い）を付け、読まない・遅い下流を切る（上流も取り消される。`TestRelayDropsAStalledDownstreamWithoutGrowingMemory`）。2026-10-25 の判定は「△ 意図して無し。止まった受け手を切る仕組みは無い」（`1779611` で追加） |
 | アイドルタイムアウト | ✗ | 本文が止まったままでも、`: ping` を送り続け、上流が止まっているのか生きているのか区別せず待つ。上流が `: ping` を送り続ける限り、実質いつまでも開いている（上限は Cloud Run の 120 秒） |
-| 接続数・同時実行数の制御 | ✗ | 上限なし。Cloud Run 側の `containerConcurrency 20`・最大 2 台が事実上の上限（それを超えた要求は Cloud Run が受け付ける側で待たされる〔挙動は未確認〕） |
-| 観測性（接続数・エラー率・遅延をログ・メトリクスで） | ✗ | 標準の `log` による文字列のログのみ。リクエストごとの記録（開始・終了・状態・所要時間・切断の理由）が無い。メトリクス無し。Cloud Logging が付ける request ログに頼っている |
-| 上流が失敗したときの SSE 上の `error` イベント | ✗ | `ErrorHandler` が **本文なしの 502** を返す。画面は HTTP の失敗として扱う（フロントの扱いは `frontend/src/api/chat.ts`。**本ファイル作成時には読んでいない**）。ヘッダー送信後（途中）の上流の失敗は、接続が閉じるだけ。**既知の課題:** 上流に届かず 502 を返した後、同じ HTTP/1.1 の接続を使い回した次の要求が "connection reset" になることがある（ローカルの単体テストで 60 回中 52 回。上限の有無に関係しない）。原因は 502 のとき要求本文を読まずに閉じるためと推測（未検証）。本番のブラウザー〜中継は HTTP/2 のはずで影響は未確認。直さず記録のみ。実 API の段階 1b で確認する |
+| 接続数・同時実行数の制御 | ✔ コードと単体テスト、Cloud Run の試験用サービスで確認（各 1 回、A。§8）。本番は値を設定していない（案 C） | 環境変数 `MAX_CONCURRENT_STREAMS`（既定 100、0 で無制限）。超えた要求は待たせず 503（日本語の固定 `detail`・`Retry-After: 5`・許可した Origin の CORS）で断り、上流へは届かない（`084791e`）。本番の中継は値を設定していないので（利用者の決定。[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)）、コードの既定（100）のまま。2026-10-25 時点の設定（Cloud Run の `containerConcurrency 20`・最大 2 台 = 40 本）では 100 に届かず、実質の上限は Cloud Run 側（それを超えた要求は Cloud Run が受け付ける側で待たされる〔挙動は未確認〕）。2026-10-25 の判定は「✗ 上限なし」 |
+| 新しい接続の開始のレート制限（2026-10-25 の監査には無かった項目） | ✔ 単体テストで確認。2026-11-09 に本番へ配備し、ログで確認（各 1 回。応答コードそのものは未確認） | 既定は 60 回/分・バースト 10（`SSE_RATE_LIMIT_PER_MIN` `SSE_RATE_LIMIT_BURST`。0 で無効）。キーはクライアント IP だけで、既定は接続元。`SSE_RATE_LIMIT_TRUST_XFF=true` のときだけ `X-Forwarded-For` を右端から `SSE_RATE_LIMIT_TRUSTED_PROXIES` 段目で読む（本番は 1 段目。Cloud Run 直受けの確認は README）。超えたら 429（日本語の固定 `detail`・`Retry-After`）。キー数の上限（10,000）と掃除がある。`: ping` と開いている接続は数えない（`1779611` `4ec194e`）。2 台のときの数え方・画面での見え方は未確認 |
+| 観測性（接続数・エラー率・遅延をログ・メトリクスで） | △ 拒否・切断の件数のログだけ | 標準の `log` による文字列のログ。出すのは、起動時の設定、`stream_limit_rejected`（そのときの現在数つき）`rate_limited` `body_too_large` `downstream_stalled` の件数、上流への中継の失敗だけ（クライアントの切断は出さない。本文・Authorization・IP は出さない）。リクエストごとの記録（開始・終了・状態・所要時間・切断の理由）が無い。メトリクス無し。Cloud Logging が付ける request ログに頼っている。2026-10-25 の判定は「✗」 |
+| 上流が失敗したときの SSE 上の `error` イベント | ✗ | `ErrorHandler` が **本文なしの 502** を返す。画面は HTTP の失敗として扱う（`frontend/src/api/chat.ts` を 2026-11-20 に読んだ結果: 502 は本文が JSON でなく `detail` が無いので、汎用の「サーバーが一時的に応答できません（HTTP 502）」の文になる。実機では未確認。2026-10-25 の時点では読んでいなかった）。ヘッダー送信後（途中）の上流の失敗は、接続が閉じるだけ。**既知の課題:** 上流に届かず 502 を返した後、同じ HTTP/1.1 の接続を使い回した次の要求が "connection reset" になることがある（ローカルの単体テストで 60 回中 52 回。同時数の上限の有無に関係しない）。原因は 502 のとき要求本文を読まずに閉じるためと推測（未検証）。2026-11-09 以降の既定（`SSE_MAX_BODY_BYTES` が 0 より大きいと、本文を読み切ってから上流へ送る）で再現するかは未確認（単体テスト `TestRelayReleasesSlotWhenUpstreamFails` が使う `newRelay` は、本文の上限が無く〔`maxBody` が 0〕、本文を先読みしない構成。本番の既定〔`SSE_MAX_BODY_BYTES` が 0 より大きい〕は、本文を全部読んでから上流へ送るので、構成が違う。そのテストのコメントは、使い回した接続が reset されることがある、と書くだけで、本文の上限の有無には触れていない）。本番のブラウザー〜中継は HTTP/2 のはずで影響は未確認。直さず記録のみ。実 API の段階 1b で確認する |
 | ヘルスチェック | ✗ | `/healthz` 等が無い（`/chat/stream` 以外は 404）。Cloud Run の起動確認は TCP |
-| 最小権限 | ✗ | `docunavi-run`（API と同じ SA）で動くが、中継は Secret も DB も要らない |
-| 本文サイズの上限 | ✗ | 付けていない（README の「未確認」） |
-| CI | ✗ | `ci.yml` は `ops/sse-relay` の `go vet` / `go test` を回さない |
+| 最小権限 | ✗（2026-10-25 の確認のまま。以後の変更は未確認） | `docunavi-run`（API と同じ SA）で動くが、中継は Secret も DB も要らない |
+| 本文サイズの上限 | ✔ 単体テストで確認。2026-11-09 に本番へ配備し、ログで確認（1 回。応答コードそのものは未確認） | 既定 1 MiB（`SSE_MAX_BODY_BYTES`。0 で無制限）。`Content-Length` が超えていれば読まずに 413、chunked などで読みながら超えても 413（日本語の固定 `detail`）。上流へ送るのは、上限内で読み切った本文だけ。2 MiB の本文で `body_too_large content_length_over_limit=true` をログで確認した記録（README）。画面が 413 をどう見せるかは、コードでは日本語の `detail` をそのまま出す（`SERVER_DETAIL_STATUSES`）が、実機では未確認。2026-10-25 の判定は「✗ 付けていない」（`1779611`） |
+| CI | ✔ `ci.yml` の `go` ジョブ（`8312874`、2026-11-01） | `ops/sse-relay` と `ops/sse-fake-upstream` の `go vet` と `go test -race -count=1`。Go の版は `go.mod` から読み、2 つの `go.mod` と一致するかも検査する。2026-10-25 の判定は「✗ `ci.yml` は回さない」 |
 
 ### 改善の項目（優先度順）
 
 どれも `/chat/stream` の挙動を変えない、または変えても小さい範囲から。各項目は**実行前に、コマンドと影響を示して承認をもらう**（この文書は提案）。
 
-| 優先 | 項目 | 変更内容 | 確認方法 | 影響範囲・戻し方 |
-|---|---|---|---|---|
-| P1 | リクエストごとの構造化ログ | 開始・終了の 1 行（JSON。Cloud Logging の `severity` `message` 形式）。項目: 経路、状態、上流の状態、所要時間、送ったバイト数、終了の理由（完了 / クライアント切断 / 上流の失敗 / 期限）、`thread_id`（本文は読まないので、ヘッダーかパスからは取れない。**取れない場合は付けない**）。内容・認証ヘッダー・本文は出さない | `go test`。ローカルで API と一緒に起動し、ログの形と、切断・完了・上流停止の各ケースを目で確認 | `main.go` のみ。配信は Cloud Run の新リビジョン（0% で作って確認できる）。戻しは前のリビジョンへ |
-| P1 | 上流のタイムアウトの明示 | `ResponseHeaderTimeout`（上流が最初のバイトを返すまで）、上流への接続期限。値は API の `LLM_TIMEOUT_SECONDS`（60）・Cloud Run の 90 秒と整合させる（鎖は §5） | `go test`（遅い上流の疑似）。**本番の最初のチャンクまでの実測（22〜31 秒）を超えない値**にする必要があり、決める前に最近のログで分布を読む | 長い待ちを切る可能性がある。値を誤ると正常な質問を切る。戻しは前のリビジョン |
-| P1 | CI に Go のジョブ | `go vet` `go test -race` を `ci.yml` に足す | CI の結果 | `ci.yml`（利用者の承認が要る。CLAUDE.md の運用） |
-| P2 | 接続数の上限と計数 | 同時接続を数え、上限を超えたら 503 + `Retry-After`。ログに現在数。上限は環境変数 `MAX_CONCURRENT_STREAMS`、**既定は 100**（0 で無制限）。超えた要求は待たせず 503 で断る。断る応答の CORS は許可リスト（`CORS_ORIGINS`）のオリジンだけ。コードは作成済みで未配備（本番の Cloud Run の同時実行数は 20 なので、配備しても 100 には届かず、効くのは試験用サービスだけ） | `go test`（並行）。疑似 SSE で上限の前後 | 上限を低くしすぎると利用者を弾く。Cloud Run の `containerConcurrency` との関係を決めてから |
-| P2 | 上流が失敗したときの意味のある応答 | ヘッダー送信前の失敗は、画面が理解できる形（既存の `data-failure` + `error` チャンク、または固定のエラー）で返す。**画面側の処理の確認が先**（`chat.ts`） | `go test` + 画面（モックの上流で 502 を返す）。フロントの変更が要るなら別の承認 | 画面の挙動が変わる。HTTP 502 のまま扱う現状の挙動と比べる |
-| P2 | 専用のサービスアカウント | 中継だけの SA（権限なし。Secret・DB に届かない）に切り替える | `gcloud run services describe` で SA を確認。疎通 1 回 | 配備の変更（利用者が実行）。戻しは SA を元に戻す |
-| P3 | アイドルの期限 | 上流が本文も `: ping` も送らない時間が一定を超えたら切る（API の `: ping` は 10 秒ごと。中継の 25 秒の ping と区別して測ってから） | 疑似 SSE | 誤って切らない値の根拠が要る |
-| P3 | ヘルスチェック・メトリクス | `/healthz`（`/chat/stream` 以外を 404 にした設計との関係を決める）。Cloud Run の既定のメトリクスで足りない分だけ | 疎通 | 中継の公開面が増える |
-| P3 | 本文サイズの上限 | `http.MaxBytesReader`（API の入力検証の上限と合わせる） | `go test` | 小さい |
+| 優先 | 項目 | 状態（2026-11-20） | 変更内容 | 確認方法 | 影響範囲・戻し方 |
+|---|---|---|---|---|---|
+| P1 | リクエストごとの構造化ログ | 未着手（`main.go` を読んで確認） | 開始・終了の 1 行（JSON。Cloud Logging の `severity` `message` 形式）。項目: 経路、状態、上流の状態、所要時間、送ったバイト数、終了の理由（完了 / クライアント切断 / 上流の失敗 / 期限）、`thread_id`（本文は読まないので、ヘッダーかパスからは取れない。**取れない場合は付けない**）。内容・認証ヘッダー・本文は出さない | `go test`。ローカルで API と一緒に起動し、ログの形と、切断・完了・上流停止の各ケースを目で確認 | `main.go` のみ。配信は Cloud Run の新リビジョン（0% で作って確認できる）。戻しは前のリビジョンへ |
+| P1 | 上流のタイムアウトの明示 | 未着手（`ResponseHeaderTimeout` も接続期限も付いていない） | `ResponseHeaderTimeout`（上流が最初のバイトを返すまで）、上流への接続期限。値は API の `LLM_TIMEOUT_SECONDS`（60）・Cloud Run の 90 秒と整合させる（鎖は §5） | `go test`（遅い上流の疑似）。**本番の最初のチャンクまでの実測（22〜31 秒）を超えない値**にする必要があり、決める前に最近のログで分布を読む | 長い待ちを切る可能性がある。値を誤ると正常な質問を切る。戻しは前のリビジョン |
+| P1 | CI に Go のジョブ | 済み（`8312874`、2026-11-01。`go test -race -count=1`） | `go vet` `go test -race` を `ci.yml` に足す | CI の結果 | `ci.yml`（利用者の承認が要る。CLAUDE.md の運用） |
+| P2 | 接続数の上限と計数 | コードは済み（`084791e`、2026-10-25）。Cloud Run の試験用サービスで確認（§8）。本番は値を設定していない（案 C）。ログの現在数は、拒否したときだけ | 同時接続を数え、上限を超えたら 503 + `Retry-After`。ログに現在数。上限は環境変数 `MAX_CONCURRENT_STREAMS`、**既定は 100**（0 で無制限）。超えた要求は待たせず 503 で断る。断る応答の CORS は許可リスト（`CORS_ORIGINS`）のオリジンだけ。コードは作成済み（2026-11-09 から本番のイメージにも入っているが、値は設定していない。本番の Cloud Run の同時実行数は 20 なので、100 には届かず、効いたのは試験用サービスだけ） | `go test`（並行）。疑似 SSE で上限の前後 | 上限を低くしすぎると利用者を弾く。Cloud Run の `containerConcurrency` との関係を決めてから |
+| P2 | 上流が失敗したときの意味のある応答 | 未着手（本文なしの 502 のまま） | ヘッダー送信前の失敗は、画面が理解できる形（既存の `data-failure` + `error` チャンク、または固定のエラー）で返す。**画面側の処理の確認が先**（`chat.ts`） | `go test` + 画面（モックの上流で 502 を返す）。フロントの変更が要るなら別の承認 | 画面の挙動が変わる。HTTP 502 のまま扱う現状の挙動と比べる |
+| P2 | 専用のサービスアカウント | 未確認（2026-10-25 は `docunavi-run`。変更の記録は見つけていない） | 中継だけの SA（権限なし。Secret・DB に届かない）に切り替える | `gcloud run services describe` で SA を確認。疎通 1 回 | 配備の変更（利用者が実行）。戻しは SA を元に戻す |
+| P3 | アイドルの期限 | 未着手（下流の書き込みの期限とは別） | 上流が本文も `: ping` も送らない時間が一定を超えたら切る（API の `: ping` は 10 秒ごと。中継の 25 秒の ping と区別して測ってから） | 疑似 SSE | 誤って切らない値の根拠が要る |
+| P3 | ヘルスチェック・メトリクス | 未着手（`/chat/stream` 以外は 404 のまま） | `/healthz`（`/chat/stream` 以外を 404 にした設計との関係を決める）。Cloud Run の既定のメトリクスで足りない分だけ | 疎通 | 中継の公開面が増える |
+| P3 | 本文サイズの上限 | 済み（`1779611`、2026-11-09。1 MiB。本番へ配備） | `http.MaxBytesReader`（API の入力検証の上限と合わせる） | `go test` | 小さい |
+| — | 追加（監査の後）: 新しい接続のレート制限、下流の書き込みの期限 | 済み（`1779611` `4ec194e`、2026-11-09。本番へ配備。[decisions/0005](decisions/0005-go-sse-relay-without-prod-limit.md)） | 新しい接続の開始をクライアント IP ごとに数えて 429 にする。読まずに詰まった下流は、書き込みごとの期限（30 秒）で切る | `go test`（`main_test.go`）。配備後はログで確認（§8） | 本番のイメージの差し替え（利用者が実行）。戻しは README |
 
 ### 同時接続の目標（段階。利用者の方針、2026-10-25）
 
@@ -155,6 +163,8 @@ flowchart LR
 100 を最初の目標にする理由（利用者の決定。20 では Go の効果が見えにくく、500 は大きすぎる、という判断）。「100 超で専用 gateway が要る」という一般論は、第三者の記事・別の AI の回答に基づく（証拠等級 C）で、**この製品で成り立つかは、この試験で確かめる対象**。
 
 ### 段階 1 の試験の設計（100 同時 SSE。疑似の上流）
+
+（2026-10-25 に実施済み。結果は §8。以下は試験前の設計で、当時の前提のまま残す。いまは、上限のコードは配備済みの中継に入っており、疑似の上流は `ops/sse-fake-upstream/`、負荷の道具は `ops/sse-relay/bench/trial_load.py`。2026-11-20 に確認。）
 
 **前提の変更が要るもの（どれも実行前に承認）:**
 
@@ -213,7 +223,7 @@ flowchart LR
 | 0 | この計画の作成（済み） | — | 利用者のレビュー | 文書を消す |
 | 1 | 中継の改善（§4 の P1 → P2 → P3 の順に、1 項目ずつ） | 各項目で承認 | §4 の確認方法。本番では 0% の新リビジョンを作って疎通を見てから切り替える | Cloud Run の前のリビジョンへ |
 | 2 | B4・B5（Python の `queue_worker`）を予定どおり配備（**済み、2026-10-26**。Scheduler も含めて本番に切り替えた） | 利用者の承認（済み） | [r2-ingest-design.md](r2-ingest-design.md)、手動の実行（設定確認・空の Queue・不正なキーの通知・PDF 1 件の通し） | Scheduler の一時停止 → 通知の規則の削除 → Job の削除 |
-| 3 | Queue 制御の Go 版を**比較用に**作る（本番の Job は変えない） | 2 の安定（手動実行・失敗系・hourly sync との関係を観察） | 同じメッセージ（`tests/test_ingestion_queue_worker.py` のテスト〔36 関数、展開後 65 件〕が仕様）を両方に流し、ack / retry / 破棄の判断と終了の挙動が一致すること。Go 版は ack せず判断だけ出す「ドライラン」から | Go 版を消すだけ（本番に載せていない） |
+| 3 | Queue 制御の Go 版を**比較用に**作る（本番の Job は変えない） | 2 の安定（手動実行・失敗系・hourly sync との関係を観察） | 同じメッセージ（`tests/test_ingestion_queue_worker.py` のテスト〔39 関数、展開後 70 件〕が仕様）を両方に流し、ack / retry / 破棄の判断と終了の挙動が一致すること。Go 版は ack せず判断だけ出す「ドライラン」から | Go 版を消すだけ（本番に載せていない） |
 | 4 | 履歴の保守 CLI の Go 版（7）を比較用に作る | 3 と独立 | 同じ DB（テスト用の Postgres）で、削除対象の件数が一致 | 同上 |
 | 5 | 入口の役割の決定（§5） | 1 の成果、ドメインの有無 | 決定の記録 | — |
 | 6 | 5 の決定に基づき、載せる経路を 1 つずつ増やす | 5 | 経路ごとに旧経路と比較 | `NEXT_PUBLIC_*_BASE_URL` を外す（今のところ、外す操作は私からはしない） |
@@ -224,7 +234,7 @@ flowchart LR
 
 Python のまま進める。次を守ると、段階 3 が楽になる。**どれも新しいコードを足さない（いまある形の確認と文書化）。**
 
-- **契約を固定する。** メッセージの入力（バケット・action・キーの形・大きさ）、処理結果 → ack / retry / 破棄の対応、終了コード（0・3 = 完了、1 = 一時的な失敗、2 = 設定の誤り）、環境変数（`INGEST_QUEUE_ID` `INGEST_QUEUE_TOKEN` ほか）。`queue_worker.py` の説明文とテスト（36 関数、展開後 65 件）がすでに仕様になっている。
+- **契約を固定する。** メッセージの入力（バケット・action・キーの形・大きさ）、処理結果 → ack / retry / 破棄の対応、終了コード（0・3 = 完了、1 = 一時的な失敗、2 = 設定の誤り）、環境変数（`INGEST_QUEUE_ID` `INGEST_QUEUE_TOKEN` ほか）。`queue_worker.py` の説明文とテスト（39 関数、展開後 70 件）がすでに仕様になっている。
 - **Job の設計は、処理を呼ぶ側と処理する側を分けたまま。** `queue_worker` は取り込み（`python -m app.ingestion`）と埋め込みを**呼ぶだけ**で、本体を持たない。Go 版に替えるなら、制御だけを Go にし、処理は `python -m app.ingestion …` の呼び出し（同じイメージの中）で残せる。
 - **Job の定義を、実装に依存させない。** B5 では Job の引数・SA・タイムアウトを、`docunavi-ingest-queue` という名前と、固定の引数で作る（実行時の上書きは使わない）。Go 版を載せるときは、イメージとコマンドの差し替えだけで済むようにする。
 - **状態は DB に置き、Queue に持たせない。** 今の設計どおり（通知は合図で、冪等）。Go 版も同じ前提でよい。
@@ -237,29 +247,31 @@ Go 版を載せるときの注意（比較してから判断）: Python の取�
 |---|---|
 | 入口を経由する経路が増え、中継の障害が全体の障害になる | §5 で経路を決めるまで、`/chat/stream` だけに留める。経路を増やすときは、旧経路（直接）を残す |
 | 二重化（検証・タイムアウト・CORS）で、どこが正かが分からなくなる | 役割ごとに「一次の持ち主」を表にして残す（§5 の決定時） |
-| 言語が増え、保守・CI・配備の手間が増える | Go は標準ライブラリだけ（依存を足さない）で始める。CI に Go を入れる（§4 P1）。イメージ・Job を増やすたびに利用者の承認を取る |
+| 言語が増え、保守・CI・配備の手間が増える | Go は標準ライブラリだけ（依存を足さない）で始める。CI に Go を入れる（§4 P1。2026-11-01 に済み）。イメージ・Job を増やすたびに利用者の承認を取る |
 | 比較なしの書き換えで、本番の挙動が変わる | 段階 3 以降は旧実装と並べる。本番の Job・サービスは、比較が済むまで変えない |
 | 中継の SA が過大（`docunavi-run`） | §4 P2。専用 SA へ（利用者が実行） |
 | 根拠のない主張を書く | 測定済み / 本番確認済み / 未確認を分けて書く（§8）。この文書の更新時も守る |
 
 ## 8. 測定済み・本番確認済み・未確認
 
+注: イメージのタグ `ac95150` `8a9ba33` `a983807` は、2026-11-14 の履歴書き換え前のコミットのハッシュで、いまの `main` には無い（`git branch -r --contains` が見つけられない）。[history-rewrite.md](history-rewrite.md) の表を引くと、`ac95150` は `11fd7da`（中継の Cloud Run 用ファイルを足したコミット。`origin/main` にある）。`8a9ba33` は表で `403cc1a`（文書だけのコミット）に対応づけられていて、イメージの中身と合うかは未確認。`a983807` は表に無く、未確認。なお、この文書の以前の版が表の 7 行目（履歴の保守の Job）に書いていたイメージのタグ `cc5709c` も、旧い履歴のハッシュで、history-rewrite.md の表では `4039f51`（2 回目の後は `20c3d27`、3 回目の後は `8f32bf5`。`origin/main` にある）に対応づけられている。
+
 | 区分 | 内容 |
 |---|---|
 | 測定済み（A。開発コンテナの疑似 SSE、各 1 回） | 1000 本の同時接続で全構成エラー 0。中継が足す遅延は数 ms。切断は 1〜3 ms で上流に届く（20/20）。中継のメモリは 85〜94 MB。詳細: [target-architecture.md](target-architecture.md) の「Go の SSE 中継の測定」 |
-| 本番で確認済み（A。各 1 回） | 実質問が中継経由で 200（3.0 秒）。CORS の `OPTIONS` 200。同時 2 本が 200 + `[DONE]`。切断の 21 ms 後に API が取り消しを記録 |
+| 本番で確認済み（A。各 1 回。2026-10-25） | 実質問が中継経由で 200（3.0 秒）。CORS の `OPTIONS` 200。同時 2 本が 200 + `[DONE]`。切断の 21 ms 後に API が取り消しを記録 |
+| 本番の記録（2026-11-09 の配備後。README・ADR 0005 の記録で、ログの確認が各 1 回。この文書では再確認していない） | 本番の中継は、本文上限・レート制限・書き込みの期限を含むイメージ `bc3d297`（`4ec194e` に対応。history-rewrite.md の 2 つの表）。起動ログに `max_body=1048576 rate=60/分 burst=10 trust_xff=true hops=1`。2 MiB の本文で `body_too_large content_length_over_limit=true`。左端を毎回変えた 14 回の POST のうち 2 回が `rate_limited`。Cloud Run 直受けは、試験用の `/echo` で右端から 1 段目が実接続元と確認した（利用者の判断。試験用サービスは削除済み）。応答コードそのもの・画面の見え方・2 台のときの数え方・詰まった下流の切断（実環境）は未確認 |
 | 測定済み（A。Cloud Run の試験用の中継と疑似上流、各 1 回、2026-10-25 18:23〜18:30 JST。§4 の段階 1） | 1・10・25・50・75・100 本の同時接続がすべて成功（HTTP/2、上流の `active` は本数どおり、エラー 0。最初のバイトまでの時間は 100 本で p50 約 100 ms、max 598 ms）。100 本を保持して 101 本目を足すと、0.11 秒で 503（日本語の `detail`、`Retry-After: 5`、許可した Origin の CORS ヘッダー）になり、上流には届かなかった（`started` は 100 のまま）。中継のログに `stream_limit_rejected active_streams=100 limit=100`。25 本の切断は 25 本とも上流に伝わり（`client_disconnected` +25）、`active` は約 46 ms で 0 に戻った。中継は 1 インスタンスで 100 本を処理した。試験用のサービス・イメージ・サービスアカウントは削除済み |
-| 判断（利用者の決定、2026-10-25。案 C） | **本番の中継に `MAX_CONCURRENT_STREAMS` を適用しない。** 本番の中継は Cloud Run の同時実行数 20 × 最大 2 台 = 40 本、API 側も 2 台 × 同時 20 = 40 本で、100 の上限は届かない（効果がない）。20 にすると中継自身が 503 を返せるが、上限は台ごとで、別の台が空いていても 503 になりうる。本番の中継のイメージは `ac95150`（上限のコードを含まない。2026-10-25 に `gcloud run services describe` で確認）のまま、設定・同時実行数・イメージは変えない |
-| 再検討の条件（どれも未実施。始めるときは承認を取る） | ① 中継のメモリ・CPU の実測（Cloud Run。試験の時刻範囲で Cloud Monitoring を読む）② 段階 1b: 実 API・Gemini を通した 5〜10 接続（課金・429 を伴う）③ 中継の Cloud Run の同時実行数を、Go の上限より少し大きく設定する案の検討（Cloud Run の値だけを上げない。上の §4）④ 100 本を切る試験（切断の伝播は 25 本までしか見ていない）⑤ 503 のあとのクライアントの再試行の設計（`chat.ts` の `retryAfterSeconds` は 429 向けの記述で、中継の 503 の `Retry-After: 5` を画面が使うかは未確認。実機でも未確認） |
+| 判断（利用者の決定、2026-10-25。案 C） | **本番の中継に `MAX_CONCURRENT_STREAMS` を適用しない。** 本番の中継は Cloud Run の同時実行数 20 × 最大 2 台 = 40 本、API 側も 2 台 × 同時 20 = 40 本（どちらも 2026-10-25 に確認した設定）で、100 の上限は届かない（効果がない）。20 にすると中継自身が 503 を返せるが、上限は台ごとで、別の台が空いていても 503 になりうる。決定の時点（2026-10-25）の本番の中継のイメージは `ac95150`（上限のコードを含まない。`gcloud run services describe` で確認）で、設定・同時実行数・イメージは変えない、という決定だった。**その後、2026-11-09 に、別の決定で、本文上限・レート制限・書き込みの期限を含むイメージ `bc3d297` へ配備した。** このイメージには上限のコードも入っているが、`MAX_CONCURRENT_STREAMS` は設定しておらず、案 C は変わらない（README・ADR 0005） |
+| 再検討の条件（どれも未実施。始めるときは承認を取る） | ① 中継のメモリ・CPU の実測（Cloud Run。試験の時刻範囲で Cloud Monitoring を読む）② 段階 1b: 実 API・Gemini を通した 5〜10 接続（課金・429 を伴う）③ 中継の Cloud Run の同時実行数を、Go の上限より少し大きく設定する案の検討（Cloud Run の値だけを上げない。上の §4）④ 100 本を切る試験（切断の伝播は 25 本までしか見ていない）⑤ 503 のあとのクライアントの再試行の設計（`chat.ts` は `Retry-After` を 429 のときだけ読む〔2026-11-20 にコードで確認〕ので、中継の 503 の `Retry-After: 5` は画面で使われない。中継の 429 には使われうる。実機では未確認） |
 | 一般論（C。未検証） | Go は gateway・SSE・worker・CLI に向き、Python は AI・データ処理に向く。この計画の分担はこの考え方に沿うが、**この製品で効果があるかは測っていない** |
-| 未確認 | 中継の `: ping`（API の 10 秒ごとの ping と区別がつかない）。長い回答の逐次表示（本番）。接続数の負荷の上限のうち、Cloud Run での中継のメモリ・CPU、100 本の切断、実 API を通した負荷（疑似の上流の 100 本は上の行で測定済み）。本文サイズの上限。モデル提供元での生成停止・課金停止。中継を通すことでの体感遅延の差（本番で比較していない）。Cloud Run が上限を超えた要求をどう扱うか（試験は Go の上限より大きい同時実行数で行ったので、同じ値のときの挙動は見ていない）。画面が 502 をどう扱うか（`chat.ts` を読んだ結果: 502 と 503 は文言で出る。503 は本文の日本語の `detail`、502 は汎用の文。実機では未確認） |
-| 判断が済んでいない | 入口の範囲と認証の置き場（§5）。段階 3 以降をやるか。同時接続の段階目標（§4）の測定を始めるか、実際の質問での負荷試験をやるか（課金・429 を伴う） |
+| 未確認 | 中継の `: ping`（API の 10 秒ごとの ping と区別がつかない）。長い回答の逐次表示（本番）。接続数の負荷の上限のうち、Cloud Run での中継のメモリ・CPU、100 本の切断、実 API を通した負荷（疑似の上流の 100 本は上の行で測定済み）。詰まった下流の切断（実環境。単体テストはある）。2 台に増えたときのレート制限の数え方。モデル提供元での生成停止・課金停止。中継を通すことでの体感遅延の差（本番で比較していない）。Cloud Run が上限を超えた要求をどう扱うか（試験は Go の上限より大きい同時実行数で行ったので、同じ値のときの挙動は見ていない）。画面が 413・429・502・503 をどう見せるか（`chat.ts` を 2026-11-20 に読んだ結果: 413・429・503 は本文の日本語の `detail` をそのまま出し、502 は本文が無いので汎用の文。実機では未確認） |
+| 判断が済んでいない | 入口の範囲と認証の置き場（§5）。段階 3 以降をやるか。同時接続の段階目標（§4）の測定を始めるか、実際の質問での負荷試験をやるか（課金・429 を伴う）。§4 の未着手の改善（P1 の構造化ログ・上流のタイムアウトなど）に進むか |
 
 ## 9. 次に承認が要るもの
 
-SSE 中継の 100 同時接続の試験と本番配備は済み（2026-10-25）。Queue 制御など、段階 3 以降は未着手。次の順で、1 つずつ承認を取る。
+済み（2026-11-20 に記録と照らした）: SSE 中継の 100 同時接続の試験と最初の本番配備（2026-10-25）、Queue 制御（B4・B5。Python のまま）の本番配備（2026-10-26）、本文上限・レート制限・書き込みの期限を含む中継の本番配備（2026-11-09）。Queue 制御の Go 版など、段階 3 以降は未着手。次の順で、1 つずつ承認を取る。
 
 1. この計画の方向でよいか（特に §3 の分類と §6 の順序）。
-2. 段階 1 の最初の項目（P1: 構造化ログ）。コマンドと影響を示してから。
-   100 同時接続の試験（§4）は、(a) 中継の接続数の上限（P2）、(b) 疑似の上流、(c) 試験用サービス（最大台数 1）の作成、(d) 負荷の道具、の順に、それぞれ承認を取る。合格基準の数字は、直結の測定を取ってから確定する。
-3. B4（ビルド）の実行結果の確認、B5 の Job の作成（Python のまま）。
+2. §4 の未着手の改善（P1: 構造化ログ・上流のタイムアウト。P2: 上流が失敗したときの応答・専用のサービスアカウント。P3）。1 項目ずつ、コマンドと影響を示してから。
+   試験の再実施（§8 の再検討の条件。100 同時接続の再試験、段階 1b など）は、(a) 試験用サービス（最大台数 1）の作成、(b) 疑似の上流、(c) 負荷の道具、の順に、それぞれ承認を取る（作成・削除・配備は利用者が実行）。合格基準の数字（§4）は、直結の測定を取ってから確定する。
