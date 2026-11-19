@@ -7,9 +7,13 @@
 資料（PDF）を根拠に答える RAG チャットボットです（FastAPI、LangGraph、Gemini、Postgres + pgvector、Cloudflare Workers 上の Next.js）。回答には出典の番号が付き、押すと資料が開きます。
 題材の資料（`storage/pdf/`）は架空のものです。
 
-| 出典つきのチャット | 資料の一覧と絞り込み |
-|---|---|
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/chat-dark.png"><img alt="チャット画面。回答と、根拠の資料を開く「N 件のソース」ボタン" src="docs/images/chat.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/documents-dark.png"><img alt="資料の一覧。検索・絞り込み・並び替えとページ送り" src="docs/images/documents.png"></picture> |
+**出典つきのチャット**
+
+<a href="docs/images/chat.png"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/chat-dark.png"><img width="830" alt="チャット画面。回答と、根拠の資料を開く「N 件のソース」ボタン" src="docs/images/chat.png"></picture></a>
+
+**資料の一覧と絞り込み**
+
+<a href="docs/images/documents.png"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/documents-dark.png"><img width="830" alt="資料の一覧。検索・絞り込み・並び替えとページ送り" src="docs/images/documents.png"></picture></a>
 
 ## 特徴
 
