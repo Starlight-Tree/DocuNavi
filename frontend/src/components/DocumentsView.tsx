@@ -121,7 +121,7 @@ function DocumentTable({
     ...(targetItems ? { targetOrder: targetItems.map((t) => t.name) } : {}),
     ...(docTypeItems ? { docTypeOrder: docTypeItems.map((t) => t.name) } : {}),
   };
-  const shown = sortDocuments(filterDocuments(documents, filter, context), filter.sort);
+  const shown = sortDocuments(filterDocuments(documents, filter, context), filter.sort, context);
 
   // 一覧の検索・絞り込みは表示を絞るだけで、選択は変えない。全選択・解除は、表示している資料だけに効く
   const allDocuments = state.data.documents;
@@ -273,8 +273,14 @@ function DocumentRows({ documents, sort, onSort, showTarget, openId, onOpen, sel
           <SortableHeader column="name" sort={sort} onSort={onSort}>
             資料名
           </SortableHeader>
-          {showTarget && <th scope="col">対象</th>}
-          <th scope="col">種類</th>
+          {showTarget && (
+            <SortableHeader column="target" sort={sort} onSort={onSort}>
+              対象
+            </SortableHeader>
+          )}
+          <SortableHeader column="type" sort={sort} onSort={onSort}>
+            種類
+          </SortableHeader>
           <SortableHeader column="pages" sort={sort} onSort={onSort} className="col-num">
             ページ数
           </SortableHeader>

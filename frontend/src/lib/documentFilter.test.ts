@@ -185,6 +185,21 @@ describe('sortDocuments', () => {
     expect(ids(sortDocuments(DOCS, 'pages'))).toEqual([1, 2, 3, 4, 5, 6]); // 4,4,3,1,1,null（同じ値は入力の順）
   });
 
+  it('target は表示名の五十音（あおば → ザーハード → つばさ → みなと）。未分類は、逆向きでも最後。同じ対象は入力の順', () => {
+    expect(ids(sortDocuments(DOCS, 'target', CONTEXT))).toEqual([1, 4, 5, 3, 2, 6]);
+    expect(ids(sortDocuments(DOCS, 'target_desc', CONTEXT))).toEqual([2, 3, 4, 5, 1, 6]);
+  });
+
+  it('type は一覧の固定の順（設定資料 → 店舗案内 → 規程 → 取扱説明書）。未分類は、逆向きでも最後', () => {
+    expect(ids(sortDocuments(DOCS, 'type', CONTEXT))).toEqual([4, 5, 2, 3, 1, 6]);
+    expect(ids(sortDocuments(DOCS, 'type_desc', CONTEXT))).toEqual([1, 3, 2, 4, 5, 6]);
+  });
+
+  it('一覧（context）が無くても、target・type は止まらない（識別名で並べ、種類は入力の順）', () => {
+    expect(ids(sortDocuments(DOCS, 'target'))).toEqual([1, 2, 3, 4, 5, 6]); // aoba-aw820 < minato-coffee < tsubasa-dorm < zahard
+    expect(ids(sortDocuments(DOCS, 'type'))).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
   it('逆向き（name_desc・updated_asc・pages_asc）。値が無い資料は、逆向きでも最後', () => {
     expect(ids(sortDocuments(DOCS, 'name_desc'))).toEqual([3, 5, 4, 6, 2, 1]);
     expect(ids(sortDocuments(DOCS, 'pages_asc'))).toEqual([4, 5, 3, 1, 2, 6]); // 1,1,3,4,4,null
@@ -202,6 +217,9 @@ describe('nextSort / sortState', () => {
     expect(nextSort('updated', 'updated')).toBe('updated_asc');
     expect(nextSort('pages_asc', 'pages')).toBe('default');
     expect(nextSort('name_desc', 'pages')).toBe('pages');
+    expect(nextSort('default', 'target')).toBe('target');
+    expect(nextSort('target', 'target')).toBe('target_desc');
+    expect(nextSort('type_desc', 'type')).toBe('default');
   });
 
   it('並べている列と向きを返す。既定は null', () => {
@@ -209,6 +227,8 @@ describe('nextSort / sortState', () => {
     expect(sortState('name')).toEqual({ column: 'name', direction: 'ascending' });
     expect(sortState('updated')).toEqual({ column: 'updated', direction: 'descending' });
     expect(sortState('pages_asc')).toEqual({ column: 'pages', direction: 'ascending' });
+    expect(sortState('target')).toEqual({ column: 'target', direction: 'ascending' });
+    expect(sortState('type_desc')).toEqual({ column: 'type', direction: 'descending' });
   });
 });
 

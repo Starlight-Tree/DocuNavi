@@ -15,14 +15,19 @@ export type PageBand = (typeof PAGE_BANDS)[number];
 export const UPDATED_BANDS = ['week', 'month', 'older'] as const;
 export type UpdatedBand = (typeof UPDATED_BANDS)[number];
 
-/** 並び順。表の列名（資料名・ページ数・更新日時）を押して切り替える。`default` はサーバーの順（ファイル名順）。`name` `updated` `pages` は、その列で最初に押したときの向き（名前は五十音、更新は新しい順、ページ数は多い順）。 */
-export const SORT_KEYS = ['default', 'name', 'name_desc', 'updated', 'updated_asc', 'pages', 'pages_asc'] as const;
+/**
+ * 並び順。表の列名（資料名・対象・種類・ページ数・更新日時）を押して切り替える。`default` はサーバーの順（ファイル名順）。
+ * `name` `target` `type` `updated` `pages` は、その列で最初に押したときの向き（名前・対象は表示名の五十音、種類は一覧の固定の順、更新は新しい順、ページ数は多い順）。
+ */
+export const SORT_KEYS = ['default', 'name', 'name_desc', 'target', 'target_desc', 'type', 'type_desc', 'updated', 'updated_asc', 'pages', 'pages_asc'] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 
-export type SortColumn = 'name' | 'updated' | 'pages';
+export type SortColumn = 'name' | 'target' | 'type' | 'updated' | 'pages';
 
 const SORT_CYCLE: Record<SortColumn, readonly [SortKey, SortKey]> = {
   name: ['name', 'name_desc'],
+  target: ['target', 'target_desc'],
+  type: ['type', 'type_desc'],
   updated: ['updated', 'updated_asc'],
   pages: ['pages', 'pages_asc'],
 };
@@ -42,6 +47,14 @@ export function sortState(sort: SortKey): { column: SortColumn; direction: 'asce
       return { column: 'name', direction: 'ascending' };
     case 'name_desc':
       return { column: 'name', direction: 'descending' };
+    case 'target':
+      return { column: 'target', direction: 'ascending' };
+    case 'target_desc':
+      return { column: 'target', direction: 'descending' };
+    case 'type':
+      return { column: 'type', direction: 'ascending' };
+    case 'type_desc':
+      return { column: 'type', direction: 'descending' };
     case 'updated':
       return { column: 'updated', direction: 'descending' };
     case 'updated_asc':
@@ -172,9 +185,10 @@ function displayKey(document: DocumentSummary): string {
 
 /**
  * 並び替えた写しを返す。`default` は入力の順のまま。同じ値は入力の順を保つ。
- * 更新日・ページ数が無い資料は、どちらの向きでも最後に置く。
+ * 更新日・ページ数が無い資料と、未分類の資料は、どちらの向きでも最後に置く。
+ * 対象は表示名の五十音、種類は一覧（`context.docTypeOrder`）の固定の順。一覧が無いときは、入力の順。
  */
-export function sortDocuments(documents: readonly DocumentSummary[], sort: SortKey): DocumentSummary[] {
+export function sortDocuments(documents: readonly DocumentSummary[], sort: SortKey, context?: Pick<FilterContext, 'targetLabel' | 'docTypeOrder'>): DocumentSummary[] {
   const copy = [...documents];
   const byName = (a: DocumentSummary, b: DocumentSummary) => displayKey(a).localeCompare(displayKey(b), 'ja');
   // 値が無い資料は、向きに関係なく最後
@@ -189,7 +203,29 @@ export function sortDocuments(documents: readonly DocumentSummary[], sort: SortK
     return Number.isFinite(time) ? time : null;
   };
   const pages = (d: DocumentSummary) => d.pages ?? null;
+  // 未分類（null）は、向きに関係なく最後。同じ値は入力の順
+  const byClassification = (key: (d: DocumentSummary) => string | number | null, descending: boolean) => (a: DocumentSummary, b: DocumentSummary) => {
+    const x = key(a);
+    const y = key(b);
+    if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
+    const order = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'ja');
+    return descending ? -order : order;
+  };
+  const targetKey = (d: DocumentSummary) => (d.target === null ? null : (context?.targetLabel(d.target) ?? d.target));
+  const typeKey = (d: DocumentSummary) => {
+    if (d.docType === null) return null;
+    const position = context?.docTypeOrder?.indexOf(d.docType) ?? -1;
+    return position >= 0 ? position : Number.MAX_SAFE_INTEGER; // 一覧に無い種類は、一覧の後ろ
+  };
   switch (sort) {
+    case 'target':
+      return copy.sort(byClassification(targetKey, false));
+    case 'target_desc':
+      return copy.sort(byClassification(targetKey, true));
+    case 'type':
+      return copy.sort(byClassification(typeKey, false));
+    case 'type_desc':
+      return copy.sort(byClassification(typeKey, true));
     case 'name':
       return copy.sort(byName);
     case 'name_desc':

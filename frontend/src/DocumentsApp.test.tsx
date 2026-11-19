@@ -1112,6 +1112,26 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(window.location.search).toBe('?tab=documents');
   });
 
+  it('対象・種類の列名も押して並び替えられる。押すと昇順、もう一度で降順、もう一度で既定に戻る（上の絞り込みとは別）', async () => {
+    install();
+    const user = await openList();
+    const header = (name: string) => screen.getByRole('columnheader', { name });
+    for (const column of ['対象', '種類']) {
+      expect(header(column)).not.toHaveAttribute('aria-sort');
+      await user.click(within(header(column)).getByRole('button'));
+      expect(header(column)).toHaveAttribute('aria-sort', 'ascending');
+      await user.click(within(header(column)).getByRole('button'));
+      expect(header(column)).toHaveAttribute('aria-sort', 'descending');
+    }
+    expect(window.location.search).toBe('?tab=documents&sort=type_desc');
+    await user.click(within(header('種類')).getByRole('button'));
+    expect(header('種類')).not.toHaveAttribute('aria-sort');
+    expect(window.location.search).toBe('?tab=documents');
+    // 並び替えは絞り込みではない（件数も、条件のチップも変わらない）
+    expect(result()).toHaveTextContent('全5件');
+    expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
+  });
+
   it('URL の条件で開いた共有リンクは、その条件で絞り・並べ、入力欄とチップにも出る。旧フィルターとも併用できる', async () => {
     install();
     window.history.replaceState(null, '', '/?tab=documents&collection=guides&q=%E5%AF%AE&status=ready&sort=name');
