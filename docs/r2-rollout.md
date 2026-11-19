@@ -10,6 +10,9 @@
 **PDF は、本番の画面から R2 経由で開けた**（21:38、`/documents/2/file` が 200 で 0.28 秒。R2 のエラーログは 0 件）。
 下の手順は、切り替えの記録（上から順にあなたが実行し、私が結果を読んだ）。
 
+**2026-11-20 の再確認（gcloud の読み取り、証拠等級 A）:** 100% を受けているのは `docunavi-00091-juj`（2026-11-17 作成）。R2 の設定は、環境変数 `PDF_STORE=r2`・`R2_ACCOUNT_ID`・`R2_BUCKET`・`R2_CREDENTIALS_FILE=/secrets/r2/credentials.json` と、Secret `r2-app-read` のボリューム（`/secrets/r2`）で、00005 と同じ形のままです。
+一方、サービスのトラフィックのタグは `membership-enforce`・`suggest-20261117`・`suggest-hook-1117` の 3 つで、**`r2new` と `r2prev` のタグはもう付いていません**。`r2-wire-rollback`（`r2prev` へ戻す）と `r2-wire-promote` は、タグが無いと `refused`（終了コード 2）で止まる（`ops/r2_wire/main.py`）ので、いまはそのまま使えません。戻すときは [deploy.md](deploy.md) の `scripts/preview.sh rollback <リビジョン>` です。`r2-wire-*` の 3 つの Job は、配備されたまま残っています。
+
 ## 設計
 
 - **鍵はファイルで渡す。** Secret `r2-app-read` を、サービスのボリューム（`latest`）として `/secrets/r2/credentials.json` にマウントし、
@@ -23,7 +26,7 @@
 
 ## 切り替えの前に知っておくこと
 
-1. **本番のイメージ（`cc5709c`）には、R2 を読むコードが入っていない。** R2 のコードは、そのあとのコミット（`ab95451` `2b8aeee` `efe3c97`）にある。
+1. **本番のイメージ（`cc5709c`）には、R2 を読むコードが入っていない。** R2 のコードは、そのあとのコミット（`ab95451` `2b8aeee` `efe3c97`。2026-11-14 の履歴の書き換えのあとは `ad8f05a` `2fc562d` `4a049e0`。対応は [history-rewrite.md](history-rewrite.md)）にある。
    配線だけしても、`PDF_STORE=r2` は無視される。先に、いまのコミットのイメージを配備する（手順 1）。`PDF_STORE` が未設定なら、動作は変わらない（`storage/pdf/` を読む）。
 2. **`/health` は、アプリが応答することと、モード・履歴の保存先の名前しか返さない（DB・Gemini・R2 には触れない。2026-11-14 に `app/api/routes.py` で確認）。** R2 の読み取りは `/health` では分からない。確認は、`r2-verify`（同じ形のボリュームで 6 件を読む）と、切り替えの後に画面で PDF を開くことで行う。
 3. **タグの URL（`r2new---…`）は API の確認用で、画面は通らない**（画面は Worker `docunavi-web` が本番の API に向く。タグ付き URL でのログインの戻りは未確認。[deploy.md](deploy.md)）。画面での確認は `promote` の後になる。問題があれば `rollback`（1 コマンド）。
@@ -105,7 +108,7 @@ env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud run jobs execute r2-wire
 `r2-wire-rollback` が使えないとき（Job が壊れた）の直接の方法:
 `env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT gcloud run services update-traffic docunavi --region asia-northeast1 --project docunavi-app --to-revisions=<リビジョン名>=100`
 （リビジョン名は `gcloud run revisions list` で見る。切り替えの前のリビジョンは、手順 1 のあとのもの）。
-アプリのイメージ自体を戻したいときも、同じ方法で手順 1 の前のリビジョン（`docunavi-00003-b9t`）へ戻す。
+アプリのイメージ自体を戻したいときも、同じ方法で手順 1 の前のリビジョン（`docunavi-00003-b9t`）へ戻す。（2026-11-20 の注記: `docunavi-00003-b9t` など古いリビジョンは、いまは無い。同日の `gcloud run revisions list` は `docunavi-00083` 以降の 6 つ。戻し先は、そのときの `status.traffic` と [deploy.md](deploy.md) の「古いリビジョンとイメージの整理」で決める。）
 
 ### 失敗したとき（終了コード）
 
@@ -126,4 +129,4 @@ PDF が無い・読めないときの API の動き（`tests/test_r2_store.py`�
 - `r2-wire-stage` の実行。**1 回目は、終了コード 3（403）で止まった**（2026-10-21）。サービスの更新時に Cloud Run が呼び出し側の `artifactregistry.repositories.downloadArtifacts` を確かめるのに、`r2-wirer` に無かったため。サービスは変わらなかった。`artifactregistry.reader`（リポジトリ単位）を足した。`secretmanager.viewer` が本当に要るかは未確認。
   **2 回目は、終了コード 4 で止まった**（新しいリビジョン `docunavi-00005-zl7` は作られたが、タグも配信も無いので Cloud Run が退役させ、「準備済み」にならなかった。本番は変わらず）。最初の更新で、新しいリビジョンに 0% でタグ（`r2new`）を付ける形に直した。更新が通ったこと（環境変数 4 つ・ボリューム・マウントが入ったリビジョンができること）は、実機で確かめた。
 - ボリューム（`latest`）が、動いているインスタンスで、Secret の新しい版に追従するか。追従しなくても、401/403 での読み直しで復帰する設計だが、本物の R2 での 401/403 の経路は未確認。
-- 旧鍵の取り消し（`revoke-stale`）のあと、再起動なしで読み続けられること。確かめられるのは、次の本物の入れ替えのあと（早くて 2027 年 1 月）。**この基準は、切り替えの日には確かめられない。**
+- 旧鍵の取り消し（`revoke-stale`）のあと、再起動なしで読み続けられること。確かめられるのは、次の本物の入れ替えのあと（早くて 2027 年 1 月）。**この基準は、切り替えの日には確かめられない。**（2026-11-20 の注記: 月次の入れ替えの Scheduler は、2026-11-01 に起動した記録が無い。[r2-key-issuer.md](r2-key-issuer.md) の冒頭の状態。）

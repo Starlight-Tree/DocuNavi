@@ -1,6 +1,13 @@
 # 4b 取り込みの自動化: 設計の叩き台
 
-状態（2026-10-21）: **叩き台。コードも、Cloudflare・GCP 側の作成も、まだ無い。** 方針は決まった（末尾の「決めたこと」）: **第 1 版は突き合わせ方式、Queue は後から。**
+**状態（2026-11-20）: 第 1 版（突き合わせ）と第 2 版（Queue）の両方が、実装・配備済みです。** 入口は `app/ingestion/sync.py` と `app/ingestion/queue_worker.py`（リポジトリにある）。以下は 2026-11-20 に gcloud の読み取りで確認した内容です（証拠等級 A）。
+
+- Cloud Run Job `docunavi-ingest-sync`（SA `docunavi-run`。引数 `--apply --max-chunks 640 --max-calls 20`）と `docunavi-ingest-queue`（SA `docunavi-ingester`。引数 `--apply --max-chunks 60`）がある。どちらも `DB_BACKEND=pg`、`EMBEDDING_USE_VERTEXAI=true`（埋め込みを Vertex AI で呼ぶ設定。実際の呼び出しが通っているかは未確認）、`SUGGEST_ENABLED=true`。イメージは、どちらも本番サービスのリビジョン `docunavi-00091-juj` と同じダイジェスト（`docunavi@sha256:ac66b077…`）。
+- **Scheduler は、2026-11-10〜11 の DB 操作の削減（[decisions/0012](decisions/0012-accept-prisma-free-limit-and-cut-operations.md)）で変わった。** 毎時の突き合わせは週 1 回（日曜 00:00 JST）になり、5 分おきの `docunavi-ingest-queue-every-5min` は一時停止（削除せず、Job と Queue は残す）。この Scheduler の状態そのものは、閲覧用の権限では読めず、ADR 0012 と [roadmap.md](roadmap.md) の記録によります（未確認）。起動の記録は、この記録と矛盾しません。Scheduler のログでは、`docunavi-ingest-queue-every-5min` の最後の起動は 2026-11-11 09:45 JST（それ以降は 2026-11-20 まで無い）、`docunavi-ingest-sync-hourly` は 2026-11-11 09:00 JST のあと 2026-11-15 00:00 JST だけです。Job の最後の実行は、`docunavi-ingest-queue` が 2026-11-16 00:27 JST、`docunavi-ingest-sync` が 2026-11-15 00:00 JST です。
+  **ただし、実行の定義（gcloud の読み取り、A）を見ると、`docunavi-ingest-sync` の最後の実行（`docunavi-ingest-sync-q7b99`）には `EMBEDDING_USE_VERTEXAI` が無く、イメージも今の Job の定義と別のダイジェストです。**いまの定義（`EMBEDDING_USE_VERTEXAI=true`）のもとで実行された `docunavi-ingest-sync` は、まだありません。`docunavi-ingest-queue` の最後の実行（`docunavi-ingest-queue-s2v7x`）には、この設定があります（埋め込みの呼び出しが実際に起きたか、Vertex AI で通ったかは、ログを見ておらず未確認）。
+- 下の「第 2 版」と「本番への切り替え（2026-10-26）」の毎時・5 分おきの記述、Job のイメージ（`docunavi-ingest:8a9ba33`）は、2026-10-26 時点の記録です。
+
+状態（2026-10-21、当時の記述）: **叩き台。コードも、Cloudflare・GCP 側の作成も、まだ無い。** 方針は決まった（末尾の「決めたこと」）: **第 1 版は突き合わせ方式、Queue は後から。**
 着手するかどうか自体は、まだ決めていない。仮承認の項目（決めたこと 2・3・6）は後で変えてよい。
 目的は、資料を R2 に置くだけで、検索に出るところまで進むようにすること。ただし実用上の必要は小さい（資料は運営者が置く共通のもので、頻度が低い。
 手動の取り込みは 2 コマンド）。主な価値はイベント駆動・キュー・リトライの学習。
@@ -83,7 +90,7 @@ Cloud Scheduler（数分おき）──▶ Cloud Run Job docunavi-ingest-poll（
   ③ 結果で ack / retry を決める → 空なら終了
 ```
 
-- Job はアプリと同じイメージを使い、入口に小さなモジュール（`app/ingestion/queue_worker.py` の想定）を足す。取り込みと埋め込みの本体は呼ぶだけで、書き換えない。
+- Job はアプリと同じイメージを使い、入口に小さなモジュール（`app/ingestion/queue_worker.py`。2026-10-26 の配備までに実装済み）を足す。取り込みと埋め込みの本体は呼ぶだけで、書き換えない。
 - `parallelism` と `task count` は 1。同じ文書を同時に処理しない。
 - `visibility_timeout` は処理時間より長く取る（15 分を仮置き。PDF と埋め込みの実測で決める）。
 
@@ -143,11 +150,14 @@ Cloud Scheduler（数分おき）──▶ Cloud Run Job docunavi-ingest-poll（
 | 4 | Scheduler を作って定期実行にする | Scheduler +$0.10/月の見込み |
 | 5（後で） | 第 2 版: Queue と通知の規則を足す。まずテスト用のプレフィックス（例: `_ingest-test/`）で、メッセージの実物を 1 通だけ pull して形を確かめる | Queue の操作が少々（無料枠内） |
 
+**2026-11-20 の注記:** 段 5（Queue）は 2026-10-25〜26 に実施した（下の「段 5 の実施メモ」「本番への切り替え」）。段 2〜4 の Job と Scheduler も実在し、動いた記録がある（`docunavi-ingest-sync-hourly` は 2026-10-30 のログに起動の記録。gcloud の読み取り）。各段の実施日と、段 3 の通しの確認（PDF を 1 件足して検索に出るまで・壊れた PDF の分岐）の記録は、この文書には無く、未確認。
+
 ### 段 5 の実施メモ（2026-10-25）
 
 - **テスト用のキーは、バケット直下・スラッシュなし（例: `ingest-probe-1.txt`）にする。** 上の表の `_ingest-test/` のようなプレフィックスは使わない。
   毎時の `docunavi-ingest-sync` は、バケット直下のプレフィックスをすべて「資料群」として扱う（`r2_store.collections()`）ので、`_ingest-test/x.pdf` は本番の検索に取り込まれて埋め込まれ、
   `_ingest-test/x.txt` は取り込みが終了コード 1 で終わって、その回の埋め込みを止める。直下のキーは資料群にならない。規則は `prefix=ingest-probe` で絞る。確認したら、テスト用のキーは消す。
+  （2026-11-20 の注記: 2026-11-08 から、ヒーロー画像の置き場 `hero/` は資料群に含めない。`app/r2_store.py` の `NON_COLLECTION_PREFIXES`。）
 - **Cloudflare MCP（`cloudflare`、ローカルスコープ）で Queues と R2 の通知を扱うには、認可のやり直しが要る。** 既定の Minimal では製品のスコープが無く、Queues・R2 は 403 になる（ゾーンも Workers も同じ）。
   `/mcp` の **Reconnect は保存済みのトークンを使い直す**ので効かない。手順: `/mcp` → `cloudflare` → **Clear authentication** → **Authenticate** → 最初の画面の **Advanced** → 「Edit base scopes」に
   `queues.write workers-r2.write`（スペース区切り。Minimal のまま）→ Continue → 次の画面の許可が 3 から 5 に増えたことを確かめて Authorize。
@@ -166,6 +176,8 @@ Cloud Scheduler（数分おき）──▶ Cloud Run Job docunavi-ingest-poll（
 ### 本番への切り替え（2026-10-26）
 
 第 2 版を本番に切り替えた。時刻はすべて JST。確認は 1 回ずつの実測（証拠等級 A）。
+
+**2026-11-20 の注記:** この節は 2026-10-26 時点の記録です。その後、Scheduler は変わり（5 分おきは一時停止、突き合わせは週 1 回。冒頭の状態）、Job のイメージも `docunavi-ingest:8a9ba33` から、本番サービスと同じ `docunavi@sha256:ac66b077…` になりました。Job の SA・引数（`--apply --max-chunks 60`）・タイムアウト 840 秒・`maxRetries` 0・CPU 1 / 512Mi・Secret `ingest-queue-token` のバージョン 2 への固定は、記録のままでした（`database-url` はバージョン 1 に固定、`gemini-api-key` は `latest`）。
 
 **目標の言い方:** 「通常は数分。通知が遅れたときは最大 10 分前後。取りこぼした分は、毎時の突き合わせが拾う」。「常に数分以内」とは書かない（通知の遅れは、段 5 で約 6 分 15 秒を一度測った）。
 
@@ -225,7 +237,7 @@ R2 `docunavi-documents` → 通知の規則 → Queue `docunavi-ingest` → Clou
 
 | # | 項目 | 内容 | 状態 |
 |---|---|---|---|
-| 1 | 方式 | 第 1 版は突き合わせ方式。Queue は必要になってから足す。**着手するか自体は未決**（必要は小さい） | 方式は確定、着手は未決 |
+| 1 | 方式 | 第 1 版は突き合わせ方式。Queue は必要になってから足す。**着手するか自体は未決**（必要は小さい） | 方式は確定、着手は未決（2026-11-20 の注記: 第 1 版・第 2 版とも実装・配備済み。冒頭の状態） |
 | 2 | 実行間隔 | 1 時間おきから。突き合わせ方式では遅延が実害にならず、Scheduler の最短間隔の問題も出ない。資料を足した直後に反映したければ、Job を手動で実行する | 仮承認 |
 | 3 | R2 の鍵 | 読み取りだけで足りる。`r2-app-read` を共用する（Job の SA に Secret 単位で `secretAccessor`）。`r2-ingest-rw` は使わない。共用で困るのは、アプリ用の鍵に問題があると取り込みも止まること。取り込み専用の権限分離は、将来の検討 | 仮承認 |
 | 4 | Cloudflare の pull トークン | 第 1 版では**要らない**（Queue を使わない）。第 2 版では、利用者が画面で作った（`docunavi-ingest-queue-pull`。Queues の Read + Write、この口座全体、期限 2027-01-19 23:59 JST）。Secret `ingest-queue-token` のバージョン 2 を Job が参照する（「本番への切り替え（2026-10-26）」） | 確定・実施済み（期限前に更新が要る） |
@@ -269,4 +281,5 @@ as_me gcloud run jobs execute docunavi-ingest-sync --project "$PROJECT_ID" --reg
 - Job は **`--apply` を付けずに** 作る。最初の実行は確認だけ（取り込みは何も保存せず、埋め込みは件数と費用の見積りだけ）。ログで、6 件が「変わらない」で、埋め込みの対象が 0 件なことを見る。
 - 確認の結果が想定どおりなら、`as_me gcloud run jobs update docunavi-ingest-sync … --args=-m,app.ingestion.sync,--apply,--max-chunks,60` で `--apply` を足す。まだ Scheduler は作らない（段 4）。
 - 埋め込みが使うのは無料のキー `GEMINI_API_KEY` だけ（有料キーは渡さない）。無料枠の範囲なので課金は出ないが、枠が尽きると 429 で止まり、埋め込みは終了コード 1 で終わる（次の実行が続きから進む）。
+  （2026-11-20 の注記: いまの Job の定義は `EMBEDDING_USE_VERTEXAI=true` で、埋め込みを Vertex AI で呼ぶ設定。実際の呼び出しが通っているかは未確認。冒頭の状態。）
   GCP の無料クレジットは、Gemini API には使えない可能性が高い（公式の請求の説明を、利用者が AI Studio で確認した範囲。等級 B）。クレジットが払うとは考えない。

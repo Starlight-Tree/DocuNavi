@@ -2,9 +2,11 @@
 
 **本番環境で実行済みです（2026-10-20 に初回公開）。** Cloud Run のサービス配備・公開、Cloud Build でのビルド、Secret Manager とサービスアカウントの連携、バッチ Job と予算ガードが本番で稼働しています。
 日々の配備は、タグ push（下の「タグ push で 0% 配備する」）と `scripts/preview.sh`（「タグ付きプレビュー」）で行い、最初の構築の手順（準備・A〜G）は、新しい環境を作るときの参照です。
+この文書の対象は Cloud Run（API・Job）です。画面（Worker `docunavi-web`）と認証の Worker `docunavi-api` は、手動の `.github/workflows/deploy.yml` で出します（末尾の「GitHub Actions のデプロイ用の秘密」、[architecture.md](architecture.md)）。
 
-- **本物の LLM のデプロイに要るもの:** `DB_BACKEND=pg` と `DATABASE_URL`（C）、`GEMINI_API_KEY`（B。質問の埋め込みは API キーで呼ぶので、Vertex AI の LLM でも要る。`EMBEDDING_USE_VERTEXAI=true` にすれば、埋め込みも Vertex AI でキーは不要。[configuration.md](configuration.md) の「埋め込みを Vertex AI で呼ぶ」。本番は未切り替え）。
-  本番の Cloud Run には `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認）、LLM は B（キー）の経路です。
+- **本物の LLM のデプロイに要るもの:** `DB_BACKEND=pg` と `DATABASE_URL`（C）、`GEMINI_API_KEY`（B。LLM はキーで呼ぶ）。埋め込み（取り込みと質問）は、`EMBEDDING_USE_VERTEXAI=true` なら Vertex AI（ADC）で呼び、その場合は埋め込みにキーは要らない（[configuration.md](configuration.md) の「埋め込みを Vertex AI で呼ぶ」）。
+  **本番の Cloud Run サービスと取り込み Job 2 本（`docunavi-ingest-sync` `docunavi-ingest-queue`）は、`EMBEDDING_USE_VERTEXAI=true` です**（2026-11-20 に gcloud の読み取りで確認、証拠等級 A。確認できたのは設定だけで、切り替えた日付と、実際の呼び出しが Vertex AI で通っているかは未確認）。
+  一方、本番の Cloud Run サービスには `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認。2026-11-20 に、配信中のリビジョン `docunavi-00091-juj` で再確認）、LLM は B（キー）の経路です。
 - **方針:** GCP の操作は原則 gcloud CLI で行います（Cloud Code など GCP 用の VS Code 拡張は入れない）。画像生成の Cloud Run Job は星庭ジョブ（`HoshiniwaJob`）のリポジトリで管理し、このリポジトリには置きません。
 
 ## 誰の権限で実行するか
@@ -20,7 +22,7 @@
 ## 方針
 
 - **最初は認証必須（`--no-allow-unauthenticated`）で配備する。** 公開は、予算アラートと `--max-instances` を決めてから。
-- **LLM の認証は Vertex AI（ADC）を第一候補にする。** キーを置かずに済みます。キー方式（B）は代替です。
+- **LLM の認証は、本番ではキー方式（B）で動いています**（2026-11-20 に確認。上）。Vertex AI（ADC。A）は、キーを置かずに済むので最初は第一候補にしていましたが、LLM を Vertex に切り替えるかは別の決定で、事前に確認します（Vertex の LLM は 2026-11-09 の単発 5 回で、Developer API の 2〜3 倍遅かった。[.claude/rules/dev-environment.md](../.claude/rules/dev-environment.md)）。埋め込みだけは Vertex AI を呼ぶ設定です（上。実際の呼び出しが通っているかは未確認）。
 - **実行用のサービスアカウントを専用に作る。** 既定の Compute Engine のアカウントは使わない。
 - **デプロイ用のサービスアカウント（`agent-deployer`）には、公開と API の有効化の権限は付けない。**
 
@@ -41,11 +43,11 @@ as_me() { env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT "$@"; }
 
 0. **課金を有効にし、予算アラートを設定する**（Console の「お支払い」と「予算とアラート」）。Cloud Run・Cloud Build・Artifact Registry・Vertex AI は、課金アカウントが紐づいていないと有効にできません。確認:
    `as_me gcloud billing projects describe "$PROJECT_ID" --format='value(billingEnabled)'`（True なら紐づいている）。同じプロジェクトにある Gemini API キーの利用が、無料枠から有料枠に切り替わる可能性があります（公式の料金ページで確認）。
-1. **API を有効にする**（`aiplatform` は Vertex AI を使うとき、`secretmanager` はキー方式のとき）:
+1. **API を有効にする**（`aiplatform` は Vertex AI を使うとき〔本番は埋め込みで使う設定〕、`secretmanager` はキー方式のとき）:
    `as_me gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com aiplatform.googleapis.com --project "$PROJECT_ID"`。
    有効な API の一覧は `as_me gcloud services list --enabled --project "$PROJECT_ID"`（閲覧専用の ID には、一覧を読む権限がありません）。
    - Vertex AI を開発コンテナの Python（ADC）から使うときは、gcloud のなりすましの設定は ADC に効かず、ADC を作った認証（利用者本人）で動きます。ADC を作ると本人のリフレッシュトークンがボリュームに残るので、テストが終わったら残すか消すか（`gcloud auth application-default revoke`。利用者が実行）を決めます。
-   - **未確認:** `docunavi-run` に `roles/aiplatform.user` が付いているか（閲覧専用の ID は IAM ポリシーを読めない。次のコマンドを利用者の権限で実行して確かめる）。
+   - **未確認:** `docunavi-run` に `roles/aiplatform.user` が付いているか（本番のサービスは Vertex の埋め込みを使う設定なので、要る権限。閲覧専用の ID は IAM ポリシーを読めない。次のコマンドを利用者の権限で実行して確かめる）。
      `as_me gcloud projects get-iam-policy docunavi-app --flatten=bindings --filter='bindings.members:serviceAccount:docunavi-run@docunavi-app.iam.gserviceaccount.com' --format='value(bindings.role)'`
 2. **実行用のサービスアカウントを作る:**
 
@@ -63,6 +65,8 @@ as_me() { env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT "$@"; }
 ## デプロイ
 
 ### A. Vertex AI（推奨）
+
+**2026-11-20 の注記:** 見出しの「推奨」は最初の構築のときの方針で、現状とは違います。本番の LLM は B（キー）で動き、A は使っていません（上の「方針」）。A のコマンドは、B のデプロイの土台としても使います（B は `--set-env-vars` の行を差し替える）。
 
 ```bash
 gcloud run deploy "$SERVICE" \
@@ -145,6 +149,7 @@ as_me gcloud secrets add-iam-policy-binding database-url \
 削除のために HTTP ルートは作りません（認証が無いため）。Job はアプリのイメージを使い、コマンドだけを上書きします。Job は `DB_BACKEND` と `DATABASE_URL`（C の Secret）だけを渡し、LLM のキーは要りません。
 
 **現状（2026-11-15）:** Job `docunavi-history-cleanup`（`--older-than-days 7 --apply`）、Scheduler `docunavi-history-cleanup-weekly`（毎週日曜 03:00 JST）。**`--apply` は 2026-11-15 に戻しました（利用者の承認）。最初に消えうるのは 2026-11-22 03:00 JST の実行で、初回のログと DELETE 権限は未確認です**（「保留中の運用の準備」の 4）。
+**2026-11-20 の訂正（gcloud のログの読み取り、証拠等級 A）:** 戻した日の 03:00 JST の定期実行（実行 `docunavi-history-cleanup-vx5ln`）は、すでに `--apply` つきで動いていました。ログは「削除した会話: 0 件」、終了コード 0 です。対象が 0 件で DELETE は発行されていない（`app/history_admin.py`）ので、DELETE 権限は未確認のままで、会話が削除された実績はまだありません。次の定期実行は、起動のログと文書の cron からの予定で 2026-11-22 03:00 JST です（Scheduler の設定は閲覧用の権限では読めない）。
 
 ```bash
 # 1. Cloud Scheduler の API を有効にする（初回だけ）
@@ -358,7 +363,7 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERVICE}
 - **イメージ（Artifact Registry）:** 保管料がかかるので、クリーンアップポリシーで自動で消します。定義は [ops/artifact-registry/cleanup-policy.json](../ops/artifact-registry/cleanup-policy.json)。
   - `docunavi` のイメージは最新 5 個を残し、それより古いものを消します。`docunavi-admin` `docunavi-ingest` `docunavi-mcp` など、`docunavi-` で始まる別のパッケージには触りません（パッケージ名の指定は前方一致のため）。
   - **使用中のイメージは `pin-` タグで守ります（`keep-pinned`）。** 「最新 5 個」は本番と Job が同じ枠を取り合うため、Job のイメージは配備が数回進むと枠外になり、消えます（`docunavi-history-cleanup` が一度 `ContainerMissing` になった原因）。タグ `pin-*` が付いた `docunavi` のイメージは、枠外でも残ります。
-    現在のタグは `pin-prod`・`pin-history-cleanup`・`pin-ingest-sync`・`pin-ingest-queue` です。**本番または Job のイメージを更新したら、そのたびにタグを付け替えます**（古いイメージは枠外になれば自動で消える）。
+    付けるタグは `pin-prod`・`pin-rollback`（切り替え前の本番のイメージ）・`pin-history-cleanup`・`pin-ingest-sync`・`pin-ingest-queue` です。`./scripts/release.sh` は、このうち `pin-prod` と `pin-rollback` を付け替えます（上の「タグ push で 0% 配備する」。2026-11-17 の実機の通しで実行）。レジストリのタグの一覧は閲覧用の権限では読めず（2026-11-20 に PERMISSION_DENIED）、いまの付き方は未確認です。**本番または Job のイメージを更新したら、そのたびにタグを付け替えます**（古いイメージは枠外になれば自動で消える）。
     `R=asia-northeast1-docker.pkg.dev/docunavi-app/cloud-run-source-deploy/docunavi; gcloud artifacts docker tags add $R@sha256:<新しいダイジェスト> $R:pin-<名前>`（`tags add` は `--project` `--location` を受け付けない）。更新のあと、`gcloud run jobs list` と `gcloud run revisions list` のイメージが残っているかを、`gcloud artifacts docker images describe` で 1 つずつ確かめます。
     `r2-verify` は `pin-` を付けません（利用者の決定。イメージは再ビルド・再プッシュできる）。消えたら、再ビルドするか差し替えます。
   - 設定するとき: `gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy --project docunavi-app --location asia-northeast1 --policy=ops/artifact-registry/cleanup-policy.json --no-dry-run`。`--dry-run` は設定の書き込みで、削除はしません（結果の Data Access ログは、このプロジェクトでは有効にしていないので見られない）。
@@ -370,6 +375,10 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERVICE}
 `deploy/*` のタグを push したときだけ、Cloud Build がビルドして `--no-traffic --tag` で配備します（`cloudbuild-deploy.yaml`）。役割の分け方は、`main` への push はテストだけ（画面は手動の `deploy.yml`）、Cloud Run はタグ push だけです。**本番のトラフィックは自動では変えません**（100% への切り替えは `./scripts/preview.sh promote`、戻すのは `rollback`。あなたが実行）。
 **切り替えからあとの手順は `./scripts/release.sh <ビルド ID>` にまとめてあります**（ホストで、あなたが実行。承認待ちなら承認 → 完了待ち → 新リビジョンが 0% で `/health` が 200 か確認 → **切り替え前の確認は 1 回だけ** → 切り替え → 本番の資格確認〔`scripts/prod_check.sh --chat` を呼ぶ。テスト用ログインを一時的に有効にし、必ず削除。単独の確認は [testing.md](testing.md) の「本番の /chat の自動テスト」〕→ `pin-prod`・`pin-rollback` の付け替え → 戻すコマンドの表示。`PREVIEW_DRY_RUN=1` で書き込みを実行せず確認、`--no-check` で資格確認を省く）。2026-11-17 に追加。**実機の通しは 2026-11-17 に 1 回確認済み**（ビルド `05265f65`、承認 → 完了待ち → 0% と `/health` 200 → 切り替え → 資格確認〔403 → 200、LLM 1 回〕→ ピン留め。証拠等級 A）。この回は、承認と実行を、Claude がホストから、ユーザーの指示のもとで行った。`pin-rollback` は、直前の本番のイメージ 1 つだけを守る（次の切り替えで付け替わる）。
 **状態（2026-11-14）:** サービスアカウント `docunavi-build`、GitHub の接続 `docunavi-github`（2nd gen）、トリガー `docunavi-tag-deploy`（承認必須）を作成し、2 回目のタグ push で 0% の配備まで通りました。
+**2026-11-17 の配備の実績と失敗（gcloud の読み取り、証拠等級 A。2026-11-20 に確認）:** 現在 100% を受けているのは、`docunavi-00091-juj`（タグ `suggest-hook-1117`。タグ push `deploy/suggest-hook-1117` のビルド `12ebab42`、コミット `7e5919d`、2026-11-17 02:42 JST 作成）です。
+これより後の、新しい形のタグの最初の 2 回、`deploy/v20261117`（ビルド `d24cc1ec`、03:48 JST）と `deploy/v20261117-2`（ビルド `f1c62c9d`、03:53 JST。どちらもコミット `6119ae5`）は、`check-tag`・ビルド・push が通ったあと、**`deploy-no-traffic` が失敗しました**（「The user-provided container failed the configured startup probe checks」。`prune-old-revisions` は実行されていない）。できたリビジョン `docunavi-00093-siw` と `docunavi-00094-nem` は Ready=False で、0%・タグ無しのまま残っています。
+両方のログに、起動時の JWKS の取得（認証用 Worker の `/api/auth/jwks`）が `HTTP Error 500` で失敗した `AuthConfigError` があります（上の「E」のとおり、取れなければリビジョンは Ready にならない）。**認証用 Worker が 500 を返した原因は未確認**で、Prisma Free の上限（[decisions/0012](decisions/0012-accept-prisma-free-limit-and-cut-operations.md)）との関係も未確認です。本番のトラフィックは変わっていません。`deploy/v20261117-1` のビルドは取り消し（CANCELLED）でした。
+2026-11-20 の時点で、タグ push のビルドは 2026-11-17 03:53 JST が最後で、サービスの最新のリビジョンは `docunavi-00094-nem`（2026-11-17 03:54 JST）です。それ以降に新しいリビジョンは作られていないので、配信中の `docunavi-00091-juj` のコミット `7e5919d` より後のコミット（`6119ae5` と、その手前の依存の更新 `a138209` などを含む）は、Cloud Run のサービスに配備されていません（取り込み Job 2 本も、`docunavi-00091-juj` と同じイメージ）。
 
 - **タグの名前（2026-11-17 に決定）:** Git のタグは、その日の 1 回目が `deploy/vYYYYMMDD`（例: `deploy/v20261117`）、2 回目以降が `deploy/vYYYYMMDD-N`（例: `deploy/v20261117-2`）。形が違えば、ビルドの前に `check-tag` が止めます。
   - 日付は **JST** の、実在する日で、未来でない日（`check-tag` が確かめる）。N は **2 から・先頭ゼロなし**（`-1` `-0` `-02` は止める。1 回目は日付だけ）。内容（`suggest` など）は名前に入れず、タグを切るコミットのメッセージに書く。
@@ -440,9 +449,12 @@ as_me gcloud builds triggers create github --project "$PROJECT_ID" --region "$RE
 ### 4. 履歴削除ジョブ（`--apply` を戻した後の確認）
 
 **現状（2026-11-15、読み取りで確認、証拠等級 A）:** Job `docunavi-history-cleanup` は `--older-than-days 7 --apply`（`--apply` は利用者の承認を得て、2026-11-15 に戻した。実行はしていない）。最初に消えうるのは、2026-11-22 03:00 JST の定期実行（日曜）です。
+
+**2026-11-20 の訂正（gcloud の読み取り、証拠等級 A）:** 上の「実行はしていない」は、戻した直後（記録のコミットは 2026-11-15 00:45 JST）の時点の記述です。同日 03:00 JST の定期実行は `--apply` つきで動き、ログは「削除した会話: 0 件」、終了コード 0 でした。Job の定義は、引数 `--older-than-days 7 --apply`、イメージ `docunavi@sha256:e34b160c…`、SA `docunavi-run` のままです（最後の実行も 2026-11-15 03:00 JST）。
+
 戻す更新は、Job のイメージ（`docunavi:60833f5`）が Artifact Registry のクリーンアップポリシーで消えていたため一度失敗しました（`ContainerMissing`）。本番と同じダイジェスト `docunavi@sha256:e34b160c…` に差し替え、`Ready=True` に戻りました。**残る弱点:** Job のイメージもポリシーで消えうるので、イメージを更新するたびに、Job が参照するイメージが残っているかを確かめます（`pin-history-cleanup` の付け替え）。
 
-**未確認:** 初回の実行（2026-11-22 03:00 JST）のログ、`checkpoints` と `checkpoint_writes` の DELETE 権限（読み取りの権限では見えない）、Prisma への復元。
+**未確認:** 対象が 1 件以上あったときの実行（2026-11-22 03:00 JST が最初に当たりうる）のログ、`checkpoints` と `checkpoint_writes` の DELETE 権限（読み取りの権限では見えない。2026-11-15 の実行は対象が 0 件で、DELETE を流していない）、Prisma への復元。
 
 **初回の実行の前後の確認:**
 1. 直近 24 時間以内のバックアップが R2 にあること（[pg-backup.md](pg-backup.md)。週 1 回、日曜 00:00 JST。別の pgvector への復元は確認済みで、Prisma への復元は未確認）。
@@ -452,6 +464,7 @@ as_me gcloud builds triggers create github --project "$PROJECT_ID" --region "$RE
 ### 5. `budget-guard` の `DRY_RUN` を `false` に戻す条件と、戻す前の確認
 
 **現状（2026-11-09、読み取り、証拠等級 A）:** リビジョン `budget-guard-00004-b7r`、`DRY_RUN=true`。ログの「would disable billing」は 2026-11-01 01:02〜01:10 UTC に集中し（費用 1004〜1051 に対して予算 1000.0）、それ以降はありません。
+2026-11-20 に読み取りで再確認（証拠等級 A）: 最新の準備済みのリビジョンは `budget-guard-00004-b7r`、`DRY_RUN=true`、`PROJECT_ID=docunavi-app` のままです。
 2026-11-01 00:30 UTC の再発は、同じ月の費用がすでに予算を超えた状態で課金を紐づけ直したためと読めます（推測）。同じ 0.2 秒の間に「billing disabled」と、`resourcemanager.projects.deleteBillingAssignment` の 403 が両方出ており、2 つのインスタンスが同時に起動して、一方が成功したあとに他方が失敗したと読めます（推測。ログの事実は等級 A）。
 
 **戻す条件（利用者の決定）:**
@@ -471,6 +484,8 @@ as_me gcloud builds triggers create github --project "$PROJECT_ID" --region "$RE
 |---|---|---|
 | チャットの失敗 | `chat_failures_total` が 10 分に 3 件以上（[ops/monitoring/alert-chat-failures.yaml](../ops/monitoring/alert-chat-failures.yaml)） | 利用が少ない（`chat_metrics` は 30 日で 2 件）ので、率でなく件数で見る |
 | Cloud Run の 5xx | `docunavi` の 5xx が 5 分に 5 件以上（[ops/monitoring/alert-cloudrun-5xx.yaml](../ops/monitoring/alert-cloudrun-5xx.yaml)） | チャットの指標に載らない失敗（起動・DB の 503 など）を拾う |
+
+別に、バックアップ失敗のアラート 2 本を 2026-11-11 に作成したと、利用者から報告を受けています（閲覧用の権限ではアラートの一覧を読めず、確認できていない。証拠等級は利用者の報告。[pg-backup.md](pg-backup.md) の「失敗の通知の作成」）。
 
 作り直すときは、同じ名前で 2 回作ると重複するので、先に一覧で確かめます:
 
@@ -496,6 +511,7 @@ done
   - Subject: `repo:Starlight-Tree@154563471/DocuNavi@892933857:environment:production`（数値 ID つき。リポジトリの改名・移管で変わる）
   - Audience: `https://github.com/Starlight-Tree`、Access Token TTL: 600 秒
 - Cloudflare の API トークン: アカウントに限定。権限は Workers Scripts: Edit と D1: Edit から始め、足りなければ足す。有効期限は 90 日。
+  （2026-11-20 の注記: `docunavi-api` の D1 の束縛は、2026-11-08 に `workers/api/wrangler.jsonc` から外した〔`e556133`。配備済みの Worker の束縛は未確認〕。いまの `wrangler.jsonc` の束縛は Hyperdrive だけ。いまのトークンに D1: Edit が付いているか、まだ要るかは未確認。）
   期限前に作り直し、Infisical の値を更新する。IP 制限は、GitHub のランナーの IP が不定なので使えない。
   現在のトークン `docunavi-github-actions-deploy` は 2026-11-08 に作成し、**期限は 2027-02-06**（作り直しは 2027-01 中）。
 - GitHub: Environment `production`（必須レビュアーは 2026-11-15 に外した〔非公開の無料プランでは効かず、2026-11-09 に承認なしで始まった。公開後は効くことを確認したが、毎回の承認が煩雑なため〕。許可するブランチは `main` だけ。承認は起動前の会話で取る）、Variable `INFISICAL_IDENTITY_ID`（公開してよい ID）。

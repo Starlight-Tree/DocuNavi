@@ -1,6 +1,6 @@
 # 本番 Postgres のバックアップ（週 1 回、R2 へ）
 
-Prisma Postgres の Free プランには、ドキュメント化されたバックアップが無い。そのため、Cloud Run Job `docunavi-pg-backup` が週 1 回 `pg_dump` して R2 に置く（2026-11-10 に毎日から週 1 回へ。Free の operations〔200K/月〕を節約するため。`pg_dump` が何 operations と数えられるかは、実行の前後で `ops/prisma_usage_daily.py --watch` を流して測る）。**頻度を下げたぶん、最悪で直近 7 日の変更を失う**（Free には Prisma 側の自動バックアップが無い。Starter 以上は毎日・7 日保持）。
+Prisma Postgres の Free プランには、ドキュメント化されたバックアップが無い。そのため、Cloud Run Job `docunavi-pg-backup` が週 1 回 `pg_dump` して R2 に置く（2026-11-10 に毎日から週 1 回へ。Free の operations〔200K/月〕を節約するため。[decisions/0012](decisions/0012-accept-prisma-free-limit-and-cut-operations.md)。`pg_dump` が何 operations と数えられるかは、実行の前後で `ops/prisma_usage_daily.py --watch` を流して測る）。**頻度を下げたぶん、最悪で直近 7 日の変更を失う**（Free には Prisma 側の自動バックアップが無い。Starter 以上は毎日・7 日保持）。
 
 | 項目 | 内容 |
 |---|---|
@@ -8,11 +8,13 @@ Prisma Postgres の Free プランには、ドキュメント化されたバッ�
 | 形式 | `pg_dump --format=custom --no-owner --no-privileges`。全表（`account` のトークンと `jwks` の秘密鍵を含む。バケットは非公開のまま） |
 | 保持 | 通常のダンプ（`pg/docunavi-*`）は **14 日**。バケットのライフサイクル規則 `delete-after-14d`（プレフィックス `pg/docunavi-`。削除は期限後おおむね 24 時間以内。週 1 回なので 2〜3 世代が残る）。**月次の長期保持**: その月の最初のバックアップを、Job が R2 の中で `pg/monthly/docunavi-YYYYMM.dump`（UTC の月）に写す（サーバー側のコピー。DB には触れない）。規則 `delete-monthly-after-400d`（プレフィックス `pg/monthly/`）が **400 日**で消す。Job は消さない |
 | 実行 | Cloud Scheduler `docunavi-pg-backup-daily`（名前は毎日だった頃のまま。IAM を作り直さないため残す）、毎週日曜 00:00 JST（＝土曜 15:00 UTC。cron `0 0 * * 0`、タイムゾーン `Asia/Tokyo`。2026-11-10 に月曜 18:30 UTC から変更） |
-| 接続 | Secret Manager `database-url`（版 **1** に固定）。プール経由のホストなので、`pg_dump` が通らなければ直接ホスト用の Secret を足す（未確認） |
+| 接続 | Secret Manager `database-url`（版 **1** に固定）。プール経由のホストだが、`pg_dump` は通っている（2026-11-15 の定期実行が成功。下の「実績」）ので、直接ホスト用の Secret は足していない |
 | R2 のキー | Secret Manager `r2-backup-rw`（`ops/r2_key_issuer` の `issue-backup-rw` が発行。バケットは `docunavi-backups` だけ）。**ローテーション未実装**（取り消しは Cloudflare のダッシュボードで行う） |
 | 流れ | `pg_dump` → `pg_restore --list` で必要な表（`documents` `chunks` `user` `account`）が入っているか検査 → R2 に保存 → 保存したサイズを確認。どこかで失敗したら保存しない |
 | ログ | バイト数・表の数・キーだけ。接続文字列・パスワード・R2 のキーは出さない（失敗時の `pg_dump` の出力は先頭 5 行、パスワードとユーザー名を伏せて出す） |
 | 終了コード | 0 成功 / 2 設定不足 / 3 `pg_dump` 失敗 / 4 検査失敗 / 5 保存失敗 / 6 月次の写しの失敗（通常のダンプは保存済み）/ 1 想定外 |
+
+**実績（2026-11-20、gcloud の読み取り〔Job の実行履歴とログ〕、証拠等級 A）:** Job の実行は、2026-11-08 19:40・19:42 JST の初回の 2 回、毎日 03:30 JST の定期実行（2026-11-09・11-10）、週 1 回に変えたあとの 2026-11-15 00:00 JST の定期実行が、いずれも成功した（終了コード 0）。2026-11-15 のログは `backup ok: bucket=docunavi-backups key=pg/docunavi-20261114-150022.dump bytes=9539215 tables_with_data=18` と `monthly copy: key=pg/monthly/docunavi-202611.dump` で、Scheduler の起動の記録（HTTP 200）もある。次の定期実行は、起動のログと文書の cron からの予定で 2026-11-22 00:00 JST（Scheduler の設定は閲覧用の権限では読めない）。バケットのライフサイクル規則（14 日・400 日）が実際にどうなっているかは、閲覧用の権限では読めず、未確認。
 
 本番 DB には読み取りしかしない。既存の Cloud Run サービスとリビジョンには触れない。
 
@@ -90,6 +92,8 @@ Cloud Scheduler の API が無効なら、先に `as_me gcloud services enable c
 
 ## 月次の長期保持の有効化（ユーザーがホストで。順番を守る）
 
+**状態（2026-11-20）:** 月次の写しを作る新しいイメージは配備済みで、2026-11-15 の実行で `pg/monthly/docunavi-202611.dump` を作った（上の「実績」）。この節の規則の入れ替え（`wrangler r2 bucket lifecycle`）を実施したかは、記録が無く、未確認（[roadmap.md](roadmap.md) の「現状」の「バックアップ」の項にある、期限削除〔最初は 2026-11-22 ごろ〕も未確認のまま）。
+
 `pg/monthly/` のキーは `pg/docunavi-` で始まらないので、規則をプレフィックスで分けられる。**先に規則を直し、その後で新しいイメージを配備する**（古い規則が `pg/` 全体に掛かっていると、月次の写しが 14 日で消える）。
 `wrangler r2 bucket lifecycle` のサブコマンドと引数は、**この環境では未確認**（先に `list` で今の規則を見る。Cloudflare のダッシュボードの R2 → `docunavi-backups` → Settings → Object lifecycle rules でも同じ）。
 
@@ -115,7 +119,7 @@ as_me gcloud run jobs update docunavi-pg-backup --project $P --region $R --image
 ## 確認・復元
 
 - 実行の結果: `gcloud run jobs executions list --job docunavi-pg-backup --region asia-northeast1` とログ（`backup ok: …` の行）。
-- 失敗の通知: Cloud Monitoring のログベースのアラート 2 つ（[Job の ERROR](../ops/monitoring/alert-pg-backup-failed.yaml)、[Scheduler の ERROR](../ops/monitoring/alert-pg-backup-scheduler-failed.yaml)）。メールの通知先は、既存の `docunavi ops`（[deploy.md](deploy.md) の「アラート」）を使う。作成のコマンドは下の「失敗の通知の作成」。
+- 失敗の通知: Cloud Monitoring のログベースのアラート 2 つ（[Job の ERROR](../ops/monitoring/alert-pg-backup-failed.yaml)、[Scheduler の ERROR](../ops/monitoring/alert-pg-backup-scheduler-failed.yaml)）。メールの通知先は、既存の `docunavi ops`（[deploy.md](deploy.md) の「保留中の運用の準備」の 6「監視のアラート」）を使う。作成のコマンドは下の「失敗の通知の作成」。
 - **実行されなかったことは、通知できない。** 指標の不在を見るアラートの待ち時間の上限は約 24 時間で、週 1 回の実行には使えない（PromQL で 8 日の窓を見る方法は未確認）。毎週日曜の実行の後（月曜に）、最新のキーの日付を手で確かめる。
 - 復元の試験（ローカルの Postgres に戻す）: R2 から取った `.dump` を、`pg_restore --no-owner --dbname <ローカルの接続先> <ファイル>` で戻す。`vector` 拡張が要る（pgvector 入りのイメージ）。
 - **ダンプには Prisma 固有の拡張 `prisma_postgres`（とそのコメント）の項目が 2 つ入っており、ローカルの Postgres には無いので、そのまま戻すと失敗する。** 一覧から外して戻す:
@@ -148,7 +152,7 @@ Prisma への戻し（本番 DB への復元）は、このスクリプトの範
 
 ```bash
 as_me() { env -u CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT "$@"; }
-# 既存の通知先（docunavi ops）を使う。無ければ、deploy.md の「アラート」の手順で作る
+# 既存の通知先（docunavi ops）を使う。無ければ、deploy.md の「監視のアラート」の手順で作る
 as_me gcloud alpha monitoring channels list --project docunavi-app --format='table(name,displayName,type)'
 CH=<上の一覧の docunavi ops の name>
 # 同じ名前で 2 回作ると重複する。先に一覧で確かめる
