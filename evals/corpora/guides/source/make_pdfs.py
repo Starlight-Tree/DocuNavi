@@ -349,7 +349,7 @@ def main() -> None:
         leading=21,
         cell=10,
         front_matter=True,
-        publisher="あおば電機 お客様相談室",
+        publisher="リューネ工房 お客様相談室",
     )
     build_two_columns(
         HERE / "hidamari_waste_guide.md", args.fixture_dir / "hidamari_waste_guide.pdf", size=10.5, leading=18, cell=8.5

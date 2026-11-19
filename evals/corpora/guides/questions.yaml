@@ -26,24 +26,29 @@
 #         回答の評価で、例外を含めるかを決める（user の判断。まだ決めていない）。
 #       書式の調整（機械的）: 答えのある質問に `expected_doc_ids: [<doc の値>]` を足した（評価の道具が読むキー。作成者の出力は `doc`）。
 #       `doc` はそのまま残してある（資料外の質問では、どの資料の題材かを示すだけ）。PDF は source/make_pdfs.py で作る。
+# 2026-11-19 の書き換え（草案。user の再承認待ち）: aoba_aw820_manual を「リューネ工房 家庭用二人乗り浮上ポッド FP-820」の取扱説明書に書き換えた
+#   （洗濯乾燥機 → 家庭用の浮上ポッド。みなとコーヒー → オアシス珈琲の書き換え、2026-11-18 と同じ扱い）。章立て・表・数値（10 回・250mL・3,300 円・約90秒・2.0kg・8 年・
+#   エラー表の時間）は変えていない。変えたのは語だけ: a001・a002・a004・a005・a008・a010 の質問と、a001・a002・a004・a005・a007 の根拠の文。
+#   a010 は、「高空走行」「機内」を入れると BM25 が別の箇所を返したため（元の文面は何も返さなかった）、語を避けた文面にした。外形寸法と質量は、書き換えに合わせて変えた（質問は使っていない）。
+#   a003・a006・a009・a011 と a007 の質問・答えは変更なし。承認前の元の文面は Git の履歴（6b47f64 以前）にある。
 - id: a001
   doc: aoba_aw820_manual.pdf
   expected_doc_ids: ["aoba_aw820_manual.pdf"]
-  question: "糸くずフィルターの掃除は、洗濯何回ごとにすればよいですか？"
-  answer: "洗濯 10 回ごとに取り出して水洗いします。"
+  question: "低空フィルターの掃除は、走行何回ごとにすればよいですか？"
+  answer: "走行 10 回ごとに取り出して水洗いします。"
   category: factual
   evidence_mode: any
   evidence:
-    - "糸くずフィルターは、洗濯 10 回ごとに取り出して水洗いしてください。"
+    - "低空フィルターは、走行 10 回ごとに取り出して水洗いしてください。"
 - id: a002
   doc: aoba_aw820_manual.pdf
   expected_doc_ids: ["aoba_aw820_manual.pdf"]
-  question: "槽洗浄をするとき、洗濯槽クリーナーは何 mL 入れますか？"
-  answer: "250mL（塩素系の洗濯槽クリーナー）です。"
+  question: "機内洗浄をするとき、機内洗浄剤は何 mL 入れますか？"
+  answer: "250mL（塩素系の機内洗浄剤）です。"
   category: factual
   evidence_mode: any
   evidence:
-    - "塩素系の洗濯槽クリーナーを 250mL 入れ、約 40℃のぬるま湯をためて運転します。"
+    - "塩素系の機内洗浄剤を 250mL 入れ、約 40℃のぬるま湯をためて運転します。"
 - id: a003
   doc: aoba_aw820_manual.pdf
   expected_doc_ids: ["aoba_aw820_manual.pdf"]
@@ -56,21 +61,21 @@
 - id: a004
   doc: aoba_aw820_manual.pdf
   expected_doc_ids: ["aoba_aw820_manual.pdf"]
-  question: "洗っている途中で、ふたを開けたくなりました。どうすれば開きますか？"
+  question: "走行している途中で、ハッチを開けたくなりました。どうすれば開きますか？"
   answer: "一時停止ボタンを押して約90秒待つと、ロックが外れて開けられます。"
   category: paraphrase
   evidence_mode: any
   evidence:
-    - "ただし、一時停止ボタンを押すと、約90秒後にロックが外れてふたを開けられます。"
+    - "ただし、一時停止ボタンを押すと、約90秒後にロックが外れてハッチを開けられます。"
 - id: a005
   doc: aoba_aw820_manual.pdf
   expected_doc_ids: ["aoba_aw820_manual.pdf"]
-  question: "毛布を洗うとき、一度にどのくらいの重さまで入れてよいですか？"
+  question: "液体の荷を運ぶとき、一度にどのくらいの重さまで積んでよいですか？"
   answer: "2.0kg までです。"
   category: paraphrase
   evidence_mode: any
   evidence:
-    - "ただし、毛布を洗うときは 2.0kg までとし、羽毛布団と電気毛布は洗えません。"
+    - "ただし、液体の荷を運ぶときは 2.0kg までとし、圧縮ガスのボンベと発熱する荷は積めません。"
 - id: a006
   doc: aoba_aw820_manual.pdf
   expected_doc_ids: ["aoba_aw820_manual.pdf"]
@@ -89,16 +94,16 @@
   kind: filter
   evidence_mode: all
   evidence:
-    - "E01 ふたエラー ふたの閉め忘れ 約1分"
+    - "E01 ハッチエラー ハッチの閉め忘れ 約1分"
     - "E02 給水エラー 蛇口の閉め忘れ 約5分"
-    - "E03 水位エラー 衣類の片寄り 約10分"
+    - "E03 水平エラー 荷物の片寄り 約10分"
     - "E04 排水エラー 排水ホースのつまり 約30分"
-    - "E05 乾燥エラー 乾燥フィルターのつまり 約20分"
+    - "E05 高空エラー 高空フィルターのつまり 約20分"
     - "E06 温度エラー 周囲温度が35℃を超えた 約60分"
     - "E07 モーターエラー 過負荷や部品の故障 修理が必要"
 - id: a008
   doc: aoba_aw820_manual.pdf
-  question: "この洗濯乾燥機の電源コードは、何メートルありますか？"
+  question: "この浮上ポッドの充電コードは、何メートルありますか？"
   answer: ""
   category: out_of_scope
   scope_kind: on_topic_absent
@@ -114,7 +119,7 @@
   evidence: []
 - id: a010
   doc: aoba_aw820_manual.pdf
-  question: "乾燥運転をしているとき、庫内の温度は何度になりますか？"
+  question: "運転中、座席まわりの温度は何度ですか？"
   answer: ""
   category: out_of_scope
   scope_kind: on_topic_absent
