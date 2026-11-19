@@ -485,7 +485,8 @@ def test_the_default_role_behaves_exactly_like_access_mode_off(
 def test_off_never_reads_the_role_tables(client, set_access, grouped_search, docs_pool, groups_pool):
     calls = set_access("off", CAFE_ONLY)
     assert len(client.get("/documents").json()["documents"]) == 4  # 未分類の資料も含めて全件
-    assert "大気" in client.get("/documents/1/chunks").text or True
+    # off なら、見えないはずの zahard の本文も返る（制限しない）
+    assert SECRET_CHUNK in client.get(f"/documents/{ZAHARD_DOC['id']}/chunks").text
     assert _chat(client, "大気について教えて").status_code == 200
     assert _chat(client, "大気について教えて", "zahard").status_code == 200
     assert calls == []  # 引いていない（DB を読まない）
