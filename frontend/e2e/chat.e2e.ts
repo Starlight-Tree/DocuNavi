@@ -126,9 +126,9 @@ test('資料一覧の対象の選択は一覧を絞るだけ。資料ごとの�
   await expect(page).toHaveURL(/target=minato-coffee/);
   await expect(page.getByRole('row')).toHaveCount(2); // 見出し + みなとコーヒーの 1 件
   await expect(page.getByRole('columnheader')).toHaveText(['', '資料名', '種類', 'ページ数', '更新日時']);
-  await expect(summary).toHaveText('検索結果 1件 · 7件選択中');
+  await expect(summary).toHaveText('1件');
   await page.getByRole('checkbox', { name: 'このページの 1 件を全選択・解除' }).uncheck();
-  await expect(summary).toHaveText('検索結果 1件 · 6件選択中');
+  await expect(summary).toHaveText('1件 · 6件選択中');
   await chooseFacet(page, '対象', '');
   await expect(page.getByRole('checkbox', { name: '店舗案内 を回答に使う' })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'ザーハード 1 を回答に使う' })).toBeChecked();

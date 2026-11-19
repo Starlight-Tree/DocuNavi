@@ -133,9 +133,9 @@ function DocumentTable({
   const summary = (
     <>
       <p role="status" className="docs-summary">
-        {/* 全選択（初期。絞り込みなし）は「全80件」。一部だけ選んでいるときは「79件選択中」（全体の数は並べない。「すべて選択」が出る）。絞り込み中は、検索結果の件数の後ろに足す（選択は変わらない） */}
-        {searching ? `検索結果 ${shown.length}件` : selection && partial ? `${answerCount}件選択中` : `全${allDocuments.length}件`}
-        {selection && searching && ` · ${answerCount}件選択中`}
+        {/* 全選択（初期。絞り込みなし）は「全80件」。一部だけ選んでいるときは「79件選択中」（全体の数は並べない。「すべて選択」が出る）。絞り込み中は件数だけ（「検索結果」の語は検索欄とチップで足りる）。一部だけ選んでいるときに限り、後ろに「· N件選択中」を足す（全選択のときの「80件選択中」は、絞り込んだ件数と食い違って見えるので出さない） */}
+        {searching ? `${shown.length}件` : selection && partial ? `${answerCount}件選択中` : `全${allDocuments.length}件`}
+        {selection && searching && partial && ` · ${answerCount}件選択中`}
       </p>
       {selection && partial && (
         <button type="button" className="docs-reset" onClick={(event) => selection.onReset(event.currentTarget)}>
