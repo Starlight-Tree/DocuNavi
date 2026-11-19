@@ -12,7 +12,11 @@ insert into document_targets (name, label, description, sort_order) values
   ('zahard', 'ザーハード', '架空の惑星ザーハードの設定資料の対象です。', 10),
   ('minato-coffee', 'オアシス珈琲', '喫茶店「オアシス珈琲」の店舗案内の対象です。', 20),  -- 2026-11-18 に店名を書き換え（name は変えられない。既存の DB は label を UPDATE する）
   ('tsubasa-dorm', 'つばさ大学学生寮', 'つばさ大学の学生寮の規程の対象です。', 30),
-  ('aoba-aw820', 'リューネ工房 FP-820', 'リューネ工房の家庭用二人乗り浮上ポッド FP-820 の取扱説明書の対象です。', 40)  -- 2026-11-19 に、洗濯乾燥機から書き換え（name は変えられない。既存の DB は label と description を UPDATE する）
+  ('aoba-aw820', 'リューネ工房 FP-820', 'リューネ工房の家庭用二人乗り浮上ポッド FP-820 の資料の対象です。', 40),  -- 2026-11-19 に、洗濯乾燥機から書き換え（name は変えられない。既存の DB は label と description を UPDATE する）
+  ('lune-fc410', 'リューネ工房 FC-410', 'リューネ工房の荷運び浮上カート FC-410 の資料の対象です。', 50),  -- 2026-11-19 に追加（リューネ工房の新製品。合成テスト資料。既存の DB は、このファイルを流せば足される）
+  ('lune-fs250', 'リューネ工房 FS-250', 'リューネ工房のひとり乗り浮上スクーター FS-250 の資料の対象です。', 60),
+  ('lune-fw1500', 'リューネ工房 FW-1500', 'リューネ工房の家族用六人乗り浮上ワゴン FW-1500 の資料の対象です。', 70),
+  ('lune-fd300', 'リューネ工房 FD-300', 'リューネ工房の充電係留ステーション FD-300 の資料の対象です。', 80)
 on conflict (name) do nothing;
 
 insert into document_types (name, label, description, sort_order) values
