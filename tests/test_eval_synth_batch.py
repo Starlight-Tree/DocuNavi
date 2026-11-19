@@ -91,6 +91,13 @@ def test_end_to_end_eight_documents_one_gpu_job(tmp_path):
     assert [r["id"] for r in rows] == sorted(b.id for b in briefs)
     assert {r["collection"] for r in rows} == {"synthetic-test"} and all(r["synthetic"] for r in rows)
     assert {(r["target"], r["doc_type"]) for r in rows} >= {("minato-coffee", "store-guide"), ("zahard", "setting")}
+    # 分類の付け替え（bible の classify_as）。target だけが変わり、元の識別名は bible_target に残る
+    regrouped = pipeline.build_manifest(out, {"zahard": "school"})
+    assert {(r["target"], r["bible_target"]) for r in regrouped} >= {
+        ("school", "zahard"),
+        ("minato-coffee", "minato-coffee"),
+    }
+    assert [r["path"] for r in regrouped] == [r["path"] for r in rows]  # PDF の置き場所は変わらない
     assert (out / "manifest.jsonl").read_bytes() == b"".join(
         (json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n").encode() for r in rows
     )

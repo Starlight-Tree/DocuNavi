@@ -178,3 +178,45 @@ def test_bible_version_changes_when_a_fact_changes():
     }
     changed = {**base, "facts": [{"id": "a", "text": "容量は6kg。", "tags": ["core"]}]}
     assert parse_bible(base).version != parse_bible(changed).version
+
+
+def _demo_bible(**extra):
+    return {
+        "target": "demo",
+        "label": "デモ",
+        "premise": "概要",
+        "facts": [{"id": "a", "text": "容量は8kg。", "tags": ["core"]}],
+        "kinds": [
+            {
+                "id": "k",
+                "doc_type": "manual",
+                "title": "{label}",
+                "tags": ["core"],
+                "variants": ["v"],
+                "chars": [10, 20],
+                "outline": ["x"],
+            }
+        ],
+        **extra,
+    }
+
+
+def test_classify_as_does_not_change_the_bible_version():
+    # 分類の印は、本文の根拠ではない。版に入れると、台帳の key が変わって生成物が stale になる
+    assert parse_bible(_demo_bible()).version == parse_bible(_demo_bible(classify_as="school")).version
+    assert parse_bible(_demo_bible()).classify_as is None
+    assert parse_bible(_demo_bible(classify_as="school")).classify_as == "school"
+
+
+def test_classify_as_must_be_a_target_name():
+    for bad in ("School", "学校", "", "a" * 41):
+        with pytest.raises(BibleError, match="classify_as"):
+            parse_bible(_demo_bible(classify_as=bad))
+
+
+def test_screen_targets_are_coarse_groups(bibles):
+    # 画面の「対象」メニューは 4 行（ザーハード・オアシス珈琲・学校・リューネ工房）。製品・学校ごとの絞り込みは検索欄で行う
+    classified = {t: b.classify_as or t for t, b in bibles.items()}
+    assert set(classified.values()) == {"zahard", "minato-coffee", "school", "lune"}
+    assert {t for t, c in classified.items() if c == "lune"} == LUNE | {"aoba-aw820"}
+    assert {t for t, c in classified.items() if c == "school"} == SCHOOLS | {"tsubasa-dorm"}

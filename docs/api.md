@@ -58,7 +58,7 @@
 
 ### 質問の対象（`target`）と、`collection` との関係
 
-資料の「対象」（`documents.target`。例: `zahard`・`minato-coffee`・`tsubasa-dorm`・`aoba-aw820`）で、質問の範囲を絞る。検索は **権限の範囲 ∩ 対象**（対象を選んでも権限は広がらない）。
+資料の「対象」（`documents.target`。例: `zahard`・`minato-coffee`・`school`・`lune`）で、質問の範囲を絞る。検索は **権限の範囲 ∩ 対象**（対象を選んでも権限は広がらない）。
 一覧は `GET /targets`。会話ごとに固定で、会話の状態（チェックポイント）に残る。固定するのは**対象の識別子だけ**で、資料の集合ではない（続きの質問は、そのときの分類で探す）。
 
 | 送る値 | 新しい会話 | 続きの会話 |
@@ -240,7 +240,7 @@ data: [DONE]
 
 ```json
 {"configured": true, "documents": [{"id": 1, "source": "tsubasa_dorm_rules.pdf",
-  "title": "つばさ大学学生寮 入寮規程", "collection": "guides", "target": "tsubasa-dorm", "doc_type": "regulation", "revision": "改訂 2", "status": "ready", "failure_reason": null,
+  "title": "つばさ大学学生寮 入寮規程", "collection": "guides", "target": "school", "doc_type": "regulation", "revision": "改訂 2", "status": "ready", "failure_reason": null,
   "pages": 3, "updated_at": "2026-10-18T09:00:00Z", "chunk_count": 3, "embedded_count": 3}]}
 ```
 

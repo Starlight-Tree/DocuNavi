@@ -2,6 +2,7 @@
 # 事実（facts）にある数値・日付・時刻だけが、生成した本文に出てよい。足す・直すと version が変わる。
 target: lune-fs250
 label: リューネ工房 FS-250
+classify_as: lune  # 画面の「対象」は、リューネ工房 1 つにまとめる（識別名はそのまま。PDF の置き場所・台帳に使う）
 existing_documents: 0
 documents: 5
 revision: 2026年11月1日改訂

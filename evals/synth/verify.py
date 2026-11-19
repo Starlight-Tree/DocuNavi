@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 
 from evals.synth.ledger import Ledger
@@ -10,7 +11,7 @@ from evals.synth.pipeline import build_manifest, sha256_bytes
 from evals.synth.render import MARKER
 
 
-def verify_output(out_dir: Path) -> list[str]:
+def verify_output(out_dir: Path, classify: Mapping[str, str] | None = None) -> list[str]:
     from pypdf import PdfReader  # アプリの依存（requirements.in）
 
     problems: list[str] = []
@@ -46,6 +47,6 @@ def verify_output(out_dir: Path) -> list[str]:
     manifest = out_dir / "manifest.jsonl"
     if manifest.exists():
         on_disk = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines() if line.strip()]
-        if on_disk != build_manifest(out_dir):
+        if on_disk != build_manifest(out_dir, classify):
             problems.append("manifest.jsonl が台帳と食い違っています（manifest を作り直す）")
     return problems

@@ -8,19 +8,15 @@
 
 begin;
 
+-- 2026-11-19: 画面の「対象」メニューを 4 行（ザーハード・オアシス珈琲・学校・リューネ工房）にするため、対象そのものを粗くした。
+--   学校 = アルカ市の 4 校（ほしぞら幼稚園・アルカ第一小学校・アルカ中央中学校・オアシス高等学校）とザーハード大学。リューネ工房 = 浮上ポッドを含む 5 製品。
+--   製品・学校ごとの絞り込みは、検索欄で行う。旧い対象（tsubasa-dorm・aoba-aw820・lune-*・hoshizora-kg・arca-*・oasis-high）は、このファイルでは作らない。
+--   既存の DB は、資料の target を付け替えてから、旧い対象の行を消す（付け替えの手順は docs/configuration.md の「対象のまとめ」）。
 insert into document_targets (name, label, description, sort_order) values
   ('zahard', 'ザーハード', '架空の惑星ザーハードの設定資料の対象です。', 10),
   ('minato-coffee', 'オアシス珈琲', '喫茶店「オアシス珈琲」の店舗案内の対象です。', 20),  -- 2026-11-18 に店名を書き換え（name は変えられない。既存の DB は label を UPDATE する）
-  ('tsubasa-dorm', 'ザーハード大学', 'ザーハード大学（旧称つばさ大学）の学生寮の規程などの対象です。', 30),  -- 2026-11-19 に、つばさ大学学生寮から改称（name は変えられない。既存の DB は label と description を UPDATE する）
-  ('aoba-aw820', 'リューネ工房 FP-820', 'リューネ工房の家庭用二人乗り浮上ポッド FP-820 の資料の対象です。', 40),  -- 2026-11-19 に、洗濯乾燥機から書き換え（name は変えられない。既存の DB は label と description を UPDATE する）
-  ('lune-fc410', 'リューネ工房 FC-410', 'リューネ工房の荷運び浮上カート FC-410 の資料の対象です。', 50),  -- 2026-11-19 に追加（リューネ工房の新製品。合成テスト資料。既存の DB は、このファイルを流せば足される）
-  ('lune-fs250', 'リューネ工房 FS-250', 'リューネ工房のひとり乗り浮上スクーター FS-250 の資料の対象です。', 60),
-  ('lune-fw1500', 'リューネ工房 FW-1500', 'リューネ工房の家族用六人乗り浮上ワゴン FW-1500 の資料の対象です。', 70),
-  ('lune-fd300', 'リューネ工房 FD-300', 'リューネ工房の充電係留ステーション FD-300 の資料の対象です。', 80),
-  ('hoshizora-kg', 'ほしぞら幼稚園', 'アルカ市のほしぞら幼稚園の資料の対象です。', 90),  -- 2026-11-19 に追加（アルカ市の学校 4 校。合成テスト資料）
-  ('arca-elem', 'アルカ第一小学校', 'アルカ市のアルカ第一小学校の資料の対象です。', 100),
-  ('arca-junior', 'アルカ中央中学校', 'アルカ市のアルカ中央中学校の資料の対象です。', 110),
-  ('oasis-high', 'オアシス高等学校', 'アルカ市のオアシス高等学校の資料の対象です。', 120)
+  ('school', '学校', 'アルカ市の幼稚園・小学校・中学校・高等学校と、ザーハード大学の資料の対象です。', 30),
+  ('lune', 'リューネ工房', 'リューネ工房の浮上ポッド・カート・スクーター・ワゴン・充電係留ステーションの資料の対象です。', 40)
 on conflict (name) do nothing;
 
 insert into document_types (name, label, description, sort_order) values
@@ -34,8 +30,8 @@ update documents d
    set target = v.target, doc_type = v.doc_type
   from (values
     ('cafe_store_guide.pdf', 'cafe', 'minato-coffee', 'store-guide'),
-    ('aoba_aw820_manual.pdf', 'guides', 'aoba-aw820', 'manual'),
-    ('tsubasa_dorm_rules.pdf', 'guides', 'tsubasa-dorm', 'regulation'),
+    ('aoba_aw820_manual.pdf', 'guides', 'lune', 'manual'),
+    ('tsubasa_dorm_rules.pdf', 'guides', 'school', 'regulation'),
     ('ザーハード1.pdf', 'zahard', 'zahard', 'setting'),
     ('ザーハード2.pdf', 'zahard', 'zahard', 'setting'),
     ('ザーハード3.pdf', 'zahard', 'zahard', 'setting')

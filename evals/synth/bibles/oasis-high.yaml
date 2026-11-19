@@ -2,6 +2,7 @@
 # 事実（facts）にある数値・日付・時刻だけが、生成した本文に出てよい。足す・直すと version が変わる。
 target: oasis-high
 label: オアシス高等学校
+classify_as: school  # 画面の「対象」は、学校 1 つにまとめる（識別名はそのまま。PDF の置き場所・台帳に使う）
 existing_documents: 0
 documents: 5
 revision: 2026年11月1日改訂

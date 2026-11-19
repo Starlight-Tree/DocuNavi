@@ -82,6 +82,8 @@ python -m evals.synth bench-report                       # 並べて、推奨の
 `bibles/<対象>.yaml` に、対象ごとの事実（id・文・タグ）と、資料の種類（種類 × 変化 = 1 件ずつ）を置く。既存の資料
 （`evals/corpora/*/source/`、`evals/fixtures/zahard_txt/`）の事実と矛盾しないように起こした。生成の指示には、種類のタグに合う事実だけを渡す。
 
+**画面の対象への付け替え（`classify_as`）:** bible の `classify_as`（任意。例: `school` `lune`）があると、マニフェストの `target` がその値になる（元の識別名は `bible_target`）。PDF の置き場所・台帳・`key` は変わらない（`classify_as` は bible の `version` に入れない）。画面の「対象」メニューを粗くするための印（2026-11-19。`docs/configuration.md` の「対象のまとめ」）。
+
 検証は LLM を使わない規則だけ（`validate.py`）。**数値の突合**: 本文の数量・日付・時刻は、事実の文字列に含まれていなければ落ちる。
 連絡先（電話・メール・URL・郵便番号）、実在の企業名、Markdown の小集合の外の記法、前置き、途中で終わった文、繰り返し、日本語の少なさも落とす。
 **限界:** 数値を伴わない矛盾（言い換えで事実を変える、固有名の取り違え）は、見つからない。必要なら、あとから LLM の照合を足す（今は無い）。

@@ -58,6 +58,9 @@ class Bible:
     contacts: tuple[str, ...]
     forbidden: tuple[str, ...]
     version: str
+    classify_as: str | None = (
+        None  # DB の資料の対象（documents.target）。無ければ `target` と同じ。bible の識別名（PDF の置き場所・台帳）と分けて、画面の分類を粗くするための印
+    )
 
     def facts_for(self, kind: Kind) -> list[Fact]:
         """資料の種類のタグに合う事実（`core` タグの事実は、どの種類にも入る）。"""
@@ -123,7 +126,15 @@ def parse_bible(data: dict[str, Any], where: str = "bible") -> Bible:
                 style=str(raw.get("style", "")),
             )
         )
-    canonical = json.dumps(data, ensure_ascii=False, sort_keys=True)
+    classify_as = data.get("classify_as")
+    if classify_as is not None and not (
+        isinstance(classify_as, str) and re.fullmatch(r"[a-z0-9_-]{1,40}", classify_as)
+    ):
+        raise BibleError(
+            f"{where}: classify_as `{classify_as}` は英小文字・数字・ハイフン・アンダースコアだけ（40 文字まで）"
+        )
+    # `classify_as` は分類の印だけで、本文の根拠ではない。版（version）に入れない（入れると、台帳の key が変わって生成物が stale になる）
+    canonical = json.dumps({k: v for k, v in data.items() if k != "classify_as"}, ensure_ascii=False, sort_keys=True)
     return Bible(
         target=target,
         label=str(_require(data, "label", where)),
@@ -137,6 +148,7 @@ def parse_bible(data: dict[str, Any], where: str = "bible") -> Bible:
         contacts=tuple(data.get("contacts", [])),
         forbidden=tuple(data.get("forbidden", [])),
         version=hashlib.sha256(canonical.encode()).hexdigest()[:12],
+        classify_as=classify_as,
     )
 
 

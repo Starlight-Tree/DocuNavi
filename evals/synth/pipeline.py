@@ -16,7 +16,7 @@ import hashlib
 import json
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -392,8 +392,12 @@ def render_pending(out_dir: Path, renderer: Renderer) -> list[str]:
     return done
 
 
-def build_manifest(out_dir: Path) -> list[dict[str, Any]]:
-    """分類マニフェスト。PDF まで済んだ資料だけを、id の順に出す（日時を入れない。同じ状態から同じ内容になる）。"""
+def build_manifest(out_dir: Path, classify: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
+    """分類マニフェスト。PDF まで済んだ資料だけを、id の順に出す（日時を入れない。同じ状態から同じ内容になる）。
+
+    `classify` は、bible の識別名 → DB の対象（`classify_as`）。無い識別名は、そのまま対象にする。元の識別名は `bible_target` に残す。
+    """
+    classify = classify or {}
     ledger = Ledger(out_dir / "ledger.jsonl")
     rows = []
     for doc_id, s in sorted(ledger.state.items()):
@@ -404,7 +408,8 @@ def build_manifest(out_dir: Path) -> list[dict[str, Any]]:
                 "id": doc_id,
                 "source": Path(s["pdf"]).name,
                 "path": s["pdf"],
-                "target": s["target"],
+                "target": classify.get(s["target"], s["target"]),
+                "bible_target": s["target"],
                 "doc_type": s["doc_type"],
                 "collection": COLLECTION,
                 "title": s["title"],
@@ -426,9 +431,9 @@ def build_manifest(out_dir: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def write_manifest(out_dir: Path) -> list[dict[str, Any]]:
+def write_manifest(out_dir: Path, classify: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
     out_dir = check_out_dir(out_dir)
-    rows = build_manifest(out_dir)
+    rows = build_manifest(out_dir, classify)
     data = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in rows)
     atomic_write(out_dir / "manifest.jsonl", data.encode())
     return rows

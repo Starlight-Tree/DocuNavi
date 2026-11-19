@@ -192,6 +192,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _classify_map(args: argparse.Namespace) -> dict[str, str]:
+    """bible の識別名 → DB の対象（`classify_as` がある bible だけ）。"""
+    return {t: b.classify_as for t, b in load_all(Path(args.bibles)).items() if b.classify_as}
+
+
 def cmd_render(args: argparse.Namespace) -> int:
     font = Path(args.font)
     bold = Path(args.bold_font) if args.bold_font else None
@@ -210,19 +215,19 @@ def cmd_render(args: argparse.Namespace) -> int:
         )
 
     done = pipeline.render_pending(Path(args.out_dir), renderer)
-    rows = pipeline.write_manifest(Path(args.out_dir))
+    rows = pipeline.write_manifest(Path(args.out_dir), _classify_map(args))
     print(f"PDF を作成 {len(done)} 件。マニフェスト {len(rows)} 件 → {Path(args.out_dir) / 'manifest.jsonl'}")
     return 0
 
 
 def cmd_manifest(args: argparse.Namespace) -> int:
-    rows = pipeline.write_manifest(Path(args.out_dir))
+    rows = pipeline.write_manifest(Path(args.out_dir), _classify_map(args))
     print(f"マニフェスト {len(rows)} 件")
     return 0
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
-    problems = verify_output(Path(args.out_dir))
+    problems = verify_output(Path(args.out_dir), _classify_map(args))
     for p in problems:
         print(f"問題: {p}")
     print("問題なし" if not problems else f"問題 {len(problems)} 件")
