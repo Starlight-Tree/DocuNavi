@@ -52,6 +52,8 @@ def run_hook(command: str, tool_name: str = "Bash") -> tuple[str | None, str]:
         "infisical export",
         "infisical login",
         "infisical init",
+        "infisical user get token",
+        "infisical user get token --plain",
         "infisical run -- env",
         "infisical run --env prod -- printenv",
         "infisical run --silent --projectId X --env=prod -- cat /proc/self/environ",

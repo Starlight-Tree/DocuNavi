@@ -51,7 +51,7 @@ WRANGLER_SAFE = [
     ("r2", "bucket", "list"),
     ("r2", "object", "get"),
 ]
-INFISICAL_SAFE_FIRST = {"--version", "-v", "version", "--help", "-h", "help", "user"}
+INFISICAL_SAFE_FIRST = {"--version", "-v", "version", "--help", "-h", "help"}
 # `infisical run -- <cmd>` の <cmd> が、環境変数（秘密）や値を表示・外へ出しうるもの
 SECRET_DUMPERS = {
     "env", "printenv", "export", "set", "declare", "typeset", "cat", "head", "tail", "less", "more", "sed", "awk", "gawk",
