@@ -1,0 +1,135 @@
+# リューネ工房 家族用六人乗り浮上ワゴン FW-1500（架空）の共通設定。5 冊（取扱説明書・設置・お手入れ・故障・保証）の根拠として、2026-11-19 に作った。
+# 事実（facts）にある数値・日付・時刻だけが、生成した本文に出てよい。足す・直すと version が変わる。
+target: lune-fw1500
+label: リューネ工房 FW-1500
+existing_documents: 0
+documents: 5
+revision: 2026年11月1日改訂
+premise: リューネ工房の家族用六人乗り浮上ワゴン FW-1500（乗員6名、荷室の積載量は120kg）。ドーム都市の家庭で、家族のおでかけや荷物の運搬に使う。問い合わせ先は、お買い上げの販売店と、リューネサポートセンター。
+contacts: []
+forbidden: [パナソニック, 日立, シャープ, 東芝, ダイソン, アイリスオーヤマ, ザーハード, 砂漠, 荒野, 酸素, 遺跡, 洗濯]
+extra_numbers: []
+
+facts:
+  - {id: overview, tags: [core, run, spec], text: "FW-1500は、ドーム都市の家庭で使う家族用の六人乗り浮上ワゴン。座席は3列で、荷室、電動のスライドドア、チャイルドシート固定具、機内の空調、自動係留を備える。"}
+  - {id: capacity, tags: [core, safety, spec, run], text: "乗員は6名まで。荷室に積める荷物は120kgまで。乗員の体重の合計は450kgまで。この3つのどれかを超えると、機体は浮上しない。"}
+  - {id: modes-overview, tags: [core, run, quick], text: "走行モードは、家族モード、おでかけモード、荷物モードの3つ。乗員の数と荷物の量に合わせて選ぶ。"}
+  - {id: battery-basic, tags: [core, run, spec], text: "動力はバッテリー。満充電での走行時間は約7時間で、乗員3名・おでかけモード・空調なしでの目安。乗員や荷物が多いと、走行時間は短くなる。"}
+  - {id: seat-fold, tags: [run, quick], text: "後列の座席は、背もたれを前へ倒すと、荷室を広げられる。倒したときの荷室の奥行きは約1,480mm。起こしたときは約620mm。倒した座席には、人は座れない。"}
+  - {id: start-steps, tags: [run, quick], text: "基本の手順は、乗員が乗り込み、スライドドアを閉め、全員がシートベルトを締め、電源ボタンを押してモードを選び、走行ボタンを押す。"}
+  - {id: slide-door, tags: [run, quick], text: "スライドドアは左右に2か所あり、電動で開閉する。開閉にかかる時間は約4秒で、開く幅は780mm。機体が浮上している間は、ドアは開かない。"}
+  - {id: door-pinch, tags: [safety, run], text: "ドアが閉まる途中で物や手がはさまると、ドアは自動で開き直す。お子さまがドアの近くにいないことを確かめてから、閉める。"}
+  - {id: seatbelt, tags: [safety, run], text: "シートベルトは、全席で必ず締める。締めていない席があると、走行ボタンを押しても走り出さず、W02が表示される。"}
+  - {id: child-seat, tags: [run, quick, safety], text: "チャイルドシート固定具は、中列と後列の4席にあり、1席につき2か所。前列の座席には、チャイルドシートを固定しない。"}
+  - {id: child-seat-check, tags: [safety, run], text: "チャイルドシートを固定したあとは、シートを手で揺すり、動きが約10mm以内であることを確かめる。乳児用のシートは、後ろ向きに固定する。"}
+  - {id: cabin-air, tags: [run, quick], text: "機内の空調は、設定温度が18℃から30℃、風量が5段階。前の席と後ろの席で、別々に設定できる。"}
+  - {id: air-battery, tags: [run, spec], text: "空調の消費電力は約650W。空調を使うと、満充電での走行時間は約1時間短くなる。"}
+  - {id: auto-mooring, tags: [run, quick], text: "自動係留は、係留台の手前5m以内で自動係留ボタンを押すと始まる。機体が係留台まで進み、約60秒で係留を終える。"}
+  - {id: mooring-conditions, tags: [run, safety], text: "自動係留は、機体の周囲2m以内に人や物がないときだけ始まる。係留の途中で人や物が近づくと、機体は止まる。"}
+  - {id: family-mode, tags: [run, quick], text: "家族モードは、乗員が4名以上のときに使う。最高速度は35km/hで、加速と減速をゆるやかにして、揺れを抑える。"}
+  - {id: outing-mode, tags: [run, quick], text: "おでかけモードは、乗員が3名以下のときに使う。最高速度は55km/hで、満充電での走行時間が最も長くなる。"}
+  - {id: cargo-mode, tags: [run, quick], text: "荷物モードは、荷室の荷物が60kgを超えるときに使う。最高速度は25km/hで、荷崩れを防ぐため、加速と減速を最もゆるやかにする。"}
+  - {id: hover-height, tags: [run, spec], text: "浮上高は約220mm。越えられる段差は、高さ120mm未満まで。"}
+  - {id: emergency-stop, tags: [safety, run], text: "緊急停止ボタンは、天井の中央にある赤いボタン。3秒間押し続けると、機体は減速して、約12秒で着地して止まる。"}
+  - {id: emergency-door, tags: [safety, run], text: "非常用ドア解除レバーは、各スライドドアの内側の下側にある。機体が着地してから引くと、ドアを手で開けられる。浮上している間は、引いても開かない。"}
+  - {id: low-battery, tags: [safety, run], text: "走行できる残りの時間が約45分になると、警告音が鳴り、画面に表示される。警告が出たら、早めに係留台へ戻り、充電する。"}
+  - {id: charge-time, tags: [run, install, spec], text: "充電時間は、バッテリーが空の状態から満充電まで約9時間。短時間充電を使うと、約2時間で、約3時間分の走行ができる。"}
+  - {id: charge-outlet, tags: [install, spec], text: "充電用の電源は、交流200V・30A以上の専用回路にする。アースを必ず接続する。充電中の消費電力は約4,200W。"}
+  - {id: charge-cable, tags: [install, run], text: "充電ケーブルの長さは5m。ケーブルを延長して使わない。充電中は走行できず、充電プラグを抜くまで走り出さない。"}
+  - {id: charge-water, tags: [safety, install], text: "雨や水がかかる場所で、充電しない。ぬれた手で、充電プラグや充電口に触れない。"}
+  - {id: install-floor, tags: [install], text: "設置場所の床は、水平で丈夫なものにする。床の傾きは、1mあたり5mm以内。機体の質量を支えられない床には、置かない。"}
+  - {id: install-area, tags: [install, spec], text: "置き場所の広さは、幅2,700mm以上、奥行き5,800mm以上。天井の高さは、2,300mm以上が必要。"}
+  - {id: install-dock, tags: [install], text: "係留台の内寸は、幅2,250mm以上、奥行き5,300mm以上のものを選ぶ。係留台の設置は、販売店に依頼する。"}
+  - {id: install-clearance, tags: [install], text: "壁や柱から、機体の左右に600mm以上、後方に800mm以上の空間を空ける。スライドドアを全開にできる広さが必要。"}
+  - {id: install-bolts, tags: [install], text: "輸送用の固定具は6か所あり、運転の前に必ず外す。外した固定具は、販売店が引き取る。"}
+  - {id: install-level, tags: [install], text: "据え付けたあとは、4か所の浮上ユニットの高さを調整し、水準器で水平を確かめる。機体を押して、揺れがないことも確かめる。"}
+  - {id: install-ambient, tags: [install, safety], text: "使える周囲温度は、5℃から38℃。屋内に置くときは、風通しのよい場所にする。直射日光や雨が直接当たる場所は避ける。"}
+  - {id: install-by-dealer, tags: [install], text: "据え付けと初めての試運転は、販売店の係員が行う。お客様が、自分で据え付けない。"}
+  - {id: install-dock-contact, tags: [install], text: "係留台の接点は、機体の底面の充電端子と合う位置にある。位置がずれていると、自動係留でW04が表示される。"}
+  - {id: care-frequency, tags: [care], text: "お手入れの頻度の目安は、空調フィルターが2週間に1回、浮上ユニットの吸気口とドアのレールが月に1回、ゴムパッキンが半年に1回。"}
+  - {id: care-air-filter, tags: [care], text: "空調フィルターは、2週間に1回、取り出して水洗いする。水洗いのあとは、日陰で完全に乾かしてから戻す。"}
+  - {id: care-air-filter-replace, tags: [care], text: "空調フィルターは、1年に1回、新しいものに交換する。交換用のフィルターは、お買い上げの販売店で買える。"}
+  - {id: care-intake, tags: [care], text: "浮上ユニットの吸気口は、月に1回、ごみや落ち葉を取り除く。つまると、W07の原因になる。"}
+  - {id: care-door-rail, tags: [care], text: "スライドドアのレールは、月に1回、乾いた布でごみを拭き取り、専用の潤滑剤を薄く塗る。潤滑剤を塗りすぎない。"}
+  - {id: care-seal, tags: [care], text: "ドアのゴムパッキンは、半年に1回、水で薄めた中性洗剤で拭く。拭いたあとは、乾いた布で水分を取る。"}
+  - {id: care-body, tags: [care], text: "機体の外側は、柔らかい布で水拭きする。シンナー、ベンジン、研磨剤の入った洗剤は使わない。"}
+  - {id: care-wash-pressure, tags: [care, safety], text: "水で洗うときは、水圧を0.3MPa以下にする。高圧洗浄機は使わない。吸気口と充電口に、水を直接かけない。"}
+  - {id: care-seat, tags: [care], text: "座席の布は、掃除機でごみを取り、固く絞った布で拭く。チャイルドシート固定具の周りは、3か月に1回、ごみを取り除く。"}
+  - {id: care-sensor, tags: [care, safety], text: "機体の周囲を見るセンサーは、柔らかい乾いた布で拭く。傷が付くと、自動係留が正しく動かないことがある。"}
+  - {id: care-battery, tags: [care], text: "バッテリーを長く使うため、残量を空のまま放置しない。使ったあとは、できるだけその日のうちに充電する。"}
+  - {id: care-storage, tags: [care], text: "30日以上使わないときは、バッテリーの残量を約半分にして、充電プラグを抜く。保管中も、3か月に1回、充電する。"}
+  - {id: care-power-off, tags: [care, safety], text: "お手入れの前は、電源ボタンで電源を切り、充電プラグを抜く。電源が入ったまま、浮上ユニットや充電口を拭かない。"}
+  - {id: care-inspection, tags: [care, safety], text: "浮上ユニットは、分解しない。点検は、1年に1回、お買い上げの販売店に依頼する。"}
+  - {id: error-display, tags: [error], text: "エラーは、前席の中央の画面に、「W」と2桁の数字で表示される。同時に、ブザーが3回鳴る。"}
+  - {id: w01, tags: [error], text: "W01はスライドドアエラーで、主な原因はドアの閉め忘れや、ドアのレールのごみ。対処の目安は約1分。"}
+  - {id: w02, tags: [error], text: "W02はシートベルトエラーで、主な原因はシートベルトの締め忘れ。対処の目安は約2分。"}
+  - {id: w03, tags: [error], text: "W03は荷重エラーで、主な原因は荷室の荷物が120kgを超えたことや、荷物の片寄り。対処の目安は約10分。"}
+  - {id: w04, tags: [error], text: "W04は係留エラーで、主な原因は係留台との位置のずれや、接点の汚れ。対処の目安は約15分。"}
+  - {id: w05, tags: [error], text: "W05は空調エラーで、主な原因は空調フィルターのつまり。対処の目安は約20分。"}
+  - {id: w06, tags: [error], text: "W06はバッテリー温度エラーで、主な原因は周囲温度が42℃を超えたこと。対処の目安は約60分。"}
+  - {id: w07, tags: [error], text: "W07は浮上ユニットエラーで、主な原因は吸気口のつまり、過負荷、部品の故障。吸気口を掃除しても直らないときは、修理が必要。"}
+  - {id: error-reset, tags: [error], text: "原因を取り除いたあとは、電源ボタンを3秒間押し続けると、エラーの表示が消える。そのあとで、走行ボタンを押す。"}
+  - {id: symptom-no-lift, tags: [error], text: "浮上しないときは、ドアが閉まっているか、全員がシートベルトを締めているか、荷物や乗員が定められた量を超えていないか、バッテリーの残量があるかを順に確かめる。"}
+  - {id: symptom-no-charge, tags: [error], text: "充電が始まらないときは、充電プラグが奥まで差さっているか、専用回路のブレーカーが入っているかを確かめる。係留台の接点が汚れていないかも確かめる。"}
+  - {id: error-persist, tags: [error], text: "同じエラーが3回続いたときは、使うのをやめ、充電プラグを抜いて、販売店かリューネサポートセンターに連絡する。"}
+  - {id: blackout, tags: [error], text: "停電のあとは、自動係留や充電が途中で止まることがある。その場合は、機体が着地していることを確かめてから、電源を入れ直し、もう一度操作する。停電のあいだも、非常用ドア解除レバーは使える。"}
+  - {id: contact, tags: [error, warranty], text: "対処しても直らないときは、充電プラグを抜き、お買い上げの販売店かリューネサポートセンターに連絡する。連絡のときは、型番と製造番号を知らせる。製造番号は、機体の銘板に書かれている。"}
+  - {id: spec-size, tags: [spec], text: "外形寸法は、幅2,050mm、奥行き5,100mm、高さ1,950mm。質量は約1,880kg。"}
+  - {id: spec-power, tags: [spec], text: "電源は、充電用が交流200V・30A。走行中の消費電力は、おでかけモードで約3,800W。"}
+  - {id: spec-noise, tags: [spec], text: "運転音は、機内で約41dB、機体の外側で約52dB。数値は、おでかけモードで走行しているときのもの。"}
+  - {id: warranty-period, tags: [warranty], text: "保証期間は、お買い上げの日から1年間。ただし、浮上ユニットは6年間、バッテリーは4年間保証する。"}
+  - {id: warranty-home, tags: [warranty], text: "浮上ユニットとバッテリーの長い保証は、一般の家庭で使った場合に限る。業務用に使った場合は、どちらも1年間。"}
+  - {id: warranty-proof, tags: [warranty], text: "保証を受けるには、保証書が必要。保証書には、お買い上げの日と販売店の名前の記入と、販売店の印が要る。保証書は、再発行しない。"}
+  - {id: warranty-exclusions, tags: [warranty], text: "保証の対象外は、お客様の使い方の誤りや、分解・改造による故障、火災・水害などの災害による故障、定められた点検を受けなかったことによる故障。"}
+  - {id: warranty-consumables, tags: [warranty], text: "空調フィルター、ゴムパッキン、シートベルトのベルトなどの消耗品は、保証期間内でも、消耗による交換は有料。"}
+  - {id: visit-fee, tags: [warranty], text: "出張修理の費用は、保証期間内は無料。保証期間を過ぎた場合は、出張料が3,300円かかる。"}
+  - {id: repair-request, tags: [warranty], text: "修理の申込は、お買い上げの販売店かリューネサポートセンターに連絡して行う。型番、製造番号、エラーの表示、お買い上げの日を知らせる。"}
+  - {id: repair-visit, tags: [warranty], text: "修理の係員は、申込の日の翌日から数えて約5日以内に、お住まいへ伺う。係員が伺う日時は、連絡のときに決める。"}
+  - {id: parts, tags: [warranty], text: "補修用の部品は、製造を打ち切ってから9年間保有する。"}
+  - {id: support, tags: [warranty], text: "リューネサポートセンターの受付時間は、月曜日から金曜日の午前9時から午後6時まで。土曜日、日曜日、祝日はお休み。"}
+  - {id: warranty-modification, tags: [warranty], text: "メーカー以外の者が、浮上ユニットやバッテリーを分解・改造したときは、その部品だけでなく、機体全体の保証が受けられなくなる。"}
+  - {id: disposal, tags: [warranty], text: "本体を廃棄するときは、お住まいの区域の機体処理規則の対象になる。お買い上げの販売店に、引き取りを依頼する。"}
+  - {id: warranty-battery-fade, tags: [warranty], text: "バッテリーの保証は、満充電での走行時間が使い始めの約半分より短くなった場合に、修理か交換で対応する。自然な劣化は、対象外。"}
+  - {id: not-documented, tags: [warranty, install], text: "延長保証の料金と、ドーム都市の外で使う場合の扱いは、定められていない。"}
+
+kinds:
+  - id: manual
+    doc_type: manual
+    title: "{label} 取扱説明書"
+    tags: [run, quick, safety, spec]
+    variants: [全体]
+    chars: [5000, 8000]
+    outline: [はじめに, 安全上のご注意, 基本の使い方, 各モードのご案内, 仕様, お問い合わせ]
+    style: 取扱説明書の文体（です・ます）。手順は番号を付けて 1 文ずつ。仕様は表にしてよい。
+  - id: installation
+    doc_type: manual
+    title: "{label} 設置ガイド"
+    tags: [install, spec]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [このガイドについて, 設置の前に, 設置場所, 設置の手順, 確認とお願い]
+    style: 取扱説明書の文体（です・ます）。手順は番号を付けて 1 文ずつ。
+  - id: maintenance
+    doc_type: manual
+    title: "{label} お手入れガイド"
+    tags: [care, safety]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [このガイドについて, お手入れの頻度, 各部のお手入れ, 長く使うために, してはいけないこと]
+    style: 取扱説明書の文体（です・ます）。
+  - id: troubleshooting
+    doc_type: manual
+    title: "{label} 故障かな？と思ったら"
+    tags: [error]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [このページについて, エラーコード一覧, 症状と対処, 直らないとき, 停電やお問い合わせ]
+    style: 取扱説明書の文体（です・ます）。エラーは表で示してよい。
+  - id: warranty
+    doc_type: regulation
+    title: "{label} 保証規定"
+    tags: [warranty]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [目的, 定義, 保証期間, 保証の範囲, 免責, 出張修理, 補修用部品, 附則]
+    style: 規定の文体。「第N条」で条を立て、である調。連絡先の電話番号は書かない。

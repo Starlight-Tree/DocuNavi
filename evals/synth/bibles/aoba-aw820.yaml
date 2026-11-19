@@ -1,8 +1,9 @@
-# リューネ工房 家庭用二人乗り浮上ポッド FP-820（架空）の共通設定。既存の資料 evals/corpora/guides/source/aoba_aw820_manual.md と矛盾しないように起こした。2026-11-19 に、あおば電機の洗濯乾燥機から書き換えた（対象名 aoba-aw820 は変えない）。
+# リューネ工房 家庭用二人乗り浮上ポッド FP-820（架空）の共通設定。既存の資料 evals/corpora/guides/source/aoba_aw820_manual.md と矛盾しないように起こした。2026-11-19 に、あおば電機の洗濯乾燥機から書き換えた（対象名 aoba-aw820 は変えない）。同日、合成の資料を 19 冊から 4 冊（設置・お手入れ・故障・保証。1 冊 4,500〜7,500 文字）へ統合し、事実を足した。
 # 事実（facts）にある数値・日付・時刻だけが、生成した本文に出てよい。足す・直すと version が変わる。
 target: aoba-aw820
 label: リューネ工房 FP-820
 existing_documents: 1
+documents: 5
 revision: 2026年11月1日改訂
 premise: リューネ工房の家庭用二人乗り浮上ポッド FP-820（低空走行は積載量8kg・高空走行は4.5kg）。ドーム都市の家庭で、近所への外出や荷物の運搬に使う。問い合わせ先は、リューネサポートセンターと、お買い上げの販売店。
 contacts: []
@@ -52,44 +53,85 @@ facts:
   - {id: disposal, tags: [warranty], text: "本体を廃棄するときは、お住まいの区域の機体処理規則の対象になる。お買い上げの販売店に、引き取りを依頼する。"}
   - {id: not-documented, tags: [warranty, install], text: "充電コードの長さ、延長保証の料金、高空走行中の機内の温度は、定められていない。"}
 
+  - {id: mooring-level, tags: [install], text: "係留台に置いたあとは、水平器で確かめ、機体が傾いていないことを確認する。傾いていると、浮上のときに機体が揺れる原因になる。"}
+  - {id: mooring-height, tags: [install], text: "係留台の高さは、床から30cm以下のものを選ぶ。高すぎると、乗り降りのときに足を踏み外すおそれがある。"}
+  - {id: floor-load, tags: [install, safety], text: "床は、機体の質量（約172kg）に、乗員と荷物を加えた重さに耐えるものにする。やわらかい床やぐらつく床には置かない。"}
+  - {id: ambient, tags: [install], text: "設置場所の周囲温度は、5℃から35℃の範囲にする。直射日光が当たる場所や、暖房器具の近くには置かない。"}
+  - {id: ceiling, tags: [install], text: "機体の上方は、天井まで1.5m以上空ける。浮上するときに、天井や照明に触れないようにするため。"}
+  - {id: unpack, tags: [install], text: "開梱したあとは、付属品がそろっているか確かめる。付属品は、取扱説明書、固定ネット、補給ケース、保証書の4点。"}
+  - {id: hose-install, tags: [install], text: "排水ホースは、折り曲げたり、つぶしたりしない。機体と排水口への接続部は、ホースバンドで固定する。"}
+  - {id: outlet-share, tags: [install, safety], text: "充電用のコンセントには、延長コードやタコ足配線を使わない。ほかの機器と同じコンセントに接続しない。"}
+  - {id: first-run, tags: [install], text: "据え付けが終わったら、荷物を載せずに「標準」モードで1回運転し、エラーコードが出ないこと、水漏れがないことを確かめる。"}
+  - {id: bolts-keep, tags: [install], text: "取り外した輸送用の固定ボルトは、設置場所を変えるときに使うので、捨てずに保管する。"}
+  - {id: relocation, tags: [install], text: "設置場所を変えるときは、充電プラグを抜き、水栓を閉め、冷却槽の水を抜いてから、固定ボルトを4本とも取り付ける。移動は、2人以上で行う。"}
+  - {id: care-after-run, tags: [care], text: "走行のあと、機内に水滴が残っているときは、乾いた布で拭き取る。濡れたままハッチを閉めると、においの原因になる。"}
+  - {id: care-display, tags: [care], text: "表示窓と操作ボタンは、乾いた柔らかい布で拭く。水や洗剤を直接かけない。"}
+  - {id: filter-wash, tags: [care], text: "低空フィルターは、ぬるま湯と柔らかいブラシで洗う。洗ったあとは、日陰で完全に乾かしてから取り付ける。"}
+  - {id: packing-check, tags: [care], text: "ハッチのゴムパッキンに、ひび割れや傷があるときは、そのまま使わず、お買い上げの販売店に連絡する。"}
+  - {id: tank-care, tags: [care], text: "冷却液の自動補給タンクには、専用の冷却液以外の液体を入れない。口からこぼれた液は、すぐに拭き取る。"}
+  - {id: hose-check, tags: [care], text: "排水ホースは、半年に1回、つまりや折れ、接続部のゆるみがないか目で確かめる。"}
+  - {id: no-washdown, tags: [care, safety], text: "機体を水で丸洗いしない。高圧洗浄機を使ったり、ホースで直接水をかけたりしない。故障や感電の原因になる。"}
+  - {id: chlorine-mix, tags: [care, safety], text: "塩素系の機内洗浄剤は、酸性の洗剤と混ぜない。有害なガスが出て危険。洗浄中は、機内を覗き込まない。"}
+  - {id: after-storage, tags: [care], text: "長期間使わなかったあとに使うときは、冷却槽に水が残っていないこと、フィルターが乾いていることを確かめてから、電源を入れる。"}
+  - {id: cover-storage, tags: [care], text: "保管中の機体にカバーをかけるときは、機内と機体が完全に乾いてからかける。濡れたままかけると、においやさびの原因になる。"}
+  - {id: error-display, tags: [error], text: "エラーコードは、表示窓に出る。運転が止まったときは、まずコードを控え、次の表と対処を見る。"}
+  - {id: e01-more, tags: [error], text: "E01が出たときは、ハッチの縁に荷物のひもや布が挟まっていないか確かめ、ハッチを閉め直す。"}
+  - {id: e02-more, tags: [error], text: "E02が出たときは、蛇口が開いているか、給水ホースが折れていないかを確かめる。水圧が低いときは、給水に時間がかかる。"}
+  - {id: e03-more, tags: [error], text: "E03が出たときは、機体が着地していることを確かめ、荷室の荷物を中央に寄せ、重い物を下に置き直す。"}
+  - {id: e04-more, tags: [error], text: "E04が出たときは、排水ホースの先端の高さが決められた範囲にあるか、ホースが折れていないかを確かめる。"}
+  - {id: e05-more, tags: [error], text: "E05が出たときは、高空フィルターのごみを取り除いてから、もう一度試す。"}
+  - {id: e06-more, tags: [error], text: "E06が出たときは、機体を日陰の涼しい場所へ移し、周囲温度が下がるのを待つ。"}
+  - {id: e07-more, tags: [error], text: "E07が出たときは、自分で分解せず、充電プラグを抜いて、お買い上げの販売店かリューネサポートセンターに連絡する。"}
+  - {id: error-reset, tags: [error], text: "エラーの原因を取り除いたあとは、電源ボタンで電源を切り、入れ直してから、スタートボタンを押す。"}
+  - {id: no-power, tags: [error], text: "電源が入らないときは、充電プラグがコンセントに差さっているか、ブレーカーが落ちていないかを確かめる。"}
+  - {id: odd-sound, tags: [error, safety], text: "運転中に、いつもと違う音やにおいがするときは、すぐに一時停止ボタンを押す。機体が着地してから、充電プラグを抜く。"}
+  - {id: hatch-stuck, tags: [error], text: "着地したあとにハッチが開かないときは、チャイルドロックが入っていないか確かめる。解除は、一時停止ボタンを3秒間長押しする。"}
+  - {id: water-leak, tags: [error, safety], text: "機体の下に水漏れがあるときは、水栓を閉め、充電プラグを抜く。ホースの接続部を確かめても直らないときは、使わずに連絡する。"}
+  - {id: contact-prep, tags: [error, warranty], text: "連絡の前に、エラーコード、症状、いつから起きたかを控えておく。型番と製造番号とあわせて知らせると、相談が早く進む。"}
+  - {id: warranty-card, tags: [warranty], text: "保証書は、お買い上げの日と販売店名が書かれたものを、大切に保管する。保証書がないと、保証を受けられない。"}
+  - {id: warranty-scope, tags: [warranty], text: "保証期間内に、取扱説明書に従った使い方で故障したときは、無料で修理する。"}
+  - {id: excl-misuse, tags: [warranty], text: "誤った使い方や、販売店とリューネ工房以外による修理・改造が原因の故障は、保証期間内でも保証の対象外で、有料になる。"}
+  - {id: excl-disaster, tags: [warranty], text: "火災、地震、水害などの災害や、異常な電圧が原因の故障は、保証の対象外。"}
+  - {id: excl-consumable, tags: [warranty], text: "低空フィルターやゴムパッキンなどの消耗品の交換は、保証の対象外。"}
+  - {id: excl-transport, tags: [warranty], text: "お買い上げのあとの輸送や移設、落下が原因の故障は、保証の対象外。"}
+  - {id: warranty-owner, tags: [warranty], text: "保証は、保証書に書かれたお買い上げの方に限る。譲り受けた場合は、販売店に相談する。"}
+  - {id: warranty-apply, tags: [warranty], text: "保証を受けるときは、保証書を用意して、お買い上げの販売店かリューネサポートセンターに連絡する。"}
+  - {id: visit-flow, tags: [warranty], text: "出張修理は、連絡のときに訪問の日時を決め、技術員が訪問して行う。訪問のときは、保証書を見せる。"}
+  - {id: paid-repair, tags: [warranty], text: "保証期間を過ぎた修理は有料。費用は、出張料3,300円に、部品代と技術料を加えた額になる。"}
+  - {id: parts-def, tags: [warranty], text: "補修用の部品とは、機体の機能を維持するために必要な部品のこと。保有期間を過ぎると、修理できないことがある。"}
+  - {id: support-off, tags: [warranty], text: "受付時間外や休日のお問い合わせは、次の営業日に対応する。"}
+  - {id: disposal-prep, tags: [warranty], text: "廃棄のための引き取りを依頼する前に、冷却槽の水を抜き、充電プラグを抜いておく。"}
+
 kinds:
-  - id: quick-start
+  - id: installation
     doc_type: manual
-    title: "{label} かんたん操作ガイド（{variant}）"
-    tags: [quick, run, safety]
-    variants: [初めての走行, 高空走行のしかた, 予約出発, チャイルドロックと安全]
-    chars: [1200, 2600]
-    outline: [このガイドについて, 手順, 注意すること, 困ったとき]
+    title: "{label} 設置ガイド"
+    tags: [install, spec]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [このガイドについて, 設置の前に, 設置場所, 設置の手順, 確認とお願い]
     style: 取扱説明書の文体（です・ます）。手順は番号を付けて 1 文ずつ。
-  - id: maintenance-guide
+  - id: maintenance
     doc_type: manual
-    title: "{label} お手入れガイド（{variant}）"
+    title: "{label} お手入れガイド"
     tags: [care, safety]
-    variants: [フィルターのお手入れ, 機内の洗浄, ゴムパッキンと機体の外側, 長期間使わないとき]
-    chars: [1200, 2600]
-    outline: [このガイドについて, 手順, 頻度, 注意すること]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [このガイドについて, お手入れの頻度, 各部のお手入れ, 長く使うために, してはいけないこと]
     style: 取扱説明書の文体（です・ます）。
   - id: troubleshooting
     doc_type: manual
-    title: "{label} 故障かな？と思ったら（{variant}）"
+    title: "{label} 故障かな？と思ったら"
     tags: [error]
-    variants: [E01からE03, E04とE05, E06とE07, 停電のあとと連絡のしかた]
-    chars: [1200, 2600]
-    outline: [このページについて, 症状と原因, 対処, 直らないとき]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [このページについて, エラーコード一覧, 症状と対処, 直らないとき, 停電やお問い合わせ]
     style: 取扱説明書の文体（です・ます）。エラーは表で示してよい。
-  - id: installation-guide
-    doc_type: manual
-    title: "{label} 設置ガイド（{variant}）"
-    tags: [install, spec]
-    variants: [設置場所と係留台, 排水ホース, 水道と充電, 固定ボルトと据え付け]
-    chars: [1200, 2600]
-    outline: [このガイドについて, 準備, 手順, 確認]
-    style: 取扱説明書の文体（です・ます）。
-  - id: warranty-terms
+  - id: warranty
     doc_type: regulation
-    title: "{label} 保証規定（{variant}）"
+    title: "{label} 保証規定"
     tags: [warranty]
-    variants: [保証期間, 出張修理, 補修用部品, 廃棄とリサイクル]
-    chars: [1200, 2600]
-    outline: [目的, 定義, 本文の各条, 附則]
+    variants: [全体]
+    chars: [4500, 7500]
+    outline: [目的, 定義, 保証期間, 保証の範囲, 免責, 出張修理, 補修用部品, 附則]
     style: 規定の文体。「第N条」で条を立て、である調。連絡先の電話番号は書かない。
