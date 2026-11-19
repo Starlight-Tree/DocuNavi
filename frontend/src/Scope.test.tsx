@@ -427,12 +427,12 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
 
     await chooseFacet(user, '対象', 'zahard');
     // 絞り込んだだけでは何も変わらない
-    expect(await summaryText()).toBe('2件');
+    expect(await summaryText()).toBe('検索結果 2件');
     expect(resetButton()).not.toBeInTheDocument();
 
     // 表示中の 2 件だけ解除する
     await user.click(await headerCheck('このページの 2 件を全選択・解除'));
-    expect(await summaryText()).toBe('2件 · 2件選択中');
+    expect(await summaryText()).toBe('検索結果 2件 · 2件選択中');
 
     // 絞り込みを解除しても、表示していなかった 2 件の選択は変わっていない
     await chooseFacet(user, '対象', '');
@@ -456,7 +456,7 @@ describe('回答対象: 資料ごとの選択（資料一覧のチェックボ�
     await waitFor(() => expect(screen.getAllByRole('row').slice(1)).toHaveLength(2));
     await user.click(await headerCheck('このページの 2 件を全選択・解除'));
 
-    expect(await summaryText()).toBe('2件 · 2件選択中');
+    expect(await summaryText()).toBe('検索結果 2件 · 2件選択中');
   });
 
   it('0 件にすると、警告が出て、質問は送れない（送信ボタンは押せず、Enter でも送られない）。すべて選択と送れる', async () => {
@@ -777,21 +777,21 @@ describe('資料一覧: ページ分けと選択', () => {
     // 絞り込み（対象）で 1 ページ目に戻る。30 件 → 25 件 + 5 件
     await chooseFacet(user, '対象', 'zahard');
     expect(await pager()).toHaveTextContent('1–25 / 30 件');
-    expect(await summaryText()).toBe('30件');
+    expect(await summaryText()).toBe('検索結果 30件');
 
     // 表示中の 25 件だけを解除する（見出しのチェックはそのページだけ）。ほかの 35 件の選択は変わらない
     await user.click(await screen.findByRole('checkbox', { name: 'このページの 25 件を全選択・解除' }));
-    expect(await summaryText()).toBe('30件 · 35件選択中');
+    expect(await summaryText()).toBe('検索結果 30件 · 35件選択中');
 
     await next(user);
     expect(await pager()).toHaveTextContent('26–30 / 30 件');
     await user.click(await screen.findByRole('checkbox', { name: 'このページの 5 件を全選択・解除' }));
-    expect(await summaryText()).toBe('30件 · 30件選択中');
+    expect(await summaryText()).toBe('検索結果 30件 · 30件選択中');
 
     // 並び替えでも 1 ページ目に戻る
     await user.click(within(screen.getByRole('columnheader', { name: '資料名' })).getByRole('button'));
     expect(await pager()).toHaveTextContent('1–25 / 30 件');
-    expect(await summaryText()).toBe('30件 · 30件選択中');
+    expect(await summaryText()).toBe('検索結果 30件 · 30件選択中');
   });
 });
 
