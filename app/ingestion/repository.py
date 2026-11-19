@@ -84,7 +84,7 @@ class Repository(Protocol):
         """版だけを変える（チャンクには触れない。SQL は 1 本）。文書が無ければ何もしない。"""
 
     def mark_failed(self, source: str, document_hash: str, reason: str) -> None:
-        """取り込みの失敗を記録する。以前のチャンクは消さない（黙って検索対象から外さない）。"""
+        """取り込みの失敗を記録する（資料の状態を failed にし、理由を残す）。以前のチャンクは消さない（実装どおり）が、failed の資料は検索から外れる（検索は status = 'ready' の資料だけを返す）。失敗は取り込みの報告（`status=failed reason=…`・取り込めなかった件数・終了コード 3）で分かる。"""
 
 
 class MemoryRepository:
