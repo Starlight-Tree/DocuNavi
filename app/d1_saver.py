@@ -1,7 +1,10 @@
 """LangGraph の checkpointer（会話履歴）を D1 に置く実装。`langgraph-checkpoint-sqlite` の `AsyncSqliteSaver` と同じ組み立てで、
 接続を HTTP（`app/d1.py`）に替えたもの。バイナリの列（checkpoint・書き込みの値）は base64 の文字列で持つ。
 
-表は `workers/api/migrations/0001_schema.sql` の `checkpoints` と `checkpoint_writes`。同期のメソッドは使わない（非同期のグラフ専用）。
+本番は pg で、`app/pg_saver.py` の `PgSaver`（この `D1Saver` を継承し、列の型だけ置き換える）を使う。d1 は退役済みで、
+`D1Saver` 自体は、`PgSaver` の土台と、テストの偽 DB（`tests/d1_fakes.py`）のために残る。
+
+表は `db/migrations/0001_schema.sql` の `checkpoints` と `checkpoint_writes`。同期のメソッドは使わない（非同期のグラフ専用）。
 """
 
 import base64

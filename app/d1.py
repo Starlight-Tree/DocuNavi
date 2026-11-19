@@ -1,7 +1,11 @@
-"""Cloudflare D1 / Vectorize への HTTP クライアント（データ用 Worker `workers/api/` の `/v1/*` を呼ぶ）。
+"""Cloudflare D1 / Vectorize への HTTP クライアント（データ用 Worker の `/v1/*` を呼ぶ）。退役済み。
 
-環境変数: `D1_API_URL`（Worker の URL）と `D1_API_TOKEN`（サービス用のトークン。値はログに出さない）。`D1_API_URL` が空なら DB を使わない
-（会話履歴はメモリ、資料の検索はしない。以前の `DATABASE_URL` が空のときと同じ）。
+本番は pg（Postgres + pgvector。`app/pg.py`）で、この HTTP の経路（`D1Pool`、`SyncD1` の HTTP 呼び出し、`D1_API_*`）は使わない。
+データ用 Worker も撤去済みで（`workers/api/` は今は認証 Worker）、HTTP の経路はテストの偽 Worker（`tests/d1_fakes.py`）のために残る。
+`DB_BACKEND` のコード上の既定は d1 のまま。ただし、`D1Error`・`MAX_BATCH`・`SyncD1` の名前は、pg の経路と CLI も import している（消さない）。
+
+環境変数（`DB_BACKEND=d1` のとき）: `D1_API_URL`（Worker の URL）と `D1_API_TOKEN`（サービス用のトークン。値はログに出さない）。`D1_API_URL` が空なら DB を使わない
+（会話履歴はメモリ、資料の検索はしない）。pg は `DATABASE_URL` が空のとき、同じになる（`app/history.py` の `database_url()`）。
 
 - SQL は SQLite の書き方。`%(name)s` の名前付き引数を `?` に直して送る（同じ名前を何度使ってもよい）。list / set は JSON 文字列で渡す
   （SQL 側は `json_each(%(name)s)` で展開する。None は NULL）。
@@ -27,7 +31,7 @@ MAX_BATCH = 100
 
 
 class D1Error(RuntimeError):
-    """D1 / Vectorize の呼び出しに失敗した（メッセージに URL・トークン・SQL の値は含めない）。"""
+    """DB の呼び出しに失敗した（d1 では D1 / Vectorize の呼び出し。`app/pg.py` も Postgres の失敗にこの型を使う）。メッセージに URL・トークン・SQL の値は含めない。"""
 
 
 def api_url() -> str:
@@ -112,7 +116,7 @@ class Connection:
 
 
 class D1Pool:
-    """Worker への HTTP 接続（`httpx.AsyncClient`）。`psycopg_pool` の代わりに `get_pool()` が返す。"""
+    """Worker への HTTP 接続（`httpx.AsyncClient`）。pg 以前の `psycopg_pool` の代わりに `get_pool()` が返していた（今の pg は `app/pg.py` の `PgPool`）。"""
 
     def __init__(self, url: str, *, transport: httpx.AsyncBaseTransport | httpx.BaseTransport | None = None) -> None:
         # transport はテスト用（偽の Worker を差し込む）

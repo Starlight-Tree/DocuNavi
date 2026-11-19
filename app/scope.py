@@ -19,8 +19,9 @@ logger = logging.getLogger(__name__)
 # 検索ツールへ範囲を渡す `config["configurable"]` のキー（LLM が渡す引数ではない）
 ACCESS_SCOPE_KEY = "access_scope"
 
-# SQL（D1 = SQLite）の WHERE に足す条件。`%(allowed)s` は JSON 配列の文字列（`app/d1.py` が list を変換する。None なら全グループ）。グループの無い資料（collection が NULL）は、
-# 範囲を絞ったときには含めない（`NULL = ANY(...)` は真にならない）
+# SQL（SQLite の書き方。本番の pg では `app/pg.py` の `translate()` が Postgres に直す）の WHERE に足す条件。`%(allowed)s` は JSON 配列の文字列
+# （list は、pg では `app/pg.py`、d1 では `app/d1.py` が変換する。None なら全グループ）。グループの無い資料（collection が NULL）は、
+# 範囲を絞ったときには含めない（`NULL IN (...)` は真にならない）
 ALLOWED_FILTER_SQL = "(%(allowed)s IS NULL OR d.collection IN (SELECT value FROM json_each(%(allowed)s)))"
 
 # 対象（`documents.target`）の絞り込み。`ALLOWED_FILTER_SQL` と AND で重ねる（対象を選んでも、権限の範囲は広がらない）。
