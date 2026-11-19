@@ -59,7 +59,9 @@ class FakeBackend:
         min_chars = int(span.group(1))
         body: list[str] = [f"# {title.group(1)}", "## 概要"]
         count, i = 0, 0
-        while sum(len(p) for p in body) < int(min_chars * 1.1) + 40:  # 見出しの記号と「（N 項）」の分が、検証の文字数から引かれるので、長い資料では余裕を割合で持つ
+        while (
+            sum(len(p) for p in body) < int(min_chars * 1.1) + 40
+        ):  # 見出しの記号と「（N 項）」の分が、検証の文字数から引かれるので、長い資料では余裕を割合で持つ
             if i and i % 6 == 0:
                 body.append(f"## 補足 {i // 6}")
             fact = facts[(seed + i) % len(facts)]

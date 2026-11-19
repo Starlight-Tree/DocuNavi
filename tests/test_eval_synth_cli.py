@@ -13,9 +13,17 @@ from evals.synth.cli import main
 from evals.synth.render import MARKER, NOTICE, RenderUnavailable, render_pdf
 from evals.synth.verify import verify_output
 
-
 # 試料の固定（4 対象 × 2 件 = 8 件）。リューネ工房の新製品（lune-*）と学校（hoshizora-kg・arca-*・oasis-high）は、別の bible のテストで見る
-ORIGINAL_TARGETS = ["--target", "zahard", "--target", "minato-coffee", "--target", "tsubasa-dorm", "--target", "aoba-aw820"]
+ORIGINAL_TARGETS = [
+    "--target",
+    "zahard",
+    "--target",
+    "minato-coffee",
+    "--target",
+    "tsubasa-dorm",
+    "--target",
+    "aoba-aw820",
+]
 
 
 def test_cli_batch_flow_with_the_fake_engine(tmp_path, capsys):
@@ -89,7 +97,12 @@ def test_cli_refuses_unsafe_out_dir_and_unbounded_paid_runs(tmp_path, capsys):
 
 
 def test_cli_run_returns_3_when_a_limit_stops_it(tmp_path):
-    assert main(["run", *ORIGINAL_TARGETS, "--sample-per-target", "2", "--out-dir", str(tmp_path / "o"), "--max-docs", "3"]) == 3
+    assert (
+        main(
+            ["run", *ORIGINAL_TARGETS, "--sample-per-target", "2", "--out-dir", str(tmp_path / "o"), "--max-docs", "3"]
+        )
+        == 3
+    )
 
 
 def test_render_without_reportlab_fails_clearly(tmp_path):

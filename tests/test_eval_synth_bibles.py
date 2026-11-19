@@ -10,8 +10,18 @@ from evals.synth.prompt import build_messages
 from evals.synth.validate import validate_body
 
 BIBLES = Path(__file__).resolve().parents[1] / "evals" / "synth" / "bibles"
-LUNE = {"lune-fc410", "lune-fs250", "lune-fw1500", "lune-fd300"}  # リューネ工房の新製品（1 製品 5 冊。取扱説明書・設置・お手入れ・故障・保証）
-SCHOOLS = {"hoshizora-kg", "arca-elem", "arca-junior", "oasis-high"}  # アルカ市の学校（1 校 5 冊。園則/学則・入学案内・学費・学校生活・安全）。大学（tsubasa-dorm）は入寮規程が guides にあり、合成は 4 冊
+LUNE = {
+    "lune-fc410",
+    "lune-fs250",
+    "lune-fw1500",
+    "lune-fd300",
+}  # リューネ工房の新製品（1 製品 5 冊。取扱説明書・設置・お手入れ・故障・保証）
+SCHOOLS = {
+    "hoshizora-kg",
+    "arca-elem",
+    "arca-junior",
+    "oasis-high",
+}  # アルカ市の学校（1 校 5 冊。園則/学則・入学案内・学費・学校生活・安全）。大学（tsubasa-dorm）は入寮規程が guides にあり、合成は 4 冊
 TARGETS = {"zahard", "minato-coffee", "tsubasa-dorm", "aoba-aw820"} | LUNE | SCHOOLS
 DOC_TYPES = {"setting", "store-guide", "regulation", "manual"}  # workers/api/migrations の document_types の語彙
 
@@ -42,7 +52,13 @@ def test_plan_reaches_the_target_count_including_existing(bibles):
 
 def test_lune_products_have_the_same_five_kinds(bibles):
     for t in LUNE:
-        assert [k.id for k in bibles[t].kinds] == ["manual", "installation", "maintenance", "troubleshooting", "warranty"], t
+        assert [k.id for k in bibles[t].kinds] == [
+            "manual",
+            "installation",
+            "maintenance",
+            "troubleshooting",
+            "warranty",
+        ], t
     # ポッドは、取扱説明書が guides にあるので、合成は 4 冊
     assert [k.id for k in bibles["aoba-aw820"].kinds] == ["installation", "maintenance", "troubleshooting", "warranty"]
 
