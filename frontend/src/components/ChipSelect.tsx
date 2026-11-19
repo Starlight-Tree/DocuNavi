@@ -30,7 +30,9 @@ export function ChipSelect({ label, value, options, onSelect, active = false }: 
   const menuRef = useRef<HTMLUListElement>(null);
   const menuId = useId();
   const current = options.find((o) => o.value === value);
-  const text = current ? (current.count !== undefined ? `${current.label} (${current.count})` : current.label) : '';
+  // チップには値の名前だけを出す（件数は、見出しの「N件の資料」・「検索結果 N件」と重なる）。件数は、メニューの各項目とツールチップで読める
+  const text = current?.label ?? '';
+  const title = current ? (current.count !== undefined ? `${current.label} (${current.count})` : current.label) : undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -74,7 +76,7 @@ export function ChipSelect({ label, value, options, onSelect, active = false }: 
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        title={text || undefined}
+        title={title}
         onClick={() => setOpen((v) => !v)}
       >
         <span className="document-filter-label">{label}</span>

@@ -1588,6 +1588,11 @@ a.pdf-save {
   max-width: 100%;
 }
 
+/* 一覧の絞り込みの行では、チップを同じ幅にそろえる（検索欄が残りを取る）。長い値は「…」で省略 */
+.document-filter > .chip-select {
+  flex: 0 0 11.5rem;
+}
+
 .chip-select-button {
   display: inline-flex;
   width: 100%;
@@ -1613,20 +1618,24 @@ a.pdf-save {
   background: var(--surface-muted);
 }
 
-/* キーボードで触れているときだけ、全体と同じ色の輪を出す（マウスで押したときは出さない） */
-.chip-select-button:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
+/* 絞り込み欄（検索欄・チップ）のフォーカスは、色を足さず、本文に近い色の 1px の枠＋薄いにじみ（橙の太い輪・青は使わない。枠は外へ広がらず、コントラストは 3:1 以上） */
+.chip-select-button:focus-visible,
+.document-filter-field input:focus-visible {
+  outline: none;
+  border-color: var(--text-muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-muted) 28%, transparent);
 }
 
 .chip-select-value {
   min-width: 0;
-  max-width: 11rem;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* 矢印は右端にそろえる（チップの幅が同じなら、矢印の列も縦にそろう） */
 .chip-select-caret {
+  margin-left: auto;
   color: var(--text-muted);
   font-size: 0.75rem;
 }
