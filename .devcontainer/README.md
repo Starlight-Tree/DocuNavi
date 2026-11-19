@@ -272,7 +272,7 @@ console と network のエラーを、スクリーンショット付きで確か
 | Chromium | `.devcontainer/install-playwright.sh` が `~/.cache/ms-playwright` に取得します（約 260 MB）。ここは名前付きボリュームなので、再ビルドしても取得し直しません |
 | ライブラリー | `.devcontainer/Dockerfile` が、イメージのビルド時に apt で入れます（Chromium の実行に要るライブラリーと、日本語を含むフォント。`playwright install-deps` の結果を一覧にしたもの）。作成のたびには入れ直しません（イメージのキャッシュが効く）。Playwright の版を上げるときは、`install-deps` で要るライブラリーが変わっていないかを見て、Dockerfile の一覧を作り直します |
 | 成功の判定 | 最後に Chromium を実際に起動して（`chrome --version`）確かめます。ライブラリーの取りこぼしも、ここで分かります。だめなら理由を stderr に出して終了コード 1 で終わり、作成のログに「Playwright の導入に失敗しました」と出ます（あとの確認と導入は続きます）。直したら `bash .devcontainer/install-playwright.sh` を再実行します |
-| スクリーンショット | `.playwright-mcp/` に出ます（保存先は、ツールの制限でリポジトリ内に限られます）。`.gitignore` には入れていないので、使ったあとは未追跡のファイルとして Git に出ます。確認が済んだら削除し、コミットしません |
+| スクリーンショット | `.playwright-mcp/` に出ます（保存先は、ツールの制限でリポジトリ内に限られます）。`.gitignore` の `.playwright-mcp/` で除外しているので、Git には出ません。確認が済んだら削除し、コミットしません |
 
 使うときは、モックを起動してから（`GEMINI_API_KEY=your_api_key_here uvicorn app.main:app`）、エージェントに画面の確認を頼みます。
 PDF は、開いてから描画が終わるまで数秒かかります（すぐに撮ると空白になります）。

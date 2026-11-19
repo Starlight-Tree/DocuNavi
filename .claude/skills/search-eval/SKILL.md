@@ -13,10 +13,11 @@ description: 検索の評価と、実 API（質問の埋め込み・LLM）を使
 |---|---|---|
 | BM25 の基準線、退行の検知 | `python -m scripts.eval_retrieval --mode bm25 …` | 使わない |
 | 保存済みの埋め込みで 5 構成を測る | `python -m scripts.eval_pipeline run` | 使わない（`evals/results/pipeline_compare.json` を**上書きする**） |
-| ベクトル・ハイブリッドの比較 | `scripts/eval_vector.py` | `embed-queries --apply` だけ |
+| 質問の埋め込みのキャッシュ作り（`evals/cache/`） | `python -m scripts.eval_vector embed-queries` | `--apply` だけ |
 | 検索の構成の比較（5 構成） | `scripts/eval_pipeline.py` | `embed --apply` だけ |
 
-- `eval_answers.py`（回答の評価）・`eval_topk.py`・`eval_search_compare.py` は d693e86 で削除済み。過去の結果は `evals/results/` に残る。
+- `eval_answers.py`（回答の評価）・`eval_topk.py`・`eval_search_compare.py` と、`eval_vector.py` の `plan` `dev` `final`（ベクトル・ハイブリッドの比較）は d693e86 で削除済み。過去の結果は `evals/results/` に残る。ベクトル・ハイブリッドを含む構成の比較は、上の `eval_pipeline.py`。
+- LLM を呼ぶ測定は、検索 → 回答のグラフ全体を流す `evals/golden/runner.py`（と、それを使う `evals/promptfoo/`）。課金で、`GOLDEN_REAL=1` と Vertex AI が要る。実行の前に、質問文・回数・費用を示して承認を得る（条件は `evals/golden/README.md` の冒頭）。
 - 実 API は課金される。**始める前に確認を取る。** 読むだけの調査と、API を使わない道具の実行は確認しなくてよい。
 - 既存の実測（`evals/results/`）で答えが出るなら、新しく測らない。
 
@@ -35,7 +36,7 @@ description: 検索の評価と、実 API（質問の埋め込み・LLM）を使
 - キーは環境変数（`GEMINI_API_KEY`）からだけ読む。`.env` は開かない。値を表示・ログ・コミットしない。
 - 先に `plan` と、`--apply` なしの `embed` で、送る内容と回数を確かめる。API を呼ぶのは `--apply` だけ。
 - SDK の再試行は無効にして、失敗も回数に数える。上限に達したら止めて報告する（上限を黙って上げない）。
-- 429 が出たら、続けずに止める。質問の間に待ち（`--pause-seconds`）を入れるのは、承認を得てから。
+- 429 が出たら、続けずに止める。質問の間に待ちを入れるのは、承認を得てから（以前の `--pause-seconds` は `eval_answers.py` と一緒に d693e86 で削除済み。いまの道具の待ちは、`evals/promptfoo/` の `PROMPTFOO_GOLDEN_PACE_S`）。
 - 結果を見たあとで値を変えない。調整が要るなら、測定に使った質問とは別の質問セットで行う。
 
 ## 4. 報告する

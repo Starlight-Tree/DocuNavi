@@ -48,6 +48,8 @@
 
 ## 実 API と結果ファイル
 
-- 実 API を呼ぶのは、質問の埋め込み（`scripts/eval_vector.py` `scripts/eval_pipeline.py embed --apply`）だけ（回答の評価の `eval_answers.py` は d693e86 で削除済み。LLM を呼ぶ評価を作り直すときも同じ）。始める前に、質問文・回数・概算費用を示して承認を得る。手順は `.claude/skills/search-eval/SKILL.md`。
+- 実 API を呼ぶのは、次の 2 種類（回答の評価の `eval_answers.py` は d693e86 で削除済み。LLM を呼ぶ評価を新しく作るときも同じ）。始める前に、質問文・回数・概算費用を示して承認を得る。手順は `.claude/skills/search-eval/SKILL.md`。
+  - 質問・資料の埋め込み（`scripts/eval_vector.py embed-queries` `scripts/eval_pipeline.py embed` `scripts/eval_graph.py embed`。どれも `--apply` を付けたときだけ。LLM は呼ばない）。
+  - グラフ全体の評価（`evals/golden/runner.py` と、それを使う `evals/promptfoo/`。LLM と埋め込みを呼ぶ。`GOLDEN_REAL=1` と Vertex AI が要る。条件は `evals/golden/README.md` の冒頭）。
 - `results/` の既存の実測ファイルを上書きしない。取り直すときは `--out` で別名にする。記録として残すものがある（README の「ザーハードが .txt だった時代の実測」）。
 - 評価の数字を出したら、質問の数・上位何件・どの構成かを添える。確認していない構成の数字を「実測」と書かない。
