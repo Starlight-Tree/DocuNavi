@@ -1,9 +1,11 @@
-"""資料のベクトル検索（Cloudflare Vectorize + D1）。`search_documents` ツールの検索の実体で、アプリの検索はこれだけ。
+"""資料のベクトル検索（Postgres + pgvector）。`search_documents` ツールの検索の実体で、アプリの検索はこれだけ。
 
-検索の経路は、質問（LLM が渡した検索クエリ）の埋め込みを 1 回作り（`gemini-embedding-2`、768 次元）、Vectorize のベクトルとの
-コサイン類似度が高い順に上位を取る（ベクトルの検索は Vectorize、本文とメタデータは D1。どちらもデータ用 Worker 経由）。DB の `documents`（`status = 'ready'`）の全チャンクが対象で、ローカルの PDF は読まない。
+検索の経路は、質問（LLM が渡した検索クエリ）の埋め込みを 1 回作り（`gemini-embedding-2`、768 次元）、`chunks.embedding` との
+コサイン類似度が高い順に上位を取る（`app/pg.py` の `vectors_query` が pgvector で KNN 検索し、チャンクの本文とメタデータは同じ Postgres から引き直す）。
+DB の `documents`（`status = 'ready'`）の全チャンクが対象で、ローカルの PDF は読まない。
+本番は pg（Postgres + pgvector）。`d1`（データ用 Worker 経由の D1 + Vectorize）は退役済みで、テストの偽 DB（`tests/d1_fakes.py`）のために残る。
 保存側の入力の形・モデル・次元は `app/ingestion/embedding.py` が唯一の定義で、ここはそれに揃える。
-DB は既存の接続（`app/history.py` の `get_pool()`、`app/d1.py` の `D1Pool`）を借りる。読むだけで、書かない。
+DB は既存の接続（`app/history.py` の `get_pool()`。pg なら `app/pg.py` の `PgPool`、d1 なら `app/d1.py` の `D1Pool`）を借りる。読むだけで、書かない。
 
 - **しきい値（`MIN_SIMILARITY`）は粗い下限で、「資料にない」の判断は LLM に任せる。** 類似度では、資料にある話題の質問と
   資料にない質問を分けられない（答えのある質問の 1 位は 0.62〜0.89、資料にない話題だが関連する質問は 0.67〜0.78、無関係な質問は 0.66 以下）。
@@ -38,7 +40,7 @@ EMBED_TIMEOUT_SECONDS = 10.0
 
 _PLACEHOLDER_KEYS = {"", "your_api_key_here"}
 
-# Vectorize が返したチャンク ID を、本文・メタデータに引き直す（範囲・対象・資料の条件は、Vectorize のフィルターに加えてここでも確かめる）
+# ベクトル検索（pg は pgvector の KNN）が返したチャンク ID を、同じ DB から本文・メタデータに引き直す（範囲・対象・資料の条件は、ベクトル検索のフィルターに加えてここでも確かめる）
 _CHUNKS_SQL = (
     "SELECT c.id AS chunk_id, d.id AS document_id, d.source AS source, d.collection AS collection, d.target AS target, d.title AS title, "
     + SUGGESTED_QUESTIONS_SQL
@@ -63,9 +65,9 @@ _VERIFY_SQL = (
 # app/startup_checks.py が、アクセス制御の検査と 1 本の SQL にまとめるときの元（列名は id / source / status / heading / content / has_vector / model / dims / input_hash）
 VERIFY_SQL = _VERIFY_SQL
 
-# Vectorize の $in は 100 件まで。それを超える絞り込みはフィルターに載せず、D1 側の条件だけで絞る
+# d1 の Vectorize は $in が 100 件まで（pg でも同じ値が使われる。pg 側に 100 件の制約は無い）。それを超える絞り込みはフィルターに載せず、`_CHUNKS_SQL` の条件だけで絞る
 _VECTORIZE_IN_LIMIT = 100
-# 絞り込みで落ちる分を見込んで、top_k より多く取る（Vectorize の上限は 100）
+# 絞り込みで落ちる分を見込んで、top_k より多く取る（上限 100 は d1 の Vectorize の上限。pg でも同じ値が使われる）
 _OVERFETCH = 3
 _VECTORIZE_MAX_TOP_K = 100
 
@@ -73,7 +75,10 @@ _VECTORIZE_MAX_TOP_K = 100
 def _vector_filter(
     collection: str | None, allowed: list[str] | None, target: str | None, doc_ids: list[int] | None
 ) -> dict[str, Any]:
-    """Vectorize のメタデータフィルター（collection / target / document_id）。載せられない条件は D1 側で絞る。"""
+    """ベクトル検索（`vectors_query`）に渡す絞り込み（collection / target / document_id）。載せられない条件は `_CHUNKS_SQL` で絞る。
+
+    pg では `app/pg.py` の `_filter_sql` が SQL の WHERE に直す（d1 では Vectorize のメタデータフィルター）。
+    """
     flt: dict[str, Any] = {}
     if collection is not None:
         flt["collection"] = collection

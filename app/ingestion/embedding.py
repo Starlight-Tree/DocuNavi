@@ -3,8 +3,8 @@
 モデルは gemini-embedding-2、768 次元。**保存する資料側と、後で検索の質問から作る側で、モデルと次元を必ず揃える**
 （このファイルの `MODEL` / `DIMENSIONS` / `document_text` / `query_text` が唯一の定義）。このモデルは `task_type` を
 持たないので、用途は本文の前置きで伝える（公式の形: 資料は `title: {見出し} | text: {本文}`、質問は
-`task: search result | query: {質問}`）。距離はコサイン（pgvector の `<=>`）。専用ロールの search_path に
-extensions スキーマは無いので、検索のSQLでは `OPERATOR(extensions.<=>)` とスキーマ付きで書く。
+`task: search result | query: {質問}`）。距離はコサイン（pgvector の `<=>`）。検索の SQL は `app/pg.py` の `_KNN_SQL`
+（`<=>` をスキーマ修飾なしで書く）。本番は pg（Postgres + pgvector）で、`d1`（D1 + Vectorize）は退役済み。テストの偽 DB（`tests/d1_fakes.py`）のために残る。
 
 **複数の本文を 1 回で送るとき、文字列のリストを渡してはいけない。** このモデルは文字列のリストを 1 つのベクトルに
 まとめてしまう（公式の説明）。1 本ずつ `Content` に包んで渡すと、本文ごとのベクトルが返る。件数と次元は毎回検査する。
@@ -271,11 +271,15 @@ def embed_pending(
 
 
 class D1EmbeddingStore:
-    """chunks の埋め込みの記録（モデル・次元・入力ハッシュ）を D1 に、ベクトルそのものを Vectorize に書く。
+    """chunks の埋め込み（ベクトル・モデル・次元・入力ハッシュ）を、渡された同期クライアントで DB に書く（クラス名は D1 時代のまま）。
+
+    本番は pg（`SyncPg`）で、`write_embeddings` が Postgres の `chunks` に、ベクトルと記録を 1 本の UPDATE で書く。
+    `d1` は退役済みで、テストの偽 DB（`tests/d1_fakes.py`）のために残る（`SyncD1`）。記録を D1 に、ベクトルそのものを Vectorize に書く。
 
     作り直しの判定は、送る入力全体のハッシュ（Python 側の `input_hash`）で行うので、全行を読んで比べる（数百〜数千行の想定）。
-    Vectorize のメタデータ（collection / target / document_id）は、ベクトルを書くときの資料の値。資料の分類を後から変えたときは、
+    d1 の Vectorize のメタデータ（collection / target / document_id）は、ベクトルを書くときの資料の値。資料の分類を後から変えたときは、
     その資料のチャンクの `embedding_model` を NULL に戻して再実行する（Vectorize はメタデータだけの更新ができない）。
+    pg は検索のたびに `documents` と JOIN して絞る（`app/pg.py` の `_KNN_SQL`）ので、この再実行は要らない。
     """
 
     def __init__(self, client: Any) -> None:

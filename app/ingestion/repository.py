@@ -1,6 +1,7 @@
 """取り込んだ文書とチャンクの保存先。
 
-`MemoryRepository` はプロセス内（D1_API_URL が無いときの確認用）、`D1Repository` は D1。
+`MemoryRepository` はプロセス内（DB の接続先 `app.history.database_url()` が空のときの確認用）、`D1Repository` は DB（クラス名は D1 時代のまま）。
+本番は pg（`SyncPg` 経由で Postgres + pgvector）。`d1` は退役済みで、テストの偽 DB（`tests/d1_fakes.py`）のために残る。
 チャンクの再利用は `chunk_index` ではなく、文書内の `content_hash` で判定する（段落を 1 つ挿入しても、
 後ろのチャンクが全部「変わった」ことにならない）。
 """
@@ -146,10 +147,11 @@ class MemoryRepository:
 
 
 class D1Repository:
-    """D1（データ用 Worker 経由）に、文書とチャンクを保存する。表は `workers/api/migrations/` が作る。
+    """DB（`SyncPg`、または d1 の `SyncD1`）に、文書とチャンクを保存する。表は `db/migrations/` が作る。
 
-    対話的なトランザクションは HTTP 越しにできないので、読んでから 1 回の `batch`（1 トランザクション）で書く。
-    消えるチャンクのベクトルは Vectorize からも消す（検索の結果に古い行が残らないように）。
+    d1（データ用 Worker 経由の HTTP）では対話的なトランザクションができない。pg でも同じ形にして、読んでから 1 回の `batch`（1 トランザクション）で書く。
+    消えるチャンクのベクトルは `vectors_delete` で消す（検索の結果に古い行が残らないように）。d1 では Vectorize から削除する。
+    pg は行の削除で `chunks.embedding` も消えるので、何もしない。
     """
 
     def __init__(self, client: Any) -> None:

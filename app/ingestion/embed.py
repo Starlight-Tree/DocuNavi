@@ -6,7 +6,8 @@
 対象は、埋め込みが無い（または別のモデル・次元の）チャンクだけ。作り済みの行は再生成しない。途中で失敗しても、
 そこまでの保存は残り、次の実行は続きから始まる。上限は `--max-chunks`（既定 300）と `--max-calls`（既定 10。
 再試行はしないので、API への送信 1 回が 1 回）。`GEMINI_API_KEY` と `DATABASE_URL` を .env から読み、表示しない。
-列は Supabase の migration 20261017184901_pgvector_embeddings.sql で足したもの（`supabase/` は削除済み。Git の履歴）。
+本番は pg（Postgres + pgvector）。`d1` は退役済みで、テストの偽 DB（`tests/d1_fakes.py`）のために残る。
+列（`chunks.embedding` と、モデル・次元・入力ハッシュの記録）は `db/migrations/0001_schema.sql` が作る。
 
 終了コード: 0 = 完了（確認だけ、または全て保存）、1 = DB・埋め込みの失敗（一部は保存済みのことがある）、2 = 使い方の誤り。
 """

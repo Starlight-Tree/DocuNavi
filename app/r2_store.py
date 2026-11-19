@@ -46,7 +46,7 @@ _AUTH_CODES = {
     "403",
 }
 _CRED_KEYS = ("access_key_id", "secret_access_key")
-# 資料群ではないプレフィックス。ヒーロー画像（D1 の document_images.r2_key）が同じバケットの hero/ に入る
+# 資料群ではないプレフィックス。ヒーロー画像（DB の document_images.r2_key）が同じバケットの hero/ に入る
 NON_COLLECTION_PREFIXES = frozenset({"hero"})
 
 
@@ -282,7 +282,7 @@ def verify_originals(documents: Sequence[Mapping[str, Any]], find: Any) -> tuple
 
 
 def _ready_documents() -> list[dict[str, Any]]:
-    """DB の `status = 'ready'` の資料（id・source・content_hash）。接続は D1_API_URL / D1_API_TOKEN（アプリと同じ）。"""
+    """DB の `status = 'ready'` の資料（id・source・content_hash）。接続は `DB_BACKEND` に従う（アプリと同じ。本番は pg の `DATABASE_URL`。d1 は退役済みで、テストの偽 DB 用）。"""
     from app.d1 import SyncD1
     from app.pg import sync_client
 

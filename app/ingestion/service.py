@@ -35,7 +35,7 @@ class DocumentReport:
     )
 
 
-# 資料群の名前の形。DB の制約（workers/api/migrations/0001_schema.sql）と同じ
+# 資料群の名前の形。DB の制約（db/migrations/0001_schema.sql）と同じ
 COLLECTION_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,40}")
 
 
