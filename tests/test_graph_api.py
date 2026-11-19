@@ -48,7 +48,7 @@ def test_graph_has_chapters_articles_paragraphs_and_the_footnote(client, use_poo
     assert res.status_code == 200
     body = res.json()
     assert body["document"]["id"] == 1 and body["document"]["source"] == "tsubasa_dorm_rules.pdf"
-    assert body["title"] == "つばさ大学学生寮 入寮規程"
+    assert body["title"] == "大学学生寮 入寮規程"
     assert Counter(n["type"] for n in body["nodes"]) == {"chapter": 5, "article": 29, "paragraph": 50, "footnote": 1}
     ids = [n["id"] for n in body["nodes"]]
     assert len(ids) == len(set(ids))

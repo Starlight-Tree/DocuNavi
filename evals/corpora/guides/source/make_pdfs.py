@@ -357,12 +357,12 @@ def main() -> None:
     build_single(
         HERE / "tsubasa_dorm_rules.md",
         args.out_dir / "tsubasa_dorm_rules.pdf",
-        header="つばさ大学 学生寮 入寮規程",
+        header="大学 学生寮 入寮規程",
         size=11.5,
         leading=21,
         cell=10,
         front_matter=True,
-        publisher="つばさ大学 学生支援課",
+        publisher="学生支援課",
     )
     for directory, name in (
         (args.out_dir, "aoba_aw820_manual"),
