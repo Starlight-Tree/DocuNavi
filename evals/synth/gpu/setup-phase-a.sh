@@ -8,6 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../../.."
 
 PROJECT="${PROJECT:-docunavi-synth-$(date +%y%m%d)}"
+FOLDER="${FOLDER:-204792167834}"   # 組織 dev-cloud のフォルダー DocuNavi。組織の外にプロジェクトを作らない（2026-11-20）
 REGION=asia-southeast1
 BUCKET="$PROJECT-synth"
 REPO=synth
@@ -35,7 +36,7 @@ echo "プロジェクト: $PROJECT / 請求先: $BILLING / リージョン: $REG
 
 # 各段階は、あれば飛ばす（失敗した所から、同じコマンドで再開できる）
 if gcloud projects describe "$PROJECT" >/dev/null 2>&1; then echo "[skip] プロジェクト $PROJECT は存在する"
-else gcloud projects create "$PROJECT" --name="docunavi synth"; fi
+else gcloud projects create "$PROJECT" --name="docunavi synth" --folder="$FOLDER"; fi
 
 LINKED=$(gcloud billing projects describe "$PROJECT" --format='value(billingAccountName)' 2>/dev/null || true)
 if [ "$LINKED" = "billingAccounts/$BILLING" ]; then echo "[skip] 請求先は紐付け済み"
