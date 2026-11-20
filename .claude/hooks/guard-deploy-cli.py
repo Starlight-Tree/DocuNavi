@@ -60,6 +60,10 @@ SECRET_DUMPERS = {
 }  # fmt: skip
 INLINE_CODE_FLAGS = {"-c", "-e", "-E", "-p", "-r", "--eval", "--print", "-"}
 INTERPRETERS = re.compile(r"(python[0-9.]*|node|nodejs|ruby|perl|php|deno|bun|tsx)")
+# 他のコマンドを包んで実行する語（`time env` のように、中身を調べずに通さない）
+WRAPPERS = {"time", "nice", "nohup", "timeout", "stdbuf", "command", "builtin", "exec", "sudo", "setsid", "ionice", "caffeinate"}
+# docker の操作のうち、秘密の入った環境の値を表示しうるもの（`docker compose up -d` は通す）
+DOCKER_EXPOSING = {("config",), ("exec",), ("run",), ("inspect",), ("compose", "config"), ("compose", "exec"), ("compose", "run")}
 PRISMA_ASK = [
     ("migrate", "deploy"),
     ("migrate", "reset"),
@@ -177,6 +181,14 @@ def secret_exposure(inner: list[str], depth: int = 0) -> str | None:
         args = inner[1:]
         if not args or any(a in INLINE_CODE_FLAGS for a in args[:2]):
             return f"{name}（インラインのコード）"
+    if name in WRAPPERS and depth < 3:
+        rest = [a for a in inner[1:] if not a.startswith("-") and not a.isdigit()]  # timeout 5 / nice -n 10 の数値と、オプションを飛ばす
+        return secret_exposure(rest, depth + 1) if rest else f"{name}（実行するコマンドが判別できない）"
+    if name == "docker":
+        words = [a for a in inner[1:] if not a.startswith("-")]
+        for n in (2, 1):
+            if tuple(words[:n]) in DOCKER_EXPOSING:
+                return "docker " + " ".join(words[:n])
     if name in SHELLS:
         if "-c" in inner and depth < 3:
             idx = inner.index("-c")
