@@ -590,7 +590,7 @@ describe('チャット UI: ストリーミング', () => {
     stream.push({ type: 'text-start', id: 't0' });
     stream.push({ type: 'text-delta', id: 't0', delta: 'あ' });
     await within(log).findByText('あ');
-    expect(log.scrollTop).toBe(1000); // 末尾にいる間は、新しい本文に合わせて末尾へ
+    await waitFor(() => expect(log.scrollTop).toBe(1000)); // 末尾にいる間は、新しい本文に合わせて末尾へ（effect の後で追従するので待つ）
 
     // 上へ遡って読んでいる（末尾から 500px 離れた）間は、本文が増えても動かさない
     log.scrollTop = 100;
@@ -604,7 +604,7 @@ describe('チャット UI: ストリーミング', () => {
     fireEvent.scroll(log);
     stream.push({ type: 'text-delta', id: 't0', delta: 'う' });
     await within(log).findByText('あいう');
-    expect(log.scrollTop).toBe(1000);
+    await waitFor(() => expect(log.scrollTop).toBe(1000));
 
     stream.push({ type: 'text-end', id: 't0' });
     stream.push({ type: 'finish' });
