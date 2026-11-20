@@ -16,14 +16,18 @@
 - **Cloudflare のプランは Free。** 利用者の回答（2026-11-21）と、ダッシュボードの Workers plans（「Current plan」が Free。CPU は 10 ms / リクエスト、リクエストは 10 万 / 日。2026-11-21 に読み取り。証拠等級 A）。サブリクエストは 50 本。Hyperdrive は 1 日 10 万問い合わせ（Free の枠。要再確認）。
 - **`docunavi-api` の実績（2026-11-21 に、ダッシュボードの Metrics を読み取り。直近 30 日・全バージョン合算。証拠等級 A だが、下の限界がある）**
   - 呼び出し 6.91k（うち 1 バージョンが約 6k）、エラー 0、「Exceeded CPU Time Limits」0、サブリクエスト 180（宛先は `oauth2.googleapis.com` だけ。2xx が 11、4xx が 12）。
-  - CPU 時間の P50 16.75・P90 41.99・P99 47.17・P999 54.91（**単位の表示が無い。ミリ秒と見られるが、未確認**）。壁時間の P50 160・P99 457（同）。メモリは P50 13.3 MB・P99 17.4 MB。カードの「CPU Time」は平均 854 µs で、上の P50 と合わない。
-  - **この数字から、Free の CPU 10 ms に収まるかは言えない。** 限界: (1) 17 の版と 64 の版の配備のころに集中した、試験とみられる呼び出しが大半（利用者の通常の `/token` の使い方ではない）。(2) 現在の版 `d7a56ac9` は、直近 24 時間の呼び出しが 0（本番は [0012](0012-accept-prisma-free-limit-and-cut-operations.md) の上限で止まっている）。(3) 単位が不明で、P50 がミリ秒なら 10 ms を超えるのに「Exceeded CPU Time Limits」が 0 という、つじつまの合わない点がある。(4) Hyperdrive の問い合わせは、サブリクエストに出ない。
-  - **やること:** Observability の Logs / Traces で、`/api/auth/token`（セッションの SELECT＋ES256 の署名）1 回あたりの CPU を、単位つきで読む。それまで、案 A の API 呼び出しごとの `/token` 方式を、確定しない。
+  - CPU 時間の P50 16.75・P90 41.99・P99 47.17・P999 54.91（単位の表示は無い。下の Logs の `cpuTimeMs` と整合し、ミリ秒と見られる）。壁時間の P50 160・P99 457（同）。メモリは P50 13.3 MB・P99 17.4 MB。カードの「CPU Time」は平均 854 µs で、上の P50 と合わない。
+  - **この数字から、Free の CPU 10 ms に収まるかは言えない。** 限界: (1) 17 の版と 64 の版の配備のころに集中した、試験とみられる呼び出しが大半（利用者の通常の `/token` の使い方ではない）。(2) 現在の版 `d7a56ac9` は、直近 24 時間の呼び出しが 0（本番は [0012](0012-accept-prisma-free-limit-and-cut-operations.md) の上限で止まっている）。(3) P50 がミリ秒なら Free の 10 ms を超えるのに、「Exceeded CPU Time Limits」が 0 という、つじつまの合わない点がある（理由は未確認）。(4) Hyperdrive の問い合わせは、サブリクエストに出ない。
+- **`/api/auth/token` 1 回あたりの CPU（2026-11-21 に、Observability の Logs から読み取り。直近 7 日。`$workers.cpuTimeMs`。単位はミリ秒。証拠等級 A）**
+  - 47 件（2026-11-14〜17 の試験とみられる呼び出し。エラー 0）。**中央値 17 ms・P90 77 ms・P99 126 ms・最大 126 ms。** 最新の 1 件は 8 ms。
+  - **中央値でも Free の 10 ms を超えている。** それでも「Exceeded CPU Time Limits」とエラーは 0 だった。Free の 10 ms を、この Worker がどう扱われているかは**未確認**（制限の掛かり方か、当時のプランが違ったか。確かめていない）。上の Metrics の P50 16.75 ms は、これと整合する（単位はミリ秒）。
+  - 限界: 件数が少ない。コールドスタート（初回の読み込み）と、サインインの直後の呼び出しを含む。ログに `Could not validate the database schema` のエラーが 2026-11-17〜18 にあり、そのあとの呼び出しは無い（[0012](0012-accept-prisma-free-limit-and-cut-operations.md) の上限）。通常の使い方の分布ではない。
+  - **読み取れること:** `/token` は、1 回が重い（ES256 の署名とセッションの SELECT）。**API 呼び出しのたびに `/token` を呼ぶ設計は、Free では成り立たない見込みが強い。** 案 A は、15 分のトークンを画面の Worker 側で**キャッシュして、使い回す**設計が前提になる（セッションごとに 15 分に 1 回）。それでも、1 回の 77〜126 ms が Free で許されるかは、実測が要る。**Workers Paid（月 $5 と従量。CPU は 1 リクエスト最大 5 分）への切り替えも、選択肢に入れる**（利用者が決める。この ADR は決めない）。
 
 ## 案
 | 案 | 中身 | 評価 |
 |---|---|---|
-| A: 薄い BFF | 認証（Better Auth・鍵・JWKS・`iss`）は `docunavi-api` に残す。画面の Worker は、Cookie を受けて、API 呼び出しに Bearer を付けて流すだけにする | **推奨。利用者が方向を承認（2026-11-21）。設計の確定は、`/token` の CPU の再計測のあと。** 鍵と `iss` を動かさない。画面側の CPU は小さい。ただし API 呼び出しのたびに `/token`（セッションの SELECT＋ES256 の署名）を呼ぶ設計だと、`docunavi-api` の CPU・サブリクエスト・Hyperdrive の枠に響く。15 分のトークンのキャッシュ設計が要る |
+| A: 薄い BFF | 認証（Better Auth・鍵・JWKS・`iss`）は `docunavi-api` に残す。画面の Worker は、Cookie を受けて、API 呼び出しに Bearer を付けて流すだけにする | **推奨。利用者が方向を承認（2026-11-21）。設計の確定は、トークンのキャッシュの設計と、Free か Paid かの判断のあと。** 鍵と `iss` を動かさない。画面側の CPU は小さい。ただし API 呼び出しのたびに `/token`（セッションの SELECT＋ES256 の署名）を呼ぶ設計だと、`docunavi-api` の CPU・サブリクエスト・Hyperdrive の枠に響く。15 分のトークンのキャッシュ設計が要る |
 | B: SSE も BFF 経由 | `/chat/stream` も画面の Worker を通す | **今は見送る。** 切断の伝播（OpenNext 越し）・Free の CPU 10 ms・中継のレート制限のキー（いまは IP だけ）が、未計測。計測してから再検討する。それまで、`/chat/stream` は 60 秒のチケットで Go の中継へ直結する |
 | C: Better Auth を Next.js の中へ | JobNavi と同じ形 | **やらない。** Next＋Better Auth＋ES256 を 1 リクエストで動かすと、Free の CPU に最も危ない。鍵・`iss` の移行も要る |
 
@@ -39,10 +43,12 @@
 **未決（利用者の判断が要る）**
 - SSE の経路: いまの方針は、チケットで Go の中継へ直結（案 A のまま）。画面の Worker を通すか（案 B）は、計測してから。
 - チケットの渡し方の詳細（URL のクエリを使わない場合、何で渡すか。外部の回答の「Cookie で渡す」は意味が曖昧で、確認していない）。
-- API 呼び出しごとの `/token` を、15 分のトークンのキャッシュでどう減らすか（CPU の再計測のあとに設計する）。
+- API 呼び出しごとの `/token` を、15 分のトークンのキャッシュでどう減らすか（`/token` の CPU は計測済み。下の「実装の前に要ること」）。
 
 **実装の前に要ること**
-- ~~Workers Observability で `docunavi-api` の CPU 実績を読む~~ → **Metrics は 2026-11-21 に読んだが、決め手にならなかった**（制約の節）。残り: Logs / Traces で `/api/auth/token` 1 回の CPU を、単位つきで読む（読み取り。利用者のダッシュボード）。
+- ~~Workers Observability で `docunavi-api` の CPU 実績を読む~~ → **読んだ（2026-11-21。制約の節）。** `/token` は 1 回が中央値 17 ms・P90 77 ms と重い。
+- **利用者の判断:** Free のまま、15 分のトークンのキャッシュで `/token` の回数を減らす設計にするか、Workers Paid に切り替えるか。
+- 案 A のトークンのキャッシュの設計（どこに持つか。Worker のメモリは、リクエスト間で保証されない。KV・暗号化した Cookie などの候補は、これから調べる。未調査）。
 - 案Aの Cookie 認証の汎用中継は、0013 が CSRF で退けた形に近い。`Origin`・`Sec-Fetch-Site` の検査を設計に入れる（0013 の中継は、`Sec-Fetch-Site: cross-site` を 403 で断っている）。
 - `frontend/CLAUDE.md` の SPA 規則（Server Components などを足さない）を、どこまで改めるかを書く。
 
@@ -55,5 +61,5 @@
 
 ## 出典
 - 調査: 2026-11-21 の会話（実行環境の調査 Workflow とその批評。原文の確認が済んでいない要約を含む）
-- 実績: 2026-11-21 の Cloudflare ダッシュボード（Workers & Pages の `docunavi-api` の Metrics。直近 30 日。Workers plans）。読み取りだけ。
+- 実績: 2026-11-21 の Cloudflare ダッシュボード（Workers & Pages の `docunavi-api` の Metrics〔直近 30 日〕、Observability の Logs〔直近 7 日。`/api/auth/token` の `$workers.cpuTimeMs` の集計〕、Workers plans）。読み取りだけ。
 - 文書: [0005](0005-go-sse-relay-without-prod-limit.md)、[0012](0012-accept-prisma-free-limit-and-cut-operations.md)、[0013](0013-pdf-via-same-origin-relay.md)、`frontend/CLAUDE.md`
