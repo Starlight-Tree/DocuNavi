@@ -8,7 +8,7 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 - LiteLLM gateway is removed and no longer used. LiteLLM Proxy・Bifrost・claude-code-router は採用しない。LLM の遅延・失敗への対処は `app/agents/resilience.py`
 - Gemini CLI is not part of the docunavi runtime. 開発コンテナにも入れない（`devcontainer.json` の `postCreateCommand`・`docker-compose.yml` の `.gemini` ボリューム・`GOOGLE_CLOUD_*` / `GEMINI_MODEL` を戻さない）
 - Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は、`devcontainer.json` の `extensions` に足さない。GCP の操作は原則 gcloud CLI（ガードは CLAUDE.md の「gcloud・gh・MCP のガード」の節）
-- 画像生成の Cloud Run Job は星庭ジョブ（`HoshiniwaJob`）のリポジトリで管理する。`job/` をこのリポジトリに置かない
+- 画像生成の Cloud Run Job はJobNavi（旧称: 星庭ジョブ）のリポジトリで管理する。`job/` をこのリポジトリに置かない
 
 ## 実 API の経路（2026-11-09 に決め、2026-11-15 に無料キーだけへ改めた）
 
