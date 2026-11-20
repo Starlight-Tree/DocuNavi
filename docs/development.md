@@ -167,7 +167,7 @@ LangGraph の会話・グラフ・state・ツール呼び出し・レイテン�
 - **LiteLLM gateway is removed and no longer used.** LiteLLM Proxy・Bifrost・claude-code-router は採用しません。LLM の遅延・失敗への対処は、アプリの内側（`app/agents/resilience.py`）にあります。
 - **Gemini CLI is not part of the docunavi runtime.** 開発コンテナにも入れません。開発時の AI 支援は Claude Code（VS Code 拡張）です。
 - **GCP の操作は、原則 gcloud CLI で行います。** Cloud Code・Gemini Code Assist・Data Agent Kit・Jupyter 系の VS Code 拡張は導入しません。ガードの手順は [.devcontainer/README.md](../.devcontainer/README.md)。
-- **画像生成の Cloud Run Job は、星庭ジョブ（`HoshiniwaJob`）のリポジトリで管理します。** このリポジトリに `job/` は置かず、星庭ジョブのフォルダーも、この開発コンテナには載せません（権限と資格情報をプロジェクトごとに分けるため。[access-separation.md](access-separation.md)）。星庭ジョブの変更は、星庭ジョブの開発コンテナで行います。
+- **画像生成の Cloud Run Job は、JobNavi（旧称: 星庭ジョブ）のリポジトリで管理します。** このリポジトリに `job/` は置かず、JobNavi のフォルダーも、この開発コンテナには載せません（権限と資格情報をプロジェクトごとに分けるため。[access-separation.md](access-separation.md)）。星庭ジョブの変更は、星庭ジョブの開発コンテナで行います。
 
 ## Docker Compose での起動（補助）
 

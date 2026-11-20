@@ -7,7 +7,7 @@
 - **本物の LLM のデプロイに要るもの:** `DB_BACKEND=pg` と `DATABASE_URL`（C）、`GEMINI_API_KEY`（B。LLM はキーで呼ぶ）。埋め込み（取り込みと質問）は、`EMBEDDING_USE_VERTEXAI=true` なら Vertex AI（ADC）で呼び、その場合は埋め込みにキーは要らない（[configuration.md](configuration.md) の「埋め込みを Vertex AI で呼ぶ」）。
   **本番の Cloud Run サービスと取り込み Job 2 本（`docunavi-ingest-sync` `docunavi-ingest-queue`）は、`EMBEDDING_USE_VERTEXAI=true` です**（2026-11-20 に gcloud の読み取りで確認、証拠等級 A。確認できたのは設定だけで、切り替えた日付と、実際の呼び出しが Vertex AI で通っているかは未確認）。
   一方、本番の Cloud Run サービスには `GOOGLE_GENAI_USE_VERTEXAI` の設定が無く（2026-10-31 に確認。2026-11-20 に、配信中のリビジョン `docunavi-00091-juj` で再確認）、LLM は B（キー）の経路です。
-- **方針:** GCP の操作は原則 gcloud CLI で行います（Cloud Code など GCP 用の VS Code 拡張は入れない）。画像生成の Cloud Run Job は星庭ジョブ（`HoshiniwaJob`）のリポジトリで管理し、このリポジトリには置きません。
+- **方針:** GCP の操作は原則 gcloud CLI で行います（Cloud Code など GCP 用の VS Code 拡張は入れない）。画像生成の Cloud Run Job はJobNavi（旧称: 星庭ジョブ）のリポジトリで管理し、このリポジトリには置きません。
 
 ## 誰の権限で実行するか
 
