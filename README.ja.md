@@ -14,9 +14,9 @@
 ## 特徴
 
 - **出典つきの回答。** 回答の下の「N 件のソース」から、根拠の資料とページを開けます。回答に使う資料を選べます。
-- **測定した検索。** レイアウトを使ったチャンク分割、ハイブリッド検索（BM25 + pgvector）、リランク、GraphRAG。構成ごとの効果は `evals/` で測っています（[docs/search-design.md](docs/search-design.md)）。
+- **測定した検索。** レイアウトを考慮したチャンク分割、ハイブリッド検索（BM25 + pgvector）、リランク、GraphRAG。構成ごとの効果は `evals/` で測っています（[docs/search-design.md](docs/search-design.md)）。
 - **ガードレール。** 入力と回答を検査し、ストリーミング中の漏洩も止めます。ルールベースで、プロンプトインジェクションを完全には防ぎません（[docs/guardrails.md](docs/guardrails.md)）。
-- **LLM の不安定さへの対処。** ヘッジ、別モデルへのフォールバック、無料枠が尽きたときの有料キーへの切り替え（[docs/configuration.md](docs/configuration.md)）。
+- **LLM の不安定さへの対処。** ヘッジ（遅いときに同じ要求を重ねて送る）、別モデルへのフォールバック、無料枠が尽きたときの有料キーへの切り替え（[docs/configuration.md](docs/configuration.md)）。
 - **ロール別のアクセス制御とログイン。** 見える資料グループはロールで決まり、権限はサーバーが決めます。Better Auth（Google）の JWT を検証します。
 
 ## アーキテクチャ
@@ -54,7 +54,7 @@ flowchart LR
 
 チャット（SSE を含む）は、ブラウザーから API へ直接つなぎます（Go の中継は通しません）。
 
-## Quick start
+## クイックスタート
 
 取り込んだ資料を Postgres（pgvector）で検索し、Gemini で回答します。環境変数 `DB_BACKEND=pg`、`DATABASE_URL`、`GEMINI_API_KEY` を読みます。設定の詳細は [docs/development.md](docs/development.md)、[docs/configuration.md](docs/configuration.md)。
 
