@@ -21,6 +21,8 @@ LiteLLM・Gemini CLI を使った構成の整理を受けて決めた。
 - ブラウザーでの確認・実験は、ユーザーが `Claude` プロファイルで開いてある接続済みの Chrome（`mcp__claude-in-chrome__*`）で行う。接続が無いときは、起動せずにユーザーへ頼む（Chrome の起動・終了はユーザーの作業）
 - 別プロファイル・別ポートの Chrome（`--user-data-dir`、`--remote-debugging-port`、実行ファイルの直接起動）を、毎回新しく作らない。ホストの `~/.claude/settings.json` の PreToolUse フック（Bash）が止める（2026-11-19 に、`--remote-debugging-pipe` と `open -a` での起動も止めるよう広げた）
 - 接続先のブラウザーを切り替えない（`select_browser` `switch_browser`。ホストの `permissions.deny` に入れた）。接続は、Claude プロファイルに入れた拡張の 1 台だけ。複数台が見えたら、選ばずにユーザーへ伝える
+- **画面を見る・撮る依頼は、ユーザーに操作を頼む前に、まず接続を確かめる**（2026-11-22 に追記）。`ToolSearch` で `mcp__claude-in-chrome__*` を読み込み、`tabs_context_mcp` → `navigate` → `screenshot` を自分で試す。接続は「無い」と決めつけない（ユーザーに頼むのは、試して届かなかったあと）。ユーザーの Chrome は `localhost:3000` にログイン済みのことが多く、**Cookie を手で入れる手順（`dev-local.sh cookie`・DevTools）は、実際に履歴・資料一覧が出なかったときだけ**。画面が空・応答なしなら、先に `dev-local.sh status` でコンテナ内の画面が止まっていないかを見る（止まっていると OrbStack の転送で `ERR_EMPTY_RESPONSE` になる。起動は vscode ユーザーで `docker exec -u vscode docunavi-devcontainer … scripts/dev-local.sh start`）
+- **README 用の 1280×800 の撮り方**（窓の幅を変えられないので、iframe で再現する。2026-11-22 に実際に動いた方法）: `javascript_tool` で body を空にし、`position:fixed;left:0;top:0;width:1280px;height:800px;border:0` の iframe（`src=/?tab=documents`、同一オリジン）を入れる。ダークは `iframe.contentDocument.documentElement.setAttribute('data-theme','dark')`。`innerWidth`・`devicePixelRatio` と screenshot の座標系の比（例: 画面 1710 CSS px に対し座標系 1495）を出して、`computer` の `zoom`（`save_to_disk: true`）の region を iframe の大きさ（CSS px × 比）に合わせ、カーソルは region の外（`hover`）に退ける。保存された PNG は `sips -z 800 1280` で 1280×800 にそろえる。置き先は、見てもらってから `docs/images/`
 
 ## 再ビルドの可能性・ツールの入れ場所
 
