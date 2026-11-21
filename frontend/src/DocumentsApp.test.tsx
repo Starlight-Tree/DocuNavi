@@ -1017,7 +1017,7 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(select('対象')).toHaveAttribute('data-value', '');
     expect(select('種類')).toHaveAttribute('data-value', '');
     expect(queryFacetButton('並び替え')).toBeNull();
-    for (const name of ['資料名', 'ページ数', '更新日時']) expect(screen.getByRole('columnheader', { name })).not.toHaveAttribute('aria-sort');
+    for (const name of ['資料名', 'ページ数', '取り込み日']) expect(screen.getByRole('columnheader', { name })).not.toHaveAttribute('aria-sort');
     expect(screen.queryByRole('button', { name: /^フィルター/ })).not.toBeInTheDocument();
     for (const name of ['状態', 'ページ数', '更新']) expect(queryFacetButton(name)).not.toBeInTheDocument();
     expect(result()).toHaveTextContent('全5件');
@@ -1088,22 +1088,22 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
     expect(header('資料名')).not.toHaveAttribute('aria-sort');
     expect(screen.queryByRole('combobox', { name: '並び替え' })).not.toBeInTheDocument();
 
-    await user.click(within(header('更新日時')).getByRole('button'));
-    expect(header('更新日時')).toHaveAttribute('aria-sort', 'descending');
+    await user.click(within(header('取り込み日')).getByRole('button'));
+    expect(header('取り込み日')).toHaveAttribute('aria-sort', 'descending');
     expect(files()).toEqual(['ザーハード2.pdf', 'ザーハード1.pdf', 'cafe_store_guide.pdf', 'つばさ大学学生寮 入寮規程', 'aoba_aw820_manual.pdf']);
     expect(window.location.search).toBe('?tab=documents&sort=updated');
     // 並び替えでは件数も絞り込みの有無も変わらない
     expect(result()).toHaveTextContent('全5件');
     expect(screen.queryByRole('button', { name: '条件をクリア' })).not.toBeInTheDocument();
 
-    await user.click(within(header('更新日時')).getByRole('button'));
-    expect(header('更新日時')).toHaveAttribute('aria-sort', 'ascending');
+    await user.click(within(header('取り込み日')).getByRole('button'));
+    expect(header('取り込み日')).toHaveAttribute('aria-sort', 'ascending');
     expect(window.location.search).toBe('?tab=documents&sort=updated_asc');
 
     // 別の列を押すと、その列の最初の向き（ページ数は多い順）。前の列の印は消える
     await user.click(within(header('ページ数')).getByRole('button'));
     expect(header('ページ数')).toHaveAttribute('aria-sort', 'descending');
-    expect(header('更新日時')).not.toHaveAttribute('aria-sort');
+    expect(header('取り込み日')).not.toHaveAttribute('aria-sort');
     expect(files().slice(0, 3)).toEqual(['aoba_aw820_manual.pdf', 'cafe_store_guide.pdf', 'つばさ大学学生寮 入寮規程']);
 
     await user.click(within(header('ページ数')).getByRole('button'));
@@ -1166,12 +1166,12 @@ describe('資料一覧: 検索・絞り込み・並び替え', () => {
 
     const chips = within(screen.getByRole('list', { name: '有効な条件' })).getAllByRole('listitem');
     expect(chips.map((c) => c.textContent)).toEqual(['対象：ザーハード×', '種類：設定資料×']);
-    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '種類', 'ページ数', '更新日時']); // 先頭は回答に使う資料のチェック列
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '種類', 'ページ数', '取り込み日']); // 先頭は回答に使う資料のチェック列
 
     await user.click(screen.getByRole('button', { name: '対象：ザーハード を外す' }));
 
     expect(window.location.search).toBe('?tab=documents&type=setting');
-    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '対象', '種類', 'ページ数', '更新日時']);
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['', '資料名', '対象', '種類', 'ページ数', '取り込み日']);
     expect(within(screen.getByRole('list', { name: '有効な条件' })).getAllByRole('listitem')).toHaveLength(1);
   });
 
@@ -1228,13 +1228,13 @@ describe('資料一覧: ヒーローは出さず、最近更新した資料は�
     expect(calls.map((c) => c.url).filter((url) => url.includes('/hero'))).toEqual([]);
   });
 
-  it('更新の新しい順は、列名「更新日時」を押して探せる。更新日が無い資料は最後', async () => {
+  it('更新の新しい順は、列名「取り込み日」を押して探せる。更新日が無い資料は最後', async () => {
     installDocsFetch(() => jsonResponse(LIST_3));
     const { user } = setup();
     await openDocuments(user);
     await screen.findByRole('row', { name: /a\.pdf/ });
 
-    await user.click(within(screen.getByRole('columnheader', { name: '更新日時' })).getByRole('button'));
+    await user.click(within(screen.getByRole('columnheader', { name: '取り込み日' })).getByRole('button'));
 
     const files = screen.getAllByRole('row').slice(1).map((row) => row.querySelector('.document-name')?.textContent);
     expect(files).toEqual(['B 店の案内', 'a.pdf', 'c.pdf']);
@@ -1255,14 +1255,14 @@ describe('資料一覧: テーブル', () => {
     docTypes: () => jsonResponse({ configured: true, doc_types: [{ name: 'regulation', label: '規程', description: '', sort_order: 1, document_count: 1, ready_count: 1 }] }),
   };
 
-  it('列は、API にある情報だけ（資料名・対象・資料種別・状態・ページ数・更新日時）。チャンク数の列や、API に無い追加日時・サイズは作らない', async () => {
+  it('列は、API にある情報だけ（資料名・対象・資料種別・状態・ページ数・取り込み日）。チャンク数の列や、API に無い追加日時・サイズは作らない', async () => {
     installDocsFetch(() => jsonResponse(TABLE_LIST), undefined, classifications);
     const { user } = setup();
     await openDocuments(user);
     await screen.findByRole('row', { name: /A の資料/ });
 
     const head = screen.getAllByRole('columnheader').map((th) => th.textContent);
-    expect(head).toEqual(['', '資料名', '対象', '種類', 'ページ数', '更新日時']);
+    expect(head).toEqual(['', '資料名', '対象', '種類', 'ページ数', '取り込み日']);
 
     const row = screen.getByRole('row', { name: /A の資料/ });
     const cells = within(row).getAllByRole('cell');
@@ -1272,13 +1272,13 @@ describe('資料一覧: テーブル', () => {
     expect(within(row).queryByText('取り込み済み')).not.toBeInTheDocument();
   });
 
-  it('更新日時やページ数の記録が無い資料は、欠けていることが分かる表示にする（日時を作らない）。失敗の理由は状態の下に出す', async () => {
+  it('取り込み日やページ数の記録が無い資料は、欠けていることが分かる表示にする（日時を作らない）。失敗の理由は状態の下に出す', async () => {
     installDocsFetch(() => jsonResponse(TABLE_LIST), undefined, classifications);
     const { user } = setup();
     await openDocuments(user);
     const row = await screen.findByRole('row', { name: /b\.pdf/ });
 
-    expect(within(row).getByText('記録なし')).toHaveAttribute('title', 'この資料には、更新日時の記録がありません');
+    expect(within(row).getByText('記録なし')).toHaveAttribute('title', 'この資料には、取り込み日の記録がありません');
     expect(within(row).getByText('—')).toHaveAttribute('title', 'ページ数の記録がありません');
     expect(within(row).getAllByText('未分類')).toHaveLength(2);
     expect(within(row).getByText('取り込み失敗')).toBeInTheDocument();

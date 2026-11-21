@@ -107,7 +107,7 @@ test('資料一覧の対象の選択は一覧を絞るだけ。資料ごとの�
   // ヒーローと大きなグループカードは出さない。一覧はテーブル。操作は 検索・対象・資料種別 だけ（並び替えは列名を押す）（先頭の列は回答に使う資料のチェック）
   await expect(page.getByRole('region', { name: '最近更新された資料' })).toHaveCount(0);
   await expect(page.getByRole('group', { name: /資料グループ/ })).toHaveCount(0);
-  await expect(page.getByRole('columnheader')).toHaveText(['', '資料名', '対象', '種類', 'ページ数', '更新日時']);
+  await expect(page.getByRole('columnheader')).toHaveText(['', '資料名', '対象', '種類', 'ページ数', '取り込み日']);
   await expect(facet(page, '種類')).toBeVisible();
   await expect(facet(page, '並び替え')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^フィルター/ })).toHaveCount(0);
@@ -125,7 +125,7 @@ test('資料一覧の対象の選択は一覧を絞るだけ。資料ごとの�
   await chooseFacet(page, '対象', 'minato-coffee');
   await expect(page).toHaveURL(/target=minato-coffee/);
   await expect(page.getByRole('row')).toHaveCount(2); // 見出し + みなとコーヒーの 1 件
-  await expect(page.getByRole('columnheader')).toHaveText(['', '資料名', '種類', 'ページ数', '更新日時']);
+  await expect(page.getByRole('columnheader')).toHaveText(['', '資料名', '種類', 'ページ数', '取り込み日']);
   await expect(summary).toHaveText('検索結果 1件');
   await page.getByRole('checkbox', { name: 'このページの 1 件を全選択・解除' }).uncheck();
   await expect(summary).toHaveText('検索結果 1件 · 6件選択中');

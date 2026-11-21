@@ -223,7 +223,7 @@ interface DocumentRowsProps {
 }
 
 /**
- * 資料のテーブル。列は、API が返す情報だけ（資料名・対象・資料種別・ページ数・更新日時）。資料名を押すと、右のパネルに詳細を開く。
+ * 資料のテーブル。列は、API が返す情報だけ（資料名・対象・資料種別・ページ数・取り込み日）。資料名を押すと、右のパネルに詳細を開く。
  * 取り込み済みの印は出さず、取り込み中・失敗だけを資料名の横に出す。ファイル名は、同じ題名の資料を見分けるときだけ出す（ふだんは詳細のパネルで見る）。
  */
 /** 並び替えができる列名。押すと「最初の向き → 逆向き → 既定」。並べている列だけ矢印を出す（`aria-sort` も付ける）。 */
@@ -285,7 +285,7 @@ function DocumentRows({ documents, sort, onSort, showTarget, openId, onOpen, sel
             ページ数
           </SortableHeader>
           <SortableHeader column="updated" sort={sort} onSort={onSort}>
-            更新日時
+            取り込み日
           </SortableHeader>
         </tr>
       </thead>

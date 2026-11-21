@@ -60,12 +60,12 @@ export function DocumentName({ document, showFile = true }: { document: Document
   );
 }
 
-/** 更新日時。記録が無いときは、「-」ではなく、欠けていることが分かる文言にする（日時を作らない）。 */
+/** 取り込み日（列の見出し。値は API の `updatedAt`）。記録が無いときは、「-」ではなく、欠けていることが分かる文言にする（日時を作らない）。 */
 export function UpdatedAt({ value, withTime = false }: { value: string | null; withTime?: boolean }) {
   const text = withTime ? formatDate(value) : formatDay(value);
   if (!text || text === '-') {
     return (
-      <span className="doc-missing" title="この資料には、更新日時の記録がありません">
+      <span className="doc-missing" title="この資料には、取り込み日の記録がありません">
         記録なし
       </span>
     );

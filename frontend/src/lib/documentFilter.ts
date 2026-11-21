@@ -16,7 +16,7 @@ export const UPDATED_BANDS = ['week', 'month', 'older'] as const;
 export type UpdatedBand = (typeof UPDATED_BANDS)[number];
 
 /**
- * 並び順。表の列名（資料名・対象・種類・ページ数・更新日時）を押して切り替える。`default` はサーバーの順（ファイル名順）。
+ * 並び順。表の列名（資料名・対象・種類・ページ数・取り込み日）を押して切り替える。`default` はサーバーの順（ファイル名順）。
  * `name` `target` `type` `updated` `pages` は、その列で最初に押したときの向き（名前・対象は表示名の五十音、種類は一覧の固定の順、更新は新しい順、ページ数は多い順）。
  */
 export const SORT_KEYS = ['default', 'name', 'name_desc', 'target', 'target_desc', 'type', 'type_desc', 'updated', 'updated_asc', 'pages', 'pages_asc'] as const;
