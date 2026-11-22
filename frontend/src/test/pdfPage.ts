@@ -9,6 +9,9 @@ export async function atPdfPage(n: number, total = 3, options: { hidden?: boolea
   const box = await pageBox(options);
   await waitFor(() => expect(box).toHaveValue(String(n)));
   expect(screen.getByText(`/ ${total}`)).toBeInTheDocument();
+  // 欄の値（初期値は 1）と総数は、ページの枠を並べる前から出る。枠が並ぶ前に scrollHeight を読んでスクロールすると位置が空振りし、欄が 1 のままになる
+  // （「いちばん下までスクロールしたら…」が、約 3 回に 1 回落ちた。CI でも 2026-11-22 に落ちた）。枠が並ぶまで待つ
+  await waitFor(() => expect(document.querySelectorAll('.pdf-page')).toHaveLength(total));
   return box;
 }
 
