@@ -67,7 +67,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "external_user_id",
-                    models.UUIDField(help_text="Supabase の JWT の sub"),
+                    models.UUIDField(help_text="外部の認証の JWT の sub"),
                 ),
                 (
                     "role",

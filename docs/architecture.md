@@ -194,7 +194,7 @@ flowchart LR
 
 ## ログインの流れ
 
-2026-11-08 から、認証は Better Auth（認証用 Worker `docunavi-api` の `/api/auth/*`。Google ログイン、15 分の JWT、JWKS）です。それ以前の Supabase Auth の流れは Git の履歴にあります。
+2026-11-08 から、認証は Better Auth（認証用 Worker `docunavi-api` の `/api/auth/*`。Google ログイン、15 分の JWT、JWKS）です。それ以前の認証の流れは Git の履歴にあります。
 
 `AUTH_MODE=required` のときの流れです（仕様は [configuration.md](configuration.md) の「ログイン（認証）」）。ブラウザーが Better Auth でログインして
 アクセストークン（JWT）を受け取り、API にはそのトークンだけを送ります。バックエンドは、Better Auth が公開する鍵（`{AUTH_BASE_URL}/api/auth/jwks`）で署名を検証します。

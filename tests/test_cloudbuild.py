@@ -29,7 +29,7 @@ def test_no_secrets_in_the_config() -> None:
     # secret key や DB の URL を、ビルドの設定（= ログ）に載せない。コメントは対象外
     lines = (ROOT / "cloudbuild.yaml").read_text(encoding="utf-8").splitlines()
     code = "\n".join(line for line in lines if not line.lstrip().startswith("#"))
-    assert not re.search(r"secret|DATABASE_URL|GEMINI_API_KEY|SUPABASE", code, flags=re.IGNORECASE)
+    assert not re.search(r"secret|DATABASE_URL|GEMINI_API_KEY", code, flags=re.IGNORECASE)
 
 
 def test_pushes_the_image_that_was_built() -> None:

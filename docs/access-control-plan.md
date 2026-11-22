@@ -1,6 +1,6 @@
 # ロール別 PDF グループ制御の計画（2026-10-26、利用者の決定）
 
-[roadmap.md](roadmap.md) の項目 ⑧ にあった「計画」を、2026-11-01 に、この文書へ移した。2026-11-20 に、実装・配備の状態の記述（完了の印、廃止した Supabase 前提の名前〔`chatbot` スキーマ・`supabase/migrations/`・DB のロール〕、コード上の名前、409 の文、運用の手段）を更新し、「その後の変更」の段落を足した。決定の文（2026-10-26）と、各フェーズの承認の条件は変えていない（フェーズ 4 の着手の条件も元の文言のまま）。
+[roadmap.md](roadmap.md) の項目 ⑧ にあった「計画」を、2026-11-01 に、この文書へ移した。2026-11-20 に、実装・配備の状態の記述（完了の印、廃止した旧 DB 前提の名前〔`chatbot` スキーマ・旧マイグレーションのパス・DB のロール〕、コード上の名前、409 の文、運用の手段）を更新し、「その後の変更」の段落を足した。決定の文（2026-10-26）と、各フェーズの承認の条件は変えていない（フェーズ 4 の着手の条件も元の文言のまま）。
 実装の状態は roadmap.md の ⑧、仕様と運用は [configuration.md](configuration.md) の「資料グループのアクセス制御」、その後の変更と本番での確認は [決定 0002](decisions/0002-role-based-collection-access.md) の「追記（2026-11-20）」。Django Admin（フェーズ 4a）は 2026-11-08 に廃止した（[決定 0003](decisions/0003-django-only-for-operator-admin.md)）。
 
 **目的:** ユーザーロールごとに、表示・検索できる PDF グループ（`documents.collection`）を制御する。見えないグループは、一覧・検索・回答・出典・本文・PDF・関係図・履歴表示のすべてに出さない（全面不可）。
@@ -14,7 +14,7 @@
 **その後の変更（2026-11-20 にコードと `db/migrations/` で確認。詳細は決定 0002 の追記）:** `sub` は Better Auth の `user.id`（`app/auth.py`）／`user_roles.user_id` は `"user"(id)` への外部キー（`0001_schema.sql`）／権限の解決は、2026-11-11 から、プロセス内の短い TTL の控え（`ACCESS_CACHE_TTL_SECONDS`、コードの既定は 60 秒。本番の Cloud Run では未設定で、この既定が効く。2026-11-20、gcloud の読み取り、A）／本番の `default` は、2026-11-09 の読み取りでは 4 グループ（現在は未確認）。全面不可・`scope` 必須・MCP は運用者専用は変わっていない。
 
 **フェーズ 1（DB と migration。完了）:** 表 `roles`・`user_roles`・`role_collection_access`・`access_audit`、`default` ロールと現行 3 グループの初期データ。**RLS はこのフェーズでは入れない**（別フェーズで、性能の測定と、取り込み・MCP・起動時の検査・評価への影響を調べてから判断する）。一時 Postgres での検証、migration の作成、コミット。push は別途承認。
-当時は Supabase の `chatbot` スキーマに作った（マイグレーション `20261026045921`。`chatbot_app` に SELECT だけ、`anon` / `authenticated` は revoke。2026-10-26 の本番の読み取りで、RLS が全表で無効、両ロールに `chatbot` スキーマの権限が無いことを確認した）。Supabase は 2026-11-08 に廃止し、`supabase/` は削除した（旧ファイルは Git の履歴）。いまの表は `db/migrations/0001_schema.sql`（`chatbot` スキーマ・Supabase のロールへの権限・RLS は無い）で、適用は `db/migrate.py`（本番は操作ごとに承認。`db/README.md`）。
+当時は旧 DB の `chatbot` スキーマに作った（マイグレーション `20261026045921`。`chatbot_app` に SELECT だけ、`anon` / `authenticated` は revoke。2026-10-26 の本番の読み取りで、RLS が全表で無効、両ロールに `chatbot` スキーマの権限が無いことを確認した）。旧 DB は 2026-11-08 に廃止し、旧マイグレーションのディレクトリは削除した（旧ファイルは Git の履歴）。いまの表は `db/migrations/0001_schema.sql`（`chatbot` スキーマ・旧 DB のロールへの権限・RLS は無い）で、適用は `db/migrate.py`（本番は操作ごとに承認。`db/README.md`）。
 
 **フェーズ 2（FastAPI のアクセス制御。完了）:** `app/access.py` の `visible_collections(user_id)`／検索・回答系に必須の `scope`（`Scope.ALL` を明示しない限り全件を検索しない）／次の 10 経路に制限: 検索の SQL（`app/search/` の SQL。範囲の条件は `app/scope.py` の `ALLOWED_FILTER_SQL`）・`GET /documents`・`/documents/{id}/chunks`・`/documents/{id}/file`・`/documents/{id}/graph`・`/documents/{id}/impact`・`GET /collections`・`/chat`・`/chat/stream`・会話履歴の表示／見えない資料は 404、見えないグループの指定は 403、見えるグループが 0 件なら 403「利用できる資料がありません」／エラー文は固定で、非表示グループ名を出さない（409 の文も固定文。2026-11-20 にコードで確認）／`ACCESS_MODE=off\|shadow\|enforce`（`shadow` は絞り込まず、減る件数だけをログに出す）／`cafe` だけのロールで `zahard` の内容が出ないことを確かめる、10 経路の漏れ総当たりテスト／docs の更新（アクセス制御の仕様、MCP が運用者専用であること、`ACCESS_MODE` の意味、運用者が `user_roles` を更新する手順。当初は SQL、いまは `python -m app.access_admin`）。コミット。push は別途承認。
 
@@ -24,4 +24,4 @@
 
 **暫定の運用:** フェーズ 4 までは、`user_roles` の変更は `python -m app.access_admin` だけで行う（SQL で直接 `DELETE` しない。理由は `app/access_admin.py` の docstring）。既定は確認だけで、`--apply` で書く。利用者は `--email`（`"user".email`）か `--user-id` で選ぶ。ロールの作成とグループの編集は SQL（`docs/configuration.md`）。
 
-**未確認:** 公開環境のサインアップの方針（誰でも Google で入れるか）／`frontend/src/lib/collections.ts` の固定の表示名が、一覧の元になっていないか（2026-11-20 に、このファイルは固定の名前表を持たず、表示名はサーバーの `GET /collections` が持つことを読んだ。画面全体では未確認）／`default` ロールなどの初期データを入れる SQL が、いまの `db/migrations/` に無い（本番の行の投入元は未確認）／Supabase の Data API の公開スキーマに `chatbot` が入っていないこと（`authenticator` の設定を読み切れていなかった。Supabase の廃止で対象外）。
+**未確認:** 公開環境のサインアップの方針（誰でも Google で入れるか）／`frontend/src/lib/collections.ts` の固定の表示名が、一覧の元になっていないか（2026-11-20 に、このファイルは固定の名前表を持たず、表示名はサーバーの `GET /collections` が持つことを読んだ。画面全体では未確認）／`default` ロールなどの初期データを入れる SQL が、いまの `db/migrations/` に無い（本番の行の投入元は未確認）。

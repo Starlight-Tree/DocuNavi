@@ -8,9 +8,9 @@
 
 ## 決定
 - 見えないグループは、一覧・検索・回答・出典・本文・PDF・関係図・履歴表示のすべてに出さない（全面不可）。
-- 権限の本体は Supabase Postgres と FastAPI。ロールは「グループの束」だけで、コード上の `admin` などは持たない。
+- 権限の本体は Postgres と FastAPI。ロールは「グループの束」だけで、コード上の `admin` などは持たない。
 - ロールのない利用者は `default` ロール（`zahard` `cafe` `guides` の 3 グループ。既存利用者の挙動を変えない）。
-- ロールの持ち主は Supabase の `sub`（UUID）に紐づく自前の表。外部キーは張らない。解決はキャッシュなしで毎リクエスト。
+- ロールの持ち主は認証の `sub`（UUID）に紐づく自前の表。外部キーは張らない。解決はキャッシュなしで毎リクエスト。
 - 検索は `scope` が必須（`Scope.ALL` は呼び出し側が明示）。見えない資料は 404、見えないグループの指定は 403。
 - MCP（`docunavi-mcp`）は運用者専用で全グループのまま。利用者には公開しない。
 - 段階導入のため `ACCESS_MODE=off|shadow|enforce` を持つ（`shadow` は絞り込まず、減る件数だけをログに出す）。
@@ -26,7 +26,7 @@
 
 本文は 2026-10-26 の決定のまま。権限の考え方（グループの束・全面不可・`scope` 必須・MCP は運用者専用）は、コードの上で変わっていない（`app/access.py`、`app/scope.py`。`ops/mcp_search` は `Scope.ALL` を明示）。変わったのは次の点。
 
-- **保存先と利用者 ID:** 本文の「Supabase Postgres」「Supabase の `sub`（UUID）」は当時のもの。本番の DB は 2026-11-08 に Prisma Postgres（`DB_BACKEND=pg`）へ、認証は Better Auth（Worker `docunavi-api`）へ移った。`sub` は Better Auth の `user.id`（英数字・`_`・`-` の 8〜64 文字。`app/auth.py`）。表は `chatbot` スキーマではなく、`db/migrations/0001_schema.sql` の `roles` `role_collection_access` `user_roles` `access_audit`。本文の「外部キーは張らない」と違い、その定義では `user_roles.user_id` が `"user"(id)` への外部キー（`ON DELETE CASCADE`）を持つ。
+- **保存先と利用者 ID:** 本文の「Postgres」「`sub`（UUID）」の前提（旧 DB・旧認証）は当時のもの。本番の DB は 2026-11-08 に Prisma Postgres（`DB_BACKEND=pg`）へ、認証は Better Auth（Worker `docunavi-api`）へ移った。`sub` は Better Auth の `user.id`（英数字・`_`・`-` の 8〜64 文字。`app/auth.py`）。表は `chatbot` スキーマではなく、`db/migrations/0001_schema.sql` の `roles` `role_collection_access` `user_roles` `access_audit`。本文の「外部キーは張らない」と違い、その定義では `user_roles.user_id` が `"user"(id)` への外部キー（`ON DELETE CASCADE`）を持つ。
 - **キャッシュ:** 本文の「キャッシュなしで毎リクエスト」は、2026-11-11 から、プロセス内の控え（`ACCESS_CACHE_TTL_SECONDS`。コードの既定は 60 秒、0 で無効）に変わった。Prisma Postgres Free の月の操作数を減らすため（[0012](0012-accept-prisma-free-limit-and-cut-operations.md)。利用者が許容）。割り当ての変更が効くまでに、最大でその秒数かかる（インスタンスごとに別の控え。引けなかった結果は控えない）。本番では環境変数が設定されておらず、コードの既定の 60 秒が効く（下の「本番の現在の設定」）。
 - **割り当ての手段:** 運用者向けの割り当て画面（Django の `docunavi-admin`）は 2026-11-08 に廃止した（[0003](0003-django-only-for-operator-admin.md)）。代わりに CLI `python -m app.access_admin`（2026-11-09 に追加。既定は確認だけで、`--apply` で書く。変更は `access_audit` に `actor=access_admin_cli` で残す。見えるグループが増える解除は `--allow-widen` が要る）。2026-11-18 の運用の規則: `user_roles` の変更はこの CLI だけで行い、SQL で直接 `DELETE` しない（最後の 1 行を消すと、見える範囲が `default` まで広がり、DB 側に防ぐ制約は無い）。ロールの作成と、ロールが持つグループの編集は SQL。
 - **`default` ロールのグループ:** 本文の「3 グループ」は当時の初期データ。2026-11-09 の本番の読み取りでは、`default` は `cafe` `guides` `synthetic-test` `zahard` の 4 グループだった（証拠等級 A。記録は Git の履歴の `docs/deploy.md`）。グループを足したら `default` にも割り当てる運用（[configuration.md](../configuration.md)）。現在の割り当ては未確認。

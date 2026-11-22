@@ -2,7 +2,7 @@
 
 全体の方針・禁止事項は、ルートの [CLAUDE.md](../../CLAUDE.md)。再現の手順と構成の詳細は [README.md](README.md)。測定の結果は `docs/target-architecture.md` の「Django の測定」。
 
-**製品には入っていない。** 組織・メンバー・役割・プランを Django で作ると、どれだけの手間かを測る試作。本番・Supabase・Cloud Run・実 API には触れない。
+**製品には入っていない。** 組織・メンバー・役割・プランを Django で作ると、どれだけの手間かを測る試作。本番・Cloud Run・実 API・外部の認証サーバーには触れない。
 
 ## 取り違えない
 

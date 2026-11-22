@@ -2,7 +2,7 @@
 
 全体の方針・禁止事項は、ルートの [CLAUDE.md](../CLAUDE.md)。実行の手順と CI は [docs/testing.md](../docs/testing.md)。`app/` のテストの注意は [app/CLAUDE.md](../app/CLAUDE.md) の「テスト」。
 
-`pytest`（`pyproject.toml`: `testpaths = ["tests"]`、`pythonpath = ["."]`）。**実 API・本物の DB・Supabase を呼ばない。** 画面側のテストは `frontend/`（Vitest・Playwright）。Django の試作のテストは `ops/django-saas/saas/tests/`（別の venv。製品の `pytest` には含まれない）。
+`pytest`（`pyproject.toml`: `testpaths = ["tests"]`、`pythonpath = ["."]`）。**実 API・本物の DB・外部の認証サーバーを呼ばない。** 画面側のテストは `frontend/`（Vitest・Playwright）。Django の試作のテストは `ops/django-saas/saas/tests/`（別の venv。製品の `pytest` には含まれない）。
 
 ## 置き場所（フラット。移動しない）
 

@@ -31,7 +31,7 @@ from evals.synth.prompt import PROMPT_VERSION, build_messages, prompt_sha256
 from evals.synth.validate import Issue, find_duplicate, shingles, validate_body
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FORBIDDEN_OUT = ("storage", "evals/corpora", "evals/fixtures", "app", "supabase", "frontend", "tests", "docs")
+FORBIDDEN_OUT = ("storage", "evals/corpora", "evals/fixtures", "app", "frontend", "tests", "docs")
 COLLECTION = "synthetic-test"  # 将来、本番へ入れるときの collection の名前（今は入れない。README の「分離」）
 
 

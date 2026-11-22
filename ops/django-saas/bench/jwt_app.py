@@ -8,7 +8,6 @@ app の verify_token は async なので、1 つのイベントループの中�
 
 import asyncio
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -18,7 +17,6 @@ sys.path.insert(0, str(repo))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 fixtures = Path(sys.argv[1])
 count = int(sys.argv[2]) if len(sys.argv) > 2 else 20000
-os.environ["SUPABASE_URL"] = "http://127.0.0.1:54321"  # issuer が Django 側の設定と同じになる
 
 from _stats import summarize  # noqa: E402
 

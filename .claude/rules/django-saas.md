@@ -12,5 +12,5 @@ paths:
 - 権限は、サーバー側で毎回確かめる。画面でボタンを隠すだけにしない
 - モデルを変えない（変えるなら事前に承認。`migrations/` を勝手に作らない）。触れたら `SAAS_DB_USER=postgres` で `manage.py makemigrations --check` が空であることを確かめる
 - `requirements.txt` を変えない。`bench/` からアプリを import しない
-- 本番・Supabase・Cloud Run・実 API に触れない。`SECRET_KEY` や `SAAS_DEMO_LOGIN` の既定を公開向けにしない
+- 本番・Cloud Run・実 API・外部の認証サーバーに触れない。`SECRET_KEY` や `SAAS_DEMO_LOGIN` の既定を公開向けにしない
 - 触れたら、一時 Postgres で `manage.py test`（88 件）と `manage.py check` を実行する（手順は ops/django-saas/CLAUDE.md の「テスト」）。製品の `pytest` には含まれない

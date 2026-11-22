@@ -1,9 +1,9 @@
 # Django の学習用の試作（SaaS 管理の土台）
 
 製品には入っていない。組織・メンバー・役割・プランを Django の管理画面とマイグレーションで作ると、どれだけの手間か、`saas` スキーマだけで完結するか、
-Supabase の JWT の `sub` だけで利用者を扱えるかを、開発コンテナの中だけで測った。結果は [docs/target-architecture.md](../../docs/target-architecture.md) の「Django の測定」。
+外部の認証の JWT の `sub` だけで利用者を扱えるかを、開発コンテナの中だけで測った。結果は [docs/target-architecture.md](../../docs/target-architecture.md) の「Django の測定」。
 
-## 再現（開発コンテナ内。外部の Supabase・本番・課金には触れない）
+## 再現（開発コンテナ内。外部の認証サーバー・本番・課金には触れない）
 
 ```bash
 cd /workspaces/docunavi

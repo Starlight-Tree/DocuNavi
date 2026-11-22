@@ -1,4 +1,4 @@
-"""組織・メンバー・プラン。利用者の ID は Supabase の JWT の `sub`（外部 ID）で、Django のユーザー表は使わない。"""
+"""組織・メンバー・プラン。利用者の ID は外部の認証の JWT の `sub`（外部 ID）で、Django のユーザー表は使わない。"""
 
 from django.db import models
 
@@ -35,7 +35,7 @@ class Role(models.TextChoices):
 
 class Membership(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="memberships")
-    external_user_id = models.UUIDField(help_text="Supabase の JWT の sub")
+    external_user_id = models.UUIDField(help_text="外部の認証の JWT の sub")
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.VIEWER)
     created_at = models.DateTimeField(auto_now_add=True)
 

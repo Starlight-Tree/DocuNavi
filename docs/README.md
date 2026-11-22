@@ -45,7 +45,7 @@
 | 文書 | 状態 | 内容 |
 |---|---|---|
 | [r2-rollout.md](r2-rollout.md) | 記録 | PDF を R2 から読む本番への切り替え |
-| [ingestion-stage4-design.md](ingestion-stage4-design.md) | 記録 | 段階 4 の取り込みの構成案（2026-10-14）と確認の記録。4a・4b は済み（[roadmap.md](roadmap.md)）で、Supabase・Cloud SQL の比較は当時のまま |
+| [ingestion-stage4-design.md](ingestion-stage4-design.md) | 記録 | 段階 4 の取り込みの構成案（2026-10-14）と確認の記録。4a・4b は済み（[roadmap.md](roadmap.md)）で、DB の比較は当時のまま |
 | [history-rewrite.md](history-rewrite.md) | 記録 | Git の履歴の書き換え（2026-10-25、2026-11-14）と、旧ハッシュの対応表 |
 | [ux-research.md](ux-research.md) | 記録 | UI/UX リサーチの記録 |
 

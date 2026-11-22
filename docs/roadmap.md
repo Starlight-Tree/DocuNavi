@@ -40,7 +40,7 @@
 | 段階 | 内容 | 状態 |
 |---|---|---|
 | 0 | Cloud Run に 1 コンテナで配備 | 済み（2026-10-20）。`--max-instances`・予算アラート・閲覧用の ID も設定済み |
-| 1 | Postgres と履歴の保存先 | 済み。2026-11-08 に Supabase から Prisma Postgres へ移した（DB は `DATABASE_URL` だけに依存させていた） |
+| 1 | Postgres と履歴の保存先 | 済み。2026-11-08 に旧 DB から Prisma Postgres へ移した（DB は `DATABASE_URL` だけに依存させていた） |
 | 2 | 認証 | 済み。2026-11-08 から本番は Better Auth |
 | 3 | Cloudflare の前段（独自ドメイン・レート制限） | 廃止（2026-11-09。[decisions/0009](decisions/0009-drop-custom-domain-and-worker-front.md)） |
 | 4a | R2 に原本を置き、取り込む | 済み（2026-10-21。`PDF_STORE=r2`）。資料は全員共通（アップロードは作らない。作る段で見直す） |

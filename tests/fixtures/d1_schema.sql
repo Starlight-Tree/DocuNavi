@@ -1,4 +1,4 @@
--- docunavi D1 schema (SQLite). Replaces supabase/migrations for the Cloudflare side.
+-- docunavi D1 schema (SQLite) for the Cloudflare side.
 -- Dropped on purpose: chunks.embedding (-> Vectorize), document_images.data (-> R2), saas.* (Django), checkpoint* (new tables below).
 -- Timestamps are INTEGER unix milliseconds.
 

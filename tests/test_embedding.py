@@ -1,7 +1,7 @@
 """チャンクの埋め込み（app/ingestion/embedding.py、embed.py）の、実 API と DB を使わない部分。
 
 実 API は呼ばない。SDK は偽物に差し替える。保存先（D1 と Vectorize）の動きは tests/test_d1.py
-（Supabase で、実行の承認を得てから確かめる）。
+（実行の承認を得てから確かめる）。
 """
 
 import math

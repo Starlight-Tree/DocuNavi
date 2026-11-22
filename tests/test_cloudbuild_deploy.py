@@ -52,7 +52,7 @@ def test_builds_the_api_image_without_build_args() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert not re.search(r"^ARG ", dockerfile, flags=re.MULTILINE)
     assert "--build-arg" not in _step("build")["args"]
-    assert not re.search(r"secret|DATABASE_URL|GEMINI_API_KEY|SUPABASE", _code(), flags=re.IGNORECASE)
+    assert not re.search(r"secret|DATABASE_URL|GEMINI_API_KEY", _code(), flags=re.IGNORECASE)
 
 
 def _run_tag_check(tmp_path: Path, tag_name: str) -> subprocess.CompletedProcess[str]:

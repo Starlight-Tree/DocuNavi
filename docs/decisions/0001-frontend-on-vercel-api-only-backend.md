@@ -10,7 +10,7 @@
 - 画面（`frontend/`、Next.js）は Vercel が配信する。FastAPI は画面を配信せず、`/` は 404。全捕捉ルート（`/{path}`）も足さない。
 - API は別オリジン（Cloud Run）。`CORS_ORIGINS` に画面のオリジンを入れる。
 - 画面はブラウザーだけで描く SPA（`ssr: false`）。サーバー側の処理は足さない。
-- `NEXT_PUBLIC_*` はバンドルに埋め込まれるので、公開してよい値（Supabase の URL と publishable key、API・中継の URL）だけを入れる。
+- `NEXT_PUBLIC_*` はバンドルに埋め込まれるので、公開してよい値（認証の URL と公開用のキー、API・中継の URL）だけを入れる。
 
 ## 結果と限界
 - 本番（Vercel → Cloud Run）で Google ログイン → 質問 → SSE の回答まで確認済み（2026-10-20、10-24〜25）。

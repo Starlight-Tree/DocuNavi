@@ -20,9 +20,9 @@ FAKE_KEY = "AIza" + "x" * 35
 @pytest.mark.parametrize(
     "text",
     [
-        f"postgresql://chatbot_app.projref:{FAKE_PASSWORD}@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres",
+        f"postgresql://chatbot_app.projref:{FAKE_PASSWORD}@aws-0-ap-northeast-1.pooler.example.com:6543/postgres",
         # 先頭の 1 文字が欠けた接続文字列（2026-10-19 に実際に起きた形）
-        f'error connecting in \'pool-1\': missing "=" after "ostgresql://chatbot_app.projref:{FAKE_PASSWORD}@aws-0.pooler.supabase.com:6543/postgres" in connection info string',
+        f'error connecting in \'pool-1\': missing "=" after "ostgresql://chatbot_app.projref:{FAKE_PASSWORD}@aws-0.pooler.example.com:6543/postgres" in connection info string',
         f"redis://default:{FAKE_PASSWORD}@cache.example.com:6379",
         # パスワードに @ が入っている（URL として不正だが、エラー文には出る）
         f"postgresql://user:{FAKE_PASSWORD}@x@host:5432/db",
@@ -41,8 +41,8 @@ def test_redact_hides_the_secret(text: str) -> None:
 
 
 def test_redact_keeps_the_rest_readable() -> None:
-    text = f"postgresql://chatbot_app.projref:{FAKE_PASSWORD}@aws-0.pooler.supabase.com:6543/postgres"
-    assert redact(text) == f"postgresql://chatbot_app.projref:{MASK}@aws-0.pooler.supabase.com:6543/postgres"
+    text = f"postgresql://chatbot_app.projref:{FAKE_PASSWORD}@aws-0.pooler.example.com:6543/postgres"
+    assert redact(text) == f"postgresql://chatbot_app.projref:{MASK}@aws-0.pooler.example.com:6543/postgres"
 
 
 @pytest.mark.parametrize(

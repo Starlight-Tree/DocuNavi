@@ -6,7 +6,7 @@
 **失敗だけを偽物にする**: 主モデルへの要求を 503 に差し替え（tests/real_api_faults.py。本物と同じ経路を通る）、
 フォールバック先は本物の Gemini を呼ぶ。切り替えの操作と、Gemini への要求の記録は `/__real_api/*`（このサーバーだけにある）。
 
-触れないもの: DB（DATABASE_URL を空にして、履歴はメモリ）、Supabase（AUTH_MODE=off）、資料の検索（偽の検索。埋め込みの API も呼ばない）。
+触れないもの: DB（DATABASE_URL を空にして、履歴はメモリ）、認証（AUTH_MODE=off）、資料の検索（偽の検索。埋め込みの API も呼ばない）。
 使うのは Gemini の生成だけ。API キーは環境変数 GEMINI_API_KEY（`scripts/dev-local.sh with-key` が Infisical から渡す。`.env` の値も
 app.main が読むが、with-key を使う。値は表示も記録もしない）。
 **予算（tests/real_api_budget.py）:** 1 回の実行で、Gemini への外部 API 呼び出し 20 回（LLM・埋め込み・再試行を含む）、質問 10 件、全体 300 秒まで。

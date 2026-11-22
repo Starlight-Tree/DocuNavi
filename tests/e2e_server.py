@@ -2,7 +2,7 @@
 
     python tests/e2e_server.py          # 127.0.0.1:8100（E2E_PORT で変える）
 
-実 API（Gemini・埋め込み・DB・Supabase）は使わない。アプリ本体（app/）は変えず、tests/conftest.py と同じく
+実 API（Gemini・埋め込み・DB・認証）は使わない。アプリ本体（app/）は変えず、tests/conftest.py と同じく
 環境変数と差し替えだけで固定する: モックモード・メモリ履歴・認証なし、検索は ScopedFakeSearch（FakeSearch に資料のグループを付けたもの）、
 グラフの LLM は SearchingMockLLM。GET /documents・GET /collections・GET /targets・GET /doc-types だけ、偽の DB（このファイルの _FakePool）から答える。
 画面は配信しない。画面は別のポートの Next.js（frontend を E2E 用にビルドしたもの）で、本番（Worker → Cloud Run）と同じ別オリジン。

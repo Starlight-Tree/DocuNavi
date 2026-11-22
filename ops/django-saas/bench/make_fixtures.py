@@ -1,4 +1,4 @@
-"""測定用の疑似 JWT と、その公開鍵の JWKS を書き出す（鍵は使い捨て。Supabase の実鍵ではない）。
+"""測定用の疑似 JWT と、その公開鍵の JWKS を書き出す（鍵は使い捨て。実際の認証の鍵ではない）。
 
 使い方: python bench/make_fixtures.py <出力ディレクトリ>   → jwks.json, tokens.json
 Django 側（.venv-django）と app 側（.venv）の両方が同じファイルを読み、同じ条件で検証する。

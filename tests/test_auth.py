@@ -246,7 +246,7 @@ def test_expired_token_is_401(client, required, signer):
 @pytest.mark.parametrize(
     "overrides",
     [
-        {"iss": "https://other.supabase.co/auth/v1"},
+        {"iss": "https://other.example.com/auth/v1"},
         {"aud": "other"},
         {"aud": None},
         {"iss": None},
@@ -403,11 +403,11 @@ def test_startup_required_without_auth_base_url_fails(monkeypatch, jwks, clock):
 @pytest.mark.parametrize(
     "url",
     [
-        "http://project.supabase.co",
+        "http://project.example.com",
         "ftp://x.example",
-        "https://x.supabase.co/auth/v1",
-        "https://x.supabase.co?a=1",
-        "x.supabase.co",
+        "https://x.example.com/auth/v1",
+        "https://x.example.com?a=1",
+        "x.example.com",
     ],
 )
 def test_startup_rejects_bad_auth_base_urls(monkeypatch, jwks, clock, url):

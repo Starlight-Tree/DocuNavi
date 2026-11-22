@@ -1,6 +1,6 @@
 """JWT の検証。`app/auth.py` と同じ規則（ES256 / RS256 だけ、`exp` `iss` `aud` `sub` 必須、匿名は拒否）。
 
-違い: 公開鍵は JWKS のファイル（SAAS_JWKS_FILE）から一度だけ読む。実際の Supabase の JWKS の取得・キャッシュ・取り直しは持たない
+違い: 公開鍵は JWKS のファイル（SAAS_JWKS_FILE）から一度だけ読む。実際の認証サーバーの JWKS の取得・キャッシュ・取り直しは持たない
 （学習用の測定のため。実装するなら app/auth.py の JwksCache と同じ考え方になる）。
 """
 
