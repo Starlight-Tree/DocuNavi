@@ -7,6 +7,7 @@
 import hashlib
 import json
 import logging
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -103,12 +104,14 @@ def s3() -> FakeS3:
 
 
 @pytest.fixture
-def r2(monkeypatch, s3) -> FakeS3:
+def r2(monkeypatch, s3) -> Iterator[FakeS3]:
     """PDF_STORE=r2 にして、置き場を偽の S3 に差し替える。"""
     monkeypatch.setenv("PDF_STORE", "r2")
     r2_store.default_store.cache_clear()
     monkeypatch.setattr(r2_store, "default_store", lambda: r2_store.R2Store(s3, "docunavi-documents"))
-    return s3
+    pdf_originals.clear_original_cache()  # `/chunks` の original_pdf の控え（テスト間で持ち越さない）
+    yield s3
+    pdf_originals.clear_original_cache()
 
 
 # --- 設定 -------------------------------------------------------------------------------------------------
@@ -736,3 +739,61 @@ def test_the_issuers_secret_with_an_issued_at_field_is_accepted() -> None:
     config = r2_store.config_from_env({**ENV, "R2_CREDENTIALS_JSON": creds})
     assert (config.access_key_id, config.secret_access_key) == (KEY_ID, SECRET_KEY)
     assert "issued_at" not in repr(config)
+
+
+# --- /chunks の original_pdf の控え（PDF_STORE=r2）------------------------------------------------------------
+
+
+def test_original_available_asks_r2_once_per_name_and_hash(r2, monkeypatch) -> None:
+    clock = [1000.0]
+    monkeypatch.setattr(pdf_originals, "_now", lambda: clock[0])
+    assert pdf_originals.original_available("z.pdf", sha(PDF_A)) is True
+    r2.error = RuntimeError("R2 must not be asked again within the TTL")
+    assert pdf_originals.original_available("z.pdf", sha(PDF_A)) is True
+    assert pdf_originals.original_available("z.pdf", sha(PDF_A).upper()) is True  # ハッシュの大文字・小文字は同じ組
+    clock[0] += (
+        pdf_originals.CHECK_CACHE_OK_SECONDS + 1
+    )  # 期限が来たら、また R2 に聞く（読めなければ unavailable = 偽。控えない）
+    assert pdf_originals.original_available("z.pdf", sha(PDF_A)) is False
+    r2.error = None
+    assert pdf_originals.original_available("z.pdf", sha(PDF_A)) is True  # 戻ったら、すぐ正しい答え
+
+
+def test_original_available_never_caches_an_unreadable_r2(r2) -> None:
+    r2.error = client_error("AccessDenied", 403)
+    assert pdf_originals.original_available("z.pdf", sha(PDF_A)) is False
+    r2.error = None
+    assert pdf_originals.original_available("z.pdf", sha(PDF_A)) is True
+
+
+def test_original_available_keeps_a_negative_answer_only_briefly(r2, monkeypatch) -> None:
+    clock = [1000.0]
+    monkeypatch.setattr(pdf_originals, "_now", lambda: clock[0])
+    assert pdf_originals.original_available("late.pdf", sha(PDF_A)) is False  # まだ R2 に無い
+    r2.objects["zahard/late.pdf"] = PDF_A
+    assert pdf_originals.original_available("late.pdf", sha(PDF_A)) is False  # 控えの間は、前の答え
+    clock[0] += pdf_originals.CHECK_CACHE_NEGATIVE_SECONDS + 1
+    assert pdf_originals.original_available("late.pdf", sha(PDF_A)) is True
+
+
+def test_original_available_distinguishes_hashes_of_the_same_name(r2) -> None:
+    assert pdf_originals.original_available("z.pdf", sha(PDF_A)) is True
+    assert pdf_originals.original_available("z.pdf", sha(PDF_B)) is False  # 同じ名前で中身が違う（食い違い）は、別の組
+
+
+def test_original_available_cache_is_bounded(r2, monkeypatch) -> None:
+    monkeypatch.setattr(pdf_originals, "_CHECK_CACHE_MAX_ENTRIES", 4)
+    for i in range(10):
+        pdf_originals.original_available(f"missing-{i}.pdf", sha(PDF_A))
+    assert len(pdf_originals._check_cache) <= 4
+
+
+def test_original_available_does_not_cache_the_local_store(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("PDF_STORE", raising=False)
+    monkeypatch.setattr(pdf_originals, "PDF_DIR", tmp_path)
+    pdf_originals.clear_original_cache()
+    (tmp_path / "cafe").mkdir()
+    assert pdf_originals.original_available("x.pdf", sha(PDF_A)) is False
+    (tmp_path / "cafe" / "x.pdf").write_bytes(PDF_A)
+    assert pdf_originals.original_available("x.pdf", sha(PDF_A)) is True  # ローカルは、置いたらすぐ見える
+    assert not pdf_originals._check_cache

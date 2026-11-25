@@ -24,6 +24,8 @@ import hashlib
 import logging
 import os
 import stat
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -185,3 +187,53 @@ def find_original(source: object, content_hash: object) -> OriginalPdf:
         logger.warning("PDF の内容が、DB に保存された資料と一致しません")
         return OriginalPdf(ok=False, reason="mismatch")
     return _missing()
+
+
+# --- `/documents/{id}/chunks` の `original_pdf`（PDF を返せるかだけ）の照合結果の控え --------------------------------------------
+# `PDF_STORE=r2` では、`find_original` が毎回、R2 の資料群を列挙し、PDF を取り、sha256 を照合する（往復と転送と計算）。`/chunks` は、
+# その結果の「返せるか」だけを使う。PDF は内容のハッシュで決まる（キーが (source, content_hash)）ので、同じ組の結果は、プロセス内で一定時間使い回してよい。
+# - 控えるのは `PDF_STORE=r2` のときだけ（ローカルは、ファイルを読むだけで速く、テストでディレクトリを差し替えるため）
+# - 返せた（ok）は `CHECK_CACHE_OK_SECONDS`、見つからない・食い違いは `CHECK_CACHE_NEGATIVE_SECONDS`。**R2 を読めなかった（unavailable）は控えない**
+# - 限界: R2 の PDF が、DB のハッシュを変えずに差し替わったとき、最大この秒数だけ古い答え（「返せる」）が出る。`/file` は毎回確かめるので、
+#   その場合も、内容が合わない PDF は返さない（409）
+# - Cloud Run のインスタンスごとに別（プロセス内だけ）。再起動すると空になる
+CHECK_CACHE_OK_SECONDS = 600.0
+CHECK_CACHE_NEGATIVE_SECONDS = 60.0
+_CHECK_CACHE_MAX_ENTRIES = 1024
+# (source, 正規化したハッシュ) → (期限の monotonic 秒, 返せるか)
+_check_cache: dict[tuple[str, str], tuple[float, bool]] = {}
+_check_lock = threading.Lock()
+_now = time.monotonic  # テストが差し替える
+
+
+def clear_original_cache() -> None:
+    """照合結果の控えを空にする（テスト用）。"""
+    with _check_lock:
+        _check_cache.clear()
+
+
+def original_available(source: object, content_hash: object) -> bool:
+    """`find_original(source, content_hash).ok` と同じ答え。`/chunks` の `original_pdf` だけが使う（PDF のバイト列は要らない）。
+
+    `PDF_STORE=r2` のときだけ、結果をプロセス内に控える（上の説明）。それ以外は `find_original` をそのまま呼ぶ。
+    """
+    if os.environ.get("PDF_STORE", "local").strip().lower() != "r2" or not isinstance(source, str):
+        return find_original(source, content_hash).ok
+    wanted = content_hash.strip().lower() if isinstance(content_hash, str) else ""
+    key = (source, wanted)
+    now = _now()
+    with _check_lock:
+        hit = _check_cache.get(key)
+        if hit is not None and hit[0] > now:
+            return hit[1]
+    found = find_original(source, content_hash)
+    if found.reason != "unavailable":  # 読めなかった結果は控えない（R2 が戻ったら、すぐ正しい答えにする）
+        ttl = CHECK_CACHE_OK_SECONDS if found.ok else CHECK_CACHE_NEGATIVE_SECONDS
+        with _check_lock:
+            if len(_check_cache) >= _CHECK_CACHE_MAX_ENTRIES:
+                for stale in [k for k, v in _check_cache.items() if v[0] <= now]:
+                    del _check_cache[stale]
+                if len(_check_cache) >= _CHECK_CACHE_MAX_ENTRIES:
+                    _check_cache.pop(next(iter(_check_cache)))
+            _check_cache[key] = (now + ttl, found.ok)
+    return found.ok

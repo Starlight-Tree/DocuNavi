@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from app.access import Access, request_access
 from app.history import get_pool
-from app.pdf_originals import find_original
+from app.pdf_originals import find_original, original_available
 from app.r2_store import default_store
 from app.scope import ALLOWED_FILTER_SQL
 
@@ -240,9 +240,10 @@ async def document_chunks(
     summary = _summary(documents[0])
     summary.chunk_count = len(chunks)
     summary.embedded_count = sum(1 for chunk in chunks if chunk["embedded"])
-    original = await asyncio.to_thread(find_original, documents[0]["source"], documents[0].get("content_hash"))
+    # PDF を返せるかだけが要る（本文は要らない）。PDF_STORE=r2 では、照合結果をプロセス内に控える（app/pdf_originals.py の original_available）
+    original_pdf = await asyncio.to_thread(original_available, documents[0]["source"], documents[0].get("content_hash"))
     return DocumentDetail(
-        original_pdf=original.ok,
+        original_pdf=original_pdf,
         document=summary,
         chunks=[
             ChunkItem(
