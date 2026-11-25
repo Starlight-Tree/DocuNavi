@@ -1,0 +1,8 @@
+#!/bin/sh
+# コミットメッセージの件名を検査する（英語・Conventional Commits・72 文字以内）。
+# どの経路のコミット（Claude Code・手入力・-F ファイル・IDE）でも、メッセージのファイルを直接読む。
+# 検査の本体は scripts/check_commit_messages.py（CI・Claude のフックと同じ check_subject）。
+# 件名を読めない・検査を実行できないときも、コミットを止める。--no-verify で飛ばせる（CI が最後に検出する）。
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
+command -v python3 >/dev/null 2>&1 || { echo "commit-msg: python3 が見つかりません" >&2; exit 1; }
+exec python3 "$root/scripts/check_commit_messages.py" --message-file "$1"

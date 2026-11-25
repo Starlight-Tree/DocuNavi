@@ -1,0 +1,4 @@
+#!/bin/sh
+# 追加行に固定の文字列（実プロジェクト ID など）が無いかを調べる。本体は scripts/check-sensitive-terms.sh。
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
+exec "$root/scripts/check-sensitive-terms.sh"

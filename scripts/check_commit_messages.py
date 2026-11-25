@@ -14,8 +14,11 @@
 マージコミットと、`[bot]` が作者のコミット（Dependabot など）は対象外。
 過去のコミットは検査しない（範囲で渡さない）。終了コード: 0 = 問題なし、1 = 違反あり、2 = 使い方の誤り。
 
-Claude Code のフック（.claude/hooks/guard-git-write.py）も、このファイルの check_subject を使う。
+Claude Code のフック（.claude/hooks/guard-git-write.py）と Git の commit-msg フック（.githooks/commit-msg）も、このファイルの check_subject を使う。
+--message-file は、件名を取れないとき（ファイルが読めない・メッセージが空）を違反として扱う（Claude のフックは判断しないで通す）。
 """
+
+from __future__ import annotations
 
 import argparse
 import re
@@ -50,6 +53,20 @@ def check_subject(subject: str) -> list[str]:
     return problems
 
 
+def subject_from_message_file(path: str) -> str | None:
+    """メッセージファイルの件名（`#` で始まる行と先頭の空行を除いた最初の行）。読めない・空なら None。"""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        if line.startswith("#") or not line.strip():
+            continue
+        return line.rstrip()
+    return None
+
+
 def _git(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], capture_output=True, text=True, check=False)
 
@@ -78,9 +95,19 @@ def main() -> int:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--range", dest="range_spec", help="A..B（新しいコミットだけを検査する）")
     group.add_argument("--subject", help="件名 1 つを検査する")
+    group.add_argument("--message-file", help="コミットメッセージのファイルの件名を検査する（取れなければ違反）")
     args = parser.parse_args()
 
-    rows = [("-", args.subject)] if args.subject is not None else commits_in(args.range_spec)
+    if args.message_file is not None:
+        subject = subject_from_message_file(args.message_file)
+        if subject is None:
+            print(f"件名を読み取れません: {args.message_file}")
+            return 1
+        rows = [("-", subject)]
+    elif args.subject is not None:
+        rows = [("-", args.subject)]
+    else:
+        rows = commits_in(args.range_spec)
     failed = 0
     for short, subject in rows:
         problems = check_subject(subject)

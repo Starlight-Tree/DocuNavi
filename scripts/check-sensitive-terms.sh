@@ -16,9 +16,7 @@
 # 終了コード: 0 = 一致なし、1 = 一致あり、2 = 使い方の誤り。検索語が 1 つも無いときは警告を出して 0 で終わる
 # （何も検査していない。CI で使うときは SENSITIVE_TERMS が渡っているか確認する）。
 #
-# pre-commit に組み込む例（.git/hooks は Git の管理外なので、clone し直したら入れ直す）:
-#   printf '#!/bin/sh\nexec scripts/check-sensitive-terms.sh\n' > .git/hooks/pre-commit
-#   chmod +x .git/hooks/pre-commit
+# pre-commit は .githooks/pre-commit から呼ばれる（core.hooksPath の設定は、clone し直したら sh scripts/setup-git-hooks.sh）。
 # 一時的に外すなら git commit --no-verify（ただし、その場合は push 前に範囲指定で必ず検査する）。
 set -euo pipefail
 

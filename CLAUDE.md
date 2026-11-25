@@ -90,7 +90,7 @@ wrangler・infisical・prisma の書き込み系（配備・Secret・`migrate`�
 詳細な手順（amend の事前確認、プッシュの承認依頼に示す項目、CI・デプロイ）は `git-workflow`。
 
 - **作者名:** `git config user.name` は `Starlight-Tree`（メールは変えない）。
-- **コミットメッセージ:** Conventional Commits（`type(scope): 英語の命令形の要約`）。件名は英語・72 文字以内・小文字始まり・末尾ピリオドなし。本文に「なぜ」と検証結果（限界も）。1 コミット 1 論理変更。`scripts/check_commit_messages.py` が検査し、CI と Claude のフック（`guard-git-write.py`）が使う。
+- **コミットメッセージ:** Conventional Commits（`type(scope): 英語の命令形の要約`）。件名は英語・72 文字以内・小文字始まり・末尾ピリオドなし。本文に「なぜ」と検証結果（限界も）。1 コミット 1 論理変更。`scripts/check_commit_messages.py` が検査し、Git の `commit-msg` フック（`.githooks/`。clone し直したら `sh scripts/setup-git-hooks.sh` で有効にする）・CI・Claude のフック（`guard-git-write.py`）が使う。
 - **運用:** `main` に直接コミットし、`origin/main` へ通常のプッシュ。
 - **コミット:** 変更が完結し、触れた範囲のテストが通ったら（文書だけの変更はテスト不要）、意味のある単位でコミットしてよい。「コミットしない」と指定されたら従う。ステージはパスを指定する（`git add -A` と `git add .` は使わない）。コミット前に `git diff --staged` を確かめる。`--no-verify` は使わない。
 - **amend:** 直前のコミットが未プッシュのときだけ、承認なしで可（`git fetch` の後、`git status -sb` が `ahead` を示し、`git log --oneline origin/main..HEAD` に直前のコミットがあることを確かめる。amend の後は検査をやり直す）。プッシュ済みのコミットは amend しない。

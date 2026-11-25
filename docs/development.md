@@ -113,7 +113,7 @@ Infisical CLI がプロジェクトを選ぶ `.infisical.yaml` も Git 管理外
 - **`gcloud run jobs update --args`:** 区切り文字 `^@^` は、メールの `@` と衝突する。メールを含むなら `^#^` を使う。zsh では `$P` の単語分割が効かないので、配列 `"${P[@]}"` を使う。
 - **Infisical の削除:** 既定の種類（personal）では失敗する。`--type shared` を付け、本番は `.dev-local/infisical-ids.env` の `INFISICAL_PROJECT_ID_PROD` を `--projectId` に渡す。Infisical MCP は読み取りだけ（`list-secrets`）。
 - **ホストで wrangler を使う:** `workers/api/node_modules` が Linux 用なので、`cd /tmp && npx wrangler@4.158.0 …` の形で実行する（検証環境の画面の配備だけ。本番へは使わない）。
-- **コミットの件名:** 72 文字以内。`python3 scripts/check_commit_messages.py --subject "…"` で確かめる。`&&` でつなぐと検査が失敗したときコミットが作られないので、結果を確かめる。
+- **コミットの件名:** 72 文字以内。`python3 scripts/check_commit_messages.py --subject "…"` で確かめる。`.githooks/commit-msg` がコミット時に自動で検査する（clone し直したら `sh scripts/setup-git-hooks.sh`。`-F` や `--amend` も検査できる）。Claude のフックは `-F ファイル` と入れ子の `bash -c '…'` を検査できず、起動ディレクトリが外のセッションでは読まれない。`--no-verify` で飛ばした分は CI が拾う。`&&` でつなぐと検査が失敗したときコミットが作られないので、結果を確かめる。
 
 ## 依存の更新
 

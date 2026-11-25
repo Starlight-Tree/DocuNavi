@@ -130,3 +130,67 @@ def test_range_checks_only_new_commits_and_skips_bots(tmp_path: Path) -> None:
     assert "検査したコミット" in fallback.stdout
     ok = run(f"{base}..{run_git(tmp_path, 'rev-parse', 'HEAD~2')}")
     assert ok.returncode == 0
+
+
+# ---- Git の commit-msg フック（.githooks/commit-msg）。どの経路でも、メッセージのファイルを読む ----
+
+GITHOOKS = ROOT / ".githooks"
+LONG_SUBJECT = "feat(documents): " + "x" * 80
+
+
+def _repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "core.hooksPath", str(GITHOOKS)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@example.com"], check=True)
+    (repo / "a.txt").write_text("a\n")
+    subprocess.run(["git", "-C", str(repo), "add", "a.txt"], check=True)
+    return repo
+
+
+def _commit(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    # pre-commit（固定語の検査）は、検査語が無いと警告だけで通る。ここで見るのは commit-msg だけ
+    return subprocess.run(["git", "-C", str(repo), "commit", "-q", *args], capture_output=True, text=True, check=False)
+
+
+def test_commit_msg_hook_accepts_a_good_subject(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    assert _commit(repo, "-m", "feat: add a thing").returncode == 0
+
+
+@pytest.mark.parametrize("via", ["-m", "-F"])
+def test_commit_msg_hook_rejects_a_long_subject(tmp_path: Path, via: str) -> None:
+    repo = _repo(tmp_path)
+    if via == "-F":
+        message = tmp_path / "msg.txt"
+        message.write_text(LONG_SUBJECT + "\n\nbody\n")
+        result = _commit(repo, "-F", str(message))
+    else:
+        result = _commit(repo, "-m", LONG_SUBJECT)
+    assert result.returncode != 0
+    assert "72" in result.stdout + result.stderr
+    assert subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True).returncode != 0
+
+
+def test_commit_msg_hook_rejects_a_bad_amend(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    assert _commit(repo, "-m", "feat: add a thing").returncode == 0
+    assert _commit(repo, "--amend", "-m", LONG_SUBJECT).returncode != 0
+
+
+def test_commit_msg_hook_rejects_an_unreadable_message(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [str(GITHOOKS / "commit-msg"), str(tmp_path / "missing")], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 1
+    assert "読み取れません" in result.stdout
+
+
+def test_message_file_skips_comment_lines(tmp_path: Path) -> None:
+    message = tmp_path / "msg.txt"
+    message.write_text("\n# comment\nfix: real subject\n\nbody\n")
+    assert checker.subject_from_message_file(str(message)) == "fix: real subject"
+    message.write_text("# only a comment\n")
+    assert checker.subject_from_message_file(str(message)) is None
