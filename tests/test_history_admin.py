@@ -6,6 +6,7 @@ import pytest
 
 from app import history_admin
 from app.d1 import SyncD1
+from app.d1_saver import D1Saver
 
 
 @pytest.fixture(autouse=True)
@@ -110,3 +111,98 @@ def test_the_number_of_days_can_be_overridden(d1_worker, monkeypatch, capsys):
     assert history_admin.main(["--older-than-days", "1", "--apply"]) == 0
     assert "削除した会話: 1 件" in capsys.readouterr().out
     assert _threads(d1_worker) == {"today"}
+
+
+# ---- 題名の補完（--backfill-titles）。Go の読み取り API は題名を metadata の title からだけ読む ----
+
+
+def _legacy_thread(worker, thread_id, messages, *, checkpoint_id="c1", metadata="{}"):
+    """題名（metadata の title）が無い、この機能より前の会話。本文は本物のシリアライザーで保存する。"""
+    from langchain_core.messages import HumanMessage
+
+    saver = D1Saver(None)
+    checkpoint = {
+        "v": 4,
+        "id": checkpoint_id,
+        "ts": "2026-11-20T00:00:00+00:00",
+        "channel_values": {"messages": [HumanMessage(content=m) for m in messages]},
+    }
+    type_, blob = saver.serde.dumps_typed(checkpoint)
+    worker.run(
+        "INSERT INTO checkpoints (thread_id, checkpoint_ns, checkpoint_id, type, checkpoint, metadata, created_at) VALUES (?, '', ?, ?, ?, ?, 1)",
+        (thread_id, checkpoint_id, type_, saver._enc(blob), metadata),
+    )
+
+
+def _metadata(worker, thread_id, checkpoint_id="c1"):
+    import json
+
+    row = worker.rows(
+        "SELECT metadata FROM checkpoints WHERE thread_id = ? AND checkpoint_id = ?", (thread_id, checkpoint_id)
+    )[0]
+    return json.loads(row["metadata"])
+
+
+def test_backfill_titles_dry_run_counts_and_writes_nothing(d1_worker, monkeypatch, capsys):
+    _use_fake(d1_worker, monkeypatch)
+    _legacy_thread(d1_worker, "u1:a", ["最初の質問です"])
+    _legacy_thread(d1_worker, "u1:empty", [])
+    assert history_admin.main(["--backfill-titles"]) == 0
+    out = capsys.readouterr().out
+    assert (
+        "題名が未保存の会話: 2 件（題名を作れる: 1 件、本文のあるユーザー発言が無い: 1 件、復号できない: 0 件）" in out
+    )
+    assert "書き込みはしていません" in out
+    assert "title" not in _metadata(d1_worker, "u1:a")
+
+
+def test_backfill_titles_writes_the_same_title_the_list_would_make(d1_worker, monkeypatch, capsys):
+    from langchain_core.messages import HumanMessage
+
+    from app.thread_title import stored_title
+
+    _use_fake(d1_worker, monkeypatch)
+    long_question = "とても長い質問 " * 20
+    _legacy_thread(d1_worker, "u1:a", ["  最初の\n質問です  ", "二つ目"], metadata='{"source": "loop", "step": 3}')
+    _legacy_thread(d1_worker, "u1:long", [long_question])
+    _legacy_thread(d1_worker, "u1:empty", [])
+    assert history_admin.main(["--backfill-titles", "--apply"]) == 0
+    assert "書き込んだ題名: 2 件" in capsys.readouterr().out
+    assert _metadata(d1_worker, "u1:a") == {"source": "loop", "step": 3, "title": "最初の 質問です"}  # 既存の項目は残す
+    assert _metadata(d1_worker, "u1:long")["title"] == stored_title([HumanMessage(content=long_question)])
+    assert len(_metadata(d1_worker, "u1:long")["title"]) == 40
+    assert "title" not in _metadata(d1_worker, "u1:empty")  # 題名にできる発言が無い会話は、書かない
+
+
+def test_backfill_titles_only_touches_the_latest_checkpoint_without_a_title(d1_worker, monkeypatch, capsys):
+    _use_fake(d1_worker, monkeypatch)
+    _legacy_thread(d1_worker, "u1:a", ["古い質問"], checkpoint_id="c1")
+    _legacy_thread(d1_worker, "u1:a", ["古い質問", "新しい質問"], checkpoint_id="c2")
+    _legacy_thread(d1_worker, "u1:titled", ["別の質問"], metadata='{"title": "付いている題名"}')
+    assert history_admin.main(["--backfill-titles", "--apply"]) == 0
+    assert "題名が未保存の会話: 1 件" in capsys.readouterr().out
+    assert _metadata(d1_worker, "u1:a", "c2")["title"] == "古い質問"  # 一覧は最新のチェックポイントの題名を読む
+    assert "title" not in _metadata(d1_worker, "u1:a", "c1")
+    assert _metadata(d1_worker, "u1:titled") == {"title": "付いている題名"}  # 題名のある行は触らない
+    # 流し直しても同じ（題名のある行は対象に入らない）
+    assert history_admin.main(["--backfill-titles", "--apply"]) == 0
+    assert "題名が未保存の会話: 0 件" in capsys.readouterr().out
+
+
+def test_backfill_titles_skips_broken_rows_without_echoing_them(d1_worker, monkeypatch, capsys):
+    _use_fake(d1_worker, monkeypatch)
+    _legacy_thread(d1_worker, "u1:ok", ["質問"])
+    d1_worker.run(
+        "INSERT INTO checkpoints (thread_id, checkpoint_ns, checkpoint_id, type, checkpoint, metadata, created_at) VALUES ('u1:bad', '', 'c1', 'msgpack', 'not-base64-秘密', '{}', 1)"
+    )
+    assert history_admin.main(["--backfill-titles", "--apply"]) == 0
+    captured = capsys.readouterr()
+    assert "復号できない: 1 件" in captured.out and "書き込んだ題名: 1 件" in captured.out
+    assert "秘密" not in captured.out + captured.err
+
+
+def test_backfill_titles_is_exclusive_with_the_deletion_targets():
+    for other in (["--older-than-days", "3"], ["--thread-id", "x"]):
+        with pytest.raises(SystemExit) as exc:
+            history_admin.main(["--backfill-titles", *other])
+        assert exc.value.code == 2
