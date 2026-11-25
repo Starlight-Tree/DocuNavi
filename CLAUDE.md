@@ -20,6 +20,7 @@ Next.js + React + TypeScript のフロントエンド（Cloudflare の Worker `d
 ## 構成
 
 コードの置き場所・処理の流れ・どこで動くかは [docs/architecture.md](docs/architecture.md)（本番は 2026-11-08 から、画面は Worker `docunavi-web`、API は Cloud Run の FastAPI、DB は Prisma Postgres、認証は Worker `docunavi-api` の Better Auth）。
+読み取り API の Go 化（速度が目的。画面が直接呼ぶ。チャットと解析は Python）は [ADR 0017](docs/decisions/0017-go-read-api-for-speed.md)、実装は [ops/read-api/](ops/read-api/README.md)（未配備）。
 目標構成と、Go・Django などを採用する条件は [docs/target-architecture.md](docs/target-architecture.md)。**新しいサービス・言語・フレームワーク・DB・インフラを足す前に、それを読んで、ユーザーに確認する。**
 `app/` の各モジュールの不変条件（失敗しても別の経路・メモリへ戻らない、`sub` 以外から利用者 ID を取らない、`scope` 必須など）は [.claude/rules/app-api.md](.claude/rules/app-api.md)（`app/**` を触るときに読み込まれる）と `app/CLAUDE.md`。
 
