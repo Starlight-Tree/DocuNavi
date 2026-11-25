@@ -1,9 +1,9 @@
 # ops/read-api/（読み取り API。Go）
 
-資料グループ・対象・資料種別の一覧（`GET /collections` `/targets` `/doc-types`）と `GET /health` だけを返す、読み取り専用の Go のサービス。
+資料グループ・対象・資料種別・資料の一覧（`GET /collections` `/targets` `/doc-types` `/documents`）と `GET /health` だけを返す、読み取り専用の Go のサービス。
 画面が直接呼ぶ（gateway にしない）。**未配備**（2026-11-25 時点。Cloud Run には無く、画面もまだ向けていない）。決定と範囲は [ADR 0017](../../docs/decisions/0017-go-read-api-for-speed.md)。
 
-チャット（`/chat` `/chat/stream`）・会話の発言・書き込み・資料の本文（`/documents` ほか）は、まだ Python の API。次の段で `/documents` 系を移す（ADR の段 A の残り）。
+チャット（`/chat` `/chat/stream`）・会話の発言・書き込み・資料の本文と PDF・画像（`/documents/{id}/chunks` `/file` `/hero`）は、まだ Python の API（Go では 404）。`/chunks` は `original_pdf` の判定で R2 から PDF を読むので、R2 の扱いを決めてから移す（ADR 0017 の「未決」5）。
 
 ## 守ること
 
@@ -49,6 +49,6 @@ READ_API_CMP_DATABASE_URL=postgresql://…/readapi_cmp .venv/bin/python ops/read
 
 ## 状態（2026-11-25）
 
-- 実装: `/health` `/collections` `/targets` `/doc-types`、JWT 検証、`ACCESS_MODE` / `MEMBERSHIP_MODE`、CORS、`pgx` の接続プール。Dockerfile・Cloud Build・配備は未作成。
-- 検証（証拠等級 A。ローカル）: 単体テスト（`-race`）・実 DB の検査 3 件が通る。Python と Go の応答は、`ACCESS_MODE` 3 通り（認証 off）と、資格・権限 4 通り × トークン 9 種類 × 3 経路（認証 on）で、本文・ヘッダー・状態まで一致した。
-- **未確認:** 本番（Cloud Run・Prisma Postgres のプール越し）での動作と速さ。PgBouncer 越しでの `QueryExecModeExec` の動作。画面の切り替え（`NEXT_PUBLIC_*` の向き先）。`/documents` 系。
+- 実装: `/health` `/collections` `/targets` `/doc-types` `/documents`、JWT 検証、`ACCESS_MODE` / `MEMBERSHIP_MODE`、CORS、`pgx` の接続プール。Dockerfile・Cloud Build・配備は未作成。
+- 検証（証拠等級 A。ローカル）: 単体テスト（`-race`）・実 DB の検査 3 件が通る。Python と Go の応答は、`ACCESS_MODE` 3 通り（認証 off）と、資格・権限 4 通り × トークン 9 種類 × 4 経路（認証 on。`/documents` を含む）で、本文・ヘッダー・状態まで一致した。
+- **未確認:** 本番（Cloud Run・Prisma Postgres のプール越し）での動作と速さ。PgBouncer 越しでの `QueryExecModeExec` の動作。画面の切り替え（`NEXT_PUBLIC_*` の向き先。`streamEndpoint` と同じ形で足せる見込み）。`/documents/{id}/chunks` `/file` `/hero`。`updated_at` は、DB の時刻をミリ秒に切り捨てて出す（Python と同じ。ミリ秒の境目の値だけ、Python は 1 ms ずれうる）。

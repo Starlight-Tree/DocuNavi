@@ -32,10 +32,29 @@ type classificationRow struct {
 	ReadyCount    int64
 }
 
+// documentRow は資料の一覧の 1 行（app/api/documents.py の _LIST_SQL）。
+type documentRow struct {
+	ID            int64
+	Source        string
+	Title         *string
+	Collection    *string
+	Target        *string
+	DocType       *string
+	Revision      *string
+	Status        string
+	FailureReason *string
+	Pages         *int32
+	UpdatedAt     *time.Time
+	ChunkCount    int64
+	EmbeddedCount int64
+	HeroImage     bool
+}
+
 // store は DB の読み取りの口。テストでは偽物に差し替える。allowed が nil なら全グループ。
 type store interface {
 	collections(ctx context.Context, allowed []string, limit int) ([]collectionRow, error)
 	classifications(ctx context.Context, kind classificationKind, allowed []string, limit int) ([]classificationRow, error)
+	documents(ctx context.Context, allowed []string, limit int) ([]documentRow, error)
 	visibleCollections(ctx context.Context, userID *string) ([]string, error)
 	isMember(ctx context.Context, userID string) (bool, error)
 	probeAccess(ctx context.Context) (defaultRoles, defaultCollections, assignments int64, err error)
@@ -59,6 +78,16 @@ WHERE coalesce(c.name, d.collection) IS NOT NULL
   AND ($1::text[] IS NULL OR coalesce(c.name, d.collection) = ANY($1::text[]))
 GROUP BY c.name, c.label, c.description, c.sort_order, d.collection
 ORDER BY c.sort_order NULLS LAST, coalesce(c.name, d.collection) LIMIT $2`
+
+// 資料の一覧。チャンクの数と、埋め込み済みの数（embedding_model がある行）、承認済みのヒーロー画像の有無つき
+const documentsSQL = `SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection,
+  d.target AS target, d.doc_type AS doc_type, d.revision AS revision, d.status AS status,
+  d.failure_reason AS failure_reason, d.pages AS pages, d.updated_at AS updated_at,
+  count(c.id) AS chunk_count, count(c.embedding_model) AS embedded_count,
+  EXISTS (SELECT 1 FROM document_images i WHERE i.document_id = d.id AND i.kind = 'hero' AND i.status = 'approved') AS hero_image
+FROM documents d LEFT JOIN chunks c ON c.document_id = d.id
+WHERE ($1::text[] IS NULL OR d.collection = ANY($1::text[]))
+GROUP BY d.id ORDER BY d.source, d.id LIMIT $2`
 
 // 内側結合: 見える資料が 1 件も無い分類は、行ごと出ない。件数は、見える資料だけ。表と列の名前は定数（利用者の入力ではない）
 func classificationsSQL(kind classificationKind) string {
@@ -138,6 +167,19 @@ func (s *pgStore) classifications(ctx context.Context, kind classificationKind, 
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (classificationRow, error) {
 		var r classificationRow
 		err := row.Scan(&r.Name, &r.Label, &r.Description, &r.SortOrder, &r.DocumentCount, &r.ReadyCount)
+		return r, err
+	})
+}
+
+func (s *pgStore) documents(ctx context.Context, allowed []string, limit int) ([]documentRow, error) {
+	rows, err := s.pool.Query(ctx, documentsSQL, allowedArg(allowed), limit)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (documentRow, error) {
+		var r documentRow
+		err := row.Scan(&r.ID, &r.Source, &r.Title, &r.Collection, &r.Target, &r.DocType, &r.Revision, &r.Status,
+			&r.FailureReason, &r.Pages, &r.UpdatedAt, &r.ChunkCount, &r.EmbeddedCount, &r.HeroImage)
 		return r, err
 	})
 }

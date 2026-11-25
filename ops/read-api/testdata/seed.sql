@@ -34,3 +34,20 @@ INSERT INTO "user" (id, name, email) VALUES
   ('user_nogroup01', 'なし', 'nogroup@example.test');
 INSERT INTO user_roles (user_id, role) VALUES ('user_staff0001', 'staff'), ('user_nogroup01', 'empty');
 INSERT INTO app_members (user_id) VALUES ('user_staff0001'), ('user_nogroup01');
+
+-- 資料の一覧（/documents）用: 題名・版・ページ数・失敗理由・チャンク・ヒーロー画像・更新時刻。
+-- 更新時刻は、ミリ秒の境目に当たらない値（.123456 秒）にそろえる。Python はミリ秒の整数を経由するので、境目だと 1 ms ずれうる。
+UPDATE documents SET updated_at = timestamptz '2026-11-20 03:04:05.123456+00' + id * interval '1 second';
+UPDATE documents SET updated_at = '2026-11-20 03:04:05+00' WHERE source = 'guide_a.pdf'; -- 秒未満が 0
+UPDATE documents SET title = '  カフェ案内  ', pages = 4, revision = ' 初版 ' WHERE source = 'cafe_a.pdf';
+UPDATE documents SET title = '   ' WHERE source = 'cafe_b.pdf';
+UPDATE documents SET revision = '   ' WHERE source = 'guide_a.pdf';
+UPDATE documents SET failure_reason = '読めないページ' WHERE source = 'cafe_d.pdf';
+INSERT INTO chunks (document_id, chunk_index, page, kind, content, content_hash, embedding_model)
+  SELECT d.id, g, 1, 'text', 'x', 'c' || g, CASE WHEN g < 2 THEN 'm1' END
+  FROM documents d, generate_series(0, 2) g WHERE d.source = 'cafe_a.pdf';
+INSERT INTO chunks (document_id, chunk_index, page, kind, content, content_hash)
+  SELECT d.id, 0, 1, 'text', 'y', 'd0' FROM documents d WHERE d.source = 'guide_a.pdf';
+INSERT INTO document_images (document_id, status, mime_type, r2_key, byte_size, prompt_sha256, model)
+  SELECT d.id, CASE d.source WHEN 'cafe_a.pdf' THEN 'approved' ELSE 'draft' END, 'image/png', 'k/' || d.source || '.png', 10, repeat('a', 64), 'm'
+  FROM documents d WHERE d.source IN ('cafe_a.pdf', 'cafe_b.pdf');

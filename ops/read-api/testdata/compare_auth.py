@@ -27,7 +27,7 @@ from compare import check  # noqa: E402
 ROOT = Path(__file__).resolve().parents[3]
 ISSUER = "http://127.0.0.1:19001"
 PY, GO = "http://127.0.0.1:18000", "http://127.0.0.1:18080"
-PATHS = ["/collections", "/targets", "/doc-types"]
+PATHS = ["/collections", "/targets", "/doc-types", "/documents"]
 
 KEY = ec.generate_private_key(ec.SECP256R1())
 JWK = json.loads(jwt.algorithms.ECAlgorithm.to_jwk(KEY.public_key()))

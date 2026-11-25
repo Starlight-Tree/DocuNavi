@@ -104,6 +104,44 @@ func TestPostgresClassificationsCountOnlyVisibleDocuments(t *testing.T) {
 	}
 }
 
+func TestPostgresDocuments(t *testing.T) {
+	db := openTestStore(t)
+	ctx := context.Background()
+	rows, err := db.documents(ctx, nil, maxDocuments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sources []string
+	for _, r := range rows {
+		sources = append(sources, r.Source)
+	}
+	// source の名前順。グループの無い資料も、全グループの範囲なら出る
+	want := []string{"cafe_a.pdf", "cafe_b.pdf", "cafe_c.pdf", "cafe_d.pdf", "guide_a.pdf", "guide_b.pdf", "new_a.pdf", "new_b.pdf", "nogroup.pdf", "zahard_a.pdf"}
+	if !reflect.DeepEqual(sources, want) {
+		t.Fatalf("sources=%v", sources)
+	}
+	a := rows[0]
+	if a.ChunkCount != 3 || a.EmbeddedCount != 2 || !a.HeroImage || a.Pages == nil || *a.Pages != 4 || a.UpdatedAt == nil {
+		t.Fatalf("cafe_a=%+v", a)
+	}
+	if b := rows[1]; b.HeroImage { // 下書きの画像は、承認済みではない
+		t.Fatalf("a draft image counted as a hero: %+v", b)
+	}
+	if d := rows[3]; d.FailureReason == nil || d.ChunkCount != 0 || d.EmbeddedCount != 0 {
+		t.Fatalf("cafe_d=%+v", d)
+	}
+	narrow, err := db.documents(ctx, []string{"guides"}, maxDocuments)
+	if err != nil || len(narrow) != 2 || narrow[0].Source != "guide_a.pdf" {
+		t.Fatalf("narrowed: %+v %v", narrow, err)
+	}
+	if none, err := db.documents(ctx, []string{}, maxDocuments); err != nil || len(none) != 0 {
+		t.Fatalf("an empty scope must return nothing: %+v %v", none, err)
+	}
+	if one, err := db.documents(ctx, nil, 1); err != nil || len(one) != 1 {
+		t.Fatalf("limit: %+v %v", one, err)
+	}
+}
+
 func TestPostgresAccessQueries(t *testing.T) {
 	db := openTestStore(t)
 	ctx := context.Background()

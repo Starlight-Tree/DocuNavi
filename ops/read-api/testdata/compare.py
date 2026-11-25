@@ -11,7 +11,7 @@ import sys
 import urllib.error
 import urllib.request
 
-PATHS = ["/collections", "/targets", "/doc-types", "/nope"]
+PATHS = ["/collections", "/targets", "/doc-types", "/documents", "/nope"]
 HEADERS = ["content-type", "cache-control", "www-authenticate", "allow"]
 
 

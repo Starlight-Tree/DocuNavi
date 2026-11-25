@@ -132,6 +132,7 @@ type fakeStore struct {
 	collectionRows []collectionRow
 	targetRows     []classificationRow
 	typeRows       []classificationRow
+	documentRows   []documentRow
 	visible        []string
 	members        map[string]bool
 	err            error
@@ -165,6 +166,13 @@ func (f *fakeStore) classifications(_ context.Context, kind classificationKind, 
 		return f.typeRows, f.err
 	}
 	return f.targetRows, f.err
+}
+
+func (f *fakeStore) documents(_ context.Context, allowed []string, _ int) ([]documentRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.record(allowed)
+	return f.documentRows, f.err
 }
 
 func (f *fakeStore) visibleCollections(context.Context, *string) ([]string, error) {
