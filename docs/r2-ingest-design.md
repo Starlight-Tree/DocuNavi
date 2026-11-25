@@ -251,7 +251,7 @@ R2 `docunavi-documents` → 通知の規則 → Queue `docunavi-ingest` → Clou
 - 終了コード: 0 = 完了（**壊れた PDF が混ざっていても 0**。1 にすると Job の再試行が、同じ失敗を無駄に繰り返す。該当の資料群は標準エラーに出す）、
   1 = 取り込み・埋め込み・R2 の一時的な失敗（想定外のコードも 1）、2 = 設定・使い方の誤り。
 - 名前の形が `COLLECTION_PATTERN` に合わないプレフィックスは、警告して飛ばす（取り込みが 2 で終わり、埋め込みを止めてしまうため）。名前そのものはログに出さない。
-- 「R2 から消えた PDF」の検出は、sync には入れない。既存の `r2-verify`（`python -m app.r2_store verify`）が、DB の文書ごとに R2 の有無とハッシュを確かめる。決めたこと 6 の「ログで知らせる」は、これで足りる。
+- 「R2 から消えた PDF」の検出は、sync には入れない。既存の `r2-verify`（`python -m app.r2_store verify`）が、DB の文書ごとに R2 の有無とハッシュを確かめる。決めたこと 6 の「ログで知らせる」は、これで足りる。 `--record` を付けると、確かめた結果を DB の `documents.original_verified_at` にも書き、`/documents/{id}/chunks` の `original_pdf` が R2 に聞かずに済む（2026-11-25。[ADR 0017](decisions/0017-go-read-api-for-speed.md)）。PDF を R2 へ置いた・取り込んだあとは、`verify --record` をやり直す。
 - 実行時に要る環境変数: `R2_ACCOUNT_ID` `R2_BUCKET` `R2_CREDENTIALS_FILE`（または `R2_CREDENTIALS_JSON`）、`DATABASE_URL`、`GEMINI_API_KEY`。
 
 ## 段 2 の手順（あなたが実行する書き込み）
