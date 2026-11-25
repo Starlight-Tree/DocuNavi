@@ -133,12 +133,18 @@ type fakeStore struct {
 	targetRows     []classificationRow
 	typeRows       []classificationRow
 	documentRows   []documentRow
+	details        map[int64]*documentDetailRow
+	chunkRows      map[int64][]chunkRow
+	heroRows       map[int64]*heroRow
+	threadRows     []threadRow
 	visible        []string
 	members        map[string]bool
 	err            error
 
 	lastAllowed   []string
 	lastAllowedOK bool // lastAllowed が nil（全グループ）でなく渡されたか
+	lastPrefix    string
+	detailCalls   int
 	visibleCalls  int
 	memberCalls   int
 	roles, groups int64
@@ -173,6 +179,35 @@ func (f *fakeStore) documents(_ context.Context, allowed []string, _ int) ([]doc
 	defer f.mu.Unlock()
 	f.record(allowed)
 	return f.documentRows, f.err
+}
+
+func (f *fakeStore) documentWithChunks(_ context.Context, id int64, _ int) (*documentDetailRow, []chunkRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.detailCalls++
+	if f.err != nil {
+		return nil, nil, f.err
+	}
+	return f.details[id], f.chunkRows[id], nil
+}
+
+func (f *fakeStore) document(_ context.Context, id int64) (*documentDetailRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.details[id], f.err
+}
+
+func (f *fakeStore) hero(_ context.Context, id int64) (*heroRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.heroRows[id], f.err
+}
+
+func (f *fakeStore) threads(_ context.Context, prefix string, _ int) ([]threadRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastPrefix = prefix
+	return f.threadRows, f.err
 }
 
 func (f *fakeStore) visibleCollections(context.Context, *string) ([]string, error) {

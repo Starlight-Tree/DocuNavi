@@ -27,7 +27,11 @@ from compare import check  # noqa: E402
 ROOT = Path(__file__).resolve().parents[3]
 ISSUER = "http://127.0.0.1:19001"
 PY, GO = "http://127.0.0.1:18000", "http://127.0.0.1:18080"
-PATHS = ["/collections", "/targets", "/doc-types", "/documents"]
+PATHS = ["/collections", "/targets", "/doc-types", "/documents", "/threads"] + [
+    f"/documents/{i}/{leaf}"
+    for i in ("1", "2", "3", "5", "6", "8", "10", "11", "abc")
+    for leaf in ("chunks", "file", "hero")
+]
 
 KEY = ec.generate_private_key(ec.SECP256R1())
 JWK = json.loads(jwt.algorithms.ECAlgorithm.to_jwk(KEY.public_key()))
@@ -76,6 +80,74 @@ SCENARIOS = {
 }
 
 
+def prepare_pdfs(db: str) -> None:
+    """/file と /chunks の original_pdf を、実在する PDF（storage/pdf/）で確かめられるように、資料の行を書き換える（使い捨ての DB 専用）。
+
+    id 2 = cafe/cafe_store_guide.pdf（ハッシュが合う → 200）、id 3 = guides/tsubasa_dorm_rules.pdf だがハッシュ違い（409）、
+    id 6 = guides/aoba_aw820_manual.pdf（ハッシュが合う）。それ以外は置き場に無い（404）。
+    """
+    import hashlib
+
+    import psycopg
+
+    def digest(path: str) -> str:
+        return hashlib.sha256((ROOT / "storage" / "pdf" / path).read_bytes()).hexdigest()
+
+    rows = [
+        ("cafe_b.pdf", "cafe_store_guide.pdf", digest("cafe/cafe_store_guide.pdf")),
+        ("cafe_c.pdf", "tsubasa_dorm_rules.pdf", "0" * 64),
+        ("guide_b.pdf", "aoba_aw820_manual.pdf", digest("guides/aoba_aw820_manual.pdf")),
+    ]
+    with psycopg.connect(db, autocommit=True, connect_timeout=5) as conn:
+        for old, source, content_hash in rows:
+            conn.execute(
+                "UPDATE documents SET source = %s, content_hash = %s WHERE source = %s", (source, content_hash, old)
+            )
+
+
+def prepare_threads(db: str) -> None:
+    """/threads を比べられるようにする（使い捨ての DB 専用）。
+
+    seed.sql のチェックポイントは中身が空の blob なので、Python が復号できる本物の blob（発言なし）に置き換える。
+    さらに、題名（metadata の title）が無い古い会話を 1 件足し、`python -m app.history_admin --backfill-titles --apply`（本番の再開後に流す補完）を
+    実 Postgres（jsonb）に対して流す。流した後は、Python（本体を復号して題名を作る）と Go（metadata の title だけを読む）の一覧が一致する。
+    """
+    import psycopg
+    from langchain_core.messages import HumanMessage
+
+    sys.path.insert(0, str(ROOT))
+    from app.pg_saver import PgSaver
+
+    saver = PgSaver(None)
+
+    def blob(messages: list[HumanMessage], checkpoint_id: str) -> tuple[str, bytes]:
+        return saver.serde.dumps_typed(
+            {"v": 4, "id": checkpoint_id, "ts": "2026-11-20T00:00:00+00:00", "channel_values": {"messages": messages}}
+        )
+
+    with psycopg.connect(db, autocommit=True, connect_timeout=5) as conn:
+        empty_type, empty = blob([], "x")
+        conn.execute("UPDATE checkpoints SET type = %s, checkpoint = %s", (empty_type, empty))
+        legacy_type, legacy = blob([HumanMessage(content="  古い会話の\n最初の質問  ")], "1ef-0099")
+        conn.execute(
+            "INSERT INTO checkpoints (thread_id, checkpoint_ns, checkpoint_id, type, checkpoint, metadata, created_at) "
+            "VALUES ('user_staff0001:t-legacy', '', '1ef-0099', %s, %s, '{}', '2026-11-18 03:00:00.123456+00') ON CONFLICT DO NOTHING",
+            (legacy_type, legacy),
+        )
+    env = {**os.environ, "DB_BACKEND": "pg", "DATABASE_URL": db}
+    done = subprocess.run(
+        [str(ROOT / ".venv/bin/python"), "-m", "app.history_admin", "--backfill-titles", "--apply"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    print(done.stdout.strip() or done.stderr.strip())
+    if done.returncode:
+        raise SystemExit("題名の補完に失敗しました")
+
+
 def wait(url: str) -> None:
     for _ in range(120):
         try:
@@ -89,6 +161,8 @@ def wait(url: str) -> None:
 def main() -> int:
     go_bin = sys.argv[1]
     db = os.environ["READ_API_CMP_DATABASE_URL"]
+    prepare_pdfs(db)
+    prepare_threads(db)
     server = HTTPServer(("127.0.0.1", 19001), Jwks)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     failures = 0
@@ -99,6 +173,8 @@ def main() -> int:
         "AUTH_BASE_URL": ISSUER,
         "AUTH_AUDIENCE": "docunavi",
         "ACCESS_CACHE_TTL_SECONDS": "0",
+        "PDF_STORE": "local",
+        "PDF_DIR": str(ROOT / "storage" / "pdf"),
     }
     for name, extra in SCENARIOS.items():
         env = {**base, **extra}

@@ -51,3 +51,20 @@ INSERT INTO chunks (document_id, chunk_index, page, kind, content, content_hash)
 INSERT INTO document_images (document_id, status, mime_type, r2_key, byte_size, prompt_sha256, model)
   SELECT d.id, CASE d.source WHEN 'cafe_a.pdf' THEN 'approved' ELSE 'draft' END, 'image/png', 'k/' || d.source || '.png', 10, repeat('a', 64), 'm'
   FROM documents d WHERE d.source IN ('cafe_a.pdf', 'cafe_b.pdf');
+
+-- 資料 1 件（/documents/{id}/chunks）用: ページの範囲・ラベル・見出し・本文に記号と日本語。
+UPDATE chunks SET page_end = 2, page_label = '表紙', page_end_label = 'i', heading = '見出し <b>&' WHERE chunk_index = 1 AND document_id = (SELECT id FROM documents WHERE source = 'cafe_a.pdf');
+UPDATE chunks SET content = E'本文 <b>&</b>\n二行目 "引用" \\ バックスラッシュ' WHERE chunk_index = 0 AND document_id = (SELECT id FROM documents WHERE source = 'cafe_a.pdf');
+-- PDF の確認を取り込み側が記録した資料（/chunks は置き場を見ずに original_pdf = true）
+UPDATE documents SET original_verified_at = now() WHERE source = 'guide_a.pdf';
+
+-- 会話の一覧（/threads）用: 利用者ごとの会話。題名は metadata の title（無い行は「（題名なし）」）。時刻はミリ秒の境目を避ける（.123456）。
+-- チェックポイント本体（bytea）は、Go が読まないので、中身は何でもよい。
+INSERT INTO checkpoints (thread_id, checkpoint_ns, checkpoint_id, type, checkpoint, metadata, created_at) VALUES
+  ('user_staff0001:t-old',  '', '1ef-0001', 'msgpack', '\x00', '{"title": "古い会話の題名"}', '2026-11-20 01:00:00.123456+00'),
+  ('user_staff0001:t-old',  '', '1ef-0002', 'msgpack', '\x00', '{"title": "古い会話の題名"}', '2026-11-20 01:05:00.123456+00'),
+  ('user_staff0001:t-new',  '', '1ef-0003', 'msgpack', '\x00', '{"title": "新しい会話 <b>&"}', '2026-11-21 02:00:00.123456+00'),
+  ('user_staff0001:t-nul',  '', '1ef-0004', 'msgpack', '\x00', '{}', '2026-11-19 03:00:00.123456+00'),
+  ('user_staff0001:t-sub',  'sub', '1ef-0005', 'msgpack', '\x00', '{"title": "サブグラフ（一覧に出ない）"}', '2026-11-22 03:00:00.123456+00'),
+  ('user_plain0001:t-mine', '', '1ef-0006', 'msgpack', '\x00', '{"title": "別の人の会話"}', '2026-11-21 05:00:00+00'),
+  ('user_staff0001x:t-x',   '', '1ef-0007', 'msgpack', '\x00', '{"title": "接頭辞が似た別の利用者"}', '2026-11-21 06:00:00.123456+00');

@@ -70,24 +70,3 @@ func TestDocumentsEnforceHidesOtherGroupsAndUngroupedDocuments(t *testing.T) {
 		t.Fatalf("an ungrouped document must be visible to the all scope: %s", body)
 	}
 }
-
-func TestDocumentSubPathsAreNotServedHere(t *testing.T) {
-	s := newTestServer(t, baseConfig(), sampleStore(), nil)
-	for _, path := range []string{"/documents/1/chunks", "/documents/1/file", "/documents/1/hero", "/documents/"} {
-		if rec := do(s, "GET", path, nil); rec.Code != 404 {
-			t.Fatalf("%s: %d", path, rec.Code)
-		}
-	}
-}
-
-func TestRevisionAndTitleNormalisation(t *testing.T) {
-	if got := revisionOf(str(strings.Repeat("版", 40))); got == nil {
-		t.Fatal("40 characters is allowed")
-	}
-	if revisionOf(str(strings.Repeat("版", 41))) != nil || revisionOf(str(" ")) != nil || revisionOf(nil) != nil {
-		t.Fatal("too long / blank / missing must be nil")
-	}
-	if titleOf(str(" \t ")) != nil || *titleOf(str(" x ")) != "x" {
-		t.Fatal("title trimming")
-	}
-}

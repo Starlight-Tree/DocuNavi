@@ -1,6 +1,6 @@
 package main
 
-// HTTP の入口。経路は GET /health /collections /targets /doc-types /documents だけ（読み取り専用）。ほかのパスは 404、ほかのメソッドは 405
+// HTTP の入口。経路は GET /health /collections /targets /doc-types /documents /documents/{id}/chunks|file|hero /threads だけ（読み取り専用）。ほかのパスは 404、ほかのメソッドは 405
 // （FastAPI と同じ {"detail": ...} の JSON）。応答の JSON は app/api/collections.py・classifications.py と同じ形・同じ順序の項目。
 //
 // ヘッダーの扱いも Python と同じ:
@@ -120,6 +120,7 @@ type server struct {
 	verifier *tokenVerifier // AUTH_MODE=off のときは nil
 	checker  *accessChecker
 	db       store // nil = DB の接続が無い（configured:false を返す）
+	pdfs     *pdfStore
 	logf     func(string, ...any)
 }
 
@@ -209,9 +210,23 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		handler = s.classifications(kindDocTypes)
 	case "/documents":
 		handler = s.documents
+	case "/threads":
+		handler = s.threads
 	default:
-		writeError(w, newHTTPError(http.StatusNotFound, "Not Found"))
-		return
+		rawID, leaf, ok := documentRoute(r.URL.Path)
+		if !ok {
+			writeError(w, newHTTPError(http.StatusNotFound, "Not Found"))
+			return
+		}
+		handler = func(w http.ResponseWriter, r *http.Request) *httpError {
+			switch leaf {
+			case "chunks":
+				return s.chunks(w, r, rawID)
+			case "file":
+				return s.file(w, r, rawID)
+			}
+			return s.hero(w, r, rawID)
+		}
 	}
 	if r.Method != http.MethodGet {
 		e := newHTTPError(http.StatusMethodNotAllowed, "Method Not Allowed")

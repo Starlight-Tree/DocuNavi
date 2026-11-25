@@ -12,7 +12,27 @@ import urllib.error
 import urllib.request
 
 PATHS = ["/collections", "/targets", "/doc-types", "/documents", "/nope"]
-HEADERS = ["content-type", "cache-control", "www-authenticate", "allow"]
+# 資料 1 件（seed.sql の資料の id は 1〜10。11 は無い）と会話の一覧。{id} の検査（422）と、PDF・画像の経路を含む
+DETAIL_PATHS = (
+    [f"/documents/{i}/{leaf}" for i in list(range(1, 12)) for leaf in ("chunks", "file", "hero")]
+    + [
+        f"/documents/{i}/{leaf}"
+        for i in ("abc", "0", "-5", "9223372036854775808", "1.0", "%201%20", "1_0", "1e2")
+        for leaf in ("chunks", "file", "hero")
+    ]
+    + [
+        "/threads",
+        "/documents/1",
+    ]  # /threads/{id}/messages と /documents/{id}/graph は、Python だけが返す（Go は 404 の別の文）
+)
+HEADERS = [
+    "content-type",
+    "cache-control",
+    "www-authenticate",
+    "allow",
+    "content-disposition",
+    "x-content-type-options",
+]
 
 
 def fetch(base: str, path: str, bearer: str | None, method: str = "GET") -> tuple[int, dict[str, str], bytes]:
@@ -58,7 +78,11 @@ def main() -> int:
         return 2
     py, go = args
     failures = 0
-    cases = [(p, "GET") for p in PATHS] + [("/collections", "POST")]
+    cases = [(p, "GET") for p in PATHS + DETAIL_PATHS] + [
+        ("/collections", "POST"),
+        ("/documents/1/chunks", "POST"),
+        ("/threads", "POST"),
+    ]
     for path, method in cases:
         a, b, notes = check(py, go, path, method, bearer)
         failures += bool(notes)

@@ -18,7 +18,14 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-PATHS = ["/health", "/collections", "/targets", "/doc-types", "/documents"]
+PATHS = [
+    "/health",
+    "/collections",
+    "/targets",
+    "/doc-types",
+    "/documents",
+    "/documents/1/chunks",
+]  # 1 = seed.sql の cafe_a.pdf（本文 3 チャンク）
 WARMUP, SERIAL, CONCURRENT, THREADS = 100, 1000, 4000, 20
 PORTS = {"python": 18000, "go": 18080}
 

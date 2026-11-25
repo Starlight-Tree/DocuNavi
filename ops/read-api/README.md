@@ -1,9 +1,10 @@
 # ops/read-api/（読み取り API。Go）
 
-資料グループ・対象・資料種別・資料の一覧（`GET /collections` `/targets` `/doc-types` `/documents`）と `GET /health` だけを返す、読み取り専用の Go のサービス。
-画面が直接呼ぶ（gateway にしない）。**未配備**（2026-11-25 時点。Cloud Run には無く、画面もまだ向けていない）。決定と範囲は [ADR 0017](../../docs/decisions/0017-go-read-api-for-speed.md)。
+読み取り専用の Go のサービス。返す経路は、`GET /health`、資料グループ・対象・資料種別・資料の一覧（`/collections` `/targets` `/doc-types` `/documents`）、
+資料 1 件の本文・PDF・画像（`/documents/{id}/chunks` `/file` `/hero`）、会話の一覧（`/threads`）。
+画面が直接呼ぶ（gateway にしない）。**未配備**（2026-11-26 時点。実装・ローカルの検証は済み。Cloud Run には無く、画面もまだ向けていない。本番は Prisma の上限で止まっていて、再開は 2026-12 以降）。決定と範囲は [ADR 0017](../../docs/decisions/0017-go-read-api-for-speed.md)。
 
-チャット（`/chat` `/chat/stream`）・会話の発言・書き込み・資料の本文と PDF・画像（`/documents/{id}/chunks` `/file` `/hero`）は、まだ Python の API（Go では 404）。`/chunks` は `original_pdf` の判定で R2 から PDF を読むので、R2 の扱いを決めてから移す（ADR 0017 の「未決」5）。
+チャット（`/chat` `/chat/stream`）・会話の発言（`/threads/{id}/messages`）と削除・書き込み・関係図（`/documents/{id}/graph` `/impact`）は、Python の API のまま（Go では 404）。
 
 ## 守ること
 
@@ -14,6 +15,9 @@
 - **権限は fail-closed。** `ACCESS_MODE=enforce` で引けなければ 503（制限なしには倒れない）。見える範囲が 0 件なら 403。範囲の外のグループは、SQL で絞ったうえで、返す前にもう一度確かめる。
 - **DB は PgBouncer（トランザクションモード）越し**（本番のアプリはプール側 `pooled.db.prisma.io`）なので、`pgx` は `QueryExecModeExec`（準備済み文なし）。Python の `prepare_threshold=None` と同じ理由。
 - **エラー本文は固定メッセージ。** 例外の文字列・接続先・SQL を応答とログに出さない（型の名前だけ）。
+- **見えないものは「無い」のと同じ 404。** 見えないグループの資料の本文・PDF・画像は、存在しない資料と同じ 404 と同じ文。`{id}` が不正なら FastAPI と同じ 422（pydantic の整数の読み方まで合わせた）。順序も同じ: 認証 → 利用資格 → 範囲（503）→ `{id}` の検査（422）→ 見えるグループが 0 件なら 403 → DB（503）→ 404。
+- **PDF は、名前とハッシュが DB と合うものだけを返す**（`pdfstore.go`。`/file` は毎回確かめる。`/chunks` の `original_pdf` は、DB の `original_verified_at` を先に見て、無ければその場で確かめる〔r2 は結果を 600 秒 / 60 秒だけ控える。読めなかった結果は控えない〕）。R2 を読めないときは、ローカルへ切り替えず 503。
+- **会話の一覧（`/threads`）は、題名を `checkpoints.metadata` の `title` からだけ読む。** チェックポイント本体（msgpack）は復号しない。`title` が無い古い会話は「（題名なし）」になる。**画面を向ける前に、`python -m app.history_admin --backfill-titles --apply` で補完する**（既定は件数だけ。本番の DB への書き込みなので、実行の前に承認を得る）。
 - 依存は `github.com/jackc/pgx/v5`（v5.13.0。MIT）だけ。ビルドに入るのは、その間接の `pgpassfile` `pgservicefile` `puddle/v2` `golang.org/x/sync` `golang.org/x/text`。足すときは承認を得る。
 
 ## 環境変数
@@ -28,6 +32,10 @@
 | `MEMBERSHIP_MODE` | `off` | 利用資格（`app_members`）。`AUTH_MODE=required` が必要 |
 | `ACCESS_CACHE_TTL_SECONDS` | `60` | 見えるグループと資格のプロセス内の控え。0 で無効 |
 | `CORS_ORIGINS` | なし | 許可する画面のオリジン（カンマ区切り・完全一致）。`*` は起動を失敗させる |
+| `PDF_STORE` | `local` | PDF の置き場。`r2`（本番）以外は `local`（Python の `app/pdf_originals.py` と同じ） |
+| `PDF_DIR` | `storage/pdf` | `local` のときの置き場（直下が資料群のディレクトリ）。シンボリックリンクはたどらない |
+| `R2_ACCOUNT_ID` `R2_BUCKET` | なし | R2 に接続する値（`PDF_STORE=r2` の PDF と、**`PDF_STORE` に関わらず**ヒーロー画像に使う）。足りなければ、PDF・画像は 503 の固定文 |
+| `R2_CREDENTIALS_JSON` / `R2_CREDENTIALS_FILE` / `R2_ACCESS_KEY_ID` + `R2_SECRET_ACCESS_KEY` | なし | R2 の**読み取り**の鍵（`{"access_key_id":…,"secret_access_key":…}`。Secret `r2-app-read` を `R2_CREDENTIALS_FILE` のボリュームで渡す形を想定）。R2 が 401/403 を返したら鍵を読み直し、**鍵の ID が変わっていれば** 1 回だけやり直す（再配備は要らない） |
 
 ## 検査
 
@@ -41,14 +49,15 @@ cd ops/read-api && go vet ./... && go test -race -count=1 ./...      # 単体（
 SETUP_ADMIN_URL=postgresql://…@host.docker.internal:5433/postgres .venv/bin/python ops/read-api/testdata/setup_db.py readapi_cmp
 # 実 DB の検査
 READ_API_TEST_DATABASE_URL=postgresql://…/readapi_cmp go test -count=1 -run Postgres ./...
-# Python と Go に同じ要求を送って、応答を比べる（Go は go build -o /tmp/readapi-bin . で作る）
+# Python と Go に同じ要求を送って、応答を比べる（Go は go build -o /tmp/readapi-bin . で作る。compare_auth.py は /file の比較のために、使い捨ての DB の資料の行と会話を書き換え、題名の補完も流す）
 READ_API_CMP_DATABASE_URL=postgresql://…/readapi_cmp .venv/bin/python ops/read-api/testdata/compare_auth.py /tmp/readapi-bin
 READ_API_CMP_DATABASE_URL=postgresql://…/readapi_cmp .venv/bin/python ops/read-api/testdata/bench.py /tmp/readapi-bin   # 速さの比較（ローカル）
 .venv/bin/python ops/read-api/testdata/setup_db.py readapi_cmp --drop                                                  # 後片付け
 ```
 
-## 状態（2026-11-25）
+## 状態（2026-11-26）
 
-- 実装: `/health` `/collections` `/targets` `/doc-types` `/documents`、JWT 検証、`ACCESS_MODE` / `MEMBERSHIP_MODE`、CORS、`pgx` の接続プール。Dockerfile・Cloud Build・配備は未作成。
-- 検証（証拠等級 A。ローカル）: 単体テスト（`-race`）・実 DB の検査 3 件が通る。Python と Go の応答は、`ACCESS_MODE` 3 通り（認証 off）と、資格・権限 4 通り × トークン 9 種類 × 4 経路（認証 on。`/documents` を含む）で、本文・ヘッダー・状態まで一致した。
-- **未確認:** 本番（Cloud Run・Prisma Postgres のプール越し）での動作と速さ。PgBouncer 越しでの `QueryExecModeExec` の動作。画面の切り替え（`NEXT_PUBLIC_*` の向き先。`streamEndpoint` と同じ形で足せる見込み）。`/documents/{id}/chunks` `/file` `/hero`。`updated_at` は、DB の時刻をミリ秒に切り捨てて出す（Python と同じ。ミリ秒の境目の値だけ、Python は 1 ms ずれうる）。
+- 実装: 上の全経路、JWT 検証、`ACCESS_MODE` / `MEMBERSHIP_MODE`、CORS、`pgx` の接続プール、R2 の読み取り（SigV4 を標準ライブラリで署名）。`Dockerfile` と `cloudbuild.yaml`（イメージのビルドだけ。配備はしない）。画面の切り替えは `frontend/src/api/chat.ts` の `readEndpoint` / `readThreadsEndpoint`（`NEXT_PUBLIC_READ_BASE_URL` / `NEXT_PUBLIC_READ_THREADS_BASE_URL`。空なら Python の API のまま）。
+- 検証（証拠等級 A。ローカル）: 単体テスト（`-race`）、実 DB の検査、Python と Go の応答の比較（`testdata/compare.py`〔認証 off。`ACCESS_MODE` 3 通り〕・`compare_auth.py`〔資格・権限 4 通り × トークン 9 種類 × 33 経路。実在の PDF での 200 / 409 / 404 を含む〕）で、本文・ヘッダー・状態まで一致した。**SigV4 の署名は、botocore が同じ要求に付ける値と一致する**（`r2_test.go`）。題名の補完（`--backfill-titles`）は、実 Postgres（jsonb）で流して、Python（本体を復号）と Go（`title` だけ）の一覧が一致することを確かめた。イメージは、ローカルでビルドして起動し、`/health` が 200 を返すことを確かめた（その後に削除）。
+- **未確認:** 本番（Cloud Run・Prisma Postgres のプール越し）での動作と速さ。PgBouncer 越しでの `QueryExecModeExec` の動作。**実際の R2 への接続**（偽の S3 サーバーと、署名の照合だけ。実 R2 には接続していない）。Cloud Run のイメージの配備。`updated_at` は、DB の時刻をミリ秒に切り捨てて出す（Python と同じ。ミリ秒の境目の値だけ、Python は 1 ms ずれうる）。
+- 意図して違う点: `/threads` は題名が未保存の会話を「（題名なし）」にする（上）。`/threads` で DB が無いとき、Python はメモリの履歴を返すが、Go は空の一覧。`/documents/` のように末尾が `/` のパスは、Python は 307 で転送するが、Go は 404。`Access-Control-Max-Age` は 7200 秒。

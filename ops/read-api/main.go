@@ -45,7 +45,7 @@ func build(ctx context.Context, cfg config, logf func(string, ...any)) (*server,
 		cleanup()
 		return nil, func() {}, err
 	}
-	s := &server{cfg: cfg, db: db, logf: logf, checker: newAccessChecker(cfg, db, time.Now, logf)}
+	s := &server{cfg: cfg, db: db, logf: logf, checker: newAccessChecker(cfg, db, time.Now, logf), pdfs: newPDFStore(cfg, logf)}
 	if cfg.AuthMode == authRequired {
 		cache := newJWKSCache(cfg.JWKSURL, fetchJWKS, time.Now, logf)
 		count, err := cache.refresh(ctx) // 起動時に取っておく（最初の要求が鍵の取得を待たない）

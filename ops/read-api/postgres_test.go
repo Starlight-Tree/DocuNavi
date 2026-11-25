@@ -181,3 +181,97 @@ func TestPostgresAccessQueries(t *testing.T) {
 		t.Fatalf("memberCount: %d %v", n, err)
 	}
 }
+
+func documentIDBySource(t *testing.T, db *pgStore, source string) int64 {
+	t.Helper()
+	rows, err := db.documents(context.Background(), nil, maxDocuments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rows {
+		if r.Source == source {
+			return r.ID
+		}
+	}
+	t.Fatalf("%s is not in the seed", source)
+	return 0
+}
+
+func TestPostgresDocumentDetailAndChunks(t *testing.T) {
+	db := openTestStore(t)
+	ctx := context.Background()
+	id := documentIDBySource(t, db, "cafe_a.pdf")
+	row, chunks, err := db.documentWithChunks(ctx, id, maxChunks)
+	if err != nil || row == nil {
+		t.Fatalf("%+v %v", row, err)
+	}
+	if row.Source != "cafe_a.pdf" || row.ContentHash == nil || *row.ContentHash != "h1" || row.OriginalVerified || row.Pages == nil || *row.Pages != 4 {
+		t.Fatalf("row=%+v", row)
+	}
+	if len(chunks) != 3 || chunks[0].ChunkIndex != 0 || chunks[2].ChunkIndex != 2 {
+		t.Fatalf("chunks=%+v", chunks)
+	}
+	if c := chunks[1]; c.PageEnd == nil || *c.PageEnd != 2 || c.PageLabel == nil || *c.PageLabel != "表紙" || c.Heading == nil || !c.Embedded || c.EmbeddingModel == nil {
+		t.Fatalf("chunk 1: %+v", c)
+	}
+	if chunks[2].Embedded || chunks[2].EmbeddingModel != nil {
+		t.Fatalf("chunk 2 has no embedding: %+v", chunks[2])
+	}
+	// 無い資料は nil（本文は引かない）。上限は LIMIT に効く
+	if row, chunks, err := db.documentWithChunks(ctx, 999999, maxChunks); err != nil || row != nil || chunks != nil {
+		t.Fatalf("missing: %+v %v %v", row, chunks, err)
+	}
+	if _, chunks, err := db.documentWithChunks(ctx, id, 2); err != nil || len(chunks) != 2 {
+		t.Fatalf("limit: %d %v", len(chunks), err)
+	}
+	// 取り込み側が PDF の確認を記録した資料
+	if verified, err := db.document(ctx, documentIDBySource(t, db, "guide_a.pdf")); err != nil || verified == nil || !verified.OriginalVerified {
+		t.Fatalf("verified: %+v %v", verified, err)
+	}
+}
+
+func TestPostgresHero(t *testing.T) {
+	db := openTestStore(t)
+	ctx := context.Background()
+	hero, err := db.hero(ctx, documentIDBySource(t, db, "cafe_a.pdf"))
+	if err != nil || hero == nil || hero.MimeType == nil || *hero.MimeType != "image/png" || hero.R2Key == nil || *hero.R2Key != "k/cafe_a.pdf.png" || hero.Collection == nil || *hero.Collection != "cafe" {
+		t.Fatalf("%+v %v", hero, err)
+	}
+	if none, err := db.hero(ctx, documentIDBySource(t, db, "cafe_b.pdf")); err != nil || none != nil { // 承認前（draft）の画像は返さない
+		t.Fatalf("draft: %+v %v", none, err)
+	}
+}
+
+func TestPostgresThreads(t *testing.T) {
+	db := openTestStore(t)
+	ctx := context.Background()
+	rows, err := db.threads(ctx, "user_staff0001:", maxThreads)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 新しい順（最後のチェックポイントの時刻）。サブグラフ（checkpoint_ns が空でない）と、接頭辞が似た別の利用者は出ない
+	var ids []string
+	for _, r := range rows {
+		ids = append(ids, r.ThreadID)
+	}
+	if want := []string{"user_staff0001:t-new", "user_staff0001:t-old", "user_staff0001:t-nul"}; !reflect.DeepEqual(ids, want) {
+		t.Fatalf("ids=%v want %v", ids, want)
+	}
+	if rows[0].Title == nil || *rows[0].Title != "新しい会話 <b>&" || rows[2].Title != nil {
+		t.Fatalf("titles: %v / %v", rows[0].Title, rows[2].Title)
+	}
+	// 最初と最後のチェックポイントの時刻（t-old は 2 つ）
+	if old := rows[1]; old.CreatedAt == nil || old.UpdatedAt == nil || !old.CreatedAt.Before(*old.UpdatedAt) {
+		t.Fatalf("t-old times: %+v", old)
+	}
+	if rows, err := db.threads(ctx, "user_staff0001:", 1); err != nil || len(rows) != 1 {
+		t.Fatalf("limit: %d %v", len(rows), err)
+	}
+	if rows, err := db.threads(ctx, "user_nobody0001:", maxThreads); err != nil || len(rows) != 0 {
+		t.Fatalf("other user: %d %v", len(rows), err)
+	}
+	// 接頭辞の LIKE のワイルドカード（% _）は、ただの文字として扱う
+	if rows, err := db.threads(ctx, "user_%:", maxThreads); err != nil || len(rows) != 0 {
+		t.Fatalf("wildcards: %d %v", len(rows), err)
+	}
+}

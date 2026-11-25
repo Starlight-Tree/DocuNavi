@@ -1,0 +1,11 @@
+# 読み取り API のイメージを Cloud Build でビルドして Artifact Registry に置く。配備はしない（できたイメージを `gcloud run deploy --image` で出す）。
+# ビルドの文脈は ops/read-api/（`gcloud builds submit ops/read-api --config ops/read-api/cloudbuild.yaml --billing-project=docunavi-app --substitutions=_IMAGE=…`）。
+# 配備・サービスの設定（docunavi-read、最小台数 1、最大台数 2、接続の枠）は ADR 0017 の承認どおり。実行はユーザー（書き込み系の gcloud）。
+#
+# 置換変数: _IMAGE  ビルドしたイメージの名前（例: <REGION>-docker.pkg.dev/<PROJECT_ID>/<リポジトリ>/docunavi-read:<タグ>）
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: [build, --tag, "${_IMAGE}", .]
+
+images:
+  - ${_IMAGE}

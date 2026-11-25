@@ -14,6 +14,7 @@ func baseConfig() config {
 	return config{
 		Port: "8080", PoolMaxSize: 2, AuthMode: modeOff, AccessMode: modeOff, MembershipMode: modeOff,
 		CacheTTL: defaultCacheTTL, Audience: "docunavi", CORSOrigins: []string{"https://app.example.test"},
+		PDFStore: pdfStoreLocal, PDFDir: "testdata/no-such-pdf-dir", get: func(string) string { return "" },
 	}
 }
 
@@ -24,7 +25,7 @@ func newTestServer(t *testing.T, cfg config, db store, verifier *tokenVerifier) 
 	if db != nil {
 		dbStore = db
 	}
-	return &server{cfg: cfg, db: dbStore, verifier: verifier, logf: logf, checker: newAccessChecker(cfg, dbStore, nowFunc(), logf)}
+	return &server{cfg: cfg, db: dbStore, verifier: verifier, logf: logf, checker: newAccessChecker(cfg, dbStore, nowFunc(), logf), pdfs: newPDFStore(cfg, logf)}
 }
 
 func do(s *server, method, path string, headers map[string]string) *httptest.ResponseRecorder {

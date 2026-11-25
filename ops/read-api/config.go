@@ -17,6 +17,8 @@ const (
 	defaultPoolMax   = 2
 	defaultPort      = "8080"
 	defaultRole      = "default"
+	pdfStoreR2       = "r2"
+	pdfStoreLocal    = "local"
 	maxListItems     = 200 // 暴走した件数を返さないための上限（Python の _MAX_COLLECTIONS / _MAX_ITEMS と同じ）
 	modeOff          = "off"
 	modeShadow       = "shadow"
@@ -39,6 +41,9 @@ type config struct {
 	MembershipMode string // off / shadow / enforce
 	CacheTTL       time.Duration
 	CORSOrigins    []string
+	PDFStore       string              // local / r2（PDF の置き場。app/pdf_originals.py と同じ。r2 以外は local）
+	PDFDir         string              // local のときの置き場（資料群のディレクトリの親）
+	get            func(string) string // R2 の設定（R2_*）を使うときに読む
 }
 
 func parseMode(get func(string) string, key string, allowed ...string) (string, error) {
@@ -135,6 +140,14 @@ func loadConfig(get func(string) string) (config, error) {
 	}
 	if c.CORSOrigins, err = parseCORSOrigins(get("CORS_ORIGINS")); err != nil {
 		return c, err
+	}
+	c.get = get
+	c.PDFStore = pdfStoreLocal
+	if strings.ToLower(strings.TrimSpace(get("PDF_STORE"))) == pdfStoreR2 {
+		c.PDFStore = pdfStoreR2
+	}
+	if c.PDFDir = strings.TrimSpace(get("PDF_DIR")); c.PDFDir == "" {
+		c.PDFDir = defaultPDFDir
 	}
 	c.Audience = strings.TrimSpace(get("AUTH_AUDIENCE"))
 	if c.Audience == "" {
