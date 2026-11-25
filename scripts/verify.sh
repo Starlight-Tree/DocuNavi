@@ -4,7 +4,7 @@
 #   py        ruff format --check / ruff check / pytest（モックモード固定。実 API・DB は呼ばない）
 #   frontend  npm run typecheck / npm test（ビルドと E2E は含まない。`.next-verify` を作らないため）
 #   worker    workers/api の npm run typecheck と npm test
-#   go        ops/sse-relay の go vet / go test -race（go が無ければ飛ばす）
+#   go        ops/sse-relay と ops/read-api の go vet / go test -race（go が無ければ飛ばす。read-api の実 DB の検査は環境変数が無ければ飛ばす）
 # py の 3 段は全部実行する。py が落ちたら、frontend 以降は実行しない。実行したものと結果は、終わりにまとめて表示する。
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -54,6 +54,10 @@ if [ "$FAILED" = 0 ] && want go; then
   if command -v go >/dev/null 2>&1 && [ -d "$ROOT/ops/sse-relay" ]; then
     run "sse-relay go vet" ops/sse-relay go vet ./...
     [ "$FAILED" = 0 ] && run "sse-relay go test" ops/sse-relay go test -race -count=1 ./...
+    if [ "$FAILED" = 0 ] && [ -d "$ROOT/ops/read-api" ]; then
+      run "read-api go vet" ops/read-api go vet ./...
+      [ "$FAILED" = 0 ] && run "read-api go test" ops/read-api go test -race -count=1 ./...
+    fi
   else
     RESULTS+=("SKIP go（go コマンドか ops/sse-relay が無い）")
   fi

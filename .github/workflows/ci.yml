@@ -166,6 +166,7 @@ jobs:
         run: |
           test "$(go env GOVERSION)" = "go$(awk '$1 == "go" {print $2}' ops/sse-relay/go.mod)"
           test "$(go env GOVERSION)" = "go$(awk '$1 == "go" {print $2}' ops/sse-fake-upstream/go.mod)"
+          test "$(go env GOVERSION)" = "go$(awk '$1 == "go" {print $2}' ops/read-api/go.mod)"
       - name: SSE relay (go vet, go test -race)
         working-directory: ops/sse-relay
         run: |
@@ -174,6 +175,13 @@ jobs:
       - name: Fake upstream (go vet, go test -race)
         working-directory: ops/sse-fake-upstream
         run: |
+          go vet ./...
+          go test -race -count=1 ./...
+      # 読み取り API（ADR 0017）。外部の依存は pgx だけ。実 DB の検査（postgres_test.go）は READ_API_TEST_DATABASE_URL が無いので飛ばす
+      - name: Read API (go vet, go test -race)
+        working-directory: ops/read-api
+        run: |
+          go mod verify
           go vet ./...
           go test -race -count=1 ./...
 

@@ -55,11 +55,12 @@ updates:
           - version-update:semver-minor
           - version-update:semver-major
 
-  # go.mod は Go の中継と疑似上流にだけある（今は外部の依存なし）。
+  # go.mod は Go の中継・疑似上流・読み取り API にある。外部の依存があるのは読み取り API（pgx）だけ。
   - package-ecosystem: gomod
     directories:
       - /ops/sse-relay
       - /ops/sse-fake-upstream
+      - /ops/read-api
     schedule:
       interval: weekly
     cooldown:
