@@ -270,6 +270,8 @@ DB の設定（`DB_BACKEND=pg` と `DATABASE_URL`）が無ければ、履歴は�
   python -m app.history_admin --older-than-days 7             # 7 日以上動きのない会話の数を表示（削除しない）
   python -m app.history_admin --older-than-days 7 --apply     # それらを削除する
   python -m app.history_admin --thread-id <thread_id> --apply # 1 件の会話を削除する
+  python -m app.history_admin --backfill-titles                # 題名が未保存の会話の数を表示（書かない）
+  python -m app.history_admin --backfill-titles --apply        # それらの題名を metadata の title へ書く（削除ではない。Go の読み取り API の `/threads` を使う前に流す）
   ```
 
   「動きのない」は、会話の最新のチェックポイントの時刻で決めます（続けて使われる会話は消えません）。表示するのは件数だけです。`AUTH_MODE=off` のあいだは、`thread_id` を知っていれば誰でも続きを書けます。`required` なら、履歴のキーに利用者 ID が付き、他の利用者の会話には届きません。本人からの削除要求には、API（`DELETE /threads/{thread_id}`）で応えられます。
