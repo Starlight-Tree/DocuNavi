@@ -262,7 +262,7 @@ data: [DONE]
   使っていません（モックモードなど）（エラーではなく 200。`documents` は空）。`configured: true` で `documents` が空なら、DB はあるが文書が 0 件です。
 - **`GET /documents/{id}/chunks`:** その文書のチャンクを `chunk_index` 順に、`page`・`page_end`・`page_label`・`page_end_label`（PDF のページラベル。無ければ `null`）・`kind`・`heading`・`content`（全文）・
   `embedded`（埋め込みがあるか）・`embedding_model` で返します。**埋め込みのベクトルそのものは返しません。**
-  存在しない `id` は 404、`id` が 1 以上の整数でなければ 422。応答の `original_pdf`（真偽値）は、PDF を `/file` で返せるか。
+  存在しない `id` は 404、`id` が 1 以上の整数でなければ 422。応答の `original_pdf`（真偽値）は、PDF を `/file` で返せるか。`PDF_STORE=r2` では、(名前, ハッシュ) ごとの照合結果をプロセス内に控える（返せた: 600 秒、見つからない・食い違い: 60 秒、R2 を読めなかったときは控えない。2026-11-25）ので、PDF を R2 へ足した・差し替えた直後は、この秒数だけ古い答えが出ることがある（`/file` は毎回確かめる）。
 - **`GET /documents/{id}/file`:** 取り込んだ PDF（`application/pdf`、`Content-Disposition: inline`。日本語のファイル名は `filename*=UTF-8''…`）。
   DB の `source`（ファイル名）と `content_hash`（取り込んだ PDF の sha256）に合うものだけを、`storage/pdf/<資料群>/` の直下（本番は `PDF_STORE=r2` で、R2 の同じ資料群）から探して返す。
   **名前だけでは選ばない**（同じ名前で中身が違う PDF は返さない）。返すのは、ハッシュを確かめたバイト列そのもの。
