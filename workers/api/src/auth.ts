@@ -41,6 +41,9 @@ export function createAuth(env: AuthConfig, pool: Pool) {
   const allowedEmail = testLoginEmail(env);
   return betterAuth({
     database: pool,
+    // 要求ごとに Pool とインスタンスを作るので、Better Auth の既定のスキーマ検査（information_schema 相当の問い合わせ 2 本）が毎回走り、
+    // 認証の要求はその完了を待つ。表の管理は db/migrations/ なので、実行時の検査は止める（公式の設定。better-auth 1.7.18。2026-11-25 に問い合わせ 2 本 → 0 本を確認）
+    advanced: { database: { validateSchema: false } },
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
     socialProviders: { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } },
