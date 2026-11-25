@@ -158,7 +158,7 @@ jobs:
         with:
           persist-credentials: false  # 後続のステップで git の認証は使わない
       # 版は go.mod（1.26.10）から読む。開発コンテナ・両方の Dockerfile と同じ版。標準ライブラリだけで go.sum が無いので、キャッシュは使わない
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: ops/sse-relay/go.mod
           cache: false
