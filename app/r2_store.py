@@ -266,19 +266,52 @@ def upload_plan(store: R2Store, root: Path) -> list[tuple[str, Path, str]]:
     return plan
 
 
+def check_originals(documents: Sequence[Mapping[str, Any]], find: Any) -> list[tuple[Mapping[str, Any], Any]]:
+    """DB の資料ごとに、R2 に PDF が（名前とハッシュで）見つかるかを確かめる。(資料, 結果) の並び。R2 への問い合わせは、資料 1 件につきここだけ。"""
+    return [(doc, find(doc["source"], doc["content_hash"])) for doc in documents]
+
+
+def summarize_originals(checked: Sequence[tuple[Mapping[str, Any], Any]]) -> tuple[list[str], int]:
+    """`check_originals` の結果を、(表示する行, 問題の件数) にする。"""
+    lines: list[str] = []
+    problems = 0
+    for doc, found in checked:
+        state = "ok" if found.ok else str(found.reason)
+        problems += 0 if found.ok else 1
+        lines.append(f"{state:12} id={doc['id']} {doc['source']}")
+    return lines, problems
+
+
 def verify_originals(documents: Sequence[Mapping[str, Any]], find: Any) -> tuple[list[str], int]:
     """DB の資料ごとに、R2 に PDF が（名前とハッシュで）見つかるかを確かめる。(表示する行, 問題の件数) を返す。
 
     `find` は `pdf_originals.find_original_in_r2` と同じ形（source, content_hash → 結果）。本番の `/documents/{id}/file` と同じ規則。
     """
-    lines: list[str] = []
-    problems = 0
-    for doc in documents:
-        found = find(doc["source"], doc["content_hash"])
-        state = "ok" if found.ok else str(found.reason)
-        problems += 0 if found.ok else 1
-        lines.append(f"{state:12} id={doc['id']} {doc['source']}")
-    return lines, problems
+    return summarize_originals(check_originals(documents, find))
+
+
+def record_originals(db: Any, checked: Sequence[tuple[Mapping[str, Any], Any]]) -> tuple[int, int]:
+    """確かめた結果を、DB の `documents.original_verified_at` に書く。(記録した件数, 消した件数) を返す。
+
+    一致した資料は、いまの時刻を入れる（`content_hash` が、確かめたときと同じ行だけ。確かめている間に取り込みで変わった行は触らない）。
+    一致しなかった資料（見つからない・食い違い・R2 を読めない）は、NULL に戻す（`/chunks` は、NULL ならその場で確かめる）。
+    `/chunks` は、記録があれば R2 に聞かずに `original_pdf: true` を返す（読む側の確認を、書く側へ移す。ADR 0017）。
+    """
+    recorded = cleared = 0
+    for doc, found in checked:
+        if found.ok:
+            rows = db.execute(
+                "UPDATE documents SET original_verified_at = unixepoch() * 1000 WHERE id = ? AND content_hash = ? RETURNING id",
+                (doc["id"], doc["content_hash"]),
+            )
+            recorded += len(rows)
+        else:
+            rows = db.execute(
+                "UPDATE documents SET original_verified_at = NULL WHERE id = ? AND original_verified_at IS NOT NULL RETURNING id",
+                (doc["id"],),
+            )
+            cleared += len(rows)
+    return recorded, cleared
 
 
 def _ready_documents() -> list[dict[str, Any]]:
@@ -290,8 +323,11 @@ def _ready_documents() -> list[dict[str, Any]]:
         return db.execute("SELECT id, source, content_hash FROM documents WHERE status = 'ready' ORDER BY id")
 
 
-def run_verify() -> int:
-    """終了コード: 0 すべて一致 / 1 一致しないものがある・資料が 0 件・DB か R2 を読めない / 2 設定の不足。"""
+def run_verify(record: bool = False) -> int:
+    """終了コード: 0 すべて一致 / 1 一致しないものがある・資料が 0 件・DB か R2 を読めない / 2 設定の不足。
+
+    `record=True`（`--record`）のときは、結果を DB の `documents.original_verified_at` にも書く（DB への書き込み。既定は書かない）。
+    """
     from app import pdf_originals
     from app.history import database_url
 
@@ -305,7 +341,8 @@ def run_verify() -> int:
         return 2
     try:
         documents = _ready_documents()
-        lines, problems = verify_originals(documents, pdf_originals.find_original_in_r2)
+        checked = check_originals(documents, pdf_originals.find_original_in_r2)
+        lines, problems = summarize_originals(checked)
     except Exception as exc:  # noqa: BLE001 - 例外の文字列に接続先・SQL が入りうる。クラス名だけを出す
         print(f"確認に失敗しました（{type(exc).__name__}）。", file=sys.stderr)
         return 1
@@ -314,6 +351,17 @@ def run_verify() -> int:
         print("確認する資料がありません（status = ready が 0 件）。一致したとは言えません。", file=sys.stderr)
         return 1
     print(f"資料 {len(documents)} 件、一致しない {problems} 件")
+    if record:
+        from app.d1 import SyncD1
+        from app.pg import sync_client
+
+        try:
+            with sync_client(SyncD1) as db:
+                recorded, cleared = record_originals(db, checked)
+        except Exception as exc:  # noqa: BLE001 - 上と同じ
+            print(f"DB への記録に失敗しました（{type(exc).__name__}）。", file=sys.stderr)
+            return 1
+        print(f"original_verified_at を記録 {recorded} 件、消去 {cleared} 件")
     return 1 if problems else 0
 
 
@@ -322,7 +370,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         prog="python -m app.r2_store",
         description=(
             "upload: storage/pdf/ の PDF を R2 に置く（既定は計画の表示だけ。--apply で置く。読み書きのキーが要る）。"
-            "verify: DB の資料ごとに、R2 に PDF が一致して見つかるかを確かめる（読み取りのキーと DB の接続先が要る）"
+            "verify: DB の資料ごとに、R2 に PDF が一致して見つかるかを確かめる（読み取りのキーと DB の接続先が要る。--record で結果を DB にも記録する）"
         ),
     )
     parser.add_argument("action", choices=["upload", "verify"])
@@ -330,9 +378,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--input", type=Path, default=Path("storage/pdf"), help="資料群のディレクトリを含む置き場（既定 storage/pdf）"
     )
     parser.add_argument("--apply", action="store_true", help="実際に置く（既定は計画の表示だけ）")
+    parser.add_argument(
+        "--record",
+        action="store_true",
+        help="verify の結果を、DB の documents.original_verified_at にも書く（DB への書き込み。既定は書かない）",
+    )
     args = parser.parse_args(argv)
+    if args.record and args.action != "verify":
+        parser.error("--record は verify のときだけ使えます")
     if args.action == "verify":
-        return run_verify()
+        return run_verify(record=args.record)
     try:
         store = default_store()
     except R2ConfigError as exc:

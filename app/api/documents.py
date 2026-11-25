@@ -60,7 +60,7 @@ _DOCUMENT_SQL = (
     "SELECT d.id AS id, d.source AS source, d.title AS title, d.collection AS collection, "
     "d.target AS target, d.doc_type AS doc_type, d.revision AS revision, d.status AS status, "
     "d.failure_reason AS failure_reason, d.pages AS pages, d.updated_at AS updated_at, "
-    "d.content_hash AS content_hash "
+    "d.content_hash AS content_hash, d.original_verified_at IS NOT NULL AS original_verified "
     "FROM documents d WHERE d.id = %(id)s"
 )
 # 承認済みのヒーロー画像。資料と同じ行から引く（資料の可視性の判定を、PDF の配信と同じ行に対して行うため）
@@ -240,8 +240,11 @@ async def document_chunks(
     summary = _summary(documents[0])
     summary.chunk_count = len(chunks)
     summary.embedded_count = sum(1 for chunk in chunks if chunk["embedded"])
-    # PDF を返せるかだけが要る（本文は要らない）。PDF_STORE=r2 では、照合結果をプロセス内に控える（app/pdf_originals.py の original_available）
-    original_pdf = await asyncio.to_thread(original_available, documents[0]["source"], documents[0].get("content_hash"))
+    # PDF を返せるかだけが要る（本文は要らない）。取り込み側が確かめて DB に記録済み（`original_verified_at`。`python -m app.r2_store verify --record`）
+    # なら、R2 には聞かない。未記録（NULL）なら、その場で確かめる（PDF_STORE=r2 では、結果をプロセス内に控える。app/pdf_originals.py の original_available）
+    original_pdf = bool(documents[0].get("original_verified")) or await asyncio.to_thread(
+        original_available, documents[0]["source"], documents[0].get("content_hash")
+    )
     return DocumentDetail(
         original_pdf=original_pdf,
         document=summary,

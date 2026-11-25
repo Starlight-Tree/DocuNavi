@@ -338,6 +338,8 @@ class D1Repository:
                 title = CASE WHEN ? THEN documents.title ELSE excluded.title END,
                 collection = COALESCE(excluded.collection, documents.collection),
                 revision = CASE WHEN ? THEN documents.revision ELSE excluded.revision END,
+                original_verified_at = CASE
+                    WHEN documents.content_hash = excluded.content_hash THEN documents.original_verified_at ELSE NULL END,
                 updated_at = unixepoch() * 1000
             RETURNING id
             """,
