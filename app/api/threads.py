@@ -9,14 +9,14 @@
   off では `/chat` と同じく、`thread_id` を知っていることが権限
 - `ACCESS_MODE=enforce` のとき、会話の発言は本人のものでも、いま見えないグループの検索結果に基づく回答は固定文に置き換える
   （`app/access.py` の `mask_hidden_turns`）。会話に保存された検索対象がいま見えないグループなら、`collection` は null で返す
-- 題名は、会話の最初のユーザー発言の先頭（新しい列も LLM 呼び出しも使わない）。履歴のチェックポイントから読む
+- 題名は、会話の最初のユーザー発言の先頭（新しい列も LLM 呼び出しも使わない。`app/thread_title.py`）。保存時に `checkpoints.metadata` の `title` へ入れ、
+  一覧はそれを読む（チェックポイント本体を取らず、復号もしない）。`title` の無い古い行だけ、従来どおり最新のチェックポイントから読む
 - 履歴の保存先は Postgres かメモリ（`app/history.py`）。どちらも LangGraph の checkpointer を通して読み書きする
 - 例外の文字列は応答に含めない（固定メッセージ）
 """
 
 import asyncio
 import logging
-import re
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
@@ -29,6 +29,7 @@ from app.access import Access, current_member, request_access, target_is_visible
 from app.api import routes
 from app.auth import conversation_key, current_user
 from app.history import get_checkpointer, get_pool
+from app.thread_title import make_title
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +39,14 @@ router = APIRouter(prefix="/threads")
 MAX_THREADS = 50
 # 題名を読む同時数。接続プールの借り出しを占有しない（チャットが待たされない）ための上限
 _TITLE_CONCURRENCY = 3
-MAX_TITLE_LENGTH = 40
 
 _DETAIL_NOT_AVAILABLE = "会話の一覧は、ログイン（AUTH_MODE=required）のときだけ使えます。"
 _DETAIL_NOT_FOUND = "指定された会話が見つかりません。"
 _DETAIL_UNAVAILABLE = "会話履歴を操作できませんでした。しばらく待ってから再試行してください。"
 
-# 一覧の元になる、会話ごとの最初と最後のチェックポイントの時刻と、最新のチェックポイント本体（題名の元）を、1 回で取る。
+# 一覧の元になる、会話ごとの最初と最後のチェックポイントの時刻と、題名を、1 回で取る。
+# 題名は、保存時に metadata（jsonb）の `title` へ入れた値（`app/thread_title.py`）。あれば本体（checkpoint。msgpack で 1 件 十数 KB）は返さない（NULL）。
+# 無い行（この機能より前の行）だけ、本体を返して復号する（題名の元）。2026-11-25 の本番ログで /threads が p50 782 ms だった（原因は推定。転送量・復号）ための変更。
 # checkpoint は bytea で持つので、時刻は checkpoints.created_at（timestamptz。`app/pg.py` が UNIX ミリ秒にして返す）を使う。
 # prefix は `<利用者 ID>:`（UUID で検証済み）。LIKE のワイルドカードを含まないので、先頭一致に使える。
 # 最新 = checkpoint_id の最大（`aget_tuple` の `ORDER BY checkpoint_id DESC LIMIT 1` と同じ列・同じ照合順序。主キーなので 1 行に決まる）。
@@ -55,7 +57,8 @@ _LIST_SQL = (
     " SELECT thread_id, min(created_at) AS created_at, max(created_at) AS updated_at, max(checkpoint_id) AS latest_id"
     " FROM checkpoints WHERE substr(thread_id, 1, length(%(prefix)s)) = %(prefix)s AND checkpoint_ns = ''"
     " GROUP BY thread_id ORDER BY max(created_at) DESC, thread_id LIMIT %(limit)s) "
-    "SELECT r.thread_id, r.created_at, r.updated_at, c.type, c.checkpoint "
+    "SELECT r.thread_id, r.created_at, r.updated_at, c.metadata->>'title' AS title, c.type, "
+    "CASE WHEN c.metadata->>'title' IS NULL THEN c.checkpoint END AS checkpoint "
     "FROM recent r JOIN checkpoints c "
     "ON c.thread_id = r.thread_id AND c.checkpoint_ns = '' AND c.checkpoint_id = r.latest_id "
     "ORDER BY r.updated_at DESC, r.thread_id"
@@ -202,28 +205,6 @@ def _unavailable(exc: BaseException) -> HTTPException:
     return HTTPException(status_code=503, detail=_DETAIL_UNAVAILABLE)
 
 
-def _text_of(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return " ".join(
-            part if isinstance(part, str) else str(part.get("text", ""))
-            for part in content
-            if isinstance(part, str) or isinstance(part, dict)
-        )
-    return ""
-
-
-def make_title(messages: list[Any]) -> str:
-    """最初のユーザー発言を、空白をまとめて MAX_TITLE_LENGTH 文字までにする。"""
-    for message in messages:
-        if isinstance(message, HumanMessage):
-            text = re.sub(r"\s+", " ", _text_of(message.content)).strip()
-            if text:
-                return text if len(text) <= MAX_TITLE_LENGTH else text[: MAX_TITLE_LENGTH - 1] + "…"
-    return "（題名なし）"
-
-
 def _parse_ts(value: Any) -> datetime | None:
     if not isinstance(value, str):
         return None
@@ -241,24 +222,25 @@ def _from_ms(value: Any) -> datetime | None:
 
 async def _recent_threads_postgres(
     prefix: str, saver: Any | None = None
-) -> list[tuple[str, datetime | None, datetime | None, list[Any]]]:
-    """新しい順の会話（最大 MAX_THREADS 件）と、各会話の最新のチェックポイントの発言。DB への問い合わせは、会話の数によらず 1 回。
+) -> list[tuple[str, datetime | None, datetime | None, str | None, list[Any]]]:
+    """新しい順の会話（最大 MAX_THREADS 件）の（会話 ID・最初と最後の時刻・保存済みの題名・発言）。DB への問い合わせは、会話の数によらず 1 回。
 
-    saver（`load_checkpoint` を持つ PgSaver / D1Saver）を渡すと、最新のチェックポイントを復号して発言を返す（復号できなければ例外）。
-    渡さなければ復号せず、発言は空（時刻だけ読む呼び出し用）。
+    題名は、保存時に `checkpoints.metadata` の `title` へ入れた値（`app/thread_title.py`）。あれば、チェックポイント本体は SQL が返さず、復号もしない（発言は空）。
+    無い会話（この機能より前に保存した行、本文のあるユーザー発言がまだ無い行）は、saver（`load_checkpoint` を持つ PgSaver / D1Saver）を渡したときだけ、
+    最新のチェックポイントを復号して発言を返す（復号できなければ例外）。saver が無ければ復号せず、発言は空（時刻だけ読む呼び出し用）。
     """
     async with get_pool().connection() as conn:
         cursor = await conn.execute(_LIST_SQL, {"prefix": prefix, "limit": MAX_THREADS})
         rows = await cursor.fetchall()
-    return [
-        (
-            row["thread_id"],
-            _from_ms(row["created_at"]),
-            _from_ms(row["updated_at"]),
-            [] if saver is None else saver.load_checkpoint(row).get("channel_values", {}).get("messages", []),
-        )
-        for row in rows
-    ]
+    found: list[tuple[str, datetime | None, datetime | None, str | None, list[Any]]] = []
+    for row in rows:
+        title = row.get("title")
+        if title is not None or saver is None:
+            messages: list[Any] = []
+        else:
+            messages = saver.load_checkpoint(row).get("channel_values", {}).get("messages", [])
+        found.append((row["thread_id"], _from_ms(row["created_at"]), _from_ms(row["updated_at"]), title, messages))
+    return found
 
 
 async def _recent_threads_memory(saver: BaseCheckpointSaver, prefix: str) -> list[tuple[str, Any, Any]]:
@@ -294,13 +276,16 @@ async def list_threads(user_id: Annotated[str | None, Depends(current_member)]) 
 
     try:
         if get_pool() is not None:
-            # Postgres: 題名の元は一覧と同じ 1 回の問い合わせで届く（会話ごとの aget_tuple は呼ばない）
+            # Postgres: 題名は一覧と同じ 1 回の問い合わせで届く（会話ごとの aget_tuple は呼ばない。保存済みの題名があれば本体も復号しない）
             found = await _recent_threads_postgres(prefix, saver)
             threads = [
                 ThreadSummary(
-                    thread_id=key[len(prefix) :], title=make_title(messages), created_at=created, updated_at=updated
+                    thread_id=key[len(prefix) :],
+                    title=title if title is not None else make_title(messages),
+                    created_at=created,
+                    updated_at=updated,
                 )
-                for key, created, updated, messages in found
+                for key, created, updated, title, messages in found
             ]
         else:
             rows = await _recent_threads_memory(saver, prefix)

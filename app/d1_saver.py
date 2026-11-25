@@ -26,6 +26,7 @@ from langgraph.checkpoint.base import (
 from langgraph.checkpoint.serde.base import SerializerProtocol
 
 from app.d1 import D1Pool
+from app.thread_title import stored_title
 
 
 def _b64(data: bytes) -> str:
@@ -148,7 +149,11 @@ class D1Saver(BaseCheckpointSaver[str]):
         thread_id = str(config["configurable"]["thread_id"])
         ns = config["configurable"]["checkpoint_ns"]
         type_, blob = self.serde.dumps_typed(checkpoint)
-        meta = self._meta_dump(get_checkpoint_metadata(config, metadata))
+        stored = dict(get_checkpoint_metadata(config, metadata))
+        # 会話の一覧が、チェックポイント本体（検索結果の本文を含み大きい）を取らずに題名を出せるよう、題名を metadata に入れておく（app/thread_title.py）
+        if (title := stored_title(checkpoint.get("channel_values", {}).get("messages", []))) is not None:
+            stored["title"] = title
+        meta = self._meta_dump(stored)
         await self.pool.batch(
             [
                 (

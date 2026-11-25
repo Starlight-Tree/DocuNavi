@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from app import auth
+from app import auth, thread_title
 from app.api import routes, threads
 from app.pg_saver import PgSaver
 from tests.test_auth import AUTH_BASE_URL, Clock, JwksServer, Signer
@@ -122,9 +122,9 @@ def test_make_title_collapses_whitespace_and_truncates():
         threads.make_title([HumanMessage(content="  ザーハードの\n大気   について  ")]) == "ザーハードの 大気 について"
     )
     long = threads.make_title([HumanMessage(content="あ" * 100)])
-    assert long == "あ" * (threads.MAX_TITLE_LENGTH - 1) + "…"
-    assert len(long) == threads.MAX_TITLE_LENGTH
-    exact = "い" * threads.MAX_TITLE_LENGTH
+    assert long == "あ" * (thread_title.MAX_TITLE_LENGTH - 1) + "…"
+    assert len(long) == thread_title.MAX_TITLE_LENGTH
+    exact = "い" * thread_title.MAX_TITLE_LENGTH
     assert threads.make_title([HumanMessage(content=exact)]) == exact
 
 
@@ -604,3 +604,26 @@ def test_postgres_list_with_a_corrupt_checkpoint_is_a_fixed_503(client, required
     assert res.json()["detail"] == "会話履歴を操作できませんでした。しばらく待ってから再試行してください。"
     assert "SECRET" not in res.text
     assert len(pool.statements) == 1
+
+
+def test_postgres_list_uses_the_stored_title_and_does_not_decode_the_checkpoint(
+    client, required, signer, user, pg_path
+):
+    """metadata に題名がある行は、本体（checkpoint）を SQL が返さない。壊れた本体があっても復号しないので 503 にならない。"""
+    row = {
+        "thread_id": f"{user}:t1",
+        "created_at": 1_700_000_000_000,
+        "updated_at": 1_700_000_050_000,
+        "title": "保存された題名",
+        "type": "msgpack",
+        "checkpoint": None,
+    }
+    pool = pg_path([row])
+
+    res = client.get("/threads", headers=_bearer(signer, user))
+
+    assert res.status_code == 200
+    assert [item["title"] for item in res.json()["threads"]] == ["保存された題名"]
+    assert len(pool.statements) == 1
+    assert "c.metadata->>'title' AS title" in threads._LIST_SQL
+    assert "THEN c.checkpoint END" in threads._LIST_SQL  # 題名があれば本体は返さない

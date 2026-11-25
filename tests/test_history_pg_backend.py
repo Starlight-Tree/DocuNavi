@@ -537,18 +537,77 @@ def test_thread_list_is_one_query_and_matches_aget_tuple_on_postgres(pg_url, mon
     assert queries == 1  # 会話が 3 件でも 1 回
     assert [key for key, *_ in listed] == ["u1:t1", "u1:t3", "u1:t2"]  # 新しい順。他の利用者・接頭辞が似た会話は出ない
     assert [key for key, *_ in capped] == ["u1:t1", "u1:t3"]  # MAX_THREADS
-    for key, created, updated, messages in listed:
+    for key, created, updated, title, messages in listed:
         expected = latest[key].checkpoint["channel_values"]["messages"]  # aget_tuple が返す最新のチェックポイント
-        assert [m.content for m in messages] == [m.content for m in expected]
+        assert title == threads.make_title(expected)  # 保存時に metadata へ入れた題名（aput）
+        assert latest[key].metadata["title"] == title
+        assert messages == []  # 題名があれば、本体は返さず復号もしない
         assert created is not None and updated is not None and created <= updated
-    t1 = listed[0][3]
-    assert [m.content for m in t1] == [
+    latest_t1 = latest["u1:t1"].checkpoint["channel_values"]["messages"]
+    assert [m.content for m in latest_t1] == [
         "first of t1",
         "answer 1",
         "second of t1",
         "answer 3",
     ]  # 最新の状態（2 回目のあと）
-    assert threads.make_title(t1) == "first of t1"
+    assert listed[0][3] == "first of t1"
+
+
+@needs_pg
+def test_thread_list_skips_the_checkpoint_body_when_a_title_is_stored_and_falls_back_when_not(pg_url, monkeypatch):
+    """題名が metadata にある行は、本体（checkpoint）を SQL が返さない。無い行（この機能より前の行）だけ、本体を返して復号する。"""
+    import psycopg
+    from langchain_core.messages import AIMessage, HumanMessage
+    from langgraph.graph import END, START, MessagesState, StateGraph
+    from psycopg.rows import dict_row
+
+    from app.api import threads
+    from app.pg_saver import PgSaver
+
+    def reply(state: MessagesState):
+        return {"messages": [AIMessage(content="answer")]}
+
+    builder = StateGraph(MessagesState)
+    builder.add_node("reply", reply)
+    builder.add_edge(START, "reply")
+    builder.add_edge("reply", END)
+
+    async def run():
+        pool = PgPool(pg_url)
+        await pool.open()
+        try:
+            saver = PgSaver(pool)
+            graph = builder.compile(checkpointer=saver)
+            await graph.ainvoke(
+                {"messages": [HumanMessage("  新しい\n質問   です ")]}, {"configurable": {"thread_id": "u1:new"}}
+            )
+            await graph.ainvoke({"messages": [HumanMessage("古い質問です")]}, {"configurable": {"thread_id": "u1:old"}})
+            monkeypatch.setattr(threads, "get_pool", lambda: pool)
+            with psycopg.connect(pg_url, autocommit=True, row_factory=dict_row) as c:
+                # 古い会話の題名を、この機能より前の状態（metadata に title が無い）に戻す
+                c.execute("UPDATE checkpoints SET metadata = metadata - 'title' WHERE thread_id = 'u1:old'")
+                rows = {
+                    r["thread_id"]: r for r in c.execute(threads._LIST_SQL, {"prefix": "u1:", "limit": 10}).fetchall()
+                }
+            listed = {
+                key: (title, messages)
+                for key, _, _, title, messages in await threads._recent_threads_postgres("u1:", saver)
+            }
+            times_only = {
+                key: (title, messages) for key, _, _, title, messages in await threads._recent_threads_postgres("u1:")
+            }
+            return rows, listed, times_only
+        finally:
+            await pool.close()
+
+    rows, listed, times_only = asyncio.run(run())
+
+    assert rows["u1:new"]["title"] == "新しい 質問 です" and rows["u1:new"]["checkpoint"] is None  # 本体は返らない
+    assert rows["u1:old"]["title"] is None and rows["u1:old"]["checkpoint"] is not None  # 古い行は本体を返す
+    assert listed["u1:new"] == ("新しい 質問 です", [])
+    old_title, old_messages = listed["u1:old"]
+    assert old_title is None and threads.make_title(old_messages) == "古い質問です"  # 復号して、同じ題名になる
+    assert times_only["u1:old"] == (None, [])  # saver が無ければ復号しない
 
 
 @needs_pg
