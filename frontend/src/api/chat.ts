@@ -122,6 +122,26 @@ export function streamEndpoint(path: string): string {
   return base ? `${base}${path}` : endpoint(path);
 }
 
+/**
+ * 読み取りの GET（資料グループ・対象・資料種別・資料の一覧・資料の本文）の接続先。NEXT_PUBLIC_READ_BASE_URL（読み取り API の Go のサービス。
+ * ADR 0017）があればそれを、空なら endpoint() と同じ（NEXT_PUBLIC_API_BASE_URL）を使う。書き込み・チャット・会話の発言などは、これを通さない。
+ * 値を戻す（空にする）だけで、経路ごと Python の API へ戻せる。
+ */
+export function readEndpoint(path: string): string {
+  const base = (process.env.NEXT_PUBLIC_READ_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  return base ? `${base}${path}` : endpoint(path);
+}
+
+/**
+ * 会話の一覧（GET /threads）だけの接続先。NEXT_PUBLIC_READ_THREADS_BASE_URL があればそれを、空なら endpoint() と同じ。
+ * 読み取り API の一覧は、保存済みの題名（checkpoints.metadata の title）だけを読む。題名が未保存の古い会話は「（題名なし）」になるので、
+ * 本番では、題名の補完（`python -m app.history_admin --backfill-titles --apply`）を流してから、この値を設定する。そのため READ_BASE_URL とは別にしてある。
+ */
+export function readThreadsEndpoint(path: string): string {
+  const base = (process.env.NEXT_PUBLIC_READ_THREADS_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  return base ? `${base}${path}` : endpoint(path);
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

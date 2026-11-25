@@ -2,7 +2,7 @@
  * 資料一覧（GET /documents、GET /documents/{id}/chunks）。DB に保存された資料を読むだけ。
  * 認証が要る構成のために、fetch は呼び出し側から受け取る（createAuthedFetch で包んだもの）。
  */
-import { ChatApiError, MSG_BAD_BODY, endpoint, isRecord } from './chat';
+import { ChatApiError, MSG_BAD_BODY, endpoint, isRecord, readEndpoint } from './chat';
 import type { chatFetch } from './chat';
 
 type Fetcher = typeof chatFetch;
@@ -159,7 +159,7 @@ function parseChunk(value: unknown): ChunkItem | null {
 async function getJson(fetcher: Fetcher, path: string, signal?: AbortSignal): Promise<[number, unknown]> {
   const init: RequestInit = { headers: { Accept: 'application/json' } };
   if (signal) init.signal = signal;
-  const response = await fetcher(endpoint(path), init);
+  const response = await fetcher(readEndpoint(path), init);
   const body: unknown = await response.json().catch(() => null);
   return [response.status, body];
 }

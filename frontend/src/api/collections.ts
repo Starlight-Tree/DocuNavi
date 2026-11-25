@@ -3,7 +3,7 @@
  * 認証のために、fetch は呼び出し側から受け取る（createAuthedFetch で包んだもの）。
  * 本文はサーバーの値なので信用せず、形を確かめる。形が違えば MSG_BAD_BODY。
  */
-import { ChatApiError, MSG_BAD_BODY, endpoint, isRecord } from './chat';
+import { ChatApiError, MSG_BAD_BODY, isRecord, readEndpoint } from './chat';
 import type { chatFetch } from './chat';
 
 type Fetcher = typeof chatFetch;
@@ -57,7 +57,7 @@ function parseCollection(value: unknown): CollectionInfo | null {
 export async function fetchCollections(fetcher: Fetcher, signal?: AbortSignal): Promise<CollectionCatalog> {
   const init: RequestInit = { headers: { Accept: 'application/json' } };
   if (signal) init.signal = signal;
-  const response = await fetcher(endpoint('/collections'), init);
+  const response = await fetcher(readEndpoint('/collections'), init);
   const body: unknown = await response.json().catch(() => null);
   if (!isRecord(body) || typeof body.configured !== 'boolean' || !Array.isArray(body.collections)) {
     throw new ChatApiError(response.status, MSG_BAD_BODY);

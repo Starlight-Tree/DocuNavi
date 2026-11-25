@@ -76,6 +76,8 @@ UI_MOCK=1 npm run dev        # http://localhost:3000/mock（?view=documents で�
 | 変数 | 既定値 | 用途 |
 |---|---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | 空（相対 URL） | API のベース URL。**ビルド時に埋め込まれる**。本番（Worker）では、ビルドに使う `deploy-web.sh` が Cloud Run の URL を埋め込む。バックエンドの `CORS_ORIGINS` に、画面のオリジン（`docunavi-web.wataru-apps.workers.dev`）を入れる |
+| `NEXT_PUBLIC_READ_BASE_URL` | 空（`NEXT_PUBLIC_API_BASE_URL` を使う） | 読み取りの GET（`/collections` `/targets` `/doc-types` `/documents` `/documents/{id}/chunks`）だけの接続先（Go の読み取り API [ops/read-api](../ops/read-api/README.md)、[ADR 0017](../docs/decisions/0017-go-read-api-for-speed.md)）。**ビルド時に埋め込まれる**。空に戻すと Python の API へ戻る。PDF（`/documents/{id}/file`。同じオリジンの中継が呼ぶ）は、`FILE_PROXY_TARGET` を読み取り API の URL にして切り替える（`NEXT_PUBLIC_*` ではない） |
+| `NEXT_PUBLIC_READ_THREADS_BASE_URL` | 空（`NEXT_PUBLIC_API_BASE_URL` を使う） | 会話の一覧（`GET /threads`）だけの接続先（同じ読み取り API）。読み取り API の一覧は、保存済みの題名（`checkpoints.metadata` の `title`）だけを読むので、**本番では `python -m app.history_admin --backfill-titles --apply` を流してから設定する**（題名が未保存の古い会話は「（題名なし）」になる）。発言の取得（`/threads/{id}/messages`）と削除は、常に API。**ビルド時に埋め込まれる** |
 | `NEXT_PUBLIC_STREAM_BASE_URL` | 空（`NEXT_PUBLIC_API_BASE_URL` を使う） | `/chat/stream` だけの接続先（Go の SSE 中継 [ops/sse-relay](../ops/sse-relay/README.md)）。**ビルド時に埋め込まれる**ので、変えるには再ビルド（再デプロイ）が要る。空に戻すと中継を通さない。ほかのエンドポイントは変わらない |
 | `API_PROXY_TARGET` | 未設定（転送しない） | 開発サーバーが API のパスを転送する先。**ビルド時に決まる**。`NEXT_PUBLIC_API_BASE_URL` を空にするときに使う |
 | `FILE_PROXY_TARGET` | 未設定（PDF の中継は 404） | 認証ありの構成で、PDF の中継（`/api/documents/{id}/file`。保存名を資料名にするため）が API を呼ぶ先。**ビルド時に決まる**。`API_PROXY_TARGET` とは別（そちらは rewrites を有効にする） |

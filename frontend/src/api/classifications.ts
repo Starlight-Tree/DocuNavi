@@ -4,7 +4,7 @@
  * 認証のために、fetch は呼び出し側から受け取る（createAuthedFetch で包んだもの）。
  * 本文はサーバーの値なので信用せず、形を確かめる。形が違えば MSG_BAD_BODY。
  */
-import { ChatApiError, MSG_BAD_BODY, endpoint, isRecord } from './chat';
+import { ChatApiError, MSG_BAD_BODY, isRecord, readEndpoint } from './chat';
 import type { chatFetch } from './chat';
 
 type Fetcher = typeof chatFetch;
@@ -59,7 +59,7 @@ async function fetchCatalog(
 ): Promise<ClassificationCatalog> {
   const init: RequestInit = { headers: { Accept: 'application/json' } };
   if (signal) init.signal = signal;
-  const response = await fetcher(endpoint(path), init);
+  const response = await fetcher(readEndpoint(path), init);
   const body: unknown = await response.json().catch(() => null);
   const list = isRecord(body) ? body[key] : undefined;
   if (!isRecord(body) || typeof body.configured !== 'boolean' || !Array.isArray(list)) {

@@ -5,6 +5,8 @@ import {
   MEMBERSHIP_REQUIRED_CODE,
   chatFetch,
   endpoint,
+  readEndpoint,
+  readThreadsEndpoint,
   streamEndpoint,
   fetchHealth,
   isJapaneseMessage,
@@ -62,6 +64,33 @@ describe('streamEndpoint', () => {
   it('空白だけなら未設定として扱う', () => {
     vi.stubEnv('NEXT_PUBLIC_STREAM_BASE_URL', '  ');
     expect(streamEndpoint(CHAT_STREAM_PATH)).toBe('/chat/stream');
+  });
+});
+
+describe('readEndpoint / readThreadsEndpoint', () => {
+  it('どちらも空なら endpoint() と同じ（既定の動きは変わらない）', () => {
+    expect(readEndpoint('/documents')).toBe('/documents');
+    expect(readThreadsEndpoint('/threads')).toBe('/threads');
+    vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', 'https://api.example.test/');
+    expect(readEndpoint('/documents')).toBe('https://api.example.test/documents');
+    expect(readThreadsEndpoint('/threads')).toBe('https://api.example.test/threads');
+  });
+
+  it('NEXT_PUBLIC_READ_BASE_URL は読み取りの GET だけを向け、会話の一覧は別の値（題名の補完のあとに設定する）', () => {
+    vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', 'https://api.example.test');
+    vi.stubEnv('NEXT_PUBLIC_READ_BASE_URL', 'https://read.example.test/');
+    expect(readEndpoint('/documents/3/chunks')).toBe('https://read.example.test/documents/3/chunks');
+    expect(readThreadsEndpoint('/threads')).toBe('https://api.example.test/threads');
+    expect(endpoint('/documents/3/graph')).toBe('https://api.example.test/documents/3/graph');
+    vi.stubEnv('NEXT_PUBLIC_READ_THREADS_BASE_URL', 'https://read.example.test');
+    expect(readThreadsEndpoint('/threads')).toBe('https://read.example.test/threads');
+  });
+
+  it('空白だけなら未設定として扱う', () => {
+    vi.stubEnv('NEXT_PUBLIC_READ_BASE_URL', '  ');
+    vi.stubEnv('NEXT_PUBLIC_READ_THREADS_BASE_URL', ' ');
+    expect(readEndpoint('/collections')).toBe('/collections');
+    expect(readThreadsEndpoint('/threads')).toBe('/threads');
   });
 });
 

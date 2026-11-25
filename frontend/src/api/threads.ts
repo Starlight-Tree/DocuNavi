@@ -4,7 +4,7 @@
  */
 import { CLASSIFICATION_NAME_PATTERN } from './classifications';
 import { COLLECTION_NAME_PATTERN } from './collections';
-import { ChatApiError, MSG_BAD_BODY, endpoint, isRecord } from './chat';
+import { ChatApiError, MSG_BAD_BODY, endpoint, isRecord, readThreadsEndpoint } from './chat';
 import type { chatFetch } from './chat';
 
 type Fetcher = typeof chatFetch;
@@ -29,7 +29,7 @@ function parseThread(value: unknown): ThreadSummary | null {
 export async function fetchThreads(fetcher: Fetcher, signal?: AbortSignal): Promise<ThreadSummary[]> {
   const init: RequestInit = { headers: { Accept: 'application/json' } };
   if (signal) init.signal = signal;
-  const response = await fetcher(endpoint('/threads'), init);
+  const response = await fetcher(readThreadsEndpoint('/threads'), init);
   const body: unknown = await response.json().catch(() => null);
   if (!isRecord(body) || !Array.isArray(body.threads)) throw new ChatApiError(response.status, MSG_BAD_BODY);
   const threads: ThreadSummary[] = [];
