@@ -36,6 +36,10 @@
 - **認証は Go でも検証する。** Go のサービスは公開（Cloud Run の `*.run.app`）なので、JWT を自分で検証する（JWKS の ES256/RS256、`exp` `iss` `aud` `sub` 必須。`app/auth.py` と同じ規則）。Python 側の検証は外さない（直接来る経路が残るため。計画書 §5 の 1）。標準ライブラリ（`crypto/ecdsa` `crypto/rsa`）で足りる見込み。1 回の検証は約 70 µs（Django 試作の測定。計画書 §5）。
 - **DB は同じ Postgres。** 読み取り専用のロール（`database-url-readonly` と同じ考え）で接続し、接続数は [0011](0011-db-connection-pool-limits.md) の枠に収める。**Prisma の操作数（[0012](0012-accept-prisma-free-limit-and-cut-operations.md)）を増やさない**（同じ問い合わせを移すだけ。資料の範囲の確認と一覧を 1 本にまとめられれば減る）。
 - **新しい依存は Postgres のドライバーだけ**（`github.com/jackc/pgx/v5` が候補。標準ライブラリには無い）。**追加は、実装の前に別の承認を得る。** R2 の読み出し（段 C）は、署名（SigV4）を標準ライブラリで書くか、依存を足すかを、その段で決める。
+- **`pgx` を入れるときの条件（段 A の最初に確かめて、結果をここに書く）:**
+  - 接続先がプーラー越しかを、実際に接続して確かめる。越しなら、プーラーの種類・版・準備済み文の設定（PgBouncer なら 1.21 以降の `max_prepared_statements`）を見る。標準のモードで通ればそのまま使う。通らないときは、`QueryExecModeSimpleProtocol` より先に `QueryExecModeExec` を試す。`QueryExecModeDescribeExec` は、トランザクション型のプーラーでは使わない。
+  - **未確認:** 上の 2 点は、利用者が貼った別の AI の解説（根拠は解説記事と `pgx` の文書。私は原典を読んでいない）に基づく。Prisma Postgres・Hyperdrive が PgBouncer と同じ挙動かも未確認。段 A で、`pgx` の文書の該当節と実測で確かめる。
+  - `MaxConns` は、[0011](0011-db-connection-pool-limits.md) の枠の実際の値で決めて、ここに書く。追加時に、ライセンスと、`go list -m all`・`go.sum` の差分を確かめる。
 
 ### 3. 移す順（1 経路ずつ。旧実装と並べて比べる）
 
